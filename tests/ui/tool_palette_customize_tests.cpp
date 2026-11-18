@@ -47,6 +47,7 @@
 #include <QStatusBar>
 #include <QStyle>
 #include <QStyleFactory>
+#include <QWidgetAction>
 #include <QStyleOptionViewItem>
 #include <QStyledItemDelegate>
 #include <QTabWidget>
@@ -841,6 +842,37 @@ int visible_palette_separators(const QToolBar& palette) {
   return count;
 }
 
+// The shown tool buttons in each two-column row of the palette, top to bottom.
+std::vector<int> palette_row_sizes(const QToolBar& palette) {
+  std::vector<int> sizes;
+  for (auto* action : palette.actions()) {
+    auto* item = qobject_cast<QWidgetAction*>(action);
+    if (item == nullptr || item->defaultWidget() == nullptr ||
+        item->defaultWidget()->objectName() != QLatin1String("toolPaletteRow")) {
+      continue;
+    }
+    int shown = 0;
+    for (const auto* button : item->defaultWidget()->findChildren<QToolButton*>(Qt::FindDirectChildrenOnly)) {
+      shown += button->isHidden() ? 0 : 1;
+    }
+    sizes.push_back(shown);
+  }
+  return sizes;
+}
+
+// Every two-column row holds two tools, the last one possibly one (GitHub issue 733 follow-up).
+bool palette_rows_have_no_holes(const QToolBar& palette) {
+  const auto sizes = palette_row_sizes(palette);
+  for (std::size_t index = 0; index < sizes.size(); ++index) {
+    if (sizes[index] != 2 && !(index + 1 == sizes.size() && sizes[index] == 1)) {
+      std::printf("  row %d of %d holds %d tools\n", static_cast<int>(index), static_cast<int>(sizes.size()),
+                  sizes[index]);
+      return false;
+    }
+  }
+  return !sizes.empty();
+}
+
 // Rows of the dialog's painted preview that are a separator: most of the row in the separator
 // role (the torn gap's zigzag edges never fill a row).
 int preview_separator_lines(QWidget& preview) {
@@ -866,8 +898,10 @@ int preview_separator_lines(QWidget& preview) {
 // GitHub issue 733: the separators between the palette's tool groups can leave it (shown by
 // default, stored only when hidden). Off, the palette has no separator item, so no line and no
 // gap: each group follows the one above it at a tool's spacing and the column gets shorter by
-// every separator's extent, in one and in two columns (where a group still starts a row of its
-// own). The wheel scrolls such a column to its last tool and back. The dialog's box sits under
+// every separator's extent. In two columns the groups also run together, two tools to a row,
+// so only the last row can be half full (philipzae's follow-up: no blank spot beside Crop or
+// Gradient), also with tools hidden and with No tool groups; shown separators still start
+// each group on a row of its own. The wheel scrolls such a column to its last tool and back. The dialog's box sits under
 // No tool groups, its preview drops the lines, Reset to Default ticks it again and OK stores it.
 void ui_tool_palette_separators_can_be_hidden() {
   CustomizationSettingsGuard settings_guard;
@@ -887,9 +921,11 @@ void ui_tool_palette_separators_can_be_hidden() {
   auto* crop = button_named(window, "cropToolButton");
   auto* brush = button_named(window, "brushToolButton");
   auto* eraser = button_named(window, "eraserToolButton");
+  auto* gradient = button_named(window, "gradientToolButton");
+  auto* wand = button_named(window, "wandToolButton");
   auto* zoom = button_named(window, "zoomToolButton");
   if (move == nullptr || marquee == nullptr || lasso == nullptr || crop == nullptr || brush == nullptr ||
-      eraser == nullptr || zoom == nullptr) {
+      eraser == nullptr || gradient == nullptr || wand == nullptr || zoom == nullptr) {
     return;
   }
   const auto top = [&](const QToolButton* button) { return geometry_in_palette(*palette, *button).top(); };
@@ -920,6 +956,12 @@ void ui_tool_palette_separators_can_be_hidden() {
       std::printf("  separators shown: Crop %d, Brush %d, row step %d\n", top(crop), top(brush), row_step);
     }
     CHECK(separator_extent >= 3);
+    if (two_columns) {
+      // Shown separators: each group starts in the left column, on a row of its own.
+      CHECK(left(brush) == left(move));
+      CHECK(left(crop) == left(move));
+      CHECK(top(eraser) == top(brush));
+    }
     (void)capture_widget_artifact(
         two_columns ? "ui_tool_palette_733_separators_shown_two_columns" : "ui_tool_palette_733_separators_shown",
         *palette);
@@ -933,32 +975,105 @@ void ui_tool_palette_separators_can_be_hidden() {
     for (const auto* action : palette->actions()) {
       CHECK(!action->isSeparator());
     }
-    if (top(brush) - top(crop) != row_step ||
-        palette->sizeHint().height() != shown_height - separators * separator_extent) {
-      std::printf("  separators hidden: Crop %d, Brush %d, row step %d; hint %d, was %d with %d separators of %d px\n",
-                  top(crop), top(brush), row_step, palette->sizeHint().height(), shown_height, separators,
-                  separator_extent);
+    if (!two_columns) {
+      if (top(brush) - top(crop) != row_step ||
+          palette->sizeHint().height() != shown_height - separators * separator_extent) {
+        std::printf("  separators hidden: Crop %d, Brush %d, row step %d; hint %d, was %d with %d separators of %d px\n",
+                    top(crop), top(brush), row_step, palette->sizeHint().height(), shown_height, separators,
+                    separator_extent);
+      }
+      CHECK(top(brush) - top(crop) == row_step);
+      CHECK(palette->sizeHint().height() == shown_height - separators * separator_extent);
     }
     CHECK(top(next_row) - top(move) == row_step);
-    CHECK(top(brush) - top(crop) == row_step);
-    CHECK(palette->sizeHint().height() == shown_height - separators * separator_extent);
-    if (two_columns) {
-      // A group still starts in the left column, on a row of its own.
-      CHECK(left(brush) == left(move));
-      CHECK(top(eraser) == top(brush));
-      CHECK(top(marquee) == top(move));
-    }
     CHECK(move->isVisible() && zoom->isVisible());
     (void)capture_widget_artifact(
         two_columns ? "ui_tool_palette_733_separators_hidden_two_columns" : "ui_tool_palette_733_separators_hidden",
         *palette);
     settle();
 
-    // A short window: the wheel scrolls the column to its last tool and back, and a taller
-    // window brings every tool back. Two columns need the biggest icons to overflow.
     if (two_columns) {
+      // The groups run together: Brush beside Crop, the retouch group's first tool beside
+      // Gradient, no row half empty but the last, and fewer rows than with separators.
+      if (top(brush) != top(crop) || !palette_rows_have_no_holes(*palette)) {
+        std::printf("  flow: Crop %d,%d Brush %d,%d Gradient %d,%d\n", left(crop), top(crop), left(brush), top(brush),
+                    left(gradient), top(gradient));
+      }
+      CHECK(top(marquee) == top(move));
+      CHECK(top(brush) == top(crop));
+      CHECK(left(brush) > left(crop));
+      CHECK(left(eraser) == left(move));
+      CHECK(top(gradient) == top(eraser));
+      CHECK(left(gradient) > left(eraser));
+      CHECK(palette_rows_have_no_holes(*palette));
+      CHECK(palette->sizeHint().height() < shown_height - separators * separator_extent);
+      const auto sizes = palette_row_sizes(*palette);
+      int tools = 0;
+      for (const int size : sizes) {
+        tools += size;
+      }
+      CHECK(static_cast<int>(sizes.size()) == (tools + 1) / 2);
+
+      // A hidden flyout leaves no hole: Wand moves into its place beside Marquee's row,
+      // Crop beside Wand and Brush under it.
+      auto without_lasso = customization;
+      without_lasso.hidden_tools = {QStringLiteral("tools.lasso"), QStringLiteral("tools.polygonal_lasso"),
+                                    QStringLiteral("tools.magnetic_lasso")};
+      window.apply_tool_palette_customization(without_lasso);
+      settle();
+      CHECK(!lasso->isVisible());
+      CHECK(left(wand) == left(move));
+      CHECK(top(wand) - top(move) == row_step);
+      CHECK(top(crop) == top(wand));
+      CHECK(left(brush) == left(move));
+      CHECK(top(brush) - top(wand) == row_step);
+      CHECK(palette_rows_have_no_holes(*palette));
+
+      // No tool groups: every member its own button, still two to a row with no hole; with
+      // separators shown again each group starts a row.
+      auto ungrouped = customization;
+      ungrouped.ungroup_tools = true;
+      window.apply_tool_palette_customization(ungrouped);
+      settle();
+      CHECK(palette_rows_have_no_holes(*palette));
+      CHECK(visible_palette_separators(*palette) == 0);
+      ungrouped.show_separators = true;
+      window.apply_tool_palette_customization(ungrouped);
+      settle();
+      CHECK(visible_palette_separators(*palette) >= 3);
+
+      window.apply_tool_palette_customization(customization);
+      settle();
+      CHECK(top(brush) == top(crop));
+    }
+
+    // A short window: the wheel scrolls the column to its last tool and back, and a taller
+    // window brings every tool back. Two columns run together are short enough to fit the
+    // smallest window even at the biggest icons, so they also ungroup the tools to overflow.
+    const QToolButton* first_tool = move;
+    if (two_columns) {
+      auto ungrouped = customization;
+      ungrouped.ungroup_tools = true;
+      window.apply_tool_palette_customization(ungrouped);
       window.apply_tool_palette_preferences(patchy::ui::ToolbarIconSize::Biggest,
                                             patchy::ui::ToolFlyoutOpenMode::Hold);
+      window.resize(window.width(), 1400);
+      settle();
+      for (auto* action : palette->actions()) {
+        auto* item = qobject_cast<QWidgetAction*>(action);
+        if (item != nullptr && item->defaultWidget() != nullptr &&
+            item->defaultWidget()->objectName() == QLatin1String("toolPaletteRow")) {
+          const auto buttons = item->defaultWidget()->findChildren<QToolButton*>(Qt::FindDirectChildrenOnly);
+          for (const auto* button : buttons) {
+            if (!button->isHidden()) {
+              first_tool = button;
+              break;
+            }
+          }
+          break;
+        }
+      }
+      CHECK(first_tool->isVisible());
     }
     shrink_palette(window, *palette, 150);
     if (!layout->can_scroll_down()) {
@@ -971,7 +1086,7 @@ void ui_tool_palette_separators_can_be_hidden() {
       send_wheel(*palette, -120);
     }
     CHECK(zoom->isVisible());
-    CHECK(!move->isVisible());
+    CHECK(!first_tool->isVisible());
     CHECK(layout->scroll_offset() > 0);
     CHECK(!layout->can_scroll_down());
     CHECK(visible_palette_separators(*palette) == 0);
@@ -979,7 +1094,7 @@ void ui_tool_palette_separators_can_be_hidden() {
       send_wheel(*palette, 120);
     }
     CHECK(layout->scroll_offset() == 0);
-    CHECK(move->isVisible());
+    CHECK(first_tool->isVisible());
     for (int notches = 0; notches < 3; ++notches) {
       send_wheel(*palette, -120);
     }
@@ -990,7 +1105,12 @@ void ui_tool_palette_separators_can_be_hidden() {
     window.resize(window.width(), 1400);
     settle();
     CHECK(layout->scroll_offset() == 0);
-    CHECK(move->isVisible() && zoom->isVisible());
+    CHECK(first_tool->isVisible() && zoom->isVisible());
+    if (two_columns) {
+      window.apply_tool_palette_customization(customization);
+      settle();
+      CHECK(move->isVisible() && zoom->isVisible());
+    }
   }
 
   // Stored only when hidden; a new window reads it.
@@ -1051,6 +1171,24 @@ void ui_tool_palette_separators_can_be_hidden() {
     CHECK(hidden_strip < strip || hidden_rows > shown_rows);
     CHECK(hidden_strip <= preview->height());
     (void)capture_widget_artifact("ui_tool_palette_733_customize_dialog_separators_hidden", dialog);
+
+    // Two columns: hidden separators let the groups run together, so the preview has fewer
+    // rows than with them shown (the select and paint groups have an odd number of tools).
+    auto* two_columns_radio = dialog.findChild<QRadioButton*>(QStringLiteral("toolPaletteTwoColumnsRadio"));
+    CHECK(two_columns_radio != nullptr);
+    if (two_columns_radio != nullptr) {
+      two_columns_radio->setChecked(true);
+      settle();
+      const int flowing_rows = preview->property("toolRows").toInt();
+      (void)capture_widget_artifact("ui_tool_palette_733_customize_dialog_two_columns_flow", dialog);
+      box->setChecked(true);
+      settle();
+      const int grouped_rows = preview->property("toolRows").toInt();
+      if (flowing_rows >= grouped_rows) {
+        std::printf("  preview two columns: %d rows hidden, %d shown\n", flowing_rows, grouped_rows);
+      }
+      CHECK(flowing_rows > 0 && flowing_rows < grouped_rows);
+    }
 
     reset->click();
     settle();

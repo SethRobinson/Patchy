@@ -304,11 +304,14 @@ void ToolPaletteLayout::build_items() {
     clusters = std::max(clusters, slot.cluster + 1);
   }
   const int spacing = palette_->layout() != nullptr ? palette_->layout()->spacing() : 1;
+  // Without separators (GitHub issue 733) the clusters run together as one: no line, no gap,
+  // and in two columns no half-empty row at a cluster's end, only possibly the last one.
+  const int groups = customization_.show_separators ? clusters : std::min(clusters, 1);
   bool first = true;
-  for (int cluster = 0; cluster < clusters; ++cluster) {
+  for (int group = 0; group < groups; ++group) {
     std::vector<std::pair<QToolButton*, QWidgetAction*>> shown;
     for (const auto& slot : slots_) {
-      if (slot.cluster == cluster) {
+      if (!customization_.show_separators || slot.cluster == group) {
         const auto buttons = shown_buttons(slot);
         shown.insert(shown.end(), buttons.begin(), buttons.end());
       }
@@ -316,9 +319,7 @@ void ToolPaletteLayout::build_items() {
     if (shown.empty()) {
       continue;
     }
-    // Without separators (GitHub issue 733) the clusters follow each other with a tool's
-    // spacing; two columns still start each cluster on a row of its own.
-    if (!first && customization_.show_separators) {
+    if (!first) {
       items_.push_back({palette_->addSeparator(), true, nullptr});
     }
     first = false;
@@ -330,7 +331,7 @@ void ToolPaletteLayout::build_items() {
       }
       continue;
     }
-    // Two columns: the cluster's tools left to right, two to a row (philipzae's layout in
+    // Two columns: the group's tools left to right, two to a row (philipzae's layout in
     // GitHub issue 213). A row is one toolbar item, so an overflow folds whole rows.
     for (std::size_t index = 0; index < shown.size(); index += 2) {
       auto* row = new QWidget(palette_);

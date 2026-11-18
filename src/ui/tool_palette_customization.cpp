@@ -147,15 +147,11 @@ protected:
     int y = kMargin;
     int rows_left = metrics.shown_rows;
     bool first = true;
-    for (const auto& cluster : catalog_.clusters) {
-      const auto shown = visible_slots(cluster);
-      if (shown.empty()) {
-        continue;
-      }
+    for (const auto& shown : visible_groups()) {
       if (rows_left == 0) {
         break;
       }
-      if (!first && choice_.customization.show_separators) {
+      if (!first) {
         painter.fillRect(QRect(kMargin, y + kSeparatorMargin, size.width() - 1 - 2 * kMargin, 1),
                          colors.tool_palette_separator);
         y += kSeparatorExtent + kSpacing;
@@ -313,17 +309,33 @@ private:
     return shown;
   }
 
+  // The visible slots of each cluster that shows any; with separators hidden the clusters run
+  // together as one group, so two columns leave no half-empty row between them (issue 733).
+  [[nodiscard]] std::vector<std::vector<PreviewSlot>> visible_groups() const {
+    std::vector<std::vector<PreviewSlot>> groups;
+    for (const auto& cluster : catalog_.clusters) {
+      auto shown = visible_slots(cluster);
+      if (shown.empty()) {
+        continue;
+      }
+      if (!choice_.customization.show_separators && !groups.empty()) {
+        groups.back().insert(groups.back().end(), shown.begin(), shown.end());
+      } else {
+        groups.push_back(std::move(shown));
+      }
+    }
+    return groups;
+  }
+
   // The strip's layout at the Normal toolbar icon size within `available` height: every row
   // when the whole palette fits, else the rows that fit above the gap and the footer (at
   // least one, so a cut strip always shows where it starts).
   [[nodiscard]] Metrics measure(int available) const {
     const int columns = choice_.customization.two_columns ? 2 : 1;
     std::vector<int> cluster_rows;
-    for (const auto& cluster : catalog_.clusters) {
-      const auto count = static_cast<int>(visible_slots(cluster).size());
-      if (count > 0) {
-        cluster_rows.push_back((count + columns - 1) / columns);
-      }
+    for (const auto& group : visible_groups()) {
+      const auto count = static_cast<int>(group.size());
+      cluster_rows.push_back((count + columns - 1) / columns);
     }
     int footer = kFooterGap + kMargin;
     if (shows(kToolPaletteColorsId)) {
@@ -336,8 +348,8 @@ private:
       footer += kFooterRow;
     }
     constexpr int kRow = kCellHeight + kSpacing;
-    // Without separators a cluster follows the one above it like any other row (issue 733).
-    const int cluster_gap = choice_.customization.show_separators ? kSeparatorExtent + kSpacing : 0;
+    // Without separators the clusters are one group (issue 733), so no gap is ever added.
+    const int cluster_gap = kSeparatorExtent + kSpacing;
     Metrics metrics;
     int full = kMargin;
     for (std::size_t index = 0; index < cluster_rows.size(); ++index) {
