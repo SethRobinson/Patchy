@@ -36946,6 +36946,10 @@ Locked: %1</source>
         <source>Rename, edit, load and save the contours that layer styles use.</source>
         <translation>重命名、编辑、载入和存储图层样式使用的等高线。</translation>
     </message>
+    <message>
+        <source>Warp bend: drag to watch the layer change</source>
+        <translation>变形弯曲度：拖动时可看到图层的变化</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

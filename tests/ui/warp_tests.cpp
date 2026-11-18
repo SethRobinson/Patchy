@@ -38,6 +38,10 @@
 #include <QPushButton>
 #include <QRectF>
 #include <QRadioButton>
+#include <QScopeGuard>
+#include <QSlider>
+#include <QStyle>
+#include <QStyleOptionSlider>
 #include <QSpinBox>
 #include <QStringList>
 #include <QTabWidget>
@@ -3211,10 +3215,244 @@ void ui_warp_after_perspective_handle_stops_at_the_horizon() {
   CHECK(bounds.has_value() && sane.contains(QRectF(*bounds)));
 }
 
+// GitHub issue 719 follow-up: a slider beside the Warp bar's Bend field sets the same
+// value for every style, both ways, and is shown and enabled exactly with the field.
+void ui_warp_bend_slider_follows_field_and_sets_bend() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document built(160, 120, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(48, 36, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 36; ++y) {
+    for (std::int32_t x = 0; x < 48; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(40 * (x / 8));
+      px[1] = 120;
+      px[2] = 90;
+      px[3] = 255;
+    }
+  }
+  patchy::Layer layer(built.allocate_layer_id(), "label", std::move(pixels));
+  layer.set_bounds(patchy::Rect{50, 30, 48, 36});
+  built.add_layer(std::move(layer));
+  const auto layer_id = built.layers().back().id();
+  built.set_active_layer(layer_id);
+  window.add_document_session(std::move(built), QStringLiteral("Bend slider"));
+  QApplication::processEvents();
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("warpStyleCombo"));
+  auto* bend_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("warpBendSpin"));
+  auto* bend_slider = window.findChild<QSlider*>(QStringLiteral("warpBendSlider"));
+  CHECK(style_combo != nullptr && bend_spin != nullptr && bend_slider != nullptr);
+  CHECK(!bend_slider->isVisible());  // only while the cage is up
+
+  require_action(window, "editWarpTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->warp_transform_active());
+  CHECK(bend_slider->isVisible() && bend_slider->isEnabled());
+  CHECK(bend_slider->isEnabled() == bend_spin->isEnabled());
+  CHECK(bend_slider->minimum() == -100 && bend_slider->maximum() == 100);
+  CHECK(bend_slider->value() == static_cast<int>(std::lround(bend_spin->value())));
+  CHECK(!bend_slider->toolTip().isEmpty());
+  // Right after the field on the bar.
+  CHECK(bend_slider->geometry().left() >= bend_spin->geometry().right());
+  CHECK(std::abs(bend_slider->geometry().center().y() - bend_spin->geometry().center().y()) <= 4);
+
+  // A bend style: the slider sets the field and the cage's bend.
+  style_combo->setCurrentIndex(style_combo->findData(QStringLiteral("warpArc")));
+  QApplication::processEvents();
+  bend_slider->setValue(-35);
+  QApplication::processEvents();
+  CHECK(bend_spin->value() == -35.0);
+  CHECK(canvas->warp_style_preset() == QStringLiteral("warpArc"));
+  CHECK(canvas->warp_style_preset_value() == -35.0);
+  // Typing in the field moves the slider.
+  bend_spin->setValue(62.0);
+  QApplication::processEvents();
+  CHECK(bend_slider->value() == 62);
+  CHECK(canvas->warp_style_preset_value() == 62.0);
+
+  // Patchy's Cylinder takes the same Bend value and nothing else.
+  const QString cylinder_style = QStringLiteral("patchyCylinderWrap");
+  style_combo->setCurrentIndex(style_combo->findData(cylinder_style));
+  QApplication::processEvents();
+  const auto steps_before = canvas->transform_session_undo_step_count();
+  bend_slider->setValue(40);
+  QApplication::processEvents();
+  CHECK(canvas->warp_style_preset() == cylinder_style);
+  CHECK(canvas->warp_style_preset_value() == 40.0);
+  CHECK(bend_spin->value() == 40.0);
+  // Depth 40% of a quarter of the 48 px width; the inner columns sit a third above it.
+  const auto inner = canvas->warp_handle_document_position(1);
+  CHECK(std::abs(inner.x() - 50.0) < 1e-6 && std::abs(inner.y() - (30.0 + 6.4)) < 1e-6);
+  // A slider step outside a drag (a key, a wheel step) is one session step, like the field.
+  CHECK(canvas->transform_session_undo_step_count() == steps_before + 1);
+  save_widget_artifact("ui_warp_bend_slider_cylinder", window);
+
+  // A handle drag flips the style to Custom; the slider stays usable with the field.
+  canvas->set_warp_handle_document_position(5, canvas->warp_handle_document_position(5) + QPointF(3.0, 2.0));
+  QApplication::processEvents();
+  CHECK(style_combo->currentData().toString() == QStringLiteral("warpCustom"));
+  CHECK(bend_slider->isEnabled() == bend_spin->isEnabled());
+
+  canvas->cancel_warp_transform();
+  QApplication::processEvents();
+  CHECK(!bend_slider->isVisible());
+}
+
+// The Bend slider's drag re-renders the warp preview: queued moves coalesce (the app-wide
+// slider filter), the canvas renders the newest bend once per painted frame, the release
+// lands on a move recorded right before it, and the whole drag is one session step.
+void ui_warp_bend_slider_drag_coalesces_queued_moves() {
+  struct Result {
+    int coalesced{0};
+    int value_after_burst{0};
+    int value_after_release{0};
+    int burst_renders{0};
+    int steps_during{0};
+    int steps_added{0};
+    bool drag_flag_during{false};
+    bool drag_flag_after{true};
+    bool undo_restores{false};
+  };
+  const auto run = [](bool queued) {
+    Result result;
+    patchy::ui::MainWindow window;
+    show_window(window);
+    constexpr int kWidth = 1600;
+    constexpr int kHeight = 1000;
+    patchy::Document built(kWidth, kHeight, patchy::PixelFormat::rgba8());
+    patchy::PixelBuffer art(kWidth, kHeight, patchy::PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < kHeight; ++y) {
+      for (std::int32_t x = 0; x < kWidth; ++x) {
+        auto* px = art.pixel(x, y);
+        const bool band = ((x / 100) + (y / 100)) % 2 == 0;
+        px[0] = static_cast<std::uint8_t>(band ? 210 : 40);
+        px[1] = static_cast<std::uint8_t>(band ? 90 : 160);
+        px[2] = 50;
+        px[3] = 255;
+      }
+    }
+    patchy::Layer layer(built.allocate_layer_id(), "Photo", std::move(art));
+    const auto layer_id = layer.id();
+    built.add_layer(std::move(layer));
+    built.set_active_layer(layer_id);
+    window.add_document_session(std::move(built), QStringLiteral("Bend drag"));
+    QApplication::processEvents();
+    auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+    CHECK(canvas != nullptr);
+    canvas->set_view_zoom_centered(0.25);
+    QApplication::processEvents();
+    require_action(window, "editWarpTransformAction")->trigger();
+    QApplication::processEvents();
+    CHECK(canvas->warp_transform_active());
+    auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("warpStyleCombo"));
+    auto* bend_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("warpBendSpin"));
+    auto* slider = window.findChild<QSlider*>(QStringLiteral("warpBendSlider"));
+    CHECK(style_combo != nullptr && bend_spin != nullptr && slider != nullptr && slider->isVisible());
+    bend_spin->setValue(0.0);
+    style_combo->setCurrentIndex(style_combo->findData(QStringLiteral("patchyCylinderWrap")));
+    QApplication::processEvents();
+    canvas->repaint();
+    CHECK(slider->value() == 0);
+    const auto inner_before = canvas->warp_handle_document_position(1);
+
+    QStyleOptionSlider option;
+    option.initFrom(slider);
+    option.orientation = Qt::Horizontal;
+    option.state |= QStyle::State_Horizontal;
+    option.minimum = slider->minimum();
+    option.maximum = slider->maximum();
+    option.sliderPosition = slider->sliderPosition();
+    option.sliderValue = slider->value();
+    option.singleStep = slider->singleStep();
+    option.pageStep = slider->pageStep();
+    option.upsideDown = slider->layoutDirection() == Qt::RightToLeft;
+    const auto start =
+        slider->style()->subControlRect(QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, slider).center();
+
+    patchy::ui::set_slider_drag_coalescing_all_moves_for_testing(queued);
+    const auto restore = qScopeGuard([] { patchy::ui::set_slider_drag_coalescing_all_moves_for_testing(false); });
+    const auto steps_before = canvas->transform_session_undo_step_count();
+    const auto coalesced_before = patchy::ui::slider_drag_moves_coalesced_for_testing();
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(start), slider->mapToGlobal(QPointF(start)), Qt::LeftButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(slider, &press);
+    CHECK(slider->isSliderDown());
+    result.drag_flag_during = canvas->warp_style_drag_active();
+    const auto renders_before = canvas->render_cache_diagnostics().warp_preview_renders;
+    QPointF last(start);
+    for (int move = 1; move <= 30; ++move) {
+      last = QPointF(start.x() + move, start.y());
+      QCoreApplication::postEvent(slider, new QMouseEvent(QEvent::MouseMove, last, slider->mapToGlobal(last),
+                                                          Qt::NoButton, Qt::LeftButton, Qt::NoModifier));
+    }
+    QApplication::processEvents();
+    QApplication::processEvents();
+    QApplication::processEvents();
+    canvas->repaint();
+    result.burst_renders = static_cast<int>(canvas->render_cache_diagnostics().warp_preview_renders - renders_before);
+    result.value_after_burst = slider->value();
+    CHECK(bend_spin->value() == static_cast<double>(result.value_after_burst));
+    CHECK(canvas->warp_style_preset_value() == static_cast<double>(result.value_after_burst));
+    result.steps_during = canvas->transform_session_undo_step_count() - steps_before;
+    const auto end = QPointF(start.x() + 44, start.y());
+    const auto before_end = QPointF(start.x() + 40, start.y());
+    QMouseEvent applied(QEvent::MouseMove, before_end, slider->mapToGlobal(before_end), Qt::NoButton, Qt::LeftButton,
+                        Qt::NoModifier);
+    QApplication::sendEvent(slider, &applied);  // applied, opens a pass
+    QMouseEvent recorded(QEvent::MouseMove, end, slider->mapToGlobal(end), Qt::NoButton, Qt::LeftButton,
+                         Qt::NoModifier);
+    QApplication::sendEvent(slider, &recorded);  // recorded when queued
+    result.coalesced = patchy::ui::slider_drag_moves_coalesced_for_testing() - coalesced_before;
+    QMouseEvent release(QEvent::MouseButtonRelease, end, slider->mapToGlobal(end), Qt::LeftButton, Qt::NoButton,
+                        Qt::NoModifier);
+    QApplication::sendEvent(slider, &release);
+    QApplication::processEvents();
+    result.value_after_release = slider->value();
+    CHECK(canvas->warp_style_preset_value() == static_cast<double>(result.value_after_release));
+    CHECK(bend_spin->value() == static_cast<double>(result.value_after_release));
+    result.drag_flag_after = canvas->warp_style_drag_active();
+    result.steps_added = canvas->transform_session_undo_step_count() - steps_before;
+    // Undo inside the session takes the whole drag back.
+    CHECK(canvas->undo_transform_session_step());
+    const auto inner_after_undo = canvas->warp_handle_document_position(1);
+    result.undo_restores = std::abs(inner_after_undo.x() - inner_before.x()) < 1e-6 &&
+                           std::abs(inner_after_undo.y() - inner_before.y()) < 1e-6;
+    canvas->cancel_warp_transform();
+    QApplication::processEvents();
+    return result;
+  };
+  const auto sent = run(false);
+  const auto queued = run(true);
+  std::printf("[INFO] bend slider: %d/%d after the burst sent/queued, %d/%d after the release, %d coalesced, "
+              "%d/%d burst renders\n",
+              sent.value_after_burst, queued.value_after_burst, sent.value_after_release, queued.value_after_release,
+              queued.coalesced, sent.burst_renders, queued.burst_renders);
+  CHECK(sent.coalesced == 0);
+  CHECK(queued.coalesced == 30);  // 29 of the burst, and the move right before the release
+  CHECK(sent.value_after_burst > 20);
+  CHECK(queued.value_after_burst == sent.value_after_burst);
+  CHECK(queued.value_after_release == sent.value_after_release);
+  CHECK(sent.value_after_release > sent.value_after_burst);
+  // The preview renders per painted frame, never per move.
+  CHECK(queued.burst_renders >= 1 && queued.burst_renders <= 2);
+  CHECK(sent.burst_renders >= 1 && sent.burst_renders <= 2);
+  for (const auto* result : {&sent, &queued}) {
+    CHECK(result->drag_flag_during);
+    CHECK(!result->drag_flag_after);
+    CHECK(result->steps_during == 0);
+    CHECK(result->steps_added == 1);
+    CHECK(result->undo_restores);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> warp_tests() {
   return {
+      {"ui_warp_bend_slider_follows_field_and_sets_bend", ui_warp_bend_slider_follows_field_and_sets_bend},
+      {"ui_warp_bend_slider_drag_coalesces_queued_moves", ui_warp_bend_slider_drag_coalesces_queued_moves},
       {"ui_warp_resample_parallel_and_clipped_match_sequential",
        ui_warp_resample_parallel_and_clipped_match_sequential},
       {"ui_warp_drag_preview_renders_at_view_resolution", ui_warp_drag_preview_renders_at_view_resolution},

@@ -4845,6 +4845,10 @@ void MainWindow::refresh_options_bar() {
     if (canvas_->warp_style_preset() != QStringLiteral("warpCustom")) {
       warp_bend_spin_->setValue(canvas_->warp_style_preset_value());
     }
+    if (warp_bend_slider_ != nullptr) {
+      const QSignalBlocker slider_blocker(warp_bend_slider_);
+      warp_bend_slider_->setValue(qRound(warp_bend_spin_->value()));
+    }
   }
   refresh_vector_tool_options_visibility();
   refresh_vector_stroke_controls();

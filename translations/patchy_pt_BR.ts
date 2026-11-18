@@ -37061,6 +37061,10 @@ Bloqueado: %1</translation>
         <source>Rename, edit, load and save the contours that layer styles use.</source>
         <translation>Renomeie, edite, carregue e salve os contornos usados pelos estilos de camada.</translation>
     </message>
+    <message>
+        <source>Warp bend: drag to watch the layer change</source>
+        <translation>Curvatura: arraste para ver a camada mudar</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

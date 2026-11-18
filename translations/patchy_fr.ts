@@ -37061,6 +37061,10 @@ Verrouillé : %1</translation>
         <source>Rename, edit, load and save the contours that layer styles use.</source>
         <translation>Renommer, modifier, charger et enregistrer les contours utilisés par les styles de calque.</translation>
     </message>
+    <message>
+        <source>Warp bend: drag to watch the layer change</source>
+        <translation>Inflexion de la déformation : faites glisser pour voir le calque changer</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

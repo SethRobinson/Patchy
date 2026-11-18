@@ -37061,6 +37061,10 @@ Bloccato: %1</translation>
         <source>Rename, edit, load and save the contours that layer styles use.</source>
         <translation>Rinomina, modifica, carica e salva i contorni usati dagli stili di livello.</translation>
     </message>
+    <message>
+        <source>Warp bend: drag to watch the layer change</source>
+        <translation>Piega dell&apos;alterazione: trascina per vedere il livello cambiare</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

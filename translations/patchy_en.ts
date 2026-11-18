@@ -36979,6 +36979,10 @@ Locked: %1</source>
         <source>Rename, edit, load and save the contours that layer styles use.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Warp bend: drag to watch the layer change</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
