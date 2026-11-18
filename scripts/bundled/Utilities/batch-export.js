@@ -21,6 +21,27 @@ var OPTIONS = {
 };
 // ---------------------------------------------------------------------------
 
+function planExports(folder, outFolder, files, format) {
+  var owners = Object.create(null);
+  var targets = [];
+  for (var i = 0; i < files.length; i++) {
+    var source = folder + "/" + files[i];
+    owners[patchy.io.pathKey(source)] = source;
+  }
+  for (i = 0; i < files.length; i++) {
+    var base = files[i].replace(/\.[^.]+$/, "");
+    var target = outFolder + "/" + base + "." + format;
+    var key = patchy.io.pathKey(target);
+    if (owners[key] !== undefined) {
+      throw new Error("Batch Export cancelled before writing. " + target +
+                      " conflicts with " + owners[key] + ". Choose another output folder or file pattern.");
+    }
+    owners[key] = folder + "/" + files[i];
+    targets.push(target);
+  }
+  return targets;
+}
+
 var options = patchy.ui.showOptions({
   title: "Batch Export",
   description: "Converts a whole folder of images in one go.\n\n" +
@@ -49,19 +70,20 @@ if (options && (!options.folder || !options.out)) {
   if (files.length === 0) {
     app.alert("No files in " + folder + " match " + options.pattern + ".");
   }
+  var targets = planExports(folder, outFolder, files, options.format);
   var exported = 0;
   var failed = 0;
   for (var i = 0; i < files.length; i++) {
     var name = files[i];
+    var doc = null;
     try {
-      var doc = app.open(folder + "/" + name);
+      doc = app.open(folder + "/" + name);
       if (options.maxSize > 0 && (doc.width > options.maxSize || doc.height > options.maxSize)) {
         var scale = options.maxSize / Math.max(doc.width, doc.height);
         doc.resizeImage(Math.max(1, Math.round(doc.width * scale)),
                         Math.max(1, Math.round(doc.height * scale)));
       }
-      var base = name.replace(/\.[^.]+$/, "");
-      var target = outFolder + "/" + base + "." + options.format;
+      var target = targets[i];
       if (doc.exportAs(target)) {
         console.log("Exported " + target);
         exported++;
@@ -69,10 +91,11 @@ if (options && (!options.folder || !options.out)) {
         console.warn("Could not export " + target);
         failed++;
       }
-      doc.close();
     } catch (error) {
       console.warn("Skipped " + name + ": " + error);
       failed++;
+    } finally {
+      if (doc) { doc.close(); }
     }
   }
   console.log(exported + " file(s) exported" + (failed ? ", " + failed + " failed." : "."));

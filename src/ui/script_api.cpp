@@ -4874,6 +4874,8 @@ QStringList ScriptIoObject::listFiles(const QString& dir, const QString& pattern
 
 bool ScriptIoObject::fileExists(const QString& path) { return QFileInfo(path).isFile(); }
 
+QString ScriptIoObject::pathKey(const QString& path) { return file_identity_key(path); }
+
 double ScriptIoObject::fileSize(const QString& path) {
   const QFileInfo info(path);
   if (!info.isFile()) {

@@ -2099,6 +2099,9 @@ interface PatchyIo {
   listFiles(dir: string, pattern?: string): string[];
   /** True when path is an existing file (folders do not count). Never throws. */
   fileExists(path: string): boolean;
+  /** A comparison key for a path: resolves existing links, cleans absolute paths and
+   * folds case on Windows and macOS. Empty input gives an empty key. */
+  pathKey(path: string): string;
   /** Size in bytes, or -1 when path is not an existing file. Never throws. */
   fileSize(path: string): number;
   /** Creates the folder and any missing parents; true when it exists afterwards. */

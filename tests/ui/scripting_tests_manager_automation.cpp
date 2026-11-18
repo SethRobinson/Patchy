@@ -1899,6 +1899,47 @@ void ui_script_layer_duplicate_to_document() {
   CHECK(backlog_contains(window, QStringLiteral("dup-ok true true")));
 }
 
+bool run_export_utility(patchy::ui::MainWindow& window, const QString& name, QStringList args) {
+  auto& host = window.script_engine_host();
+  const auto path = QDir(patchy::ui::MainWindow::bundled_scripts_directory()).filePath("Utilities/" + name);
+  CHECK(QFileInfo::exists(path));
+  const bool started_ok = host.run_file(path, std::move(args), /*unattended=*/true);
+  wait_for_run_end(host);
+  CHECK(!host.run_active());
+  return started_ok && !host.last_run_had_error();
+}
+
+void ui_script_batch_export_checks_all_names_before_writing() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const QDir folder(patchy::ui::to_qstring(std::filesystem::absolute(
+      patchy::test::unicode_artifact_dir(u8"batch-export"))));
+  CHECK(folder.mkpath("out"));
+  QImage image(16, 8, QImage::Format_RGB32);
+  image.fill(Qt::red);
+  CHECK(image.save(folder.filePath("a.bmp")));
+  CHECK(image.save(folder.filePath("photo.bmp")));
+  const auto original = folder.filePath("photo.png");
+  CHECK(image.save(original));
+  const auto read_source = [&] {
+    QFile file(original);
+    CHECK(file.open(QIODevice::ReadOnly));
+    return file.readAll();
+  };
+  const auto bytes = read_source();
+  const QStringList args{"folder=" + folder.path(), "format=png", "maxSize=4"};
+  const auto batch = [&](const QString& dest, const QString& pattern) {
+    return run_export_utility(window, "batch-export.js", args + QStringList{"out=" + dest, "pattern=" + pattern});
+  };
+  CHECK(!batch(folder.filePath("out/.."), "*.png"));
+  CHECK(read_source() == bytes);
+  CHECK(!batch(folder.filePath("out"), "*"));
+  CHECK(QDir(folder.filePath("out")).entryList(QDir::Files).isEmpty());
+  CHECK(batch(folder.filePath("out"), "*.png"));
+  CHECK(QImage(folder.filePath("out/photo.png")).size() == QSize(4, 2));
+  CHECK(read_source() == bytes);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> scripting_tests_part3() {
@@ -1939,5 +1980,6 @@ std::vector<patchy::test::TestCase> scripting_tests_part3() {
       {"ui_script_unattended_normalizes_forms_and_guards_commands", ui_script_unattended_normalizes_forms_and_guards_commands},
       {"ui_script_geometry_rgb_fill_and_empty_text_regressions", ui_script_geometry_rgb_fill_and_empty_text_regressions},
       {"ui_script_layer_duplicate_to_document", ui_script_layer_duplicate_to_document},
+      {"ui_script_batch_export_checks_all_names_before_writing", ui_script_batch_export_checks_all_names_before_writing},
   };
 }

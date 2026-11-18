@@ -661,6 +661,7 @@ Sound is best-effort per platform: Windows and macOS play through the OS directl
 | `patchy.io.readTextFile(path)` / `patchy.io.writeTextFile(path, text)` | Plain text in and out (throws on failure; reads are capped at 256 MB). A write replaces the file whole through a temporary and a rename, so a failed write keeps the previous file. |
 | `patchy.io.listFiles(dir, pattern)` | File names in a folder matching `"*.png"`-style patterns, sorted. |
 | `patchy.io.fileExists(path)` / `patchy.io.fileSize(path)` | Whether a file exists, and its size in bytes (-1 when missing). Never throw. |
+| `patchy.io.pathKey(path)` | An absolute path for comparing names. Resolves links to existing files or folders, cleans redundant path components, and folds case on Windows and macOS. Empty input gives an empty key. |
 | `patchy.io.makeDir(path)` / `patchy.io.deleteFile(path)` | Create a folder (with parents) or remove one file; both return true on success. |
 | `patchy.io.readImage(path, options?)` / `patchy.io.writeImage(path, block)` | Image files to and from pixel blocks. `readImage` decodes PNG, JPEG, TIFF and the other formats Patchy's image library reads into RGBA8 (`{x: 0, y: 0, width, height, data}`), or with `{grayscale: true}` into one byte per pixel, the form `setMask` and `setLayerMask` take. `writeImage` picks the format from the extension (PNG without one): a 4-byte-per-pixel block writes RGBA, a 1-byte block (a mask) writes grayscale. Use these with `doc.getCompositePixels`, `getMask` and `setPixels` to hand pixels to another program through files. |
 

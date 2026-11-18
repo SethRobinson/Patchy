@@ -131,6 +131,8 @@ Browse; values travel as "/" paths) and the `description` header. Games delibera
 show no dialog (OPTIONS block only: a game should just start); trim-to-content and
 save-version stay instant too.
 
+Batch Export checks every input and destination with `patchy.io.pathKey` before opening any source.
+
 ## Shadow overrides (saving over a bundled script)
 
 Save on a bundled script never touches the shipped file (read-only installs; app updates

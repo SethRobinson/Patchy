@@ -541,6 +541,7 @@ public:
   // File probes so a script can verify its own output (and tests can drive the
   // real build through --run-script). None of them throw.
   Q_INVOKABLE bool fileExists(const QString& path);
+  Q_INVOKABLE QString pathKey(const QString& path);
   // Size in bytes, or -1 when `path` is not an existing file.
   Q_INVOKABLE double fileSize(const QString& path);
   // Creates the folder and any missing parents; true when it exists afterwards.
