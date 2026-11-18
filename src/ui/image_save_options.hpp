@@ -45,6 +45,7 @@ struct ImageSaveOptions {
   IcoResample ico_resample{IcoResample::Auto};
   int cur_hotspot_x{0};
   int cur_hotspot_y{0};
+  bool cur_preserve_layer_hotspots{false};
   // PDF image data: pixel-exact Flate, or JPEG at pdf_jpeg_quality. The pair is one of
   // the pdf_image_quality_presets (ui/pdf_export.hpp) and persists by preset id as
   // saveOptions/pdfImageQuality; load_image_save_option_defaults answers "high" when

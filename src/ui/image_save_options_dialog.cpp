@@ -1770,6 +1770,9 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     }
     options.ico_resample = static_cast<IcoResample>(resample->currentData().toInt());
     if (cursor) {
+      if (hotspot_x->value() != options.cur_hotspot_x || hotspot_y->value() != options.cur_hotspot_y) {
+        options.cur_preserve_layer_hotspots = false;
+      }
       options.cur_hotspot_x = hotspot_x->value();
       options.cur_hotspot_y = hotspot_y->value();
     }

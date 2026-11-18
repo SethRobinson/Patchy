@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <cmath>
 #include <cstddef>
 #include <fstream>
@@ -393,6 +394,20 @@ std::map<int, const Layer*> icon_size_layers(const Document& document) {
   return sizes;
 }
 
+std::optional<std::pair<int, int>> cursor_hotspot(const Layer& layer) {
+  const auto found = layer.metadata().find(kLayerMetadataCursorHotspot);
+  if (found == layer.metadata().end()) return std::nullopt;
+  const auto& value = found->second;
+  const auto end = value.data() + value.size();
+  int x = 0;
+  int y = 0;
+  const auto first = std::from_chars(value.data(), end, x);
+  if (first.ec != std::errc{} || first.ptr == end || *first.ptr != ',') return std::nullopt;
+  const auto second = std::from_chars(first.ptr + 1, end, y);
+  if (second.ec != std::errc{} || second.ptr != end) return std::nullopt;
+  return std::pair{x, y};
+}
+
 void set_png_codec(PngDecodeFn decode, PngEncodeFn encode) {
   png_decoder = decode;
   png_encoder = encode;
@@ -572,12 +587,23 @@ std::vector<std::uint8_t> DocumentIo::write(const Document& document, WriteOptio
     writer.write_u8(0);
     writer.write_u8(0);
     if (options.as_cursor) {
+      int x = options.hotspot_x, y = options.hotspot_y;
+      int reference_size = largest_size;
+      if (options.preserve_layer_hotspots && !layers.empty()) {
+        auto source = layers.find(entry.size);
+        if (source == layers.end()) source = std::prev(layers.end());
+        if (const auto hotspot = cursor_hotspot(*source->second)) {
+          x = hotspot->first;
+          y = hotspot->second;
+          reference_size = source->first;
+        }
+      }
       const auto scale_hotspot = [&](int value) {
-        const auto scaled = static_cast<int>(std::lround(static_cast<double>(value) * entry.size / largest_size));
-        return static_cast<std::uint16_t>(std::clamp(scaled, 0, entry.size - 1));
+        const auto scaled = std::lround(static_cast<double>(value) * entry.size / reference_size);
+        return static_cast<std::uint16_t>(std::clamp(scaled, 0L, static_cast<long>(entry.size - 1)));
       };
-      writer.write_u16(scale_hotspot(options.hotspot_x));
-      writer.write_u16(scale_hotspot(options.hotspot_y));
+      writer.write_u16(scale_hotspot(x));
+      writer.write_u16(scale_hotspot(y));
     } else {
       writer.write_u16(1);
       writer.write_u16(32);

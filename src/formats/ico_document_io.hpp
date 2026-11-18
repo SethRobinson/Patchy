@@ -5,8 +5,10 @@
 #include <cstdint>
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace patchy::ico {
@@ -19,6 +21,7 @@ inline constexpr const char* kLayerMetadataCursorHotspot = "patchy.cursor_hotspo
 // The distinct size layers in a document composed entirely of plain, origin-aligned
 // icon pixels. An empty result means the writer must render the visible composite.
 [[nodiscard]] std::map<int, const Layer*> icon_size_layers(const Document& document);
+[[nodiscard]] std::optional<std::pair<int, int>> cursor_hotspot(const Layer& layer);
 
 // ICO entries at 256 px are PNG-compressed per the Vista+ spec. The formats library is
 // Qt-free, so the PNG codec is injected by the UI layer once at startup (capture-free
@@ -39,6 +42,7 @@ struct WriteOptions {
   bool as_cursor{false};        // write a .cur (type 2) with hotspots
   int hotspot_x{0};             // hotspot in the coordinate space of the LARGEST written size
   int hotspot_y{0};
+  bool preserve_layer_hotspots{false};
 };
 
 class DocumentIo {

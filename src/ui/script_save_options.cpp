@@ -187,6 +187,7 @@ void read_hotspot(KeyReader& reader, const QString& key, const QJSValue& value, 
   }
   options.cur_hotspot_x = *x;
   options.cur_hotspot_y = *y;
+  options.cur_preserve_layer_hotspots = false;
 }
 
 // Applies one key for the extension family. Returns false when the key is unknown for it;

@@ -2825,6 +2825,7 @@ void write_flat_image_file(const Document& document, const QString& path, const 
     ico_options.as_cursor = lower == "cur";
     ico_options.hotspot_x = options.cur_hotspot_x;
     ico_options.hotspot_y = options.cur_hotspot_y;
+    ico_options.preserve_layer_hotspots = options.cur_preserve_layer_hotspots;
     ico::DocumentIo::write_file(document, to_filesystem_path(path), ico_options);
     return;
   }

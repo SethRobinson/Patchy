@@ -89,6 +89,7 @@
 #include <utility>
 #include <vector>
 #include "ui_test_access.hpp"
+#include "scripting_test_support.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
 
@@ -1095,19 +1096,29 @@ void ui_vector_mask_protects_flat_source_and_survives_layered_tiff() {
   CHECK(pixel[0] == 160 && pixel[1] == 30 && pixel[2] == 60);
 }
 
-void ui_icon_saves_flatten_new_art() {
+void ui_icon_saves_preserve_size_hotspots_and_flatten_new_art() {
   using Access = patchy::ui::MainWindowTestAccess;
   QTemporaryDir temp;
-  const auto path = temp.filePath(QStringLiteral("icon.ico"));
+  const auto path = temp.filePath(QStringLiteral("pointer.cur"));
   patchy::Document sprite(32, 32, patchy::PixelFormat::rgba8());
   sprite.add_pixel_layer("art", solid_pixels(32, 32, patchy::PixelFormat::rgba8(), Qt::blue));
-  patchy::ico::DocumentIo::write_file(sprite, patchy::ui::to_filesystem_path(path), {{16, 32}});
+  auto bytes = patchy::ico::DocumentIo::write(sprite, {{16, 32}, true, true, 6, 8});
+  bytes[10] = 9;  // Independently authored small hotspot, not half of (6, 8).
+  patchy::formats::write_file_bytes(patchy::ui::to_filesystem_path(path), bytes, "CUR");
   patchy::ui::MainWindow window;
   show_window(window);
   Access::open_document_path(window, path);
   CHECK(Access::save_document(window));
   const auto saved = patchy::ico::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
   CHECK(saved.layers().size() == 2);
+  CHECK(saved.layers().front().metadata().at(patchy::ico::kLayerMetadataCursorHotspot) == "9,4");
+  CHECK(saved.layers().back().metadata().at(patchy::ico::kLayerMetadataCursorHotspot) == "6,8");
+  const auto override_path = temp.filePath(QStringLiteral("override.cur"));
+  CHECK(patchy::test::ui::scripting_support::run_script(
+      window, QStringLiteral("app.activeDocument.exportAs('%1', {hotspot: {x: 12, y: 10}});").arg(override_path)));
+  const auto overridden = patchy::ico::DocumentIo::read_file(patchy::ui::to_filesystem_path(override_path));
+  CHECK(overridden.layers().front().metadata().at(patchy::ico::kLayerMetadataCursorHotspot) == "6,5");
+  CHECK(overridden.layers().back().metadata().at(patchy::ico::kLayerMetadataCursorHotspot) == "12,10");
   Access::push_undo_snapshot(window, QStringLiteral("Paint over icon"));
   Access::document(window).add_pixel_layer("New artwork", solid_pixels(32, 32, patchy::PixelFormat::rgba8(), Qt::red));
   check_save_redirects_to_psd(window, path);
@@ -4379,7 +4390,7 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_partial_tiff_and_aseprite_imports_protect_source", ui_partial_tiff_and_aseprite_imports_protect_source},
       {"ui_single_frame_aseprite_keeps_offset_and_saves_in_place", ui_single_frame_aseprite_keeps_offset_and_saves_in_place},
       {"ui_vector_mask_protects_flat_source_and_survives_layered_tiff", ui_vector_mask_protects_flat_source_and_survives_layered_tiff},
-      {"ui_icon_saves_flatten_new_art", ui_icon_saves_flatten_new_art},
+      {"ui_icon_saves_preserve_size_hotspots_and_flatten_new_art", ui_icon_saves_preserve_size_hotspots_and_flatten_new_art},
       {"ui_ico_real_world_fixtures_decode_png_entries", ui_ico_real_world_fixtures_decode_png_entries},
       {"ui_gif_export_round_trips_through_qt_reader", ui_gif_export_round_trips_through_qt_reader},
       {"ui_animated_gif_opens_frames_as_layers", ui_animated_gif_opens_frames_as_layers},

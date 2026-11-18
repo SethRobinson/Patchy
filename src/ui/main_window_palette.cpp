@@ -596,23 +596,10 @@ ImageSaveOptions MainWindow::image_save_defaults_for_document() {
     if (!icon_layers.empty()) {
       options.ico_sizes.clear();
       for (const auto& entry : icon_layers) options.ico_sizes.push_back(entry.first);
-    }
-    for (const auto& layer : std::as_const(document()).layers()) {
-      const auto found = layer.metadata().find(ico::kLayerMetadataCursorHotspot);
-      if (found == layer.metadata().end()) {
-        continue;
-      }
-      const auto parts = QString::fromStdString(found->second).split(QLatin1Char(','));
-      if (parts.size() == 2) {
-        bool x_valid = false;
-        bool y_valid = false;
-        const auto x = parts[0].toInt(&x_valid);
-        const auto y = parts[1].toInt(&y_valid);
-        if (x_valid && y_valid) {
-          options.cur_hotspot_x = std::clamp(x, 0, 255);
-          options.cur_hotspot_y = std::clamp(y, 0, 255);
-          break;
-        }
+      if (const auto hotspot = ico::cursor_hotspot(*icon_layers.rbegin()->second)) {
+        options.cur_hotspot_x = std::clamp(hotspot->first, 0, 255);
+        options.cur_hotspot_y = std::clamp(hotspot->second, 0, 255);
+        options.cur_preserve_layer_hotspots = true;
       }
     }
     // A document opened from .rttex remembers how its source was encoded, so a plain Save
