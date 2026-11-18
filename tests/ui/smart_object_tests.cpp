@@ -20,6 +20,7 @@
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
+#include "formats/binary_le.hpp"
 #include "formats/ico_document_io.hpp"
 #include "formats/svg_document_io.hpp"
 #include "formats/tga_document_io.hpp"
@@ -1976,6 +1977,34 @@ std::vector<std::uint8_t> read_smart_object_fixture_bytes(const std::filesystem:
   std::vector<std::uint8_t> bytes(static_cast<std::size_t>(std::filesystem::file_size(path)));
   stream.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
   return bytes;
+}
+
+void ui_smart_object_aseprite_animation_renders_first_frame() {
+  const auto path = patchy::test::committed_format_fixture_path("aseprite", "aseprite-indexed-frames.aseprite");
+  auto bytes = read_smart_object_fixture_bytes(path);
+  // The fixture has a transparent corner next to an opaque red pixel in every
+  // frame. Move the second cel one pixel left so it would show through frame 1.
+  patchy::LittleEndianReader reader(bytes);
+  constexpr std::size_t first_frame = 128;
+  reader.seek(first_frame);
+  const auto second_frame = first_frame + reader.read_u32();
+  reader.seek(second_frame + 16 + 4);  // frame header, then chunk size
+  CHECK(reader.read_u16() == 0x2005);  // cel chunk
+  CHECK(reader.read_u16() == 0);       // first layer
+  const auto cel_x = reader.position();
+  CHECK(reader.read_u16() == 0);
+  bytes[cel_x] = 0xff;
+  bytes[cel_x + 1] = 0xff;
+
+  patchy::SmartObjectSource source;
+  source.kind = patchy::SmartObjectSourceKind::Embedded;
+  source.filename = "frames.aseprite";
+  source.file_bytes = std::make_shared<const std::vector<std::uint8_t>>(std::move(bytes));
+  const auto image = patchy::ui::decode_smart_object_source_image(source);
+  CHECK(image.has_value());
+  CHECK(image->size() == QSize(16, 12));
+  CHECK(image->pixelColor(0, 0).alpha() == 0);
+  CHECK(image->pixelColor(1, 0) == QColor(200, 30, 40));
 }
 
 void ui_smart_object_legacy_black_composite_decodes_transparent() {
@@ -4389,6 +4418,7 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
       {"ui_smart_object_convert_nests_existing_smart_object", ui_smart_object_convert_nests_existing_smart_object},
       {"ui_smart_object_edit_commit_keeps_canvas_transparency",
        ui_smart_object_edit_commit_keeps_canvas_transparency},
+      {"ui_smart_object_aseprite_animation_renders_first_frame", ui_smart_object_aseprite_animation_renders_first_frame},
       {"ui_smart_object_legacy_black_composite_decodes_transparent",
        ui_smart_object_legacy_black_composite_decodes_transparent},
       {"ui_smart_object_psbtest_repro_decodes_transparent_if_available",

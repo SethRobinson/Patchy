@@ -16429,6 +16429,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Use Global Light</source>
         <translation>Globales Licht verwenden</translation>
     </message>
+    <message>
+        <source>Imported Aseprite animation as %1 frame groups</source>
+        <translation>Aseprite-Animation als %1 Einzelbildgruppen importiert</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

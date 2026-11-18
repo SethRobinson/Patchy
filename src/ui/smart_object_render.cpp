@@ -222,9 +222,13 @@ std::optional<QImage> decode_smart_object_source_image(const SmartObjectSource& 
   if (const auto* handler = registry_handler_for(source, bytes); handler != nullptr) {
     try {
       const auto result = handler->read(bytes);
-      auto image = qimage_from_document(result.document, true).convertToFormat(QImage::Format_RGBA8888);
+      // An imported Aseprite animation has one visible group per frame, first
+      // frame on top. A static placement only shows that frame's artwork.
+      const bool first_frame_only = handler->identifier == "patchy.formats.aseprite" && result.partial_import;
+      auto image = first_frame_only ? render_layer_isolated(result.document, result.document.layers().back())
+                                    : qimage_from_document(result.document, true);
       if (!image.isNull()) {
-        return image;
+        return image.convertToFormat(QImage::Format_RGBA8888);
       }
     } catch (const std::exception&) {
     }

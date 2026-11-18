@@ -709,7 +709,7 @@ void ui_open_with_import_notes_shows_notes_as_a_notice() {
   QApplication::processEvents();
 
   const auto message = window.statusBar()->currentMessage();
-  CHECK(message.contains(QStringLiteral("first frame")));
+  CHECK(message.contains(QStringLiteral("Imported Aseprite animation as 3 frame groups")));
   CHECK(!message.startsWith(QStringLiteral("Opened ")));
   CHECK(!message.contains(QStringLiteral("aseprite-indexed-frames")));
   auto* bar = qobject_cast<patchy::ui::ZoomStatusBar*>(window.statusBar());

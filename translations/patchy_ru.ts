@@ -16485,6 +16485,10 @@ Do you want to replace it?</source>
         <source>Use Global Light</source>
         <translation>Использовать глобальное освещение</translation>
     </message>
+    <message>
+        <source>Imported Aseprite animation as %1 frame groups</source>
+        <translation>Анимация Aseprite импортирована в группы кадров (%1)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

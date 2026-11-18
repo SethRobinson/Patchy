@@ -1810,6 +1810,11 @@ bool open_tiff_pages(const QString& path, TiffPagesChoice choice, Document& open
   return true;
 }
 
+std::string imported_frame_name(int index, std::uint32_t delay_ms) {
+  return (QObject::tr("Frame %1").arg(index) + QLatin1Char(' ') +
+          QString::fromStdString(animation::format_delay_seconds_token(delay_ms))).toStdString();
+}
+
 // Opens `path` with the reader for `extension`, which is the file's own extension except
 // when load_document_from_path opens it by its content (GitHub issue 362).
 OpenDocumentResult load_document_from_path_as(const QString& path, const QString& extension,
@@ -2068,11 +2073,7 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
     // Before the registry row so animation frames get translated layer names and the
     // decoder's color and orientation facts reach File Info.
     jxl::ReadOptions read_options;
-    read_options.frame_name = [](int index, std::uint32_t delay) {
-      return (QObject::tr("Frame %1").arg(index) + QLatin1Char(' ') +
-              QString::fromStdString(animation::format_delay_seconds_token(delay)))
-          .toStdString();
-    };
+    read_options.frame_name = imported_frame_name;
     auto result = jxl::read_jxl_detailed(read_all_file_bytes(path), read_options);
     opened = std::move(result.read.document);
     for (const auto& notice : result.read.notices) {
@@ -2087,11 +2088,7 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
     // Before the registry row so image-sequence frames get translated layer names
     // (docs/avif.md). The reader applies the container's rotation and mirror itself.
     avif::ReadOptions read_options;
-    read_options.frame_name = [](int index, std::uint32_t delay) {
-      return (QObject::tr("Frame %1").arg(index) + QLatin1Char(' ') +
-              QString::fromStdString(animation::format_delay_seconds_token(delay)))
-          .toStdString();
-    };
+    read_options.frame_name = imported_frame_name;
     auto result = avif::read_avif_detailed(read_all_file_bytes(path), read_options);
     opened = std::move(result.read.document);
     for (const auto& notice : result.read.notices) {
@@ -2131,11 +2128,23 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
   } else if (const auto* handler = builtin_format_registry().find_by_extension(extension.toStdString());
              handler != nullptr) {
     try {
-      auto result = handler->read(read_all_file_bytes(path));
+      const auto bytes = read_all_file_bytes(path);
+      const bool is_aseprite = handler->identifier == "patchy.formats.aseprite";
+      FormatReadResult result;
+      if (is_aseprite) {
+        result.document = aseprite::DocumentIo::read(bytes, &result.notices, &result.partial_import,
+                                                     imported_frame_name);
+      } else {
+        result = handler->read(bytes);
+      }
       opened = std::move(result.document);
       partial_import = result.partial_import;
       for (const auto& notice : result.notices) {
         import_notices.push_back(translated_file_message(notice));
+      }
+      if (is_aseprite && partial_import) {
+        import_notices.push_back(QObject::tr("Imported Aseprite animation as %1 frame groups")
+                                     .arg(std::as_const(opened).layers().size()));
       }
       // Containers with no density concept open at Photoshop's untagged 72 PPI
       // (their readers construct Documents with the 300 PPI new-document default).

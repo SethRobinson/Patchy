@@ -1,4 +1,5 @@
 #include "formats/heif_document_io.hpp"
+#include "formats/animation_frames.hpp"
 #include "formats/animation_timing.hpp"
 #include "formats/apng_writer.hpp"
 #include "formats/webp_animation_io.hpp"
@@ -1128,22 +1129,28 @@ void psd_round_trips_new_blend_modes() {
 }
 
 void aseprite_indexed_transparent_index() {
-  std::vector<std::string> notices;
   const auto document = patchy::aseprite::DocumentIo::read_file(
-      patchy::test::committed_format_fixture_path("aseprite", "aseprite-indexed-frames.aseprite"), &notices);
+      patchy::test::committed_format_fixture_path("aseprite", "aseprite-indexed-frames.aseprite"));
   CHECK(document.width() == 16);
   CHECK(document.height() == 12);
   CHECK(document.indexed_palette().has_value());
   CHECK(document.indexed_palette()->colors.size() == 4);
-  const auto& pixels = document.layers().front().pixels();
-  CHECK(pixels.pixel(0, 0)[3] == 0);  // transparent index
-  CHECK(pixels.pixel(1, 0)[0] == 200);
-  CHECK(pixels.pixel(8, 0)[2] == 200);
-  bool noted_frames = false;
-  for (const auto& notice : notices) {
-    noted_frames = noted_frames || notice.find("first frame") != std::string::npos;
+  const auto frames = patchy::animation::animation_frames(document.layers(), false);
+  CHECK(frames.size() == 3);
+  for (std::size_t i = 0; i < frames.size(); ++i) {
+    const auto& group = *frames[i].layer;
+    CHECK(group.name() == "Frame " + std::to_string(i + 1) + " 0.1s");
+    CHECK(group.kind() == patchy::LayerKind::Group);
+    CHECK(group.blend_mode() == patchy::BlendMode::Normal);
+    CHECK(group.children().size() == 1);
+    const auto& child = group.children().front();
+    CHECK(child.name() == "Pixels");
+    CHECK(document.find_layer(child.id()) == &child);
+    const auto& pixels = child.pixels();
+    CHECK(pixels.pixel(0, 0)[3] == 0);  // transparent index
+    CHECK(pixels.pixel(1, 0)[0] == 200);
+    CHECK(pixels.pixel(8, 0)[2] == 200);
   }
-  CHECK(noted_frames);
 }
 
 void aseprite_rejects_adobe_swatch_ase() {
@@ -1160,7 +1167,7 @@ void aseprite_rejects_adobe_swatch_ase() {
 
 namespace {
 
-// Builds a minimal one-frame 32-bit Aseprite file from hand-rolled chunks.
+// Builds small Aseprite files from hand-rolled chunks.
 class AseBytes {
  public:
   void u8(std::uint8_t value) { bytes_.push_back(value); }
@@ -1185,8 +1192,7 @@ class AseBytes {
   std::vector<std::uint8_t> bytes_;
 };
 
-// A layer chunk (0x2004) with the given child level; `declared_size` overrides the chunk
-// size field when non-zero.
+// A layer chunk (0x2004) with the given child level.
 void append_ase_layer_chunk(AseBytes& out, std::uint16_t child_level, std::uint16_t layer_type,
                             const std::string& name) {
   const auto start = out.size();
@@ -1207,33 +1213,200 @@ void append_ase_layer_chunk(AseBytes& out, std::uint16_t child_level, std::uint1
   out.patch_u32(start, static_cast<std::uint32_t>(out.size() - start));
 }
 
-std::vector<std::uint8_t> finish_ase_file(AseBytes& out, std::size_t frame_start, std::uint32_t chunk_count) {
+void finish_ase_frame(AseBytes& out, std::size_t frame_start, std::uint32_t chunk_count) {
   out.patch_u32(frame_start, static_cast<std::uint32_t>(out.size() - frame_start));
   out.patch_u32(frame_start + 12, chunk_count);
+}
+
+std::vector<std::uint8_t> finish_ase_file(AseBytes& out, std::size_t frame_start, std::uint32_t chunk_count) {
+  finish_ase_frame(out, frame_start, chunk_count);
   out.patch_u32(0, static_cast<std::uint32_t>(out.size()));
   return out.bytes();
 }
 
-std::size_t begin_ase_file(AseBytes& out) {
-  out.u32(0);       // file size, patched at the end
-  out.u16(0xA5E0);  // magic
-  out.u16(1);       // frames
-  out.u16(4);       // width
-  out.u16(4);       // height
-  out.u16(32);      // depth
-  out.u32(1);       // flags: layer opacity valid
-  out.zeros(128 - out.size());
+std::size_t begin_ase_frame(AseBytes& out, std::uint16_t duration) {
   const auto frame_start = out.size();
   out.u32(0);       // frame bytes, patched
   out.u16(0xF1FA);  // frame magic
   out.u16(0);       // old chunk count
-  out.u16(100);     // duration
+  out.u16(duration);
   out.zeros(2);
   out.u32(0);       // new chunk count, patched
   return frame_start;
 }
 
+std::size_t begin_ase_file(AseBytes& out, std::uint16_t frames = 1, std::uint16_t depth = 32) {
+  out.u32(0);       // file size, patched at the end
+  out.u16(0xA5E0);  // magic
+  out.u16(frames);
+  out.u16(4);       // width
+  out.u16(4);       // height
+  out.u16(depth);
+  out.u32(1);       // flags: layer opacity valid
+  out.u16(75);      // legacy duration
+  out.zeros(128 - out.size());
+  return begin_ase_frame(out, 100);
+}
+
+// Set just index 1. Index 0 is transparent.
+void append_ase_palette(AseBytes& out, patchy::RgbColor color) {
+  out.u32(32);
+  out.u16(0x2019);
+  out.u32(2);  // two colors in total
+  out.u32(1);  // first index
+  out.u32(1);  // last index
+  out.zeros(8);
+  out.u16(0);
+  out.u8(color.red);
+  out.u8(color.green);
+  out.u8(color.blue);
+  out.u8(255);
+}
+
+void append_ase_indexed_cel(AseBytes& out, std::uint16_t x, std::uint8_t opacity,
+                            std::optional<std::uint16_t> link = std::nullopt) {
+  out.u32(link ? 24 : 27);
+  out.u16(0x2005);
+  out.u16(1);  // image layer inside the source group
+  out.u16(x);
+  out.u16(1);
+  out.u8(opacity);
+  out.u16(link ? 1 : 0);
+  out.zeros(7);
+  if (link) {
+    out.u16(*link);
+  } else {
+    out.u16(1);  // width
+    out.u16(1);  // height
+    out.u8(1);   // palette index
+  }
+}
+
 }  // namespace
+
+void aseprite_animation_plays_linked_cels_with_frame_palette_and_timing() {
+  AseBytes out;
+  const auto first = begin_ase_file(out, 4, 8);
+  append_ase_layer_chunk(out, 0, 1, "Character");
+  append_ase_layer_chunk(out, 1, 0, "Face");
+  append_ase_palette(out, {255, 0, 0});
+  append_ase_indexed_cel(out, 0, 255);
+  finish_ase_frame(out, first, 4);
+  const auto second = begin_ase_frame(out, 17);
+  append_ase_indexed_cel(out, 1, 128, std::uint16_t{0});
+  append_ase_palette(out, {0, 0, 255});
+  finish_ase_frame(out, second, 2);
+  const auto third = begin_ase_frame(out, 0);  // uses the legacy header speed
+  append_ase_indexed_cel(out, 2, 64, std::uint16_t{1});
+  finish_ase_frame(out, third, 1);
+  const auto fourth = begin_ase_frame(out, 250);  // no cel in this frame
+
+  const auto document = patchy::aseprite::DocumentIo::read(finish_ase_file(out, fourth, 0));
+  CHECK(!document.indexed_palette().has_value());
+  const auto frames = patchy::animation::animation_frames(document.layers(), false);
+  CHECK(frames.size() == 4);
+  const std::array<std::string_view, 4> names{"Frame 1 0.1s", "Frame 2 0.017s", "Frame 3 0.075s", "Frame 4 0.25s"};
+  const std::array<std::uint8_t, 4> alpha{255, 128, 64, 0};
+  for (std::size_t i = 0; i < frames.size(); ++i) {
+    const auto& group = *frames[i].layer;
+    CHECK(group.name() == names[i]);
+    if (i < 3) {
+      CHECK(group.children().size() == 1);
+      const auto& character = group.children().front();
+      CHECK(character.name() == "Character");
+      CHECK(character.children().size() == 1);
+      CHECK(character.children().front().name() == "Face");
+    }
+    patchy::Document frame(document.width(), document.height(), document.format());
+    frame.layers() = patchy::animation::animation_frame_stack(document.layers(), frames[i]);
+    const auto pixels = patchy::flatten_document_rgba8(frame);
+    for (int x = 0; x < document.width(); ++x) {
+      const auto* pixel = pixels.pixel(x, 1);
+      if (x == static_cast<int>(i) && i < 3) {
+        CHECK(pixel[0] == (i == 0 ? 255 : 0));
+        CHECK(pixel[2] == (i == 0 ? 0 : 255));
+        CHECK(pixel[3] == alpha[i]);
+      } else {
+        CHECK(pixel[3] == 0);
+      }
+    }
+  }
+}
+
+void aseprite_animation_forward_link_obeys_cel_z_index() {
+  AseBytes out;
+  const auto first = begin_ase_file(out, 2, 32);
+  append_ase_layer_chunk(out, 0, 0, "Red");
+  append_ase_layer_chunk(out, 0, 0, "Blue");
+  const auto cel = [&](std::uint16_t layer, std::uint16_t z, std::optional<patchy::RgbColor> color) {
+    out.u32(color ? 30U : 24U);
+    out.u16(0x2005);
+    out.u16(layer);
+    out.zeros(4);  // origin
+    out.u8(255);
+    out.u16(color ? std::uint16_t{0} : std::uint16_t{1});  // raw or linked
+    out.u16(z);
+    out.zeros(5);
+    if (color) {
+      out.u16(1);
+      out.u16(1);
+      out.u8(color->red);
+      out.u8(color->green);
+      out.u8(color->blue);
+      out.u8(255);
+    } else {
+      out.u16(1);  // link to the second frame on the same layer
+    }
+  };
+  const patchy::RgbColor blue{0, 0, 255};
+  cel(0, 1, std::nullopt);  // tied at order 1 with Blue, positive z puts Red above it
+  cel(1, 0, blue);
+  finish_ase_frame(out, first, 4);
+  const auto second = begin_ase_frame(out, 100);
+  cel(0, 0, patchy::RgbColor{255, 0, 0});
+  cel(1, 0, blue);
+
+  const auto doc = patchy::aseprite::DocumentIo::read(finish_ase_file(out, second, 2));
+  const auto frames = patchy::animation::animation_frames(doc.layers(), false);
+  CHECK(frames.size() == 2);
+  for (std::size_t i = 0; i < frames.size(); ++i) {
+    patchy::Document frame(doc.width(), doc.height(), doc.format());
+    frame.layers() = patchy::animation::animation_frame_stack(doc.layers(), frames[i]);
+    const auto pixels = patchy::flatten_document_rgba8(frame);
+    const auto* top = pixels.pixel(0, 0);
+    CHECK(top[0] == (i == 0 ? 255 : 0));
+    CHECK(top[2] == (i == 0 ? 0 : 255));
+    CHECK(top[3] == 255);
+  }
+}
+
+void aseprite_animation_rejects_damaged_later_frames() {
+  AseBytes out;
+  const auto first = begin_ase_file(out, 2, 8);
+  append_ase_layer_chunk(out, 0, 1, "Character");
+  append_ase_layer_chunk(out, 1, 0, "Face");
+  append_ase_palette(out, {255, 0, 0});
+  append_ase_indexed_cel(out, 0, 255);
+  finish_ase_frame(out, first, 4);
+  const auto second = begin_ase_frame(out, 50);
+  append_ase_indexed_cel(out, 1, 255, std::uint16_t{1});  // links to itself
+  const auto rejected = [](const std::vector<std::uint8_t>& bytes) {
+    try {
+      (void)patchy::aseprite::DocumentIo::read(bytes);
+      return false;
+    } catch (const std::runtime_error&) {
+      return true;
+    }
+  };
+  auto bytes = finish_ase_file(out, second, 1);
+  CHECK(rejected(bytes));
+  bytes[bytes.size() - 2] = 0;  // valid link to the first frame
+  CHECK(!rejected(bytes));
+  --bytes[second];  // last byte of the link lies outside the declared frame
+  CHECK(rejected(bytes));
+  bytes.resize(second);  // missing frame header
+  CHECK(rejected(bytes));
+}
 
 void aseprite_out_of_range_child_level_lands_at_root() {
   // Two image layers claiming child level 1 with no group open. The reader used to grow
@@ -2502,6 +2675,10 @@ std::vector<patchy::test::TestCase> flat_formats_misc_tests() {
       {"avif_round_trips_losslessly_and_lossy_through_libaom", avif_round_trips_losslessly_and_lossy_through_libaom},
       {"aseprite_imports_layers_groups_and_palette", aseprite_imports_layers_groups_and_palette},
       {"aseprite_indexed_transparent_index", aseprite_indexed_transparent_index},
+      {"aseprite_animation_plays_linked_cels_with_frame_palette_and_timing",
+       aseprite_animation_plays_linked_cels_with_frame_palette_and_timing},
+      {"aseprite_animation_rejects_damaged_later_frames", aseprite_animation_rejects_damaged_later_frames},
+      {"aseprite_animation_forward_link_obeys_cel_z_index", aseprite_animation_forward_link_obeys_cel_z_index},
       {"aseprite_rejects_adobe_swatch_ase", aseprite_rejects_adobe_swatch_ase},
       {"aseprite_write_read_round_trips_layers_and_palette", aseprite_write_read_round_trips_layers_and_palette},
       {"aseprite_out_of_range_child_level_lands_at_root", aseprite_out_of_range_child_level_lands_at_root},

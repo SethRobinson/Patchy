@@ -4,6 +4,7 @@
 #include "core/vector_shape.hpp"
 #include "core/text_warp.hpp"
 #include "core/palette_presets.hpp"
+#include "ui/animation_preview_window.hpp"
 #include "ui/pdf_export.hpp"
 #include "formats/pdf_document_io.hpp"
 #include "formats/pdf_file.hpp"
@@ -532,9 +533,13 @@ void ui_photocopy_dialog_previews_clipping_at_actual_size() {
 
 void ui_aseprite_open_adopts_palette_and_builds_layer_tree() {
   SettingsValueRestorer policy_restorer(QStringLiteral("imports/adoptIndexedPalette"));
+  SettingsValueRestorer reverse_restorer(QStringLiteral("animationPreview/playReverse"));
+  SettingsValueRestorer ignore_delays_restorer(QStringLiteral("animationPreview/ignoreNameDelays"));
   {
     auto settings = patchy::ui::app_settings();
     settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), QStringLiteral("always"));
+    settings.setValue(QStringLiteral("animationPreview/playReverse"), false);
+    settings.setValue(QStringLiteral("animationPreview/ignoreNameDelays"), false);
   }
   const auto path = QString::fromStdWString(
       patchy::test::committed_format_fixture_path("aseprite", "aseprite-indexed-frames.aseprite").wstring());
@@ -543,19 +548,65 @@ void ui_aseprite_open_adopts_palette_and_builds_layer_tree() {
   patchy::ui::MainWindow window;
   show_window(window);
 
-  // The multi-frame fixture raises an import note; it lands in the status bar
-  // (no popup unless imports/showPsdWarningsAndInfo is enabled).
-  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  using Access = patchy::ui::MainWindowTestAccess;
+  Access::open_document_path(window, path);
   QApplication::processEvents();
 
-  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("first frame")));
-  auto& document = patchy::ui::MainWindowTestAccess::document(window);
-  CHECK(document.width() == 16);
-  CHECK(document.layers().size() == 1);
-  CHECK(document.layers().front().name() == "Pixels");
-  // The 4-color Aseprite palette was adopted into palette mode.
+  const auto& document = std::as_const(Access::document(window));
+  CHECK(document.width() == 16 && document.height() == 12);
+  CHECK(document.layers().size() == 3);
   CHECK(document.palette_editing().has_value());
   CHECK(document.palette_editing()->palette.colors.size() == 4);
+  const std::array<std::string, 3> names{"Frame 1 0.1s", "Frame 2 0.1s", "Frame 3 0.1s"};
+  for (std::size_t i = 0; i < names.size(); ++i) {
+    const auto& group = document.layers()[2 - i];
+    CHECK(group.visible() && group.name() == names[i]);
+    CHECK(group.kind() == patchy::LayerKind::Group && group.children().size() == 1);
+    CHECK(group.children().front().name() == "Pixels");
+  }
+
+  auto* preview_action = window.findChild<QAction*>(QStringLiteral("imageAnimationPreviewAction"));
+  CHECK(preview_action != nullptr);
+  preview_action->trigger();
+  auto* preview = window.findChild<patchy::ui::AnimationPreviewWindow*>(QStringLiteral("animationPreviewWindow"));
+  CHECK(preview != nullptr);
+  preview->start_playback();
+  CHECK(preview->playing());
+  for (std::size_t i = 0; i < names.size(); ++i) {
+    CHECK(preview->current_frame_delay_ms() == 100);
+    for (const auto& group : document.layers()) CHECK(group.visible() == (group.name() == names[i]));
+    preview->advance_frame();
+  }
+  preview->stop_playback(true);
+  for (const auto& group : document.layers()) CHECK(group.visible());
+
+  // The fixture repeats its pixels. Offset each frame's editable cel by its frame number
+  // (zero-based) so an export that repeats a frame or reverses the order is detectable.
+  for (std::size_t i = 1; i < names.size(); ++i) {
+    auto& cel = Access::document(window).layers()[2 - i].children().front();
+    auto bounds = cel.bounds();
+    bounds.x += static_cast<std::int32_t>(i);
+    cel.set_bounds(bounds);
+  }
+  QTemporaryDir output;
+  CHECK(output.isValid());
+  const auto png = output.filePath(QStringLiteral("frames.png"));
+  patchy::ui::ImageSaveOptions options;
+  options.apng_animate = true;
+  options.animation_frame_delay_ms = 777;
+  patchy::ui::write_flat_image_file(document, png, QStringLiteral("png"), options);
+  Access::open_document_path(window, png);
+  const auto& reopened = std::as_const(Access::document(window));
+  CHECK(reopened.layers().size() == 3);
+  for (std::size_t i = 0; i < names.size(); ++i) {
+    const auto& frame = reopened.layers()[2 - i];
+    CHECK(frame.name() == names[i]);
+    const auto& pixels = frame.pixels();
+    const auto x = static_cast<int>(i);
+    CHECK(pixels.pixel(x, 0)[3] == 0);
+    CHECK(pixels.pixel(x + 1, 0)[0] == 200 && pixels.pixel(x + 1, 0)[3] == 255);
+    CHECK(pixels.pixel(x + 8, 0)[2] == 200 && pixels.pixel(x + 8, 0)[3] == 255);
+  }
 }
 
 void ui_export_scale_writes_nearest_neighbor_pixels() {

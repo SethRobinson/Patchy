@@ -16373,6 +16373,10 @@ Do you want to replace it?</source>
         <source>Use Global Light</source>
         <translation>전체 조명 사용</translation>
     </message>
+    <message>
+        <source>Imported Aseprite animation as %1 frame groups</source>
+        <translation>Aseprite 애니메이션을 %1개의 프레임 그룹으로 가져왔습니다</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

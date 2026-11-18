@@ -16429,6 +16429,10 @@ Sostituirlo?</translation>
         <source>Use Global Light</source>
         <translation>Usa luce globale</translation>
     </message>
+    <message>
+        <source>Imported Aseprite animation as %1 frame groups</source>
+        <translation>Animazione Aseprite importata in %1 gruppi di fotogrammi</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
