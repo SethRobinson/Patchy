@@ -673,6 +673,7 @@ Layer clone_layer_with_document_ids(Document& document, const Layer& source) {
                      ? Layer(document.allocate_layer_id(), source.name(), source.pixels())
                      : Layer(document.allocate_layer_id(), source.name(), source.kind());
   copy_layer_state(cloned, source);
+  if (source.layer_style().uses_global_light()) cloned.layer_style().source_global_light = document.metadata().global_light;
   if (source.kind() == LayerKind::Group) {
     for (const auto& child : source.children()) {
       cloned.add_child(clone_layer_with_document_ids(document, child));
@@ -741,8 +742,7 @@ ImportedTextFrames inspect_text_frames(std::span<const std::uint8_t> section, bo
 // global tagged blocks that carry the layers of 16/32-bit files.
 std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::int32_t canvas_width,
                                            std::int32_t canvas_height, std::uint16_t source_color_mode,
-                                           std::uint16_t depth, float global_light_angle,
-                                           float global_light_altitude, bool large_document,
+                                           std::uint16_t depth, bool large_document,
                                            const CmykColorConverter& source_colors,
                                            bool& has_merged_transparency,
                                            std::vector<std::string>* notices,
@@ -1285,7 +1285,6 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     layer.layer_style().vector_mask_hides_effects = record.vector_mask_hides_effects;
     layer.layer_style().blend_interior_elements = record.blend_interior_elements;
     layer.layer_style().blend_clipped_elements = record.blend_clipped_elements;
-    resolve_global_light(layer.layer_style(), global_light_angle, global_light_altitude);
     set_layer_lock_flags(layer, layer_locks_from_psd_protection(record.protection_flags));
     if (record.protection_flags != 0U) {
       layer.metadata()[kLayerMetadataPsdProtectionFlags] = std::to_string(record.protection_flags);
@@ -1560,8 +1559,7 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
 }
 
 std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canvas_width, std::int32_t canvas_height,
-                               std::uint16_t source_color_mode, std::uint16_t depth, float global_light_angle,
-                               float global_light_altitude, bool large_document,
+                               std::uint16_t source_color_mode, std::uint16_t depth, bool large_document,
                                const CmykColorConverter& source_colors,
                                bool& has_merged_transparency,
                                std::vector<std::string>* notices,
@@ -1577,7 +1575,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
 
   const auto layer_info_end = layer_reader.position() + static_cast<std::size_t>(layer_info_length);
   auto layers = read_layer_info_records(layer_reader, canvas_width, canvas_height, source_color_mode, depth,
-                                        global_light_angle, global_light_altitude, large_document, source_colors,
+                                        large_document, source_colors,
                                         has_merged_transparency, notices, damaged_rows, keep_depth, text_frames);
   if (layer_reader.position() < layer_info_end) {
     layer_reader.skip(layer_info_end - layer_reader.position());
@@ -1882,15 +1880,13 @@ Document read_document(std::span<const std::uint8_t> bytes, ReadOptions options)
     }
   }
   // Document-wide light direction for effects marked "use global light" (signed degrees).
-  auto global_light_angle = kDefaultGlobalLightAngle;
-  auto global_light_altitude = kDefaultGlobalLightAltitude;
   if (auto angle = find_image_resource_payload(image_resources, kImageResourceGlobalLightAngle);
       angle.has_value() && angle->size() >= 4U) {
-    global_light_angle = static_cast<float>(static_cast<std::int32_t>(BigEndianReader(*angle).read_u32()));
+    document.metadata().global_light.angle = static_cast<std::int32_t>(BigEndianReader(*angle).read_u32());
   }
   if (auto altitude = find_image_resource_payload(image_resources, kImageResourceGlobalLightAltitude);
       altitude.has_value() && altitude->size() >= 4U) {
-    global_light_altitude = static_cast<float>(static_cast<std::int32_t>(BigEndianReader(*altitude).read_u32()));
+    document.metadata().global_light.altitude = static_cast<std::int32_t>(BigEndianReader(*altitude).read_u32());
   }
   const auto layer_mask_length =
       header.large_document
@@ -1937,7 +1933,7 @@ Document read_document(std::span<const std::uint8_t> bytes, ReadOptions options)
     const auto text_frames = inspect_text_frames(layer_mask_payload, header.large_document);
     BigEndianReader layer_reader(layer_mask_payload);
     auto layers = read_layers(layer_reader, document.width(), document.height(), header.color_mode,
-                              header.depth, global_light_angle, global_light_altitude, header.large_document,
+                              header.depth, header.large_document,
                               source_colors, has_merged_transparency, options.notices, &damaged_rows, keep_depth,
                               text_frames);
     const auto add_layer = [&document](const Layer& source) {
@@ -2002,7 +1998,7 @@ Document read_document(std::span<const std::uint8_t> bytes, ReadOptions options)
         BigEndianReader block_reader(payload);
         auto deep_layers = read_layer_info_records(
             block_reader, document.width(), document.height(), header.color_mode, header.depth,
-            global_light_angle, global_light_altitude, header.large_document, source_colors,
+            header.large_document, source_colors,
             has_merged_transparency, options.notices, &damaged_rows, keep_depth, text_frames);
         // Always Photoshop's bottom-to-top order: legacy Patchy never wrote these
         // blocks, so the legacy-order heuristic used for the standard section
@@ -2337,7 +2333,7 @@ bool native_layer_unchanged(const Layer& layer, const std::shared_ptr<const PsdN
                             const SmartObjectStore& smart_objects) {
   const auto& source = layer.psd_native_colors();
   const bool preserved_style = std::any_of(layer.unknown_psd_blocks().begin(), layer.unknown_psd_blocks().end(),
-      [](const UnknownPsdBlock& block) { return block.key == "lfx2" || block.key == "lrFX" || block.key == "lmfx"; });
+      [](const UnknownPsdBlock& block) { return block.key == "lfx2" || block.key == "lfxs" || block.key == "lrFX" || block.key == "lmfx"; });
   if (!source || source->space != space || !source->imported ||
       layer_vector_block_dirty(layer) || layer_is_text(layer) ||
       ((!layer.layer_style().empty() || !layer.layer_style().satins.empty()) &&
@@ -2961,7 +2957,7 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
                                 !photoshop_layer_id(*encoded.layer).has_value();
     write_layer_record(layer_info, encoded, !has_smart_object_sources, options.large_document,
                        needs_layer_id ? next_layer_id++ : 0U,
-                       Rect::from_size(document.width(), document.height()));
+                       Rect::from_size(document.width(), document.height()), document.metadata().global_light);
   }
   for (const auto& encoded : encoded_layers) {
     for (const auto& channel : encoded.channels) {

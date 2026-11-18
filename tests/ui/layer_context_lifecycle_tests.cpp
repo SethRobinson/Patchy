@@ -2236,13 +2236,14 @@ void ui_layer_style_copy_paste_delete_applies_to_selected_layers() {
   source_layer.set_bounds(patchy::Rect{16, 22, 26, 26});
   patchy::LayerDropShadow shadow;
   shadow.enabled = true;
+  shadow.use_global_light = true;
   shadow.opacity = 0.9F;
   shadow.distance = 7.0F;
   shadow.size = 7.0F;
   source_layer.layer_style().drop_shadows.push_back(shadow);
   patchy::LayerSatin custom_satin;
   custom_satin.enabled = false;
-  custom_satin.unsupported_contour_options = true;
+  custom_satin.anti_aliased = true;
   source_layer.layer_style().satins.push_back(custom_satin);
   document.add_layer(std::move(source_layer));
 
@@ -2285,6 +2286,8 @@ void ui_layer_style_copy_paste_delete_applies_to_selected_layers() {
   CHECK(copy_style->isEnabled());
   CHECK(!paste_style->isEnabled());
   copy_style->trigger();
+  // The destination light may differ from the direction stored in the clipboard.
+  patchy::ui::MainWindowTestAccess::document(window).set_global_light({37, 54});
   QApplication::processEvents();
   CHECK(paste_style->isEnabled());
 
@@ -2311,9 +2314,13 @@ void ui_layer_style_copy_paste_delete_applies_to_selected_layers() {
   CHECK(source_after_copy != nullptr);
   CHECK(target_a_after_paste != nullptr);
   CHECK(target_b_after_paste != nullptr);
-  CHECK(source_after_copy->layer_style().satins.front().unsupported_contour_options);
-  CHECK(!target_a_after_paste->layer_style().satins.front().unsupported_contour_options);
-  CHECK(!target_b_after_paste->layer_style().satins.front().unsupported_contour_options);
+  for (const auto* target : {target_a_after_paste, target_b_after_paste}) {
+    CHECK(target->layer_style().drop_shadows.front().use_global_light);
+    CHECK(target->layer_style().drop_shadows.front().angle_degrees == 37.0F);
+  }
+  CHECK(source_after_copy->layer_style().satins.front().anti_aliased);
+  CHECK(target_a_after_paste->layer_style().satins.front().anti_aliased);
+  CHECK(target_b_after_paste->layer_style().satins.front().anti_aliased);
 
   select_single_layer(QStringLiteral("Target Multiply"));
   CHECK(geometry->text().contains(QStringLiteral("Drop Shadow")));

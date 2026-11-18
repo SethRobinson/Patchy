@@ -209,7 +209,7 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
              photoshop_channel_mixer_payload(settings->channel_mixer, original) != original->payload;
     }
   }
-  if (generated_style_block && (block.key == "lfx2" || block.key == "lrFX" || block.key == "lmfx")) {
+  if (generated_style_block && (block.key == "lfx2" || block.key == "lfxs" || block.key == "lrFX" || block.key == "lmfx")) {
     return true;
   }
   if (generated_text_block && (block.key == "TySh" || block.key == "tySh")) {
@@ -221,7 +221,7 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
 bool layer_preserves_photoshop_layer_style(const Layer& layer) {
   return std::any_of(layer.unknown_psd_blocks().begin(), layer.unknown_psd_blocks().end(),
                      [](const UnknownPsdBlock& block) {
-                       return block.key == "lfx2" || block.key == "lrFX" || block.key == "lmfx";
+                       return block.key == "lfx2" || block.key == "lfxs" || block.key == "lrFX" || block.key == "lmfx";
                      });
 }
 
@@ -974,7 +974,7 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
 
 void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bool strip_smart_object_blocks,
                         bool large_document, std::uint32_t synthesized_photoshop_layer_id,
-                        Rect canvas) {
+                        Rect canvas, GlobalLight light) {
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.y));
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.x));
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.y + encoded.bounds.height));
@@ -1140,9 +1140,11 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   // LayerStyle::empty() is a rendering predicate, so a style containing only a
   // disabled Satin is "empty" visually but still has a native record to save.
   if (encoded.layer != nullptr &&
-      (!encoded.layer->layer_style().empty() || !encoded.layer->layer_style().satins.empty()) &&
+      encoded.layer->layer_style().effect_count() != 0 &&
       !layer_preserves_photoshop_layer_style(*encoded.layer)) {
-    const auto payload = photoshop_lfx2_layer_style_payload(encoded.layer->layer_style());
+    auto style = encoded.layer->layer_style();
+    style.apply_global_light(light);
+    const auto payload = photoshop_lfx2_layer_style_payload(style);
     write_additional_layer_block(extra, {'l', 'f', 'x', '2'}, payload, large_document);
     generated_style_payload = true;
   }
@@ -1433,6 +1435,14 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
         continue;
       }
       if (auto key = block_key_from_string(block.key); key.has_value()) {
+        const auto original_light = encoded.layer->layer_style().source_global_light;
+        if (original_light && *original_light != light &&
+            (block.key == "lfx2" || block.key == "lmfx" || block.key == "lfxs")) {
+          if (auto updated = layer_effects_with_global_light(block.payload, light)) {
+            write_additional_layer_block(extra, *key, *updated, large_document, block.long_length);
+            continue;
+          }
+        }
         write_additional_layer_block(extra, *key, block.payload, large_document, block.long_length);
       }
     }

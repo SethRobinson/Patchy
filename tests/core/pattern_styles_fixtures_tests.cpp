@@ -815,9 +815,7 @@ void psd_lfx2_float_color_descriptor_reads_as_rgb() {
   CHECK(style.outer_glows.front().color.green == 64);
   CHECK(style.outer_glows.front().color.blue == 0);
 
-  // A disabled Satin never raises the "custom contour preserved until you edit"
-  // notice: it draws nothing, so nothing visible can be lost (the same fixture
-  // carries one with AntA on). An enabled one with the same keys still does.
+  // Hidden and visible instances both retain their anti-alias setting.
   const auto satin_root = [&](bool enabled) {
     auto satin = std::make_shared<DescriptorObject>();
     satin->class_id = "ChFX";
@@ -830,10 +828,10 @@ void psd_lfx2_float_color_descriptor_reads_as_rgb() {
   const auto disabled = satin_root(false);
   CHECK(disabled.satins.size() == 1);
   CHECK(!disabled.satins.front().enabled);
-  CHECK(!disabled.satins.front().unsupported_contour_options);
+  CHECK(disabled.satins.front().anti_aliased);
   const auto enabled = satin_root(true);
   CHECK(enabled.satins.size() == 1);
-  CHECK(enabled.satins.front().unsupported_contour_options);
+  CHECK(enabled.satins.front().anti_aliased);
 }
 
 // ag-psd's float-color/src.psd (GitHub issue 264): a 300 ppi document whose only enabled
@@ -2401,10 +2399,8 @@ void psd_lrfx_legacy_title_screen_imports_drop_shadows_if_available() {
   CHECK(buttons_shadow->distance == 6.0F);
   CHECK(buttons_shadow->size == 0.0F);
   CHECK(buttons_shadow->spread == 0.0F);
-  // Resource 1037 holds the same 120 degrees, so the global-light resolve is a
-  // no-op here and the flag is cleared on import.
   CHECK(buttons_shadow->angle_degrees == 120.0F);
-  CHECK(!buttons_shadow->use_global_light);
+  CHECK(buttons_shadow->use_global_light);
   // Photoshop's color-managed CMYK gives (35, 31, 32); with no CMYK profile to
   // ride, Patchy's naive ink mix lands on black, the same rule lfx2 CMYK colors
   // follow. What must never happen again is white, which multiplies to nothing.
@@ -2742,10 +2738,79 @@ void psd_adjustment_layers_render_and_round_trip() {
   CHECK(round_tripped_flattened.pixel(0, 0)[1] == flattened.pixel(0, 0)[1]);
 }
 
+void photoshop_shaped_layer_effects_match_reference_if_available() {
+  using namespace patchy;
+  const auto dir = test::local_fixtures_root() / "layer-style-735";
+  for (const std::string stem : {"contours", "asymmetric"}) {
+    test::skip_unless_exists(dir / (stem + ".psd"));
+    test::skip_unless_exists(dir / (stem + ".bmp"));
+    const auto doc = psd::DocumentIo::read_file(dir / (stem + ".psd"));
+    const auto reference = Compositor{}.flatten_rgb8(bmp::DocumentIo::read_file(dir / (stem + ".bmp")));
+    const auto actual = Compositor{}.flatten_rgb8(doc);
+    CHECK(actual.width() == 320 && actual.height() == 160);
+    CHECK(reference.width() == actual.width() && reference.height() == actual.height());
+    write_rgb8_bmp_artifact("layer-style-735-" + stem, actual);
+    for (int cell = 0; cell < 8; ++cell) {
+      int total = 0;
+      int worst = 0;
+      for (int y = 80 * (cell / 4); y < 80 * (cell / 4 + 1); ++y) {
+        for (int x = 80 * (cell % 4); x < 80 * (cell % 4 + 1); ++x) {
+          const int error = std::abs(actual.pixel(x, y)[0] - reference.pixel(x, y)[0]);
+          total += error;
+          worst = std::max(worst, error);
+        }
+      }
+      const double mean = total / 6400.0;
+      std::cout << stem << " cell " << cell << " mean " << mean << " max " << worst << "\n";
+      CHECK(mean < 0.22);
+      CHECK(worst <= 4);
+    }
+  }
+
+  auto doc = psd::DocumentIo::read_file(dir / "contours.psd");
+  for (auto& layer : doc.layers()) {
+    std::erase_if(layer.unknown_psd_blocks(), [](const UnknownPsdBlock& block) {
+      return block.key == "lfx2" || block.key == "lmfx" || block.key == "lrFX";
+    });
+    for (auto& shadow : layer.layer_style().inner_shadows) shadow.use_global_light = true;
+  }
+  doc.set_global_light({-45, 55});
+  const auto saved = std::filesystem::path("test-artifacts") / "layer-style-735.psd";
+  psd::DocumentIo::write_layered_rgb8_file(doc, saved);
+  const auto imported = psd::DocumentIo::read_file(saved);
+  CHECK(imported.metadata().global_light == doc.metadata().global_light);
+  int shaped = 0;
+  const auto check_effects = [&shaped](const auto& expected, const auto& found) {
+    CHECK(expected.size() == found.size());
+    for (std::size_t i = 0; i < expected.size(); ++i) {
+      CHECK(expected[i].contour == found[i].contour);
+      CHECK(expected[i].anti_aliased == found[i].anti_aliased);
+      if (!style_contour_is_linear(found[i].contour)) ++shaped;
+    }
+  };
+  for (const auto& layer : std::as_const(doc).layers()) {
+    const auto* restored = find_layer_named(imported.layers(), layer.name());
+    CHECK(restored != nullptr);
+    const auto& a = layer.layer_style();
+    const auto& b = restored->layer_style();
+    check_effects(a.inner_shadows, b.inner_shadows);
+    check_effects(a.inner_glows, b.inner_glows);
+    check_effects(a.outer_glows, b.outer_glows);
+    for (std::size_t i = 0; i < a.inner_glows.size(); ++i) CHECK(a.inner_glows[i].jitter == b.inner_glows[i].jitter);
+    for (std::size_t i = 0; i < a.outer_glows.size(); ++i) CHECK(a.outer_glows[i].jitter == b.outer_glows[i].jitter);
+    check_effects(a.satins, b.satins);
+    for (const auto& shadow : b.inner_shadows) {
+      CHECK(shadow.use_global_light && shadow.angle_degrees == -45.0F);
+    }
+  }
+  CHECK(shaped == 8);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
   return {
+      {"photoshop_shaped_layer_effects_match_reference_if_available", photoshop_shaped_layer_effects_match_reference_if_available},
       {"pattern_presets_generate_stable_tiles", pattern_presets_generate_stable_tiles},
       {"style_contour_lut_handles_presets_and_corners", style_contour_lut_handles_presets_and_corners},
       {"psd_photoshop_pattern_overlay_fixture_imports", psd_photoshop_pattern_overlay_fixture_imports},

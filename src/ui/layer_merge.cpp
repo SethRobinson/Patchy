@@ -663,6 +663,7 @@ Document render_layer_merge(const Document& document, const LayerMergePlan& plan
       } else if (node.rasterize) {
         Document scratch(document.width(), document.height(), document.format());
         scratch.metadata().patterns = document.metadata().patterns;
+        scratch.set_global_light(document.metadata().global_light);
         // 16/32-bit documents merge at their depth (docs/high-bit-depth.md).
         scratch.color_state().bit_depth = document.color_state().bit_depth;
         Rect bounds;

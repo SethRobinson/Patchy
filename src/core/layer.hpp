@@ -393,8 +393,7 @@ struct LayerStyleGradient : GradientDefinition {
 };
 
 // A layer-effect contour curve (the descriptor ShpC/CrPt shape shared by the
-// bevel gloss contour, the bevel Contour sub-option and the drop shadow's
-// Contour; the glow and satin contours are not modeled). Empty points mean the 2-point Linear
+// shadow, glow, bevel and Satin controls). Empty points mean the 2-point Linear
 // identity. Coordinates are 0..255 doubles in the file; corner points break the
 // smooth spline (Photoshop's contour editor "Corner" checkbox, stored per point
 // as Cnty=false). build_style_contour_lut (core/style_contour.hpp) renders it.
@@ -429,8 +428,7 @@ struct LayerDropShadow {
   // shadow, so nothing shadows the backdrop under the shape even when the
   // fill is knocked out or semi-transparent.
   bool layer_conceals{true};
-  // Photoshop's "Use Global Light". Only meaningful while importing: the PSD reader
-  // resolves the document's global angle into angle_degrees and clears this flag.
+  // Linked angles follow the document, including when this style is pasted.
   bool use_global_light{false};
   // Patchy-only "long shadow": the shadow covers every offset from the layer
   // out to `distance` along the angle instead of one shifted copy. Photoshop
@@ -459,6 +457,8 @@ struct LayerInnerShadow {
   float choke{0.0F};
   float size{5.0F};
   bool use_global_light{false};
+  StyleContour contour;
+  bool anti_aliased{false};
 };
 
 // Photoshop's outer-glow Technique ('GlwT' BETE enum): Softer blurs the
@@ -481,6 +481,9 @@ struct LayerOuterGlow {
   // blurred matte scaled by 100/range and clamped; PS's UI default is 50, so
   // real files render twice as hot as the raw blur.
   float range{50.0F};
+  StyleContour contour;
+  bool anti_aliased{false};
+  float jitter{0.0F};  // Gradient color jitter (ShdN); solid glows have one color.
 };
 
 enum class LayerInnerGlowSource {
@@ -502,6 +505,9 @@ struct LayerInnerGlow {
   // default of 50 doubles the glow near the contour. The Center source is the
   // complement of the gained Edge field.
   float range{50.0F};
+  StyleContour contour;
+  bool anti_aliased{false};
+  float jitter{0.0F};  // Gradient color jitter (ShdN); solid glows have one color.
 };
 
 struct LayerColorOverlay {
@@ -609,9 +615,8 @@ struct LayerSatin {
   float distance{11.0F};
   float size{14.0F};
   bool invert{true};
-  // Untouched Photoshop lfx2 data preserves custom contour points and AntA.
-  // Patchy's modeled renderer/editor uses a non-anti-aliased Linear contour.
-  bool unsupported_contour_options{false};
+  StyleContour contour;
+  bool anti_aliased{false};
 };
 
 struct LayerPatternOverlay {
@@ -627,7 +632,19 @@ struct LayerPatternOverlay {
   float phase_y{0.0F};
 };
 
+struct GlobalLight {
+  std::int32_t angle{120};
+  std::int32_t altitude{30};
+
+  friend bool operator==(const GlobalLight&, const GlobalLight&) = default;
+};
+
 struct LayerStyle {
+  // Original PSD resource values for the retained native effects block.
+  std::optional<GlobalLight> source_global_light{};
+  void apply_global_light(GlobalLight light);
+  [[nodiscard]] bool uses_global_light() const;
+
   bool effects_visible{true};
   // Photoshop's "Layer Mask Hides Effects" blending option ('lmgm'): the raster
   // mask hides effect output where it lands instead of shaping the effects.

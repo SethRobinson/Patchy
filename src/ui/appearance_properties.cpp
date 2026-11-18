@@ -355,6 +355,8 @@ void add_effect_fields(const EffectFields<LayerInnerShadow>& fields) {
   EFFECT_FIELD(choke);
   EFFECT_FIELD(size);
   EFFECT_FIELD(use_global_light);
+  EFFECT_FIELD(contour);
+  EFFECT_FIELD(anti_aliased);
 }
 
 void add_effect_fields(const EffectFields<LayerOuterGlow>& fields) {
@@ -366,6 +368,9 @@ void add_effect_fields(const EffectFields<LayerOuterGlow>& fields) {
   EFFECT_FIELD(size);
   EFFECT_FIELD(technique);
   EFFECT_FIELD(range);
+  EFFECT_FIELD(contour);
+  EFFECT_FIELD(anti_aliased);
+  EFFECT_FIELD(jitter);
 }
 
 void add_effect_fields(const EffectFields<LayerInnerGlow>& fields) {
@@ -378,6 +383,9 @@ void add_effect_fields(const EffectFields<LayerInnerGlow>& fields) {
   EFFECT_FIELD(technique);
   EFFECT_FIELD(range);
   EFFECT_FIELD(source);
+  EFFECT_FIELD(contour);
+  EFFECT_FIELD(anti_aliased);
+  EFFECT_FIELD(jitter);
 }
 
 void add_effect_fields(const EffectFields<LayerColorOverlay>& fields) {
@@ -476,7 +484,8 @@ void add_effect_fields(const EffectFields<LayerSatin>& fields) {
   EFFECT_FIELD(distance);
   EFFECT_FIELD(size);
   EFFECT_FIELD(invert);
-  EFFECT_FIELD(unsupported_contour_options);
+  EFFECT_FIELD(contour);
+  EFFECT_FIELD(anti_aliased);
 }
 
 #undef EFFECT_FIELD

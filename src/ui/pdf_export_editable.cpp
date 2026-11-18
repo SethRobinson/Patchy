@@ -361,6 +361,7 @@ struct Writer {
   void emit_raster_chunk(std::vector<Layer> layers, double opacity) {
     Document scratch(document.width(), document.height(), PixelFormat::rgba8());
     scratch.metadata().patterns = document.metadata().patterns;
+    scratch.set_global_light(document.metadata().global_light);
     // Only the chunk's own render area composites: a canvas-sized flatten per layer cost
     // over a second each on a grid of scanned pages (docs/pdf-performance.md).
     Rect area;

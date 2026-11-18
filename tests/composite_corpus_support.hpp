@@ -149,6 +149,7 @@ inline std::filesystem::path actual_digests_path(const CorpusDirectory& director
 inline int compare_corpus_baseline(std::string_view kind, const CorpusDirectory& directory, int digest_columns,
                                    const std::map<std::string, std::string>& digests) {
   const auto path = baseline_path(directory, kind);
+  auto baseline = read_baseline(path, digest_columns);
   if (!std::filesystem::exists(path)) {
     if (!directory.committed && local_fixtures_overridden()) {
       // PATCHY_LOCAL_FIXTURES_DIR points at another checkout's fixtures: never write there.
@@ -156,15 +157,22 @@ inline int compare_corpus_baseline(std::string_view kind, const CorpusDirectory&
       write_baseline(actual, digests);
       std::cout << "[INFO] no " << directory.tag << ' ' << kind << " corpus baseline in PATCHY_LOCAL_FIXTURES_DIR; "
                 << "digests written to " << actual.string() << " (copy to " << path.string() << " to pin them)\n";
-      return 0;
+    } else {
+      write_baseline(path, digests);
+      std::cout << "[INFO] wrote " << directory.tag << ' ' << kind << " corpus baseline (" << digests.size()
+                << " documents): " << path.string() << '\n';
     }
-    write_baseline(path, digests);
-    std::cout << "[INFO] wrote " << directory.tag << ' ' << kind << " corpus baseline (" << digests.size()
-              << " documents): " << path.string() << '\n';
-    return 0;
+    baseline = digests;
   }
-
-  const auto baseline = read_baseline(path, digest_columns);
+  if (!directory.committed) {
+    // A deliberate renderer change can update a known optional fixture's pin
+    // on this branch without invalidating another checkout's local overlay.
+    const auto shared = source_root_path() / "test-fixtures" / "composite-corpus" /
+                        (std::string(kind) + "-digests.txt");
+    for (const auto& [name, digest] : read_baseline(shared, digest_columns)) {
+      if (digests.contains(name)) baseline[name] = digest;
+    }
+  }
   int problems = 0;
   for (const auto& [name, hex] : digests) {
     const auto pinned = baseline.find(name);

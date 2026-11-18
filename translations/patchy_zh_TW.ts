@@ -5561,10 +5561,6 @@
         <translation>圖樣「%1」沒有內嵌在這份文件中，因此在你選擇其他圖樣之前，參照它的效果無法顯示。</translation>
     </message>
     <message>
-        <source>Photoshop Satin custom contours and contour anti-aliasing are preserved until you edit layer styles. Patchy previews and saves edited Satin with the non-anti-aliased Linear contour.</source>
-        <translation>Photoshop 緞面的自訂輪廓和輪廓消除鋸齒會保留到你編輯圖層樣式為止。Patchy 會以未消除鋸齒的線性輪廓預視並儲存編輯後的緞面。</translation>
-    </message>
-    <message>
         <source>This layer contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it unchanged and does not preview it unless you replace it.</source>
         <translation>這個圖層含有不支援的色彩模式或資料形式的 Photoshop 混合範圍資料。Patchy 會原封不動保留這些資料，除非你加以取代，否則不會預視。</translation>
     </message>
@@ -15834,10 +15830,6 @@ Do you want to replace it?</source>
         <translation>圖層「%1」是 Patchy 只能保留而無法編輯的智慧型物件 (%2)。</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
-        <translation>圖層「%1」含有 Patchy 無法演算或編輯的 Photoshop 緞面輪廓設定 (自訂曲線或消除鋸齒)。Patchy 會保留這些設定，直到圖層樣式被編輯為止，之後會改用未消除鋸齒的線性輪廓。</translation>
-    </message>
-    <message>
         <source>Layer &apos;%1&apos; contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
         <translation>圖層「%1」含有色彩模式或資料格式不受支援的 Photoshop「混合範圍」資料。Patchy 會在重新儲存 PSD 時保留這些資料，但不會演算或編輯。</translation>
     </message>
@@ -16376,6 +16368,10 @@ Do you want to replace it?</source>
     <message>
         <source>Contour Manager…</source>
         <translation>輪廓管理員…</translation>
+    </message>
+    <message>
+        <source>Use Global Light</source>
+        <translation>使用全域光源</translation>
     </message>
 </context>
 <context>
@@ -30840,10 +30836,6 @@ Baked into images: %1.</source>
     <message>
         <source>%1: preserved blending data remains protected.</source>
         <translation>%1：保留的混合資料仍受保護。</translation>
-    </message>
-    <message>
-        <source>%1: editing effects normalizes unsupported Satin contours.</source>
-        <translation>%1：編輯效果將標準化不支援的光澤輪廓。</translation>
     </message>
     <message>
         <source>Open from &amp;Clipboard</source>

@@ -5739,10 +5739,6 @@
         <translation>패턴 &quot;%1&quot;은(는) 이 문서에 포함되어 있지 않으므로 이를 참조하는 효과는 다른 패턴을 선택할 때까지 렌더링할 수 없습니다.</translation>
     </message>
     <message>
-        <source>Photoshop Satin custom contours and contour anti-aliasing are preserved until you edit layer styles. Patchy previews and saves edited Satin with the non-anti-aliased Linear contour.</source>
-        <translation>Photoshop 새틴 사용자 지정 윤곽선 및 윤곽선 앤티앨리어싱은 레이어 스타일을 편집할 때까지 유지됩니다. Patchy는 앤티앨리어싱되지 않은 선형 윤곽선을 사용하여 편집된 새틴을 미리 보고 저장합니다.</translation>
-    </message>
-    <message>
         <source>renders a regular drop shadow at the Distance value</source>
         <translation>지정한 거리로 일반 그림자를 렌더링합니다</translation>
     </message>
@@ -15834,10 +15830,6 @@ Do you want to replace it?</source>
         <translation>레이어 &apos;%1&apos;은(는) 스마트 개체입니다. Patchy는 보존만 할 수 있고 편집할 수는 없습니다(%2).</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
-        <translation>레이어 &apos;%1&apos;에는 Patchy가 렌더링하거나 편집할 수 없는 Photoshop 새틴 윤곽 설정(사용자 지정 곡선 또는 앤티앨리어싱)이 포함되어 있습니다. Patchy는 레이어 스타일이 편집될 때까지 이를 유지한 다음 앤티앨리어싱되지 않은 선형 윤곽을 사용합니다.</translation>
-    </message>
-    <message>
         <source>Layer &apos;%1&apos; contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
         <translation>레이어 &apos;%1&apos;에 지원되지 않는 색상 모드 또는 데이터 구조의 Photoshop 혼합 조건 데이터가 있습니다. Patchy는 PSD로 다시 저장할 때 이 데이터를 보존하지만 렌더링하거나 편집하지는 않습니다.</translation>
     </message>
@@ -16376,6 +16368,10 @@ Do you want to replace it?</source>
     <message>
         <source>Contour Manager…</source>
         <translation>윤곽선 관리자…</translation>
+    </message>
+    <message>
+        <source>Use Global Light</source>
+        <translation>전체 조명 사용</translation>
     </message>
 </context>
 <context>
@@ -30840,10 +30836,6 @@ Y: %2
     <message>
         <source>%1: preserved blending data remains protected.</source>
         <translation>%1: 보존된 혼합 데이터는 계속 보호됩니다.</translation>
-    </message>
-    <message>
-        <source>%1: editing effects normalizes unsupported Satin contours.</source>
-        <translation>%1: 효과를 편집하면 지원되지 않는 새틴 윤곽이 표준화됩니다.</translation>
     </message>
     <message>
         <source>Open from &amp;Clipboard</source>

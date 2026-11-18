@@ -103,6 +103,8 @@ struct InnerShadowPageControls {
   QSpinBox* inner_shadow_blue{};
   QPushButton* add_inner_shadow{};
   QPushButton* remove_inner_shadow{};
+  QComboBox* contour{};
+  QCheckBox* anti_aliased{};
 };
 InnerShadowPageControls build_inner_shadow_page(LayerStylePageContext& context, QVBoxLayout* inner_shadow_layout, const LayerInnerShadow& inner_shadow);
 
@@ -120,6 +122,8 @@ struct InnerGlowPageControls {
   QSpinBox* inner_glow_blue{};
   QPushButton* add_inner_glow{};
   QPushButton* remove_inner_glow{};
+  QComboBox* contour{};
+  QCheckBox* anti_aliased{};
 };
 InnerGlowPageControls build_inner_glow_page(LayerStylePageContext& context, QVBoxLayout* inner_glow_layout, const LayerInnerGlow& inner_glow);
 
@@ -134,6 +138,8 @@ struct SatinPageControls {
   QSpinBox* satin_red{};
   QSpinBox* satin_green{};
   QSpinBox* satin_blue{};
+  QComboBox* contour{};
+  QCheckBox* anti_aliased{};
 };
 SatinPageControls build_satin_page(LayerStylePageContext& context, QVBoxLayout* satin_layout, const LayerSatin& satin);
 
@@ -165,6 +171,8 @@ struct OuterGlowPageControls {
   QSpinBox* outer_glow_red{};
   QSpinBox* outer_glow_green{};
   QSpinBox* outer_glow_blue{};
+  QComboBox* contour{};
+  QCheckBox* anti_aliased{};
 };
 OuterGlowPageControls build_outer_glow_page(LayerStylePageContext& context, QVBoxLayout* outer_glow_layout, const LayerOuterGlow& outer_glow);
 

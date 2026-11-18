@@ -357,6 +357,10 @@ std::optional<LayerInnerShadow> parse_inner_shadow(const DescriptorObject& effec
   shadow.distance = std::max(0.0F, static_cast<float>(descriptor_number(effect, "Dstn", 5.0)));
   shadow.choke = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
   shadow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
+  if (const auto* contour = descriptor_object(effect, "TrnS"); contour != nullptr) {
+    shadow.contour = parse_shape_contour(*contour);
+  }
+  shadow.anti_aliased = descriptor_bool(effect, "AntA", false);
   return shadow;
 }
 
@@ -379,6 +383,11 @@ std::optional<LayerOuterGlow> parse_outer_glow(const DescriptorObject& effect,
   // Photoshop renders a glow with no 'Inpr' at Range 100 (COM-probed; the UI
   // writes 50, so the fallback only fires on Action-Manager-authored files).
   glow.range = std::clamp(static_cast<float>(descriptor_number(effect, "Inpr", 100.0)), 1.0F, 100.0F);
+  if (const auto* contour = descriptor_object(effect, "TrnS"); contour != nullptr) {
+    glow.contour = parse_shape_contour(*contour);
+  }
+  glow.anti_aliased = descriptor_bool(effect, "AntA", false);
+  glow.jitter = std::clamp(static_cast<float>(descriptor_number(effect, "ShdN", 0.0)), 0.0F, 100.0F);
   return glow;
 }
 
@@ -405,6 +414,11 @@ std::optional<LayerInnerGlow> parse_inner_glow(const DescriptorObject& effect,
                                                                      : LayerGlowTechnique::Softer;
   // Missing 'Inpr' means Range 100, same as the outer glow above.
   glow.range = std::clamp(static_cast<float>(descriptor_number(effect, "Inpr", 100.0)), 1.0F, 100.0F);
+  if (const auto* contour = descriptor_object(effect, "TrnS"); contour != nullptr) {
+    glow.contour = parse_shape_contour(*contour);
+  }
+  glow.anti_aliased = descriptor_bool(effect, "AntA", false);
+  glow.jitter = std::clamp(static_cast<float>(descriptor_number(effect, "ShdN", 0.0)), 0.0F, 100.0F);
   return glow;
 }
 
@@ -564,21 +578,10 @@ std::optional<LayerSatin> parse_satin(const DescriptorObject& effect,
   satin.distance = std::max(0.0F, static_cast<float>(descriptor_number(effect, "Dstn", 11.0)));
   satin.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 14.0)));
   satin.invert = descriptor_bool(effect, "Invr", true);
-  // Only an ENABLED record's contour options can be lost to a visible change:
-  // a disabled Satin draws nothing, so the dialog's "preserved until you edit"
-  // notice stays quiet for it (ag-psd's float-color fixture carries a disabled
-  // Satin with AntA on, GitHub issue 264). An edit still regenerates the record
-  // with Patchy's Linear contour either way.
-  if (satin.enabled) {
-    satin.unsupported_contour_options = descriptor_bool(effect, "AntA", false);
-    if (const auto* contour = descriptor_object(effect, "MpgS"); contour != nullptr) {
-      const auto parsed = parse_shape_contour(*contour);
-      // A missing/malformed Crv list (empty points) is unsupported too, matching
-      // the historical check; corner flags never affect a two-point identity.
-      satin.unsupported_contour_options = satin.unsupported_contour_options || parsed.points.empty() ||
-                                          !style_contour_is_linear(parsed);
-    }
+  if (const auto* contour = descriptor_object(effect, "MpgS"); contour != nullptr) {
+    satin.contour = parse_shape_contour(*contour);
   }
+  satin.anti_aliased = descriptor_bool(effect, "AntA", false);
   return satin;
 }
 
@@ -978,30 +981,43 @@ LayerStyle parse_lrfx_layer_style(std::span<const std::uint8_t> payload, const C
   return style;
 }
 
-// Photoshop renders shadow and bevel effects flagged "use global light" with the document-wide
-// light direction (image resources 1037/1049) instead of the effect's own stored angle. Resolve
-// those angles while importing so Patchy renders what Photoshop renders, then clear the flag:
-// Patchy edits angles per effect, so resolved styles are saved as local angles that mean the
-// same thing in both applications.
-void resolve_global_light(LayerStyle& style, float angle_degrees, float altitude_degrees) {
-  for (auto& shadow : style.drop_shadows) {
-    if (shadow.use_global_light) {
-      shadow.angle_degrees = angle_degrees;
-      shadow.use_global_light = false;
+std::optional<std::vector<std::uint8_t>> layer_effects_with_global_light(
+    std::span<const std::uint8_t> payload, GlobalLight light) {
+  try {
+    BigEndianReader reader(payload);
+    if (reader.read_u32() != 0 || reader.read_u32() != 16) return std::nullopt;
+    auto root = read_descriptor(reader);
+    bool changed = false;
+    const auto update = [&](DescriptorValue& effect, bool bevel) {
+      if (!effect.object_value || !descriptor_bool(*effect.object_value, "uglg")) return;
+      const auto angle = [&](const char* key, int degrees) {
+        auto& field = effect.object_value->values[key];
+        if (field.type == DescriptorValue::Type::UnitFloat && field.double_value == degrees) return;
+        field.type = DescriptorValue::Type::UnitFloat;
+        field.unit = "#Ang";
+        field.double_value = degrees;
+        changed = true;
+      };
+      angle("lagl", light.angle);
+      if (bevel) angle("Lald", light.altitude);
+    };
+    for (auto& [key, value] : root.values) {
+      const bool bevel = key == "ebbl" || key == "bevelEmboss";
+      if (bevel || key == "DrSh" || key == "dropShadow" || key == "IrSh" || key == "innerShadow") {
+        update(value, bevel);
+      } else if (key == "dropShadowMulti" || key == "innerShadowMulti" || key == "bevelEmbossMulti") {
+        for (auto& effect : value.list_value) update(effect, key == "bevelEmbossMulti");
+      }
     }
-  }
-  for (auto& shadow : style.inner_shadows) {
-    if (shadow.use_global_light) {
-      shadow.angle_degrees = angle_degrees;
-      shadow.use_global_light = false;
-    }
-  }
-  for (auto& bevel : style.bevels) {
-    if (bevel.use_global_light) {
-      bevel.angle_degrees = angle_degrees;
-      bevel.altitude_degrees = altitude_degrees;
-      bevel.use_global_light = false;
-    }
+    if (!changed) return std::nullopt;
+    BigEndianWriter writer;
+    writer.write_bytes(payload.first(8));
+    write_descriptor(writer, root);
+    writer.write_bytes(reader.read_span(reader.remaining()));
+    return std::move(writer.bytes());
+  } catch (const std::runtime_error&) {
+    // The raw block and document resources still carry the live Photoshop link.
+    return std::nullopt;
   }
 }
 
@@ -1565,7 +1581,7 @@ std::string_view inner_glow_source_descriptor_value(LayerInnerGlowSource source)
 }
 
 void write_shape_contour_descriptor_item(BigEndianWriter& writer, std::string_view key,
-                                         const StyleContour& contour);
+                                         const StyleContour& contour, std::string_view linear_name = "Linear");
 
 void write_drop_shadow_descriptor(BigEndianWriter& writer, const LayerDropShadow& shadow) {
   // TrnS only for a shaped contour: a Linear shadow keeps the pinned 12-item form.
@@ -1575,9 +1591,6 @@ void write_drop_shadow_descriptor(BigEndianWriter& writer, const LayerDropShadow
   write_blend_mode_descriptor_item(writer, "Md  ", shadow.blend_mode);
   write_rgb_color_descriptor_item(writer, "Clr ", shadow.color);
   write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, shadow.opacity * 100.0);
-  // Claiming "use global light" would make Photoshop ignore lagl and swing the
-  // shadow to the document's global angle; Patchy's angles are per-effect, so
-  // always declare them local.
   write_descriptor_bool_item(writer, "uglg", shadow.use_global_light);
   write_descriptor_unit_float_item(writer, "lagl", {'#', 'A', 'n', 'g'}, shadow.angle_degrees);
   write_descriptor_unit_float_item(writer, "Dstn", {'#', 'P', 'x', 'l'}, shadow.distance);
@@ -1592,7 +1605,8 @@ void write_drop_shadow_descriptor(BigEndianWriter& writer, const LayerDropShadow
 }
 
 void write_inner_shadow_descriptor(BigEndianWriter& writer, const LayerInnerShadow& shadow) {
-  write_descriptor_object_header(writer, "", "IrSh", 11);
+  const bool contoured = !style_contour_is_linear(shadow.contour);
+  write_descriptor_object_header(writer, "", "IrSh", contoured ? 12U : 11U);
   write_descriptor_bool_item(writer, "enab", shadow.enabled);
   write_blend_mode_descriptor_item(writer, "Md  ", shadow.blend_mode);
   write_rgb_color_descriptor_item(writer, "Clr ", shadow.color);
@@ -1603,11 +1617,13 @@ void write_inner_shadow_descriptor(BigEndianWriter& writer, const LayerInnerShad
   write_descriptor_unit_float_item(writer, "Ckmt", {'#', 'P', 'x', 'l'}, shadow.choke);
   write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, shadow.size);
   write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
-  write_descriptor_bool_item(writer, "AntA", false);
+  write_descriptor_bool_item(writer, "AntA", shadow.anti_aliased);
+  if (contoured) write_shape_contour_descriptor_item(writer, "TrnS", shadow.contour);
 }
 
 void write_outer_glow_descriptor(BigEndianWriter& writer, const LayerOuterGlow& glow) {
-  write_descriptor_object_header(writer, "", "OrGl", 11);
+  const bool contoured = !style_contour_is_linear(glow.contour);
+  write_descriptor_object_header(writer, "", "OrGl", contoured ? 12U : 11U);
   write_descriptor_bool_item(writer, "enab", glow.enabled);
   write_blend_mode_descriptor_item(writer, "Md  ", glow.blend_mode);
   write_rgb_color_descriptor_item(writer, "Clr ", glow.color);
@@ -1618,13 +1634,15 @@ void write_outer_glow_descriptor(BigEndianWriter& writer, const LayerOuterGlow& 
   write_descriptor_unit_float_item(writer, "Ckmt", {'#', 'P', 'x', 'l'}, glow.spread);
   write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, glow.size);
   write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
-  write_descriptor_unit_float_item(writer, "ShdN", {'#', 'P', 'r', 'c'}, 0.0);
-  write_descriptor_bool_item(writer, "AntA", false);
+  write_descriptor_unit_float_item(writer, "ShdN", {'#', 'P', 'r', 'c'}, glow.jitter);
+  write_descriptor_bool_item(writer, "AntA", glow.anti_aliased);
+  if (contoured) write_shape_contour_descriptor_item(writer, "TrnS", glow.contour);
   write_descriptor_unit_float_item(writer, "Inpr", {'#', 'P', 'r', 'c'}, glow.range);
 }
 
 void write_inner_glow_descriptor(BigEndianWriter& writer, const LayerInnerGlow& glow) {
-  write_descriptor_object_header(writer, "", "IrGl", 12);
+  const bool contoured = !style_contour_is_linear(glow.contour);
+  write_descriptor_object_header(writer, "", "IrGl", contoured ? 13U : 12U);
   write_descriptor_bool_item(writer, "enab", glow.enabled);
   write_blend_mode_descriptor_item(writer, "Md  ", glow.blend_mode);
   write_rgb_color_descriptor_item(writer, "Clr ", glow.color);
@@ -1636,8 +1654,9 @@ void write_inner_glow_descriptor(BigEndianWriter& writer, const LayerInnerGlow& 
   write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, glow.size);
   write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
   write_descriptor_enum_item(writer, "glwS", "IGSr", inner_glow_source_descriptor_value(glow.source));
-  write_descriptor_unit_float_item(writer, "ShdN", {'#', 'P', 'r', 'c'}, 0.0);
-  write_descriptor_bool_item(writer, "AntA", false);
+  write_descriptor_unit_float_item(writer, "ShdN", {'#', 'P', 'r', 'c'}, glow.jitter);
+  write_descriptor_bool_item(writer, "AntA", glow.anti_aliased);
+  if (contoured) write_shape_contour_descriptor_item(writer, "TrnS", glow.contour);
   write_descriptor_unit_float_item(writer, "Inpr", {'#', 'P', 'r', 'c'}, glow.range);
 }
 
@@ -1716,11 +1735,11 @@ void write_stroke_descriptor(BigEndianWriter& writer, const LayerStroke& stroke)
 // (name "Linear", the two-point identity Crv, no Cnty flags); custom curves
 // carry Cnty on every point (true = smooth), PS's canonical custom-curve form.
 void write_shape_contour_descriptor_item(BigEndianWriter& writer, std::string_view key,
-                                         const StyleContour& contour) {
+                                         const StyleContour& contour, std::string_view linear_name) {
   write_descriptor_item_header(writer, key, {'O', 'b', 'j', 'c'});
   write_descriptor_object_header(writer, "", "ShpC", 2);
   if (style_contour_is_linear(contour)) {
-    write_descriptor_text_item(writer, "Nm  ", "Linear");
+    write_descriptor_text_item(writer, "Nm  ", linear_name);
     write_descriptor_item_header(writer, "Crv ", {'V', 'l', 'L', 's'});
     writer.write_u32(2);
     for (const auto point : {0.0, 255.0}) {
@@ -1830,32 +1849,19 @@ void write_bevel_emboss_descriptor(BigEndianWriter& writer, const LayerBevelEmbo
 }
 
 void write_satin_descriptor(BigEndianWriter& writer, const LayerSatin& satin) {
-  // Photoshop 2026's native Satin shape. MpgS is the Linear contour: custom
-  // curves and AntA remain byte-preserved with untouched imported lfx2 data,
-  // but an edited modeled Satin deliberately regenerates with AntA off.
   write_descriptor_object_header(writer, "", "ChFX", 12);
   write_descriptor_bool_item(writer, "enab", satin.enabled);
   write_descriptor_bool_item(writer, "present", true);
   write_descriptor_bool_item(writer, "showInDialog", true);
   write_blend_mode_descriptor_item(writer, "Md  ", satin.blend_mode);
   write_native_rgb_color_descriptor_item(writer, "Clr ", satin.color);
-  write_descriptor_bool_item(writer, "AntA", false);
+  write_descriptor_bool_item(writer, "AntA", satin.anti_aliased);
   write_descriptor_bool_item(writer, "Invr", satin.invert);
   write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, satin.opacity * 100.0);
   write_descriptor_unit_float_item(writer, "lagl", {'#', 'A', 'n', 'g'}, satin.angle_degrees);
   write_descriptor_unit_float_item(writer, "Dstn", {'#', 'P', 'x', 'l'}, satin.distance);
   write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, satin.size);
-  write_descriptor_item_header(writer, "MpgS", {'O', 'b', 'j', 'c'});
-  write_descriptor_object_header(writer, "", "ShpC", 2);
-  write_descriptor_text_item(writer, "Nm  ", "$$$/Contours/Defaults/Linear=Linear");
-  write_descriptor_item_header(writer, "Crv ", {'V', 'l', 'L', 's'});
-  writer.write_u32(2);
-  for (const auto point : {0.0, 255.0}) {
-    write_signature(writer, {'O', 'b', 'j', 'c'});
-    write_descriptor_object_header(writer, "", "CrPt", 2);
-    write_descriptor_double_item(writer, "Hrzn", point);
-    write_descriptor_double_item(writer, "Vrtc", point);
-  }
+  write_shape_contour_descriptor_item(writer, "MpgS", satin.contour, "$$$/Contours/Defaults/Linear=Linear");
 }
 
 void write_pattern_descriptor(BigEndianWriter& writer, const LayerPatternOverlay& pattern) {

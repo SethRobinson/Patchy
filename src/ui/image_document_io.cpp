@@ -1636,6 +1636,7 @@ QImage render_layer_isolated(const Document& document, const Layer& layer) {
 
 QImage render_layers_isolated(const Document& document, std::vector<Layer> stack) {
   Document scratch(document.width(), document.height(), PixelFormat::rgba8());
+  scratch.set_global_light(document.metadata().global_light);
   for (auto& layer : stack) {
     scratch.add_layer(std::move(layer));
   }

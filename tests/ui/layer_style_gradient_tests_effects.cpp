@@ -2269,7 +2269,7 @@ void ui_layer_style_satin_controls_map_to_settings() {
                       solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
   patchy::LayerSatin satin;
   satin.enabled = true;
-  satin.unsupported_contour_options = true;
+  satin.anti_aliased = true;
   layer.layer_style().satins.push_back(satin);
 
   QTimer::singleShot(0, guarded([] {
@@ -2285,7 +2285,7 @@ void ui_layer_style_satin_controls_map_to_settings() {
     auto* red = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleSatinRedSpin"));
     auto* green = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleSatinGreenSpin"));
     auto* blue = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleSatinBlueSpin"));
-    auto* contour_warning = dialog->findChild<QLabel*>(QStringLiteral("layerStyleSatinContourWarning"));
+    auto* curve = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleSatinContourCombo"));
     CHECK(categories != nullptr);
     CHECK(blend != nullptr);
     CHECK(opacity != nullptr);
@@ -2296,9 +2296,7 @@ void ui_layer_style_satin_controls_map_to_settings() {
     CHECK(red != nullptr);
     CHECK(green != nullptr);
     CHECK(blue != nullptr);
-    CHECK(contour_warning != nullptr);
-    CHECK(contour_warning->isVisible());
-    CHECK(contour_warning->text().contains(QStringLiteral("non-anti-aliased Linear contour")));
+    CHECK(curve != nullptr);
     const auto satin_items = categories->findItems(QStringLiteral("Satin"), Qt::MatchExactly);
     CHECK(!satin_items.empty());
     categories->setCurrentItem(satin_items.front());
@@ -2330,7 +2328,7 @@ void ui_layer_style_satin_controls_map_to_settings() {
   CHECK(result.size == 19.0F);
   CHECK(!result.invert);
   CHECK(result.color.red == 12 && result.color.green == 34 && result.color.blue == 56);
-  CHECK(!result.unsupported_contour_options);
+  CHECK(result.anti_aliased);
   CHECK(previews >= 1);
 }
 
@@ -2826,9 +2824,8 @@ void ui_layer_style_dialog_fits_a_short_screen() {
   // GitHub issue 190: the Blending Options page (Blend If included) made the
   // dialog taller than a 768 px screen (Linux desktop fonts are larger than
   // the suite's), so OK and Cancel sat below its edge. The offscreen screen is
-  // 800 x 800; an imported Photoshop layer whose three notices (missing
-  // pattern, Satin contour, unsupported Blend If) sit above the pages makes
-  // the dialog taller than that here. It must cap itself to the available
+  // 800 x 800. A missing pattern and unsupported Blend If add notices above
+  // the effect pages. It must cap itself to the available
   // height, keep its buttons on screen, and scroll the settings pane instead.
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   patchy::Layer layer(document.allocate_layer_id(), "Short Screen",
@@ -2840,7 +2837,7 @@ void ui_layer_style_dialog_fits_a_short_screen() {
   layer.layer_style().pattern_overlays.push_back(missing_pattern);
   patchy::LayerSatin satin;
   satin.enabled = true;
-  satin.unsupported_contour_options = true;
+  satin.anti_aliased = true;
   layer.layer_style().satins.push_back(satin);
   layer.set_blend_if_payload({1});
   const auto layer_id = layer.id();
@@ -3015,6 +3012,58 @@ void ui_layer_style_dialog_resizes_below_its_tallest_page() {
   CHECK(!patchy::ui::stored_layer_style_dialog_size().isValid());
 }
 
+void ui_layer_style_global_light_preview_cancel_and_undo() {
+  using namespace patchy;
+  Document doc(48, 48, PixelFormat::rgba8());
+  Layer other(doc.allocate_layer_id(), "Other", solid_pixels(20, 20, PixelFormat::rgba8(), Qt::white));
+  LayerBevelEmboss bevel;
+  bevel.enabled = bevel.use_global_light = true;
+  other.layer_style().bevels.push_back(bevel);
+  LayerDropShadow local;
+  local.enabled = true;
+  local.angle_degrees = 13.0F;
+  other.layer_style().drop_shadows.push_back(local);
+  const auto other_id = other.id();
+  doc.add_layer(std::move(other));
+  Layer edited(doc.allocate_layer_id(), "Edited", solid_pixels(20, 20, PixelFormat::rgba8(), Qt::red));
+  LayerInnerShadow shadow;
+  shadow.enabled = shadow.use_global_light = true;
+  edited.layer_style().inner_shadows.push_back(shadow);
+  const auto edited_id = edited.id();
+  doc.add_layer(std::move(edited));
+  doc.set_active_layer(edited_id);
+  ui::MainWindow window;
+  window.add_document_session(std::move(doc), QStringLiteral("Global Light"));
+  show_window(window);
+  const auto matches = [&](int angle) {
+    const auto& current = std::as_const(ui::MainWindowTestAccess::document(window));
+    const auto& second = current.find_layer(other_id)->layer_style();
+    return current.metadata().global_light.angle == angle && second.bevels.front().angle_degrees == angle &&
+           second.drop_shadows.front().angle_degrees == 13 &&
+           current.find_layer(edited_id)->layer_style().inner_shadows.front().angle_degrees == angle;
+  };
+  for (const bool accept : {false, true}) {
+    QTimer::singleShot(0, &window, guarded([&] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+      CHECK(dialog != nullptr);
+      auto* list = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+      const auto items = list->findItems(QStringLiteral("Inner Shadow"), Qt::MatchExactly);
+      CHECK(!items.empty());
+      list->setCurrentItem(items.front());
+      auto* link = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleInnerShadowGlobalLightCheck"));
+      auto* angle = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleInnerShadowAngleSpin"));
+      CHECK(link && link->isChecked() && angle);
+      angle->setValue(-48);
+      CHECK(QTest::qWaitFor([&] { return matches(-48); }, 5000));
+      if (accept) dialog->accept(); else dialog->reject();
+    }));
+    require_action(window, "layerBlendingOptionsAction")->trigger();
+    CHECK(matches(accept ? -48 : 120));
+  }
+  ui::MainWindowTestAccess::undo(window);
+  CHECK(matches(120));
+}
+
 void ui_layer_style_page_captures_issue_606() {
   // GitHub issue 606: one capture per reworked page (Style Presets, Blending
   // Options, Bevel & Emboss, a color page, Inner Glow), opened from the main
@@ -3038,6 +3087,16 @@ void ui_layer_style_page_captures_issue_606() {
   shadow.enabled = true;
   shadow.angle_degrees = 120.0F;
   layer.layer_style().drop_shadows.push_back(shadow);
+  patchy::LayerInnerShadow inner_shadow;
+  inner_shadow.enabled = true;
+  inner_shadow.use_global_light = true;
+  layer.layer_style().inner_shadows.push_back(inner_shadow);
+  patchy::LayerOuterGlow outer_glow;
+  outer_glow.enabled = true;
+  outer_glow.color = {255, 202, 80};
+  outer_glow.size = 16.0F;
+  outer_glow.contour = {"Peak", {{0, 0, true}, {128, 255, true}, {255, 0, true}}};
+  layer.layer_style().outer_glows.push_back(outer_glow);
   const auto layer_id = layer.id();
   document.add_layer(std::move(layer));
   document.set_active_layer(layer_id);
@@ -3056,13 +3115,15 @@ void ui_layer_style_page_captures_issue_606() {
                 dialog->minimumWidth(), dialog->minimumHeight());
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
     CHECK(categories != nullptr);
-    const std::array<std::pair<const char*, const char*>, 6> pages{{
+    const std::array<std::pair<const char*, const char*>, 8> pages{{
         {"Style Presets", "ui_layer_style_606_style_presets"},
         {"Blending Options", "ui_layer_style_606_blending_options"},
         {"Bevel & Emboss", "ui_layer_style_606_bevel_emboss"},
         {"Color Overlay", "ui_layer_style_606_color_overlay"},
         {"Inner Glow", "ui_layer_style_606_inner_glow"},
         {"Drop Shadow", "ui_layer_style_618_drop_shadow"},
+        {"Inner Shadow", "ui_layer_style_735_inner_shadow"},
+        {"Outer Glow", "ui_layer_style_735_outer_glow"},
     }};
     for (const auto& [title, artifact] : pages) {
       for (int row = 0; categories != nullptr && row < categories->count(); ++row) {
@@ -4093,6 +4154,7 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
   return {
       {"ui_layer_style_dialog_fits_a_short_screen", ui_layer_style_dialog_fits_a_short_screen},
       {"ui_layer_style_dialog_resizes_below_its_tallest_page", ui_layer_style_dialog_resizes_below_its_tallest_page},
+      {"ui_layer_style_global_light_preview_cancel_and_undo", ui_layer_style_global_light_preview_cancel_and_undo},
       {"ui_layer_style_page_captures_issue_606", ui_layer_style_page_captures_issue_606},
       {"ui_layer_style_page_titles_show_ampersands", ui_layer_style_page_titles_show_ampersands},
       {"ui_layer_style_make_default_and_reset_to_default", ui_layer_style_make_default_and_reset_to_default},

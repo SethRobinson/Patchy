@@ -416,19 +416,9 @@ void psd_recognized_text_group_marker_uses_plugin_resource() {
              .has_value());
 }
 
-void psd_drop_shadow_resolves_photoshop_global_light() {
+std::vector<std::uint8_t> psd_with_stale_linked_shadow_angle() {
   patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
-  // Global light angle resource (1037) holding -60 degrees.
-  patchy::psd::BigEndianWriter resources;
-  resources.write_u8('8');
-  resources.write_u8('B');
-  resources.write_u8('I');
-  resources.write_u8('M');
-  resources.write_u16(1037);
-  resources.write_u16(0);  // empty pascal name, padded
-  resources.write_u32(4);
-  resources.write_u32(static_cast<std::uint32_t>(-60));
-  document.metadata().raw_psd_image_resources = resources.bytes();
+  document.set_global_light({-60, 45});
 
   auto& layer = document.add_pixel_layer("Styled", solid_rgba(4, 4, 10, 20, 30, 255));
   patchy::LayerDropShadow shadow;
@@ -442,18 +432,22 @@ void psd_drop_shadow_resolves_photoshop_global_light() {
   auto found = std::search(bytes.begin(), bytes.end(), kLfx2UglgItem.begin(), kLfx2UglgItem.end());
   CHECK(found != bytes.end());
   *(found + kLfx2UglgItem.size()) = 1U;
+  return bytes;
+}
 
-  auto read = patchy::psd::DocumentIo::read(bytes);
+void psd_drop_shadow_resolves_photoshop_global_light() {
+  auto read = patchy::psd::DocumentIo::read(psd_with_stale_linked_shadow_angle());
   CHECK(read.layers().size() == 1);
   const auto& style = read.layers().front().layer_style();
   CHECK(style.drop_shadows.size() == 1);
   CHECK(std::lround(style.drop_shadows.front().angle_degrees) == -60);
-  CHECK(!style.drop_shadows.front().use_global_light);
+  CHECK(style.drop_shadows.front().use_global_light);
+  CHECK(read.metadata().global_light.altitude == 45);
 
   // An untouched layer re-saves the preserved Photoshop lfx2 block byte-for-byte, which still
   // means -60 degrees to Photoshop via the raw global light resource. Once the style is edited
   // the preserved block is dropped, and the regenerated descriptor must carry the resolved
-  // angle as a local one so Photoshop keeps rendering -60.
+  // angle alongside its live link.
   std::erase_if(read.layers().front().unknown_psd_blocks(),
                 [](const patchy::UnknownPsdBlock& block) { return block.key == "lfx2" || block.key == "lrFX"; });
   const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(read);
@@ -462,7 +456,7 @@ void psd_drop_shadow_resolves_photoshop_global_light() {
   const auto resaved_uglg =
       std::search(payload->begin(), payload->end(), kLfx2UglgItem.begin(), kLfx2UglgItem.end());
   CHECK(resaved_uglg != payload->end());
-  CHECK(*(resaved_uglg + kLfx2UglgItem.size()) == 0U);
+  CHECK(*(resaved_uglg + kLfx2UglgItem.size()) == 1U);
   constexpr std::array<std::uint8_t, 16> lagl_item{0, 0, 0,   0,   'l', 'a', 'g', 'l',
                                                    'U', 'n', 't', 'F', '#', 'A', 'n', 'g'};
   const auto resaved_lagl = std::search(payload->begin(), payload->end(), lagl_item.begin(), lagl_item.end());
@@ -470,6 +464,26 @@ void psd_drop_shadow_resolves_photoshop_global_light() {
   // IEEE-754 big-endian -60.0
   constexpr std::array<std::uint8_t, 8> minus_sixty{0xC0, 0x4E, 0, 0, 0, 0, 0, 0};
   CHECK(std::equal(minus_sixty.begin(), minus_sixty.end(), resaved_lagl + lagl_item.size()));
+}
+
+void psd_global_light_updates_preserved_lagl_and_transferred_layers() {
+  // A change to the document light alone keeps the native descriptor and
+  // updates its fallback angle for readers that only look at lagl.
+  auto linked = patchy::psd::DocumentIo::read(psd_with_stale_linked_shadow_angle());
+  linked.set_global_light({42, 59});
+  const auto relit = patchy::psd::DocumentIo::write_layered_rgb8(linked);
+  const auto relit_payload = psd_layer_block_payload(psd_first_layer_extra_data(relit), "lfx2");
+  CHECK(relit_payload.has_value());
+  const auto relit_style = patchy::psd::parse_lfx2_layer_style(*relit_payload, patchy::psd::CmykColorConverter{});
+  CHECK(relit_style.drop_shadows.size() == 1);
+  CHECK(relit_style.drop_shadows.front().use_global_light);
+  CHECK(relit_style.drop_shadows.front().angle_degrees == 42.0F);
+
+  patchy::Document destination(4, 4, patchy::PixelFormat::rgb8());
+  destination.set_global_light({95, 63});
+  destination.add_layer(std::as_const(linked).layers().front());
+  CHECK(std::as_const(destination).layers().front().layer_style().drop_shadows.front().angle_degrees == 95.0F);
+  CHECK(std::as_const(linked).layers().front().layer_style().drop_shadows.front().angle_degrees == 42.0F);
 }
 
 void psd_photoshop_global_light_shadow_fixture_resolves_angle() {
@@ -1131,7 +1145,7 @@ void psd_generated_satin_descriptor_matches_photoshop_shape() {
   CHECK(std::abs(imported.distance - satin.distance) < 1.0e-6F);
   CHECK(std::abs(imported.size - satin.size) < 1.0e-6F);
   CHECK(imported.invert == satin.invert);
-  CHECK(!imported.unsupported_contour_options);
+  CHECK(!imported.anti_aliased);
 
   auto anti_aliased_bytes = bytes;
   constexpr std::array<std::uint8_t, 12> kAntialiasItem{
@@ -1142,7 +1156,7 @@ void psd_generated_satin_descriptor_matches_photoshop_shape() {
   *(antialias_item + kAntialiasItem.size()) = 1U;
   const auto anti_aliased_import = patchy::psd::DocumentIo::read(anti_aliased_bytes);
   CHECK(anti_aliased_import.layers().front().layer_style().satins.size() == 1);
-  CHECK(anti_aliased_import.layers().front().layer_style().satins.front().unsupported_contour_options);
+  CHECK(anti_aliased_import.layers().front().layer_style().satins.front().anti_aliased);
 
   patchy::Document disabled_document(4, 4, patchy::PixelFormat::rgb8());
   auto& disabled_layer =
@@ -1184,7 +1198,7 @@ void psd_photoshop_satin_fixture_preserves_native_lfx2() {
   CHECK(std::abs(satin.distance - 11.0F) < 1.0e-6F);
   CHECK(std::abs(satin.size - 14.0F) < 1.0e-6F);
   CHECK(satin.invert);
-  CHECK(!satin.unsupported_contour_options);
+  CHECK(!satin.anti_aliased);
 
   const auto preserved = std::find_if(layer->unknown_psd_blocks().begin(), layer->unknown_psd_blocks().end(),
                                       [](const patchy::UnknownPsdBlock& block) { return block.key == "lfx2"; });
@@ -1373,7 +1387,7 @@ void psd_photoshop_layer_style_4a_round_trip_fixture_imports() {
   CHECK(satin.distance == 9.0F);
   CHECK(satin.size == 6.0F);
   CHECK(!satin.invert);
-  CHECK(!satin.unsupported_contour_options);
+  CHECK(!satin.anti_aliased);
 
   CHECK(style.gradient_fills.size() == 1);
   CHECK(style.strokes.size() == 1);
@@ -1795,6 +1809,8 @@ std::vector<patchy::test::TestCase> psd_writer_stability_tests() {
        psd_recognized_text_group_marker_uses_plugin_resource},
       {"psd_drop_shadow_resolves_photoshop_global_light",
        psd_drop_shadow_resolves_photoshop_global_light},
+      {"psd_global_light_updates_preserved_lagl_and_transferred_layers",
+       psd_global_light_updates_preserved_lagl_and_transferred_layers},
       {"psd_photoshop_global_light_shadow_fixture_resolves_angle",
        psd_photoshop_global_light_shadow_fixture_resolves_angle},
       {"psd_arrows_load_save_stays_compressed_if_available",

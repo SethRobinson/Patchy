@@ -586,6 +586,7 @@ struct Writer {
     }
     Document scratch(document.width(), document.height(), PixelFormat::rgba8());
     scratch.metadata().patterns = document.metadata().patterns;
+    scratch.set_global_light(document.metadata().global_light);
     for (auto& layer : layers) {
       scratch.add_layer(std::move(layer));
     }

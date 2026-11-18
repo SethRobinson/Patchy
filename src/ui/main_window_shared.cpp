@@ -489,7 +489,7 @@ void clear_layer_psd_style_source(Layer& layer) {
     // 'lmfx' must go too: a stale multi-instance block left beside a
     // regenerated lfx2 would win in Photoshop and hide the edit.
     return block.key == "lfx2" || block.key == "lrFX" || block.key == "plFX" ||
-           block.key == "lmfx";
+           block.key == "lmfx" || block.key == "lfxs";
   });
 }
 
@@ -1293,6 +1293,7 @@ std::optional<Layer> clone_layer_tree_with_document_ids(
   }
   auto cloned = source.clone_with_id(document.allocate_layer_id());
   cloned.children().clear();
+  if (source.layer_style().uses_global_light()) cloned.layer_style().apply_global_light(document.metadata().global_light);
   if (patchy::photoshop_layer_id(source).has_value()) {
     const auto new_native_layer_id = native_layer_ids->allocate();
     if (!new_native_layer_id.has_value()) {

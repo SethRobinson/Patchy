@@ -1339,6 +1339,7 @@ void apply_transparency_masks(Layer& layer, const Node& node, BuildState& state)
   }
   Document content(state.document.width(), state.document.height(), state.document.format());
   content.color_state().bit_depth = state.depth;
+  content.set_global_light(state.document.metadata().global_light);
   content.metadata().patterns = state.document.metadata().patterns;
   for (const auto& layer : below) {
     content.add_layer(layer);
@@ -1636,6 +1637,7 @@ void apply_transparency_masks(Layer& layer, const Node& node, BuildState& state)
 [[nodiscard]] Layer flattened_group(Layer group, BuildState& state) {
   Document content(state.document.width(), state.document.height(), state.document.format());
   content.color_state().bit_depth = state.depth;
+  content.set_global_light(state.document.metadata().global_light);
   content.metadata().patterns = state.document.metadata().patterns;
   for (auto& child : group.children()) {
     content.add_layer(std::move(child));
@@ -1724,7 +1726,7 @@ void read_styles(ReadState& read, BuildState& build) {
   // global angle and altitude resources (1037, 1049) as "PSD Resource Block: <id>"
   // annotations when it opened a PSD;
   // otherwise Photoshop's defaults apply (120 and 30 degrees).
-  const auto resource_degrees = [&](const char* id, float fallback) {
+  const auto resource_degrees = [&](const char* id, std::int32_t fallback) {
     auto bytes = read.zip.extract(read.prefix + "annotations/PSD Resource Block: " + id, 64);
     if (!bytes.has_value() || bytes->size() < 4) {
       return fallback;
@@ -1732,33 +1734,14 @@ void read_styles(ReadState& read, BuildState& build) {
     const auto value = static_cast<std::int32_t>((static_cast<std::uint32_t>((*bytes)[0]) << 24U) |
                                                  (static_cast<std::uint32_t>((*bytes)[1]) << 16U) |
                                                  (static_cast<std::uint32_t>((*bytes)[2]) << 8U) | (*bytes)[3]);
-    return std::abs(value) <= 360 ? static_cast<float>(value) : fallback;
+    return value >= -360 && value <= 360 ? value : fallback;
   };
-  const auto angle = resource_degrees("1037", 120.0F);
-  const auto altitude = resource_degrees("1049", 30.0F);
+  const GlobalLight light{resource_degrees("1037", GlobalLight{}.angle),
+                          resource_degrees("1049", GlobalLight{}.altitude)};
+  build.document.set_global_light(light);
   for (const auto& style : parsed->styles) {
-    auto resolved = style.style;
-    for (auto& shadow : resolved.drop_shadows) {
-      if (shadow.use_global_light) {
-        shadow.angle_degrees = angle;
-        shadow.use_global_light = false;
-      }
-    }
-    for (auto& shadow : resolved.inner_shadows) {
-      if (shadow.use_global_light) {
-        shadow.angle_degrees = angle;
-        shadow.use_global_light = false;
-      }
-    }
-    for (auto& bevel : resolved.bevels) {
-      if (bevel.use_global_light) {
-        bevel.angle_degrees = angle;
-        bevel.altitude_degrees = altitude;
-        bevel.use_global_light = false;
-      }
-    }
     auto stored = style;
-    stored.style = std::move(resolved);
+    stored.style.apply_global_light(light);
     build.styles[normalized_uuid(style.id)] = std::move(stored);
   }
   for (const auto& warning : parsed->warnings) {

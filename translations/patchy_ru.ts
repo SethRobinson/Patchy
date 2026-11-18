@@ -5761,10 +5761,6 @@
         <translation>Узор «%1» не встроен в документ; использующий его эффект не отображается, пока вы не выберете другой узор.</translation>
     </message>
     <message>
-        <source>Photoshop Satin custom contours and contour anti-aliasing are preserved until you edit layer styles. Patchy previews and saves edited Satin with the non-anti-aliased Linear contour.</source>
-        <translation>Произвольные контуры эффекта «Глянец» Photoshop и их сглаживание сохраняются до изменения стилей слоя. Patchy отображает и сохраняет изменённый эффект «Глянец» с линейным контуром без сглаживания.</translation>
-    </message>
-    <message>
         <source>renders a regular drop shadow at the Distance value</source>
         <translation>отображает обычную тень при значении «Расстояние»</translation>
     </message>
@@ -15946,10 +15942,6 @@ Do you want to replace it?</source>
         <translation>Слой «%1» — это смарт-объект, который Patchy может только сохранять, но не редактировать (%2).</translation>
     </message>
     <message>
-        <source>Layer &apos;%1&apos; contains Photoshop Satin contour settings that Patchy cannot render or edit (a custom curve or anti-aliasing). Patchy preserves them until layer styles are edited, then uses the non-anti-aliased Linear contour.</source>
-        <translation>Слой «%1» содержит параметры контура эффекта «Глянец» Photoshop, которые Patchy не может отображать или редактировать (произвольная кривая или сглаживание). Они сохраняются до изменения стилей слоя; затем используется линейный контур без сглаживания.</translation>
-    </message>
-    <message>
         <source>Layer &apos;%1&apos; contains Photoshop Blend If data for an unsupported color mode or payload shape. Patchy preserves it for PSD round-trip but does not render or edit it.</source>
         <translation>Слой «%1» содержит данные «Наложение, если» Photoshop для неподдерживаемого цветового режима или структуры данных. Patchy сохраняет их при повторном сохранении PSD, но не отображает и не редактирует.</translation>
     </message>
@@ -16488,6 +16480,10 @@ Do you want to replace it?</source>
     <message>
         <source>Contour Manager…</source>
         <translation>Менеджер контуров…</translation>
+    </message>
+    <message>
+        <source>Use Global Light</source>
+        <translation>Использовать глобальное освещение</translation>
     </message>
 </context>
 <context>
@@ -31020,10 +31016,6 @@ Y: %2
     <message>
         <source>%1: preserved blending data remains protected.</source>
         <translation>%1: сохранённые данные наложения остаются защищёнными.</translation>
-    </message>
-    <message>
-        <source>%1: editing effects normalizes unsupported Satin contours.</source>
-        <translation>%1: редактирование эффектов нормализует неподдерживаемые контуры атласа.</translation>
     </message>
     <message>
         <source>Open from &amp;Clipboard</source>
