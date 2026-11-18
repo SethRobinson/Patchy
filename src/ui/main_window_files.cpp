@@ -1227,6 +1227,7 @@ struct OpenDocumentResult {
   // How a multi-page TIFF actually opened (Layers or Documents when its pages opened, FirstPage
   // when only page 1 did); nullopt for every other file.
   std::optional<TiffPagesChoice> tiff_pages_opened{};
+  bool import_requires_save_as{false};
 };
 
 std::vector<std::uint8_t> read_all_file_bytes(const QString& path) {
@@ -1532,7 +1533,7 @@ void finish_photoshop_layers_import(Document& opened, const QFileInfo& info, QSt
 // the file has none or they cannot be read: the caller then opens the composite as it
 // always has, with a note saying why the layers are missing.
 bool open_layered_tiff(const QString& path, const QFileInfo& info, Document& opened, QStringList& import_notices,
-                       bool& force_import_notices_popup, bool& cmyk_source) {
+                       bool& force_import_notices_popup, bool& cmyk_source, bool& partial_import) {
   const auto bytes = read_all_file_bytes(path);
   if (!psd::tiff_has_photoshop_layers(bytes)) {
     return false;
@@ -1555,6 +1556,7 @@ bool open_layered_tiff(const QString& path, const QFileInfo& info, Document& ope
     import_notices.push_back(translated_file_message(notice));
   }
   finish_photoshop_layers_import(opened, info, import_notices, force_import_notices_popup, cmyk_source);
+  partial_import = psd::tiff_page_count(bytes) > 1U;
   return true;
 }
 
@@ -1824,6 +1826,7 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
   // The multi-page TIFF notes, which restate the page choice when the user was asked.
   QStringList page_choice_notices;
   std::optional<TiffPagesChoice> tiff_pages_opened;
+  bool partial_import = false;
   QStringList blocked_link_servers;
   bool force_import_notices_popup = false;
   // True when the decoder handed over the file's pixel values untouched (Qt's
@@ -2057,7 +2060,8 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
     }
     finish_photoshop_layers_import(opened, info, import_notices, force_import_notices_popup, cmyk_source);
   } else if (is_tiff_extension(extension) &&
-             open_layered_tiff(path, info, opened, import_notices, force_import_notices_popup, cmyk_source)) {
+             open_layered_tiff(path, info, opened, import_notices, force_import_notices_popup, cmyk_source,
+                               partial_import)) {
     // The layers' pixels are the file's own values, as in a PSD.
     pixels_in_source_space = true;
   } else if (jxl::is_jxl_extension(extension.toStdString())) {
@@ -2243,6 +2247,7 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
   result.blocked_link_servers = std::move(blocked_link_servers);
   result.answered_notices = std::move(page_choice_notices);
   result.tiff_pages_opened = tiff_pages_opened;
+  result.import_requires_save_as = partial_import || tiff_pages_opened.has_value();
   return result;
 }
 
@@ -2827,6 +2832,7 @@ int MainWindow::open_folder_path(const QString& directory) {
       add_document_session(std::move(loaded->document), loaded->file_name, path, tr("Open"),
                            SessionActivation::Background);
       (**sessions_.rbegin()).content_extension = loaded->content_extension;
+      (**sessions_.rbegin()).import_requires_save_as = loaded->import_requires_save_as;
       offer_painted_gimp_text_conversion(**sessions_.rbegin(), loaded->import_notices);
       (**sessions_.rbegin()).import_notes = loaded->import_notices;
       start_open_watermark_check((*sessions_.rbegin())->session_id);
@@ -3730,6 +3736,7 @@ void MainWindow::open_document_path(QString path, OpenExisting existing, PdfOpen
       add_document_session(std::move(loaded->document), first_title, session_path, tr("Open"));
     }
     session().content_extension = loaded->content_extension;
+    session().import_requires_save_as = loaded->import_requires_save_as;
     {
       const UiProfileScope profile_scope("open.fit_to_view");
       canvas_->fit_to_view_without_enlarging();
@@ -4421,6 +4428,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     channel_thumbnail_cache_.clear();
     target_session.document = std::move(loaded->document);
     target_session.content_extension = loaded->content_extension;
+    target_session.import_requires_save_as = loaded->import_requires_save_as;
     target_session.import_notes = loaded->import_notices;
     initialize_session_history(target_session, tr("Reopen"));
     target_session.collapsed_layer_groups.clear();
@@ -5984,7 +5992,8 @@ bool MainWindow::save_document_as() {
     const auto base_name = initial_info.suffix().isEmpty() ? initial_info.fileName() : initial_info.completeBaseName();
     initial_path = initial_info.dir().filePath(base_name + QLatin1Char('.') + content_extension);
   }
-  if (save_discards_layers(std::as_const(document()), extension_for_path(initial_path)) ||
+  if (session().import_requires_save_as ||
+      save_discards_layers(std::as_const(document()), extension_for_path(initial_path)) ||
       is_read_only_source_extension(extension_for_path(initial_path))) {
     // Photoshop behavior: Save As for a layered document defaults to PSD, not the flat
     // format the document was opened from. Read-only sources (camera raw) also default

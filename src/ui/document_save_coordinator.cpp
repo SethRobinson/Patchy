@@ -150,7 +150,7 @@ bool DocumentSaveCoordinator::save(std::int64_t session_id) {
     if (target->smart_object_link->external) {
       // A linked-file child: the file on disk is the source of truth, so write it
       // first and only then refresh the parent's previews and link metadata.
-      if (path.isEmpty()) {
+      if (path.isEmpty() || target->import_requires_save_as) {
         return host_.save_as();
       }
       if (!host_.save_to_path(path)) {
@@ -162,7 +162,7 @@ bool DocumentSaveCoordinator::save(std::int64_t session_id) {
     // the parent document instead of writing a file (Photoshop semantics).
     return host_.commit_embedded(session_id);
   }
-  if (path.isEmpty()) {
+  if (path.isEmpty() || target->import_requires_save_as) {
     return host_.save_as();
   }
   if (is_read_only_source_extension(QFileInfo(path).suffix().toLower()) ||
@@ -342,6 +342,7 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
   target->path = path;
   target->title = QFileInfo(path).fileName();
   target->content_extension.clear();
+  target->import_requires_save_as = false;
   if (!quiet) host_.remember_directory(path);
   target = host_.find_session(session_id);
   if (target == nullptr) return std::nullopt;

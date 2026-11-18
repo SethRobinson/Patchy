@@ -21,6 +21,7 @@
 #include "formats/aseprite_document_io.hpp"
 #include "formats/gif_document_io.hpp"
 #include "formats/ico_document_io.hpp"
+#include "flat_tiff_fixture.hpp"
 #include "formats/tga_document_io.hpp"
 #include "ui/image_document_io.hpp"
 #include "formats/avif_document_io.hpp"
@@ -974,6 +975,62 @@ void ui_export_dialog_offers_cmyk_for_print_formats() {
 
   settings.remove(QStringLiteral("saveOptions"));
   settings.sync();
+}
+
+// Ctrl+S on a partial import or a layered edit to a flat file must offer a
+// different destination. Cancel there, then check the actual source bytes.
+void check_save_redirects_to_psd(patchy::ui::MainWindow& window, const QString& source) {
+  using Access = patchy::ui::MainWindowTestAccess;
+  QFile file(source);
+  CHECK(file.open(QIODevice::ReadOnly));
+  const auto original = file.readAll();
+  file.close();
+  bool asked = false;
+  when_dialog_visible(QStringLiteral("saveAsFileDialog"), [&](QDialog& shown) {
+    auto& dialog = static_cast<QFileDialog&>(shown);
+    asked = true;
+    CHECK(QFileInfo(dialog.selectedFiles().value(0)).suffix() == QStringLiteral("psd"));
+    dialog.reject();
+  });
+  CHECK(!Access::save_document(window));
+  CHECK(asked);
+  CHECK(file.open(QIODevice::ReadOnly));
+  CHECK(file.readAll() == original);
+  CHECK(Access::active_session_is_modified(window));
+}
+
+void ui_partial_tiff_imports_protect_source() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  QTemporaryDir temp;
+  SettingsValueRestorer open_mode(QStringLiteral("imports/tiffPagesOpen"));
+  SettingsValueRestorer notes(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  auto settings = patchy::ui::app_settings();
+  settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), false);
+  const auto tiff = temp.filePath(QStringLiteral("pages.tif"));
+  patchy::test::flat_tiff::Spec page;
+  page.value = [](std::uint32_t x, std::uint32_t y, std::uint32_t channel) { return x + y + 10.0 * channel; };
+  const auto pages = patchy::test::flat_tiff::write_tiff(std::vector{page, page, page});
+  patchy::formats::write_file_bytes(patchy::ui::to_filesystem_path(tiff), pages, "TIFF");
+  for (const auto& mode : {QStringLiteral("first"), QStringLiteral("documents")}) {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    settings.setValue(QStringLiteral("imports/tiffPagesOpen"), mode);
+    const auto initial_count = Access::session_count(window);
+    const auto& path = tiff;
+    Access::open_document_path(window, path);
+    CHECK(Access::session_count(window) == initial_count + (mode == QStringLiteral("documents") ? 3U : 1U));
+    CHECK(Access::active_session_path(window) == path);
+    Access::push_undo_snapshot(window, QStringLiteral("Edit"));
+    Access::document(window).layers().front().set_opacity(0.75F);
+    check_save_redirects_to_psd(window, path);
+  }
+  const auto single = temp.filePath(QStringLiteral("single.tif"));
+  patchy::formats::write_file_bytes(patchy::ui::to_filesystem_path(single),
+                                    patchy::test::flat_tiff::write_tiff(std::vector{page}), "TIFF");
+  patchy::ui::MainWindow window;
+  show_window(window);
+  Access::open_document_path(window, single);
+  CHECK(Access::save_document(window));
 }
 
 void ui_ico_export_dialog_sizes_and_resample() {
@@ -4228,6 +4285,7 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_image_save_options_defaults_and_dialogs", ui_image_save_options_defaults_and_dialogs},
       {"ui_export_dialog_offers_cmyk_for_print_formats", ui_export_dialog_offers_cmyk_for_print_formats},
       {"ui_ico_export_dialog_sizes_and_resample", ui_ico_export_dialog_sizes_and_resample},
+      {"ui_partial_tiff_imports_protect_source", ui_partial_tiff_imports_protect_source},
       {"ui_ico_real_world_fixtures_decode_png_entries", ui_ico_real_world_fixtures_decode_png_entries},
       {"ui_gif_export_round_trips_through_qt_reader", ui_gif_export_round_trips_through_qt_reader},
       {"ui_animated_gif_opens_frames_as_layers", ui_animated_gif_opens_frames_as_layers},

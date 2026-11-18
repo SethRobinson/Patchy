@@ -73,6 +73,9 @@ struct DocumentSession {
   // with that extension suggested, so a mislabeled file never gets bytes its name hides;
   // cleared once a save gives the document a file of its own.
   QString content_extension;
+  // One page/frame or a set of pages imported as layers. Reopen still knows the
+  // source, but ordinary Save must choose a new file for this representation.
+  bool import_requires_save_as{false};
   // The notes the reader left when this session's file opened (dropped or approximated
   // features, the import notes the status bar shows); scripts read them as doc.importNotes.
   QStringList import_notes;

@@ -97,7 +97,7 @@ bit 0); SubIFD thumbnails are never pages. `psd::tiff_pages` (psd_tiff_pages.cpp
 lists each page's directory offset, its index in the whole chain (previews counted: the index
 Qt's `jumpToImage` takes), its size and its PageName (285, control characters dropped, ASCII
 only when the bytes are not UTF-8); `tiff_page_count` and `tiff_page_directory_offsets` agree
-with it. A layered (Photoshop) TIFF keeps its own path and is never asked about.
+with it. A layered (Photoshop) TIFF opens its Photoshop layers without a page-choice dialog.
 
 - **The question (GitHub issue 625).** An interactive open of a file with two or more pages
   asks first (`ask_tiff_pages_choice`, `tiffPagesMessageBox`, buttons `tiffPagesLayersButton`,
@@ -138,6 +138,7 @@ with it. A layered (Photoshop) TIFF keeps its own path and is never asked about.
   `open_extra_imported_page_sessions` (the PDF pages' path, with no PDF Bit Depth pass), each
   at its own size and depth with the same finishing as page 1 (flat alpha, File Info,
   profile). Reopen brings back only page 1 in its own tab, as for a PDF.
+- **Saving an import**: Save on a multi-page TIFF opens Save As with a PSD filename for all three import choices. This also protects extra pages in a TIFF with Photoshop layers. Patchy's TIFF writer stores one composite with optional editable Photoshop layers. A single-page TIFF can save in place.
 
 ## Flat fallback decoder
 

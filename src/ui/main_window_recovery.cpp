@@ -152,8 +152,9 @@ private:
   static recovery::RecoveryEntry entry_for(const DocumentSession& target_session) {
     recovery::RecoveryEntry entry;
     entry.title = target_session.title.toStdString();
-    entry.original_path =
-        target_session.path.isEmpty() ? std::string() : path_to_utf8(to_filesystem_path(target_session.path));
+    if (!target_session.import_requires_save_as && !target_session.path.isEmpty()) {
+      entry.original_path = path_to_utf8(to_filesystem_path(target_session.path));
+    }
     return entry;
   }
 
