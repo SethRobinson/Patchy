@@ -37061,6 +37061,10 @@ Bloqueada: %1</translation>
         <source>Rename, edit, load and save the contours that layer styles use.</source>
         <translation>Cambiar el nombre, editar, cargar y guardar los contornos que usan los estilos de capa.</translation>
     </message>
+    <message>
+        <source>Warp bend: drag to watch the layer change</source>
+        <translation>Curvatura de la deformación: arrastre para ver cómo cambia la capa</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

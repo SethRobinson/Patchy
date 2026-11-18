@@ -6123,6 +6123,7 @@ bool CanvasWidget::begin_warp_transform() {
   warping_layer_ = true;
   clear_transform_session_steps();
   dragging_warp_handle_ = false;
+  warp_style_dragging_ = false;
   warp_drag_index_ = -1;
   warp_layer_id_ = layer->id();
   warp_target_smart_object_ = smart_object;
@@ -6177,8 +6178,10 @@ void CanvasWidget::apply_warp_style_preset(const QString& style, double value) {
   if (style == QStringLiteral("warpCustom")) {
     warp_style_ = style;
     warp_style_value_ = value;
-    record_transform_session_step(step_before);
-    notify_transform_controls_changed();
+    if (!warp_style_dragging_) {
+      record_transform_session_step(step_before);
+      notify_transform_controls_changed();
+    }
     return;
   }
   // Cylinder is Patchy's own style (one patch, docs/warp.md); the rest are the fifteen
@@ -6194,10 +6197,44 @@ void CanvasWidget::apply_warp_style_preset(const QString& style, double value) {
   warp_mesh_ = elevate_warp_mesh_to_cubic(*generated);
   warp_style_ = style;
   warp_style_value_ = value;
+  if (warp_style_dragging_) {
+    // A Bend slider drag: render the latest bend once per painted frame, never per
+    // move (GitHub #298's rule for handle drags); end_warp_style_drag records the step.
+    warp_drag_preview_pending_ = true;
+    update();
+    return;
+  }
   record_transform_session_step(step_before);
   refresh_warp_preview_cache();
   update();
   notify_transform_controls_changed();
+}
+
+void CanvasWidget::begin_warp_style_drag() {
+  if (!warping_layer_ || warp_style_dragging_ || dragging_warp_handle_) {
+    return;
+  }
+  warp_style_dragging_ = true;
+  warp_style_step_at_press_ = current_transform_session_step();
+}
+
+void CanvasWidget::end_warp_style_drag() {
+  if (!warp_style_dragging_) {
+    return;
+  }
+  // Cleared first: the resting (full-quality) preview renders below.
+  warp_style_dragging_ = false;
+  if (!warping_layer_) {
+    return;
+  }
+  record_transform_session_step(warp_style_step_at_press_);
+  refresh_warp_preview_cache();
+  update();
+  notify_transform_controls_changed();
+}
+
+bool CanvasWidget::warp_style_drag_active() const noexcept {
+  return warp_style_dragging_;
 }
 
 QString CanvasWidget::warp_style_preset() const {
@@ -6384,7 +6421,7 @@ QRect CanvasWidget::warp_preview_view_rect(double margin_fraction) const {
 }
 
 void CanvasWidget::schedule_warp_preview_view_refresh() {
-  if (!warping_layer_ || dragging_warp_handle_ || warp_preview_view_refresh_pending_) {
+  if (!warping_layer_ || dragging_warp_handle_ || warp_style_dragging_ || warp_preview_view_refresh_pending_) {
     return;
   }
   warp_preview_view_refresh_pending_ = true;
@@ -6396,7 +6433,8 @@ void CanvasWidget::schedule_warp_preview_view_refresh() {
 }
 
 void CanvasWidget::refresh_warp_preview_for_view() {
-  if (!warping_layer_ || dragging_warp_handle_ || document_ == nullptr || warp_source_image_.isNull()) {
+  if (!warping_layer_ || dragging_warp_handle_ || warp_style_dragging_ || document_ == nullptr ||
+      warp_source_image_.isNull()) {
     return;
   }
   const auto level = preview_composite_level_for_zoom(view_zoom());
@@ -6517,7 +6555,7 @@ void CanvasWidget::refresh_warp_preview_cache() {
   // view changes) uses the session's interpolation and the commit's 4 px cells over
   // the view plus half a view per side, so ordinary pans stay inside it. The commit
   // still bakes the full-resolution source (bake_warp_into_layer).
-  const bool interactive = dragging_warp_handle_;
+  const bool interactive = dragging_warp_handle_ || warp_style_dragging_;
   const QRect canvas_rect(0, 0, document_->width(), document_->height());
   int level = preview_composite_level_for_zoom(view_zoom());
   if (interactive && level == 0 && view_zoom() < 1.0) {
@@ -6752,6 +6790,7 @@ void CanvasWidget::reset_warp_state() {
   warping_layer_ = false;
   clear_transform_session_steps();
   dragging_warp_handle_ = false;
+  warp_style_dragging_ = false;
   warp_drag_index_ = -1;
   warp_layer_id_.reset();
   warp_target_smart_object_ = false;
@@ -6952,6 +6991,7 @@ bool CanvasWidget::resume_pending_warp_session() {
   warping_layer_ = true;
   clear_transform_session_steps();
   dragging_warp_handle_ = false;
+  warp_style_dragging_ = false;
   warp_drag_index_ = -1;
   warp_layer_id_ = layer_id;
   warp_target_smart_object_ = pending_warp_smart_object_;

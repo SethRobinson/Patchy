@@ -4093,6 +4093,7 @@ private:
   QPushButton* transform_cancel_button_{nullptr};
   QComboBox* warp_style_combo_{nullptr};
   QDoubleSpinBox* warp_bend_spin_{nullptr};
+  QSlider* warp_bend_slider_{nullptr};  // repeats warp_bend_spin_ (GitHub issue 719 follow-up)
   // Crop tool options: the Preset list (the free modes Ratio and Size, the ratio and
   // pixel-size presets, saved presets, Save / Delete), then the fields of the current
   // style (Ratio: the ratio pair with its swap button and Clear; Size: unit Width/Height

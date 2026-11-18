@@ -37176,6 +37176,10 @@ Zablokowano: %1</translation>
         <source>Rename, edit, load and save the contours that layer styles use.</source>
         <translation>Zmieniaj nazwy, edytuj, wczytuj i zapisuj kontury używane przez style warstw.</translation>
     </message>
+    <message>
+        <source>Warp bend: drag to watch the layer change</source>
+        <translation>Wygięcie wypaczenia: przeciągnij i obserwuj zmianę warstwy</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

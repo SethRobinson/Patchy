@@ -1480,6 +1480,13 @@ public:
   // own kCylinderWrapWarpStyle) into the working cage; manual handle drags flip the
   // reported style back to warpCustom.
   void apply_warp_style_preset(const QString& style, double value);
+  // The options bar's Bend slider (GitHub issue 719 follow-up): between begin and end,
+  // apply_warp_style_preset only moves the cage and marks the preview pending, so
+  // paintEvent renders the latest bend once per frame at drag quality, like a handle
+  // drag; end records the whole drag as one session step and renders the resting frame.
+  void begin_warp_style_drag();
+  void end_warp_style_drag();
+  [[nodiscard]] bool warp_style_drag_active() const noexcept;
   [[nodiscard]] QString warp_style_preset() const;
   [[nodiscard]] double warp_style_preset_value() const noexcept;
   [[nodiscard]] int warp_handle_count() const noexcept;
@@ -5578,6 +5585,8 @@ private:
   bool transform_commit_hold_fresh_{false};
   bool warping_layer_{false};
   bool dragging_warp_handle_{false};
+  bool warp_style_dragging_{false};  // the options bar's Bend slider is held
+  TransformSessionStep warp_style_step_at_press_{};
   int warp_drag_index_{-1};
   std::optional<LayerId> warp_layer_id_;
   WarpMeshGrid warp_mesh_{};           // 4x4 working cage, content space

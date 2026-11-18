@@ -1456,6 +1456,17 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(warp_bend_spin_, QT_TR_NOOP("Warp bend"));
   configure_dialog_spinbox(warp_bend_spin_, 74);
   add_warp_option_widget(warp_bend_spin_);
+  // A slider beside Bend for every style (GitHub issue 719 follow-up): it only sets the
+  // field's value. While it is held the canvas renders the newest bend once per painted
+  // frame (begin/end_warp_style_drag) and the whole drag is one session step; the app-wide
+  // slider filter coalesces its moves (docs/interactive-previews-drag-coalescing.md).
+  warp_bend_slider_ = new QSlider(Qt::Horizontal, toolbar);
+  warp_bend_slider_->setObjectName(QStringLiteral("warpBendSlider"));
+  warp_bend_slider_->setRange(-100, 100);
+  warp_bend_slider_->setValue(50);
+  warp_bend_slider_->setFixedWidth(110);
+  bind_tooltip(warp_bend_slider_, QT_TR_NOOP("Warp bend: drag to watch the layer change"));
+  add_warp_option_widget(warp_bend_slider_);
   const auto apply_warp_style_from_ui = [this] {
     if (updating_transform_controls_ || canvas_ == nullptr || warp_style_combo_ == nullptr ||
         warp_bend_spin_ == nullptr) {
@@ -1469,8 +1480,29 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
               apply_warp_style_from_ui();
             }
           });
+  connect(warp_bend_spin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+    if (warp_bend_slider_ != nullptr) {
+      const QSignalBlocker blocker(warp_bend_slider_);
+      warp_bend_slider_->setValue(qRound(value));
+    }
+  });
   connect(warp_bend_spin_, &QDoubleSpinBox::valueChanged, this,
           [apply_warp_style_from_ui](double) { apply_warp_style_from_ui(); });
+  connect(warp_bend_slider_, &QSlider::valueChanged, this, [this](int value) {
+    if (warp_bend_spin_ != nullptr) {
+      warp_bend_spin_->setValue(value);  // the field applies the bend
+    }
+  });
+  connect(warp_bend_slider_, &QSlider::sliderPressed, this, [this] {
+    if (canvas_ != nullptr) {
+      canvas_->begin_warp_style_drag();
+    }
+  });
+  connect(warp_bend_slider_, &QSlider::sliderReleased, this, [this] {
+    if (canvas_ != nullptr) {
+      canvas_->end_warp_style_drag();
+    }
+  });
 
   // Shared session trio, laid out after both control sets so it closes the row in
   // either mode (Photoshop's options-bar order: mode toggle, then cancel/commit).

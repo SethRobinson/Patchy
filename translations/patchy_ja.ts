@@ -36946,6 +36946,10 @@ Locked: %1</source>
         <source>Rename, edit, load and save the contours that layer styles use.</source>
         <translation>レイヤースタイルで使う輪郭の名前変更、編集、読み込み、保存を行います。</translation>
     </message>
+    <message>
+        <source>Warp bend: drag to watch the layer change</source>
+        <translation>ワープのカーブ: ドラッグするとレイヤーの変化を見ながら調整できます</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

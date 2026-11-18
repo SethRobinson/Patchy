@@ -37176,6 +37176,10 @@ Locked: %1</source>
         <source>Rename, edit, load and save the contours that layer styles use.</source>
         <translation>Переименование, правка, загрузка и сохранение контуров для стилей слоя.</translation>
     </message>
+    <message>
+        <source>Warp bend: drag to watch the layer change</source>
+        <translation>Изгиб деформации: перетаскивайте и следите, как меняется слой</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

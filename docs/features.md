@@ -22,7 +22,7 @@ Related documents:
 - Linked files and Krita file layers on a network server open only from servers you allow, so a downloaded document cannot make Patchy connect to an unknown server
 - Layer style, pattern and gradient preset libraries with .asl, .pat and .grd import/export, 39 built-in styles (grid or list; your own saved default per effect, with a way back to the built-in one; round angle dials; a live preview swatch of the current style, on letters for a text layer and a square otherwise), 20 CC0 photo textures; a contour editor for Bevel and Drop Shadow contours (points, corners, live preview) with saved contours (a new one starts from a straight line; the pickers open as a grid of curves), a Contour Manager and Photoshop .shc load/save; Edit > Presets opens all managers, Shapes Manager (.csh, grids, resizable picker, 878 game-icons.net shapes)
 - Continuous long shadows for type and shapes (a normal drop shadow in Photoshop; [example](screenshots.md))
-- Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview; Warp Transform adds a Cylinder style that wraps a layer like a label round a can
+- Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview; Warp Transform adds a Cylinder style that wraps a layer like a label round a can, and a Bend slider on its options bar that reshapes any style live as you drag
 
 ## Vectors and typography
 

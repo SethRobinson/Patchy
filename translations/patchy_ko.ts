@@ -36946,6 +36946,10 @@ Locked: %1</source>
         <source>Rename, edit, load and save the contours that layer styles use.</source>
         <translation>레이어 스타일에 쓰는 윤곽선의 이름 변경, 편집, 불러오기, 저장을 합니다.</translation>
     </message>
+    <message>
+        <source>Warp bend: drag to watch the layer change</source>
+        <translation>뒤틀기 굽힘: 드래그하면서 레이어가 바뀌는 모습을 확인합니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

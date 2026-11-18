@@ -37061,6 +37061,10 @@ Fixiert: %1</translation>
         <source>Rename, edit, load and save the contours that layer styles use.</source>
         <translation>Die Konturen der Ebenenstile umbenennen, bearbeiten, laden und speichern.</translation>
     </message>
+    <message>
+        <source>Warp bend: drag to watch the layer change</source>
+        <translation>Verkrümmungsbiegung: ziehen und die Ebene dabei verfolgen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
