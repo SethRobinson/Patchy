@@ -533,6 +533,47 @@ void ui_copy_paste_and_transform_pasted_layer_work() {
   save_widget_artifact("ui_copy_paste_transform", window);
 }
 
+void ui_copy_and_cut_overlapping_selected_layers_keep_stack_order() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  const QSize size(24, 18);
+  const auto format = patchy::PixelFormat::rgba8();
+  patchy::Document source(size.width(), size.height(), format);
+  source.add_pixel_layer("Base", solid_pixels(size.width(), size.height(), format, Qt::transparent));
+  const auto blue = source.add_pixel_layer("Blue", solid_pixels(size.width(), size.height(), format, Qt::blue)).id();
+  const auto red = source.add_pixel_layer("Red", solid_pixels(size.width(), size.height(), format, Qt::red)).id();
+  window.add_document_session(std::move(source), QStringLiteral("Overlap"));
+  const auto& doc = Access::document(window);
+  auto* canvas = require_canvas(window);
+  const QRect rect(5, 5, 9, 7);
+  for (const bool cut : {false, true}) {
+    Access::select_layers(window, {red, blue}, red);
+    select_document_rect(*canvas, size, rect);
+    require_action(window, cut ? "editCutAction" : "editCopyAction")->trigger();
+    CHECK(QApplication::clipboard()->image().pixelColor(1, 1) == QColor(Qt::red));
+    if (cut) {
+      for (const auto id : {blue, red}) {
+        CHECK(doc.find_layer(id)->pixels().pixel(6, 6)[3] == 0);
+        CHECK(doc.find_layer(id)->pixels().pixel(1, 1)[3] == 255);
+      }
+    }
+    require_action(window, "editPasteAction")->trigger();
+    CHECK(doc.layers().size() == 4U);
+    const auto* pasted = doc.find_layer(*doc.active_layer_id())->pixels().pixel(1, 1);
+    CHECK(QColor(pasted[0], pasted[1], pasted[2], pasted[3]) == QColor(Qt::red));
+    Access::undo(window);
+    if (cut) {
+      Access::undo(window);
+      CHECK(doc.find_layer(blue)->pixels().pixel(6, 6)[2] == 255);
+      CHECK(doc.find_layer(blue)->pixels().pixel(6, 6)[3] == 255);
+      CHECK(doc.find_layer(red)->pixels().pixel(6, 6)[0] == 255);
+      CHECK(doc.find_layer(red)->pixels().pixel(6, 6)[3] == 255);
+    }
+  }
+  QApplication::clipboard()->clear();
+}
+
 void ui_paste_clears_selection_and_undo_restores_it() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -3902,6 +3943,7 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
        ui_deep_layer_copy_puts_display_colors_on_the_system_clipboard},
       {"ui_paste_clears_selection_and_undo_restores_it", ui_paste_clears_selection_and_undo_restores_it},
       {"ui_paste_returns_copied_pixels_to_their_place", ui_paste_returns_copied_pixels_to_their_place},
+      {"ui_copy_and_cut_overlapping_selected_layers_keep_stack_order", ui_copy_and_cut_overlapping_selected_layers_keep_stack_order},
       {"ui_paste_file_urls_adds_layers", ui_paste_file_urls_adds_layers},
       {"ui_clipboard_format_probe_defers_to_qt_off_native_platform",
        ui_clipboard_format_probe_defers_to_qt_off_native_platform},

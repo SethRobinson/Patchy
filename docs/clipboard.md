@@ -47,8 +47,9 @@ WebAssembly (no host paths). Tests: `ui_clipboard_text_paths_parse_quotes_urls_a
 ## Edit > Copy and the system clipboard
 
 `copy_selection` (main_window_layer_ops.cpp) has two payloads. With a pixel selection on
-pixel layers it copies the selected pixels (`ClipboardPayload::pixels`) and puts the same
-image on the system clipboard. Without a selection, or with a text, shape, adjustment,
+pixel layers it composites those layers in stacking order, copies the selected pixels
+(`ClipboardPayload::pixels`) and puts the same image on the system clipboard. Cut takes
+the same composite before clearing each selected layer. Without a selection, or with a text, shape, adjustment,
 folder or Smart Object layer among the copied ones, it copies whole layers
 (`layers_top_to_bottom`) and, since GitHub issue 116, also renders those layers by
 themselves (`render_layers_for_system_clipboard`: a scratch document with the copied

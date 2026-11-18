@@ -1022,8 +1022,8 @@ bool MainWindow::copy_selected_pixels(bool cutting) {
   } else {
     Document selected_document(document().width(), document().height(), document().format());
     selected_document.color_state().bit_depth = std::as_const(document()).color_state().bit_depth;
-    for (const auto* layer : layers_to_copy) {
-      selected_document.add_layer(*layer);
+    for (auto it = layers_to_copy.rbegin(); it != layers_to_copy.rend(); ++it) {
+      selected_document.add_layer(**it);
     }
     const ScopedDocumentDepthRender depth_render;
     const auto image =
