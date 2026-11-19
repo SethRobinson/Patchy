@@ -19,6 +19,10 @@ Split from [testy.md](testy.md): how Testy drives each editor (Photoshop over CO
   TySh EngineData) instead. The probe never sets a text style, for a reading or for the
   reference render ([testy-scoring.md](testy-scoring.md#the-reference-render)). Other versions can reopen every resave too:
   [testy-photoshop-versions.md](testy-photoshop-versions.md).
+  Photoshop 28.0 (November 2026) sometimes renders psd-tools' `layer_mask_data.psd` with
+  part of the green layer's mask ignored, on the original and on reopened resaves alike;
+  byte-identical resaves scored 100% and 24% in two runs. A sudden drop on that file
+  is Photoshop's render, not the editor's: compare the resave bytes before blaming it.
 - Krita 5.3.2 runs its own Python: `kritarunner.com -s testy_krita_export -f main <in>
   <out> <report>`, started in `drivers/krita_scripts/` (kritarunner replaces PYTHONPATH,
   so the module is found through the working directory). The script opens the file,
