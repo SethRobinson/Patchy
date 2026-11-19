@@ -1,6 +1,6 @@
 # PDF import and export
 
-PDF has NO registry row: the writer branch lives in `write_flat_image_file` (image_document_io.cpp) and opening intercepts before the registry lookup in `load_document_from_path` (the page picker needs to run first). The `file_format_entries()` row carries both halves; the open half is conditional on `pdf_import_is_available()`. The open-dialog filter contract is in [file-formats.md](file-formats.md), the layered-save guard in [file-formats-saving.md](file-formats-saving.md).
+The file dialogs list PDF through `file_format_entries()`. Export is available in every build. Open is available when `pdf_import_is_available()` reports a Qt PDF reader. The core format registry has no PDF entry. `load_document_from_path` handles PDF before the registry lookup so it can ask which pages to import. The export branch lives in `write_flat_image_file` in `image_document_io.cpp`. See the [open-dialog filter contract](file-formats.md) and [layered-save guard](file-formats-saving.md).
 
 Related documents:
 

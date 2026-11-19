@@ -74,7 +74,7 @@ Related documents:
 
 ## Plug-ins, scripting, and AI control
 
-- Classic Photoshop filter plug-ins (.8bf, 32 and 64-bit) on Windows, 8 and 16-bit (Filter > Last Filter, Ctrl+Alt+F, repeats the last one): see [installing plug-ins](#installing-photoshop-plug-ins-windows)
+- Windows runs 32-bit and 64-bit Photoshop filter plug-ins (.8bf). A plug-in processes an 8-bit copy of a 16-bit layer and Patchy applies the changed pixels at the layer's original depth. [Installing plug-ins](#installing-photoshop-plug-ins-windows).
 - Over a hundred GEGL filters and About GEGL (Filter > GEGL Filters): [GEGL filters](gegl-filters.md)
 - Batch Export checks output names against source files and other planned exports before writing. Data Merge renders CSV rows on a working copy so the template keeps its character formatting and Undo history.
 - JavaScript scripting: a Script Manager (File > Scripts) with a tree of bundled and user scripts, an editor with live run status, per-script hotkeys (`@hotkey` or your own), a documented API for documents, layers, text, selections, pixels, filters, text recognition (reading the text in an image with the recognizer built into Windows or the downloaded PP-OCR models, as words and lines with their positions or as editable text layers), form dialogs, file pickers, view zoom and position for window captures, and batch processing, editable bundled examples from data merge to glitch effects and games, and --run-script with arguments for tools and AI agents (--headless for servers and CI). See the [scripting guide](../scripts/bundled/scripting-guide.md) (Help menu)

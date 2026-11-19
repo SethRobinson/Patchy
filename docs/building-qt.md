@@ -21,9 +21,10 @@ downloadable for Windows, mac and Linux; skip 6.11. Facts for that bump:
   product (first release 6.140.0, Chromium 140). Without it the desktop build falls back to
   `pdf_import_stub.cpp` and loses PDF import, so confirm `qtpdf@6.140.x` installs for the
   target kit before bumping to 6.12.
-- Released aqtinstall (3.3.0) cannot install any Windows desktop kit from 6.11 on (new
-  per-toolchain repository layout; fix only in aqtinstall master, PR 1000, and PR 1048 for
-  6.12's extensions). macOS and Linux kits are unaffected.
+- Verify that the aqtinstall version used for the upgrade can install the Windows desktop
+  kit and Qt PDF extension. Version 3.3.0 cannot read the Windows per-toolchain layout
+  introduced with Qt 6.11. The relevant upstream changes are aqtinstall PR 1000 for the
+  layout and PR 1048 for the Qt 6.12 extensions. macOS and Linux use a different layout.
 - A new Qt bundles newer FreeType/HarfBuzz, so expect offscreen text pins (text re-edit
   rasters, area-text render digests) to need re-verification, not blind re-pinning.
 - The bump retires the patched cocoa plugin below (6.9.1+ carries the upstream fix).

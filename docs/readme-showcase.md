@@ -8,7 +8,7 @@ The README uses a hero image, a [video poster](#the-video-poster) and six featur
 `breakout` (animated), `plugin_kpt5`, `web_export_quad` (animated) and `mcp_isometric`
 (animated). The
 [full gallery](screenshots.md)
-holds every capture, grouped under topic headings. Every capture has a script or a `shot_readme_*` scene;
+groups showcase images by topic. The inventory below also includes developer reference captures. Every capture has a script or a `shot_readme_*` scene;
 do not replace one with a manually arranged desktop screenshot.
 
 From the repository root on Windows:
@@ -43,7 +43,7 @@ or `-Scene plugin_kpt5`. It requires the Windows 32-bit legacy helper.
 | `smart_filters.png` (hero) | `shot_readme_smart_filters` | `local-test-fixtures/psd/akiko_cycling_okinawa.jpg`, grouped captions, clipping, a Levels adjustment, and color controls |
 | `layer_styles.png` | `shot_readme_layer_styles` | `local-test-fixtures/psd/ipad_main_v04.psd`, live layer styles and gradient color controls |
 | `plugin_kpt5.png` | `scripts/dev/readme-shots/plugin-kpt5.js` | Licensed KPT 5 fixture and the existing CC0 city photograph |
-| `plugin_dialog.png` (shown on no page) | `scripts/dev/readme-shots/plugin-dialog.js` | `local-test-fixtures/photoshop-plugins/mehdi` (Mehdi's Absolute Color, not committed; skipped when absent) and the CC0 city photograph |
+| [8bf plug-in dialog](images/screenshots/plugin_dialog.png) (reference capture) | `scripts/dev/readme-shots/plugin-dialog.js` | `local-test-fixtures/photoshop-plugins/mehdi` (Mehdi's Absolute Color, not committed; skipped when absent) and the CC0 city photograph |
 | `object_select.png` | `scripts/dev/readme-shots/object-select.js` | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), cropped in the script; needs the High Quality model (the script downloads it when missing) |
 | `artboards.png` | `scripts/dev/readme-shots/artboards.js`, with isolated Light settings | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), placed as a smart object on each artboard; generated type and vector shapes |
 | `layered_import.png` | `scripts/dev/readme-shots/layered-import.js` | Existing local `psd/mow_master.psd` and `af-spike/corpus/tips.af`; local CC0 corpus files `kra-corpus/gdquest-dan.kra` (GDquest) and `xcf-corpus/opengameart/gas-giant-rings.xcf`; committed `test-fixtures/pdn/demo.pdn`; generated ORA, layered TIFF, and Aseprite files |

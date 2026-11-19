@@ -1,19 +1,14 @@
 # Windows Packaging
 
-Planned release shape:
-
-- Build with MSVC 2022.
-- Bundle Qt runtime dependencies using `windeployqt`.
-- Sign binaries and installer.
-- Produce a simple local per-user installer, with WiX Toolset or a commercial installer system still available later if project requirements grow.
-- Generate optional MSIX after core installer behavior stabilizes.
+The Windows release ships a signed per-user installer and a portable ZIP for x64 and ARM64.
+The release builder uses Visual Studio, deploys Qt with `windeployqt`, and packages the installer with IExpress.
 
 ## Local package artifacts
 
 Run the release script from a Developer Command Prompt or regular `cmd.exe` in the repo root:
 
 ```bat
-scripts\release\build-release.bat
+scripts\run-throttled.bat scripts\release\build-release.bat
 ```
 
 The script configures and builds the `release` preset, deploys the Qt runtime, stages runtime files under `build\package\staging\Patchy`, and creates:
@@ -29,30 +24,29 @@ build\package\PatchyWindowsInstaller.exe
 
 The wizard heading shows `Install Patchy <version>` using the version passed by the packaged launcher. A notice in the user's Windows UI language identifies the MIT license for Patchy's original code and points to `NOTICE-THIRD-PARTY.md` for other components. Its text wraps above the installation status and progress bar.
 
-The package is intentionally limited to the files needed by end users:
+The Windows runtime includes the following files.
 
-- `patchy.exe`
+- `patchy.exe`, the `patchy-mcp.exe` connector, and its control kit under `ai\patchy-control`
 - `patchy-8bf-host32.exe` and `patchy-8bf-host64.exe`, the out-of-process hosts for legacy Photoshop .8bf filter plug-ins (docs/plugins.md), signed like the app
-- `patchy-gegl-host.exe`, the helper that runs GEGL filters (docs/gegl-filters.md), signed like the app, and `gegl\`, Patchy's own GEGL with its licenses (built by `scripts/dev/gegl/build-gegl-msys2.sh` into `.deps/gegl`)
+- The signed `patchy-gegl-host.exe` runs Patchy's GEGL build under `gegl\`. Only the helper loads the GPL-3 operation module. The package carries each library's license and `gegl\licenses\SOURCES.txt`. Build the runtime with `scripts/dev/gegl/build-gegl-msys2.sh` and publish its matching source as `PatchyGeglSources.zip`. See [GEGL packaging](../../docs/gegl-filters.md).
 - `plugins\README.txt` (from `packaging/plugins/README.txt`): the folder users drop .8bf plug-ins into, shipped so its location is obvious
 - `Patchy.ico` and `PatchyInstallManifest.txt`
-- Qt DLLs for Core, GUI, Widgets, PrintSupport, Network, SVG, and the Qt ImageFormats plugins
+- Qt libraries for the UI, printing, networking, SVG and the QML scripting engine, plus Qt PDF on x64
 - the Windows and offscreen platform plugins (offscreen is what `--headless` loads; the script smoke-tests the staged tree headless before zipping), current Windows style plugin, SVG icon engine, TLS backend, and JPEG, SVG, TIFF, and WebP image plugins
 - app-local Microsoft Visual C++ runtime DLLs copied from the local Visual Studio redist CRT directory, plus `vcomp140.dll` from the OpenMP directory beside it (the G'MIC engine)
 - app and Qt base translations for every shipped language (German, Spanish, French, Italian, Japanese, Korean, Polish, Brazilian Portuguese, Russian, Simplified and Traditional Chinese) under `translations`
-- bundled compatibility fonts under `fonts`
+- bundled compatibility fonts under `fonts`, JavaScript under `scripts`, the ONNX Runtime DLLs beside `patchy.exe`, and MobileSAM models under `ai-models`
 - `README.md`, `LICENSE`, `NOTICE-THIRD-PARTY.md`, Qt module SPDX notices (including Qt QML's `qtdeclarative` notice) under `licenses\qt`, and the G'MIC and pocketfft license texts under `licenses\gmic`
-- `patchy-gegl-host.exe` and Patchy's own GEGL under `gegl`, including GEGL's GPL-3 operation module (`gegl-common-gpl3*`, loaded only by the helper; docs/legal-licensing.md), with a license text for each of its libraries and `SOURCES.txt` under `gegl\licenses` (docs/gegl-filters.md); the release publishes its source as `PatchyGeglSources.zip`
 
 The zip does not include build files, tests, test fixtures, Qt translations for languages Patchy does not ship, Qt generic input plugins, installer-only helpers such as `InstallPatchy.exe` and `UninstallPatchy.exe`, the Visual C++ Redistributable installer, or developer packaging notes.
 
-The installer copies a signed `UninstallPatchy.exe` into the installed app folder and records it in `PatchyInstallManifest.txt`. The uninstaller uses that manifest to remove only files installed by the package. If a user saves documents into the install directory, those files are left in place and the install directory remains until the user removes them. It also deletes Object Selection's downloaded High Quality model, the two files `efficientvit_sam_xl0_encoder_fp16.onnx` and `efficientvit_sam_xl0_decoder_multi_fp16.onnx` by those exact names in `%LOCALAPPDATA%\RTsoft\Patchy\ai-models` (where downloads land) and in `%APPDATA%\RTsoft\Patchy\ai-models` (where they landed through 1.19), and each folder only when nothing else is left in it; the rest of the user's Patchy data stays (docs/ai-selection-models.md).
+The installer records its signed `UninstallPatchy.exe` and the other installed files in `PatchyInstallManifest.txt`. Uninstall removes the listed files and leaves user documents in the install directory. It also removes the known downloaded files for Object Selection, watermark detection and embedding, and text recognition from `%LOCALAPPDATA%\RTsoft\Patchy\ai-models` and the older `%APPDATA%\RTsoft\Patchy\ai-models`. The uninstaller matches exact filenames and removes each directory only when empty.
 
 ## Windows ARM64
 
 `build-release.bat` with no argument also builds `build\package\PatchyWindowsArm64NoInstaller.zip` and `build\package\PatchyWindowsArm64Installer.exe` (`build-release.bat arm64` builds only those; docs/release-process.md). The contents match the x64 package, with these differences: `patchy.exe`, `patchy-mcp.exe`, Qt, ONNX Runtime and the MSVC runtime are ARM64; the two plug-in hosts stay x86 and x64 and link the C++ runtime statically, because plug-ins are x86/x64 code; there is no Qt PDF module or notice. Both installers install to the same folder under the same uninstall entry, so either replaces the other.
 
-The installer payload carries `PatchyArchitecture.txt` (`x64` or `arm64`; a payload without it counts as x64). `InstallPatchy.ps1` reads it before any wizard, update or quiet install and refuses an ARM64 payload on a PC whose processor is x64 or x86, with `WrongArchitectureMessage` (every shipped language) pointing at the releases page. The processor comes from `IsWow64Process2`, so the answer is right inside an emulated process too; when its `Add-Type` declaration fails (it did once on an ARM64 PC under load), the machine's `PROCESSOR_ARCHITECTURE` in `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment` answers instead, which emulation does not change. `-ArchitectureCheck` checks both and requires them to agree. An unknown processor is never refused. The launcher stays an x64 .NET program and runs emulated on an ARM64 PC.
+The installer payload carries `PatchyArchitecture.txt` (`x64` or `arm64`; a payload without it counts as x64). `InstallPatchy.ps1` reads it before any wizard, update or quiet install and refuses an ARM64 payload on a PC whose processor is x64 or x86, with `WrongArchitectureMessage` (every shipped language) pointing at the releases page. The processor comes from `IsWow64Process2`, so the answer is right inside an emulated process too; when its `Add-Type` declaration fails, the machine's `PROCESSOR_ARCHITECTURE` in `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment` answers instead, which emulation does not change. `-ArchitectureCheck` checks both and requires them to agree. An unknown processor is never refused. The launcher stays an x64 .NET program and runs emulated on an ARM64 PC.
 
 ## Install location
 
@@ -82,7 +76,7 @@ An `SHChangeNotify` follows so Explorer sees it at once.
 
 This registration must stay passive: no extension's default value, `UserChoice`, or Default Apps entry is written, and nothing goes to HKLM. A type that already has a default program keeps it. A type no installed program handles (on a machine without Photoshop, `.psd`; `.rttex` almost everywhere) has Patchy as its only candidate, so a double-click offers it. A failure to register only warns.
 
-The uninstaller removes all of it when the registered command points into the install being removed, taking only its own value out of each `OpenWithProgids` list and deleting an extension key only when that leaves it empty. On the Windows offload host an install followed by an uninstall left the `HKCU\Software\Classes` extension keys identical to before. The portable zip registers nothing.
+The uninstaller removes all of it when the registered command points into the install being removed, taking only its own value out of each `OpenWithProgids` list and deleting an extension key only when that leaves it empty. The portable zip registers nothing.
 
 Every Windows app build embeds `FileDescription = Patchy Image Editor` and
 `ProductName = Patchy` in its version resource, so a portable copy also has a display
@@ -115,7 +109,7 @@ A package that fails is moved to `build\package\rejected` and the build fails, s
 
 `InstallPatchy.ps1 -CheckLogo` is the earlier, narrower check the batch file runs before compiling the launcher. Neither check clicks through the wizard, so run the built installer by hand after changing the installer script.
 
-When Seth's local signing setup is available, the script signs `build\release\patchy.exe` before staging it, signs `InstallPatchy.exe` and `UninstallPatchy.exe` before IExpress packs them, and signs `build\package\PatchyWindowsInstaller.exe` after IExpress creates it:
+For each architecture the release builder signs Patchy, its MCP connector and filter hosts before staging. It signs the installer launcher and uninstaller before IExpress packs them, then signs the finished installer.
 
 - `RT_PROJECTS` must point at the RT projects root.
 - The script calls `%RT_PROJECTS%\Signing\sign.bat "%EXE%" "Patchy" "rtsoft.com"`.
@@ -123,4 +117,4 @@ When Seth's local signing setup is available, the script signs `build\release\pa
 
 If `RT_PROJECTS` or the signing script is missing, the build fails. Set `PATCHY_ALLOW_UNSIGNED=1` for a deliberately unsigned local build (see `docs/release-process.md`).
 
-Publishing automation and a CI signing pipeline are not implemented yet; the current local handoff artifacts are the zip package and installer executable, with `latest_version.json` providing update metadata for published builds.
+The [GitHub release procedure](../../docs/release-process-github.md) covers publishing the verified packages and announcing the update through `latest_version.json`.

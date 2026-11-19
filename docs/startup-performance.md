@@ -90,9 +90,9 @@ The welcome panel queues its logo intro from the first visible artwork paint. Th
 
 ## Real window
 
-A real window costs more than `--headless` for reasons the offscreen platform never meets. Two were Patchy's to fix (November 2026):
+Two Windows startup costs appear only with the native window system. The table gives the measured effect of the clipboard and GPU changes.
 
-- **A locked clipboard.** Startup asked Qt about the clipboard five times (the Open from Clipboard state in `mw.actions.menu_bar`, then the no-document Paste state in `update_document_action_state`, run by `mw.initial_refresh`, the GEGL scan and the plug-in scan apply). While another process holds the clipboard open, Qt's Windows clipboard sleeps and retries for 0.5 to 3 s per query. Patchy now asks the format list first and remembers the Paste answer per clipboard change ([clipboard.md](clipboard.md#slow-or-locked-clipboards)).
+- **A locked clipboard.** Startup asked Qt about the clipboard five times (the Open from Clipboard state in `mw.actions.menu_bar`, then the no-document Paste state in `update_document_action_state`, run by `mw.initial_refresh`, the GEGL scan and the plug-in scan apply). While another process holds the clipboard open, Qt's Windows clipboard sleeps and retries for 0.5 to 3 s per query. Patchy checks the format list first and remembers the Paste answer per clipboard change ([clipboard.md](clipboard.md#slow-or-locked-clipboards)).
 - **The first window's GPU query.** Qt 6.8's Windows plugin places every new top-level window through a QTBUG-50371 workaround (`calcPosition` calls `forcedScreenForGLWindow`), which once per process creates a Direct3D 9 object and lists the adapters (`GpuDescription::detect`). That loads the GPU driver and checks its signature, 95 to 140 ms on the GUI thread inside the first `winId()` (in `mw.status_bar`), whatever the window draws with. `FirstWindowGpuWarmup` (src/ui/first_window_gpu_warmup.hpp) creates one Direct3D 9 object on a tracked worker as `main_window.construct` starts and holds it, so Qt's call finds the driver loaded (`winId` 99 -> 7 ms). main() releases it 2 s after the window shows, not at once: unloading the driver takes the loader lock while the first event-loop turns load libraries, which added up to 80 ms to some launches. Only on Qt's native Windows platform.
 
 What remains is the platform's own: `qt.application` (the windows plugin, screens: 8 ms on the desktop measured below, about 50 ms on a dev box with two large monitors), text and menus measured with DirectWrite fonts (`mw.actions.menu_bar` 12 vs 6 ms), `main_window.show` (native show and the first full paint, 27 vs 7 ms) and the first event-loop turns.
@@ -119,20 +119,24 @@ i7-1360P laptop (16 threads), Windows 11 26H2, release preset (LTCG), Qt 6.8.3, 
 
 Cold costs 60 to 100 ms over warm, almost all in `pre_main` (mapping Qt and the other imported DLLs) plus slower first reads in the preset libraries. The window paints about 1 ms after `event_loop.enter`; `first_paint` to `startup.idle` (the first frame and the queued startup tasks) is about 13 ms.
 
-### Slowest phases (warm headless) and proposals
+### Slowest phases in the headless baseline
 
-Rows marked Done are implemented; the rest are proposals to pick from.
+These measurements precede [library preloading](#preloaded-libraries). Use the host's current baseline for regression checks.
 
-| Rank | Phase | Warm | First launch | Proposal and risk |
-|---|---|---|---|---|
-| 1 | `mw.lib.patterns` | 154 ms (47% of ready) | 2466 ms | **Done** (see "Preloaded libraries" below). |
-| 2 | `mw.stylesheet` | 38 ms | 40 ms | `setStyleSheet(photoshop_style())` runs after every widget exists, so the whole tree is re-polished once. Setting the sheet before `create_actions`/`create_docks` (widgets are then polished once, when shown) may save part of it. Risk: code that reads style metrics during construction would see the styled values earlier, and the scheme-change connection order (connected after the first sheet) must stay. Measure before keeping. |
-| 3 | `mw.lib.brush_presets` (includes `mw.lib.brush_tips`, 10 ms) | 23 ms | 141 ms | **Done** (see "Preloaded libraries" below). |
-| 4 | `process.pre_main` | 16 ms | cold 78 to 88 ms | The exe names Qt6Pdf, Qt6Qml, Qt6Network, Qt6PrintSupport, Qt6Svg and onnxruntime (a string scan; confirm with `dumpbin /imports`). Delay-load (`/DELAYLOAD`) what startup never calls (likely Qt6Pdf, onnxruntime, Qt6PrintSupport). Risk: a DLL whose data Patchy imports (a `staticMetaObject` of a subclassed class) cannot be delay-loaded (the linker refuses, LNK1194), and a missing DLL then fails at first use instead of at launch. Helps cold starts only. |
-| 5 | rest of `mw.actions.options_bar` | 18 ms | | The options-bar widgets themselves. Building tool pages on first tool switch would save most of it; risk: hotkeys, translations and tests that reach the hidden pages by object name. |
-| 6 | first frame and queued tasks | 13 ms | | `first_paint` to `startup.idle`; includes the plug-in scan kick-off and the recent-file check. Already after the window is up. |
-| 7 | `mw.scripts` | 10 ms | 11 ms | The script scan reads every bundled and user script to register script hotkeys. Cache the scan by directory and file times, or scan on a worker and register when it returns. Risk: a script hotkey pressed in the first moments would be missed. |
-| 8 | everything else | 5 ms or less each | | `mw.tabs_start_panel`, `mw.input_color_settings` (ICC working space), `mw.view_recent`, `mw.docks`, `mw.actions.translations_finish`, `main_window.show`, `mw.actions.menu_bar`. |
+| Phase | Warm | Fresh profile or cold start |
+| --- | ---: | --- |
+| `mw.lib.patterns` | 154 ms (47% of ready) | 2466 ms, fresh profile |
+| `mw.stylesheet` | 38 ms | 40 ms, fresh profile |
+| `mw.lib.brush_presets` (including 10 ms in `mw.lib.brush_tips`) | 23 ms | 141 ms, fresh profile |
+| `process.pre_main` | 16 ms | 78 to 88 ms, cold |
+| Remaining work in `mw.actions.options_bar` | 18 ms | |
+| `first_paint` to `startup.idle` (first frame, queued plug-in scan and recent-file check) | 13 ms | |
+| `mw.scripts` | 10 ms | 11 ms, fresh profile |
+| `mw.tabs_start_panel`, `mw.input_color_settings`, `mw.view_recent`, `mw.docks`, `mw.actions.translations_finish`, `main_window.show` and `mw.actions.menu_bar` | 5 ms or less each | |
+
+For further profiling, the stylesheet is applied after widget construction. An earlier application changes when widgets see styled metrics and must preserve the scheme-change connection order. Building options pages on first use would affect hotkeys, translations and tests that find hidden widgets by name. Deferring the script scan would also defer registration of script hotkeys.
+
+For cold starts, identify actual DLL imports with `dumpbin /imports`. A string scan found Qt6Pdf, Qt6Qml, Qt6Network, Qt6PrintSupport, Qt6Svg and ONNX Runtime. Delay-loading can defer missing-DLL errors until first use, and the linker rejects a delay-loaded import of data such as a subclassed Qt type's `staticMetaObject` (LNK1194).
 
 Off the startup path already: the legacy plug-in scan (14 ms, on a worker after the first paint, reported as background), the update check (asynchronous; host lookup on a detached thread), G'MIC (its library loads at the first filter run, not at startup). A real window is measured separately ("Real window" above). Headless never enumerates installed fonts, so `fonts.ui_family` (about 1 ms here) can be much larger in a real window on a machine with many fonts; measure it with the desktop procedure above.
 

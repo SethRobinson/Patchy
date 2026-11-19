@@ -18,13 +18,11 @@ Related documents:
 - [high-bit-depth-compositor.md](high-bit-depth-compositor.md): the deep fixture corpus (its Photoshop facts, baseline and scores) and Phase 3, the deep compositor with the Photoshop rules the corpus pinned.
 - [high-bit-depth-color.md](high-bit-depth-color.md): color choice at 32 bits (a color's Intensity in stops, its controls, the Eyedropper and the Gradient tool).
 
-## Goal and acceptance
+## Compatibility benchmark
 
-True 16-bit and 32-bit float documents, with no feature lost and Testy scores equal or
-better. 16-bit lands first as a complete milestone; 32-bit linear HDR follows on the
-same float path.
+Testy checks whether deep documents retain their depth and precision after a Photoshop round trip. In the November 10, 2026 run, all 29 deep saves kept their bit depth. The 16-bit renders scored 100% on Testy's precision metric, which counts differences within a quarter of an 8-bit step. [Published benchmark measurements](psd-compatibility-benchmark.md#bit-depth).
 
-Baseline to beat: Testy run 20261009-001848 (psd-tools corpus, 309 files, Photoshop
+Pre-implementation baseline for regression comparisons: Testy run 20261009-001848 (psd-tools corpus, 309 files, Photoshop
 and Patchy, release build of 089007f7): opened 309/309, render 0.8786, visual 0.8978,
 native 1.0, bad saves 0, deep saves kept depth 0/29, 16-bit precision 0.2825 (render)
 and 0.3131 (resave). The published 2026-10-06 run (57ba855c) differs only in visual
@@ -37,7 +35,7 @@ regenerate by filtering `corpus/psd-tools.txt` on `testy.file_traits(...)["depth
 Run it with `python testy\testy.py --corpus corpus\deep-local.txt --editors
 photoshop,patchy` (corpus paths are relative to `testy/`).
 
-## Decisions (agreed with Seth, October 8, 2026)
+## Storage, compute and display rules
 
 - **One depth per document**, as in Photoshop. Layers, masks, saved channels and
   smart-filter masks all match it. Image > Mode gets 8 / 16 / 32 Bits/Channel; the
@@ -77,7 +75,7 @@ photoshop,patchy` (corpus paths are relative to `testy/`).
 
 ## Phases
 
-Code comments cite these phase numbers. Each phase lands as verified commits.
+Code comments cite these phase numbers.
 
 0. **Measurement** (done). Testy measures saved depth and 16-bit precision
    (docs/testy-scoring.md); the deep fixture corpus and its scorer are described in
@@ -204,8 +202,7 @@ Code comments cite these phase numbers. Each phase lands as verified commits.
    16 bits 92.9 s, 32 bits 93.2 s, no failures; the 16-bit scene PSD opens in
    Photoshop without a prompt. The web build stops at 16 bits
    (`depth_supported_on_platform`): 32-bit files open converted to 16 with an import
-   note, and Image > Mode, New Document and `convertBitDepth` offer no 32. Still to
-   do: deep compositor speed, a full Testy run against the baseline.
+   note, and Image > Mode, New Document and `convertBitDepth` offer up to 16 bits.
 
 ### Photoshop's 32-bit blend modes
 

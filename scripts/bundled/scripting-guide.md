@@ -317,7 +317,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | Global | What it is |
 | --- | --- |
 | `app` | The application: documents, dialogs, commands. |
-| `patchy` | The namespace: `patchy.ui`, `patchy.io`, `patchy.args`, `patchy.scripts`, `patchy.plugins`, `patchy.gegl`, `patchy.gmic`, `patchy.recovery`, `patchy.brushes`, `patchy.setResult()`, `patchy.isMainScript()`, `patchy.version`, `patchy.apiVersion`. |
+| `patchy` | The application (`patchy.app`, also available as `app`), workspace tools (`patchy.ui`, `patchy.io`, `patchy.scripts`, `patchy.recovery`, `patchy.brushes`, `patchy.ocr`, `patchy.perspective`), and filters (`patchy.plugins`, `patchy.gegl`, `patchy.gmic`). Scripts also use `patchy.args`, `patchy.setResult()`, `patchy.isMainScript()`, `patchy.version` and `patchy.apiVersion`. |
 | `console` | `log`, `info`, `warn`, `error`; output goes to the Script Manager console and to `--script-output`. |
 | `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval` / `requestAnimationFrame` | Timers, like in a browser. The run stays alive while timers are pending. |
 | `include(path)` | Runs another script file in the same scope. Relative paths resolve against the running script, then your user scripts folder, then the bundled scripts, so `include("Effects/fancy-background.js")` works from anywhere. Your script's `OPTIONS` object is protected: an included file's own OPTIONS block does not replace it. |

@@ -1,10 +1,10 @@
 # Painting, selections, and retouching
 
-Split from [features.md](features.md): painting and retouching tools, brushes, transforms, selections, filters, guides and measurement, and pen input.
+For text, vectors and other editing features, see the [full feature list](features.md).
+
+## Painting and retouching
 
 - Raster editing tools: Brush with Flow and timed Airbrush buildup (while Airbrush is on, number keys set Flow and the options bar briefly highlights Flow and Airbrush), Healing Brush, Spot Healing, Patch, Content-Aware Move (Object Selection, new layer), Red Eye, Clone Stamp, Remove Object, Dodge, Burn, Sponge, Blur, Sharpen (Alt swaps Dodge and Burn, Blur and Sharpen for a stroke; Dodge and Burn Ranges calibrated against Photoshop), Smudge with its own Strength (default 50%; how far the color travels is calibrated against Photoshop, 100% drags the starting color the whole stroke), Eraser, gradients (5 styles, pixel or fill; on-canvas handles edit a Gradient Fill's ends, stops and midpoints; click the line to add a stop, Delete or right-click to remove one, set a stop's opacity in a popup beside it; the tool's own gradient keeps a preset's color and opacity stops and is edited in the same two-track editor), shapes, and Edit > Fill (color, mode, opacity, Content-Aware)
-- With a selection, Move drags, Free Transform, Skew, Distort and Perspective act on the selected pixels and the selection follows; Select > Transform Selection reshapes the outline
-- Ctrl-drag a transform box's corner or side to distort it (Ctrl mid-drag toggles); right-click a transform, crop or text edit for its menu
 - Retouch sampling from Current Layer, Current & Below, or All Layers, with Ignore Adjustment Layers. Healing Brush heals the stroke on release and offers Replace and blend modes; Red Eye takes a click or a box
 - Clone source settings on the Clone Stamp gear: four saved sources (each clearable), offset, scale, rotation, flips and a source overlay
 - Brush tips (.abr import from the last folder, from selections, a name filter) with texture, dual brush, wet edges and pen-driven size, opacity, flow, scatter and color dynamics; the tip and dynamics windows can stay open; the Brush gear previews the dab or hides the outline
@@ -13,17 +13,28 @@ Split from [features.md](features.md): painting and retouching tools, brushes, t
 - Magic Eraser (in the Eraser flyout): one click erases an area of similar color, with Tolerance, Anti-alias, Contiguous, Sample All Layers and Opacity; Shift+E walks the three erasers; in all three, Alt+click picks the foreground color and Ctrl+drag moves the layer
 - Mixer Brush with Wet, Load, Mix, Flow and Sample All Layers controls; stroke smoothing with pulled-string and catch-up options
 - Painting tools show their mouse gestures in the status bar; Ctrl+click (Cmd+click) selects the layer under the pointer and Ctrl+drag moves it without switching tools; Alt+right-drag sets brush size and softness (Quick Select: size) with a canvas readout; a right-click on the canvas opens the brush's Size, Soft, Roundness, Angle and Smooth (each tool shows what it has) under a live preview of the tip and a sample stroke, with the selection commands below on a selection; Shift+[/] step hardness; ,/. step presets and </> pick the first and last preset; commands with no default key (bind them in Preferences > Hotkeys) change the size by exactly 1 or 10 pixels, the tool's opacity by 1% or 10%, and pick the Brush with its Pencil, Ink or Airbrush preset (GIMP-style puts them on GIMP's keys: [ ] and { } for size, < > and Ctrl+< Ctrl+> for opacity, N, K and A for the presets); holding Shift previews the line a Shift+click paints
+- Left and Right turn the brush tip by a degree (Shift: 15) when it has a direction: a sampled tip, the Square, or a flattened Round brush (a plain round tip keeps the arrows for nudging the layer). The pointer's outline turns with the tip, and Rotate Brush Left and Rotate Brush Right can take other keys in Preferences > Hotkeys
+
+## Selections, transforms and alignment
+
 - Rectangular and elliptical marquees, lassos including Magnetic Lasso, Magic Wand (Sample can average a square around the click), Quick Select, and paintable Quick Mask selections; Select > Expand, Contract, Border, Smooth, Feather; Select > Color Range picks sampled colors (click the image; Shift adds, Alt subtracts), a hue band, or the highlights, midtones or shadows, with a Fuzziness soft edge, Invert and a mask preview; a drag inside a selection moves its outline; it can be redrawn under a built-in or GEGL filter dialog
 - Object Selection tool: drag a loose box around an object, or click it, to select that object. Shift adds, Alt subtracts; a click outside the canvas deselects. It runs locally on the CPU; on desktop a High Quality model (234 MB download) is much more accurate. Right-click inside a selection and choose Select Object to tighten it to its object
+- With a selection, Move drags, Free Transform, Skew, Distort and Perspective act on the selected pixels and the selection follows; Select > Transform Selection reshapes the outline
+- Ctrl-drag a transform box's corner or side to distort it (Ctrl mid-drag toggles); right-click a transform, crop or text edit for its menu
 - Move tool arrow keys nudge the layer 1 px (Shift: 10 px); holding one keeps it moving, and each hold is one undo step
-- Left and Right turn the brush tip by a degree (Shift: 15) when it has a direction: a sampled tip, the Square, or a flattened Round brush (a plain round tip keeps the arrows for nudging the layer). The pointer's outline turns with the tip, and Rotate Brush Left and Rotate Brush Right can take other keys in Preferences > Hotkeys
 - Move tool layer selection: drag a box over layers, Shift-click to toggle one, or right-click to choose among the layers under the pointer (status bar count); Select > All Layers (Ctrl+Alt+A); Alt+[ and Alt+] cycle through the layers (Shift adds)
 - Guides, grids, a pixel grid from a zoom you set (400 to 3200%), snapping, layer alignment/distribution (New Guide Layout: columns, rows, gutters, margins), cropping with ratio, pixel-size and saved presets, swap buttons for portrait or landscape, overlay keys, straightening by eye or along a line you draw (Straighten, or Ctrl-drag), and an option to slide and turn the image under a crop box that stays put (P), Trim (plain or transparent edges, with tolerance), and a Ruler that measures distances and angles, straightens a layer or image
 - View > Extras (Ctrl+H) toggles selection edges, paths, guides, grids, alignment lines, artboard names and the transform controls (the Move tool's box and a Free Transform session's handles) at once; Show Extras Options picks which
+- Perspective Planes: put layers, pastes and paint on flat surfaces in perspective
+
+## Filters
+
 - G'MIC Filter Library on desktop: nearly 400 standard G'MIC filters, with controls built from each filter's own description, live preview on the layer, multi-layer input and output, draggable point markers on the canvas, and script access
-- Filter > Last Filter (Ctrl+Alt+F) repeats the last filter with its settings on the current layer and selection, for built-in filters, Filter Gallery looks, G'MIC filters, and plug-ins
+- Filter > Last Filter (Ctrl+Alt+F) repeats the last filter with its settings on the current layer and selection, for catalog filters (including GEGL), Filter Gallery looks, G'MIC filters and Windows filter plug-ins
 - Filter dialogs show a zoomable preview of the result; the Preview checkbox before Reset also shows it on the canvas and stays as you last left it in any filter dialog
 - Filter Gallery with live full-resolution preview, stacks, favorites and Saved Looks; Stylize and Render add angled Wind, Tiles, Extrude, Solarize, Find Edges, Trace Contour, Diffuse, Fibers, Difference Clouds, Lens Flare and Flame (14 presets, path mode); Liquify with warp, twirl, pucker, bloat and freeze brushes
-- Perspective Planes: put layers, pastes and paint on flat surfaces in perspective
+
+## Measurement and input
+
 - Photoshop-compatible document resolution, physical measurement units, rulers, image sizing and printing
 - Pen/stylus pressure and size dynamics, GUI scaling, scanner import (desktop builds), camera import (Windows, Linux) and command line options

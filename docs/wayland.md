@@ -1,17 +1,13 @@
 # Wayland
 
-Patchy behavior that differs on a Wayland session (Qt's `wayland` platform plug-in). X11
-(`xcb`), Windows, macOS and the offscreen test platform take none of these paths, except
-the frameless window chrome below, which is the Linux rule for X11 too. The right panels
-never float on any platform (the column is Patchy's own widget, [right-docks.md](right-docks.md)),
-so the Wayland dock-drag problems of GitHub issue 102 no longer exist; the KWin and GNOME
-test rigs are in [linux-testing.md](linux-testing.md) (the GNOME rig's commands also under
-"Reproducing on a headless GNOME Shell" below).
+Patchy uses Qt's `wayland` platform plug-in on a native Wayland session. The
+frameless window chrome also applies to X11. For the KWin and GNOME test environments,
+see [Linux testing](linux-testing.md).
 
 Related documents:
 
-- [wayland-pointer-lock.md](wayland-pointer-lock.md): the pointer lock that keeps the
-  Alt+right-drag brush resize on its press point (GitHub issue 637).
+- [wayland-pointer-lock.md](wayland-pointer-lock.md): pointer lock during Alt+right-drag brush resizing.
+- [wayland-test-rigs.md](wayland-test-rigs.md): running headless GNOME and measuring popup placement on sway.
 
 ## The frameless window chrome (Linux, X11 and Wayland)
 
@@ -101,7 +97,7 @@ logged-in user, `QT_QPA_PLATFORM=wayland`) and confirm: no light title bar, the 
 in the menu-bar row, a blank-area drag that moves and tiles, a double-click that
 maximizes and restores, edge resizing, and a maximize button restore that returns to the
 saved size. `patchy --screenshot` captures the window itself for the record; `QT_QPA_PLATFORM=xcb`
-covers the X11 path on the same session. The GNOME rig below drives the same native binary
+covers the X11 path on the same session. The [GNOME rig](wayland-test-rigs.md#reproducing-on-a-headless-gnome-shell) drives the same native binary
 headlessly (launch it with the rig's env, `PATCHY_NO_SINGLE_INSTANCE=1` and its own
 `PATCHY_SETTINGS_DIR`; read mutter's `get_frame_rect()`/`get_maximized()` through
 `Shell.Eval`). Edge tiling there follows the user's `org.gnome.mutter edge-tiling` gsetting
@@ -134,7 +130,7 @@ Unaffected: context menus (`QMenu::popup`/`exec` at a point) and QToolButton men
 set no control rectangle; Qt 6.8.3 (the AppImage, Windows, macOS), whose anchor is the
 popup's own native position; X11.
 
-Measured on Qt 6.11.2 with the probe below, 125%, a 159 px wide Image menu: the Mode
+Measured on Qt 6.11.2 with the [sway popup probe](wayland-test-rigs.md#measuring-popup-placement-headlessly), 125%, a 159 px wide Image menu: the Mode
 submenu opened at x=127 of its parent (should be 159) and the Image menu at (41, 19)
 instead of (51, 24). At 90%, a 114 px menu: submenu at 127 (should be 114). A combo box
 whose bottom edge is at y=104 got its list at y=83 at 125%. Patchy 1.11 (the Flatpak) at
@@ -290,7 +286,7 @@ File > Open is the desktop's portal dialog. On GNOME that is xdg-desktop-portal-
 GTK 4 dialog, whose type dropdown is a popover capped at 400 px (GTK's `gtkdropdown.ui`,
 `max-content-height`): about ten rows, scrolled by wheel or touchpad, with an overlay
 scrollbar visible only while the pointer moves over the list. Every row Patchy sends is
-there (checked on the GNOME rig below); the GTK 3 backend (xdg-desktop-portal-gtk),
+there (checked on the headless GNOME rig); the GTK 3 backend (xdg-desktop-portal-gtk),
 KDE's dialog and Qt's widget dialog list all of them. Qt's portal helper
 (`qxdgdesktopportalfiledialog.cpp`) sends every row whose spec matches
 `QPlatformFileDialogHelper::filterRegExp` and xdg-desktop-portal validates the list whole,
@@ -312,63 +308,8 @@ shows them again.
 
 ## Reproducing on a headless GNOME Shell
 
-`scripts/dev/wayland-gnome/gnome-rig.sh` runs the installed Flatpak on a headless mutter
-(`gnome-shell --headless --wayland --no-x11 --unsafe-mode --virtual-monitor <MON>`, its own
-session bus, env in `build/gnome-rig/env`), the setup the issue 100 and 108 reporter has (Qt
-draws its own title bar there). `start-shell` (with `MON=1366x768` for that laptop), then
-`patchy <scale>` launches the Flatpak as the single instance, `script <file.js>` forwards a
-`--run-script` to it (the script file must live under `$HOME`: the sandbox hides `/tmp`),
-and `drive` reads pointer and key commands on stdin (`gnome-input.py`: `move X Y` in output pixels,
-`rel DX DY` for the motion of a drag, `press`, `release`, `click`, `kdown SYM`/`kup SYM`
-(X keysyms, to hold modifiers), `sleep MS`, `shot NAME` through `org.gnome.Shell.Screenshot`;
-`rpress`/`rrelease` for the right button, `kcdown`/`kcup CODE` (evdev keycodes, which hold
-modifiers reliably; send one key first, the virtual keyboard drops its very first press),
-`pointer` (prints Mutter's pointer position), `shotc` (a shot with the pointer).
-The pointer is `org.gnome.Mutter.RemoteDesktop` relative motion anchored at the bottom-left
-corner, because the top-left one is the Activities hot corner and opens the overview; if
-the overview is up anyway, `gdbus call ... org.gnome.Shell.Eval 'Main.overview.hide()'`.
-`stop` kills Patchy by Flatpak id and the shell by the pids it recorded; never by name.
-
-Portals on the rig bus: the shell D-Bus-activates xdg-desktop-portal while it starts, so
-`start-shell` publishes `WAYLAND_DISPLAY` and `XDG_CURRENT_DESKTOP` to the bus's
-activation environment before the shell runs; a portal activated without them never
-shows a dialog and Patchy waits on it forever (`flatpak kill` it, then `stop` and start
-over). `RIG_DESKTOP` sets the desktop name: `GNOME` (default) selects the GTK 4
-xdg-desktop-portal-gnome backend through the host's `gnome-portals.conf`; for the GTK 3
-backend write `~/.config/xdg-desktop-portal/<name>-portals.conf` holding
-`[preferred]` / `default=gtk;` and start with `RIG_DESKTOP=<name>`. The rig bus has no
-working document portal (the live session owns `/run/user/<uid>/doc`), so `flatpak run`
-prints "Can't get document portal" and goes on. `drive` also takes `wheel N` (discrete
-wheel steps, positive scrolls down) for lists such as that dropdown.
-
-The sway rig is faster for anything that needs no GNOME specifics: `run.sh` with `KEEP=1`
-leaves the container up and `scripts/dev/wayland-popups/run-patchy.sh` launches, scripts,
-clicks (`vptr` now has `press`/`release` for drags) and captures the Flatpak on it. Both rigs
-share the single-instance socket: stop one Patchy before starting the next, or the launch
-only forwards to the running one. `live-drag.sh` in the same folder times a Move drag of a text layer on the sway rig, `live-canvas-drag.sh` a Path Select, path transform or Gradient Fill handle drag
-(pointer lag reports). Every drag that does real work per move coalesces its moves: [the drag rule](interactive-previews-drag-coalescing.md#rule-for-new-drags).
+Use the [GNOME rig instructions](wayland-test-rigs.md#reproducing-on-a-headless-gnome-shell) to launch the Flatpak on a private session bus, drive the pointer and exercise native portal dialogs.
 
 ## Measuring popup placement headlessly
 
-`scripts/dev/wayland-popups/run.sh <scale> [menu|combo] [fix]` runs on the Linux build
-host (podman plus the user-installed Flatpak SDK) and never touches a desktop session. It
-builds `popup_probe` (a menu bar with Image > Mode and a combo box, linked with
-`wayland_popup_anchor.cpp`; `fix` turns the workaround on) and a virtual pointer client
-inside the manifest's `org.kde.Sdk`, starts a headless sway in a Debian 12 container on its
-own socket in `$XDG_RUNTIME_DIR` (`--userns=keep-id`, so the socket belongs to the user),
-clicks the target, and prints Qt's view of each popup, the anchors Qt sent
-(`xdg_positioner.set_anchor_rect`) and the positions the compositor chose
-(`xdg_popup.configure`, relative to the parent surface). Screenshots (grim) and the full
-`WAYLAND_DEBUG` log land in `build/wayland-popups/`. `KEEP=1` keeps sway for the next run.
-
-Why this setup:
-
-- Qt makes a grabbing popup only after real input on the parent: Qt 6.8.3 otherwise maps
-  menus as toplevels, and 6.11 logs "Failed to create grabbing popup". weston's headless
-  backend has no seat, and wtype key presses did not count for 6.11. sway accepts a
-  `zwlr_virtual_pointer_v1` device, which gives the seat a pointer and the click a serial;
-  `vptr.c` keeps the device alive until its input ends.
-- sway refuses to run as root (`--userns=keep-id` plus `setpriv`) and refuses an NVIDIA host
-  without `--unsupported-gpu`; with no GPU in the container it renders with pixman.
-- For a Qt 6.8.3 comparison, build the probe directory against `.deps/Qt/6.8.3/gcc_64` on
-  the host and run it with `WAYLAND_DISPLAY` set to the sway socket (`build/wayland-popups/display`).
+The [sway popup probe](wayland-test-rigs.md#measuring-popup-placement-headlessly) records Qt's anchor and the coordinates the compositor returns.

@@ -1,9 +1,7 @@
 # Refactor backlog
 
-This file lists current, verified cleanup opportunities. Completed work and refactor
-chronology do not belong here. Before taking an item, confirm it still exists with a
-repository-wide search and read the area-specific documentation linked from
-`AGENTS.md`. The weekly health check (last run November 4, 2026) re-verifies every entry.
+Before taking an item, confirm it against the current tree and read the
+area-specific documentation linked from `AGENTS.md`. Remove completed items.
 
 All work here is behavior-preserving unless an entry explicitly identifies a bug.
 Preserve test registration order, persisted identifiers, serialization bytes,
@@ -12,9 +10,8 @@ canaries.
 
 ## Build time
 
-Measured from `build\opt-dev\.ninja_log` (October 25, 2026): a full opt-dev build is about
-143 CPU-minutes, half of it test translation units. The reasons and the cheap fixes already
-made are in [building-incremental.md](building-incremental.md#compile-time-profile).
+Use the [compile-time profile](building-incremental.md#compile-time-profile) to
+prioritize work. Recheck the target's cost in a recent opt-dev Ninja log.
 
 - The builder functions over 1000 lines (November 4, 2026: `build_options_bar` 4334,
   `request_layer_style_settings` 3022, `build_menu_bar_actions` 2984, `show_preferences` 1993,
@@ -29,9 +26,6 @@ made are in [building-incremental.md](building-incremental.md#compile-time-profi
   vendored codecs (about 825 CPU-seconds) recompile per preset. Options: sccache with `/Z7`
   for opt-dev (`/Zi` is set at the top of `CMakeLists.txt`), or a shared prebuilt install of the
   vendored static libraries. Seth's call.
-- The translation gates run on every build (`patchy_check_translation_catalogs` depends on every
-  Patchy source, about 2.6 s opt-dev; the runtime gate relinks and reruns after any `patchy_ui`
-  change, about 11.5 s opt-dev, 56 s release). Whether opt-dev may defer them is Seth's call.
 - `patchy-mcp` recompiles `app/mcp_server.cpp` and `app/mcp_stdio.cpp` (only `main.cpp` needs
   its own define); they could be shared objects.
 - Qt umbrella includes are clean, but `<filesystem>` reaches about 490 of 880 TUs through
@@ -153,11 +147,10 @@ made are in [building-incremental.md](building-incremental.md#compile-time-profi
   `pattern_library.cpp` and `style_library.cpp`; `QIconEngine::paint` mode handling in
   `action_icons.cpp` and `icon_theme.cpp`; the filter overlay `sync_role` blocks and zoom
   buttons in `filter_workflows.cpp` and `visual_filter_gallery_dialog.cpp`.
-- Eight direct `QFileDialog::getExistingDirectory` calls bypass the `get_existing_directory`
-  wrapper in `dialog_utils.hpp` (one caller so far): `divide_photos_dialog.cpp`,
-  `export_documents_folder_dialog.cpp`, `gmic_parameter_panel.cpp`, `main_window_files.cpp`,
-  `main_window_preferences.cpp`, `main_window_preferences_themes.cpp`, and `script_engine.cpp`
-  twice.
+- Review direct calls to `QFileDialog::getExistingDirectory` against the
+  `get_existing_directory` wrapper in `dialog_utils.hpp`. Callers include the book
+  scan and export dialogs, Preferences and the scripting engine. Preserve each
+  caller's dialog options and return value on cancel.
 
 ## Structural extractions
 
@@ -223,8 +216,7 @@ made are in [building-incremental.md](building-incremental.md#compile-time-profi
   document, render, save, and per-session history modules. Preserve the distinct editor
   settings conversions and canvas/session destruction order.
 - The options bar's `current_*` mirrors indicate a missing tool-options model.
-- Canvas callback fields (69 `std::function` members on `CanvasWidget`, 56 on October 25) could
-  become a clearer single-listener interface or Qt signals.
+- Consider a single-listener interface or Qt signals for the callbacks on `CanvasWidget`.
 - The `qimage_from_document_rect*` overload family and `RenderedDocumentPatch` could
   use request and result types in a small header.
 - Replace ambiguous boolean parameters such as the pixel-tool `erase` flags
@@ -235,8 +227,7 @@ made are in [building-incremental.md](building-incremental.md#compile-time-profi
 
 - `patchy_color` is referenced before its target definition. CMake accepts this, but
   the ordering is easy to break during target reorganization.
-- The absolute VS 18 cmake.exe path is hardcoded in `scripts/make-readme-screenshots.ps1`,
-  `scripts/release/build-release.bat` (with a PATH fallback), `scripts/release/build-wasm.bat`,
-  `scripts/run-tests.ps1` and the AGENTS.md handoff command, against the vs-env.bat single-owner
-  principle. A bare `cmake` is not a safe fallback on the dev box: a MinGW cmake precedes the
-  VS one on PATH even inside the VS environment; resolve it through vswhere like vs-env.bat.
+- `scripts/release/build-release.bat`, `scripts/release/build-wasm.bat` and
+  `scripts/run-tests.ps1` still name an absolute Visual Studio CMake path.
+  Use `cmake` and `ctest` from the environment that `scripts/vs-env.bat`
+  prepares. It puts the selected installation's CMake directory first on PATH.

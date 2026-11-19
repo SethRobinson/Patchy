@@ -116,7 +116,7 @@ preservation validate the pipeline itself.
   today's Photoshop draws. Skipped when a font is missing (the cache is then the only
   faithful picture). The write must carry no paragraph or character style
   ([txt2-kept-settings.md](txt2-kept-settings.md#line-composer)): writing the whole
-  `textKey` back, as Testy did until November 2026, turns Adobe Every-line Composer on
+  `textKey` back turns Adobe Every-line Composer on
   in every paragraph that does not state its composer and re-breaks its lines (all four
   paragraphs of GitHub issue 672's file), so an editor that kept the file's real
   Single-line setting was marked down; a `textStyle` set (tracking to a value and

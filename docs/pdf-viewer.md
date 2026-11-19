@@ -1,6 +1,6 @@
 # PDF viewer
 
-Opening a PDF (File > Open, Open Recent, a drop, a second launch) shows it in the PDF viewer instead of the Import PDF dialog. Editing pages goes through the viewer's Edit..., which runs the ordinary import ([pdf-import.md](pdf-import.md)). Print as Book is in [pdf-book-print.md](pdf-book-print.md). Desktop builds with Qt PDF only (`PATCHY_HAVE_QT_PDF`); elsewhere a PDF open behaves as before.
+Desktop builds with Qt PDF (`PATCHY_HAVE_QT_PDF`) open PDFs in the viewer by default. This applies to File > Open, Open Recent, dropped files and files passed by a second launch. Choose **Edit...** to open the [Import PDF dialog](pdf-import.md). Builds without Qt PDF can export PDFs but cannot open them.
 
 Related documents:
 
@@ -27,7 +27,9 @@ Related documents:
 
 ## Edit...
 
-`pdfViewerEditButton` calls `import_pdf_pages_from_viewer`: it sets `pdf_import_start_` (pages = the current row's pages, the password) and `pdf_import_dialog_parent_` (the viewer, so the dialog opens over it), then `open_document_path(path, LoadCopy, PdfOpen::Import)`. `run_pdf_import_dialog` selects every page and starts on the first of those. Success is "the active session changed"; the viewer then closes and the main window is raised. Cancel keeps the viewer.
+**Edit...** opens Import PDF over the viewer with all pages selected. The current row is the first page of the spread being viewed, scrolled into view. The dialog reuses the password that opened the file. On a successful import the main window activates the new document and closes the viewer. Cancel keeps the viewer open.
+
+`pdfViewerEditButton` calls `import_pdf_pages_from_viewer`, which sets `pdf_import_start_` and `pdf_import_dialog_parent_` before calling `open_document_path(path, LoadCopy, PdfOpen::Import)`. A change of active session signals success.
 
 ## View
 
@@ -37,9 +39,32 @@ Related documents:
 - **Zoom** (`pdfViewerZoomCombo`, `pdfViewer/zoom`: `page`, `width` or a percent): Fit Page, Fit Width, Actual Size (100% = 1 pt is 1/72 inch at the screen's logical DPI), presets, typed values; Ctrl+wheel zooms about the pointer by 1.2 per notch, clamped 5% to 1600%. Fits are recomputed for the current row on every resize. Scroll-bar policies are fixed on or off where a bar appearing would change the width a fit measures (`update_scroll_policies`), so fits never oscillate.
 - **Rotate Clockwise** turns every page a quarter (view only, never saved).
 - **Full Screen** (F11, a double-click; Esc or the same keys return) hides toolbar and sidebar.
-- **Keys** (window shortcuts, not application hotkeys: the viewer is not the main window, so nothing joins `HotkeyRegistry`): Ctrl+= / Ctrl++ zoom in, Ctrl+- zoom out, Ctrl+0 Fit Page, Ctrl+1 Actual Size, Ctrl+2 Fit Width, Ctrl+P Print as Book, Ctrl+F Find (with F3 and Ctrl+G: see Find), Alt+Left and Alt+Right Back and Forward (see Back and Forward), Ctrl+C Copy and Ctrl+A Select All for the pages' text ([pdf-viewer-selection.md](pdf-viewer-selection.md)), F11 full screen; Ctrl+W closes on every platform (Command+W on macOS), as do the platform's other Close keys (Ctrl+F4 on Windows) and whatever key the user gave the main window's File > Close (`set_close_key_source`, read when the key is typed); in the page area PgUp/PgDn/Space/Shift+Space (`MainWindow::spacebar_canvas_pan_target_in_window` leaves the viewer out, or the main window's hold-Space-to-pan, which reaches into the windows it owns, would swallow every Space typed here), Home/End, arrows (turn pages when nothing overflows that way). A left drag on text selects it, a left drag beside the text and a middle drag pan; a left click follows a link (see Links). The main window's hotkeys are `Qt::ApplicationShortcut`, so a key both bind would be ambiguous to Qt and run neither: the viewer's application event filter claims the `ShortcutOverride` of any key one of its own `WindowShortcut` actions binds (`window_key_action`) and triggers that action on the press. A key the viewer does not claim still runs the main window's hotkey. Standard keys are bound through `standard_keys`, every entry of `QKeySequence::keyBindings`: `QKeySequence(StandardKey)` is only the first, which on Windows made Close Ctrl+F4 alone, so Ctrl+W closed the document behind the viewer. The File > Close key is claimed only when the event reaches the viewer window itself, after the focused control passed on it, so a letter bound to Close is still typed in the page and zoom fields, and a key of the viewer's own keeps its meaning.
+- **Page navigation.** PgUp, PgDn, Space and Shift+Space move through the pages. Home and End jump to the ends. Arrow keys turn pages when there is no overflow to scroll in that direction. The main canvas excludes the viewer from `MainWindow::spacebar_canvas_pan_target_in_window` so Space reaches the pages.
+- **Pointer.** Left-drag on text to select it. Left-drag beside text or middle-drag to pan. A left click follows a link (see Links).
 - **Sidebar** (`pdfViewerSidebarAction`, `pdfViewer/sidebar`): Edit..., Print as Book..., and page thumbnails (`pdfViewerThumbnails`; blank placeholders of the right shape, rendered only once on screen and only while the Pages view shows, after every visible page), with the Outline beside them when the PDF has one (see Outline).
 - **Reading position**: the page shown at close is remembered per file (`pdfViewer/positions`, "page<TAB>path" lines, newest first, at most 50).
+
+### Keyboard shortcuts
+
+| Action | Viewer shortcut |
+|---|---|
+| Zoom in / out | Ctrl+= or Ctrl++ / Ctrl+- |
+| Fit Page / Actual Size / Fit Width | Ctrl+0 / Ctrl+1 / Ctrl+2 |
+| Print as Book / Find | Ctrl+P / Ctrl+F |
+| Next match | F3 or Ctrl+G (see Find for reverse search) |
+| Back / Forward | Alt+Left / Alt+Right |
+| Copy / Select All | Ctrl+C / Ctrl+A in the page text. See [text selection](pdf-viewer-selection.md). |
+| Toggle full screen | F11 |
+| Close viewer | Ctrl+W, the platform's Close keys (including Command+W on macOS and Ctrl+F4 on Windows), or the user's File > Close binding |
+
+The viewer owns window shortcuts. To resolve collisions with the main window's
+`Qt::ApplicationShortcut` actions, its application event filter claims `ShortcutOverride`
+for its own `WindowShortcut` actions (`window_key_action`) and triggers the action on
+keypress. Other shortcuts pass through. `standard_keys` uses every entry from
+`QKeySequence::keyBindings` for a standard action. The viewer looks up the user's
+File > Close binding through `set_close_key_source` at keypress. It claims that binding
+only after the focused control passes it on, so a letter bound to Close can still be
+typed in the page and zoom fields and an existing viewer shortcut keeps its meaning.
 
 ## Find
 
@@ -93,4 +118,11 @@ The find bar (`pdfViewerFindBar`, a row under the toolbar, hidden until asked fo
 
 ## Tests
 
-`ui_pdf_viewer_opens_pdf_files` (viewer instead of import, one viewer per file, Edit... preselects the page and closes the viewer, remembered page, the Preferences switch), `ui_pdf_viewer_open_updates_home_recent_list` (the Home screen behind the viewer lists the PDF first, in view: [ui-conventions-menus.md](ui-conventions-menus.md#recent-files)), `ui_pdf_viewer_spreads_and_page_turns` (cover-alone rows, right-to-left keys, wheel turn and cooldown, Home/End, page field, continuous scrolling, zoom steps, full screen, persisted layout), `ui_pdf_viewer_close_keys_close_only_the_viewer` (Ctrl+W, each platform Close key and a rebound File > Close close the viewer and no document; Ctrl+W in the main window closes its document with a viewer open), `ui_pdf_viewer_detail_renders_match_the_page` (pins Qt PDF's clip semantics and every quarter turn of a detail render), Unicode paths in `ui_pdf_book_print_writes_sheets_pdf`. Find: `ui_pdf_viewer_find_text_matching_rules` (the matcher alone: case in several scripts, spaces and line breaks, line-end hyphens, ligatures, quotes, accents, whole words), `ui_pdf_viewer_find_text_counts_and_options` (counts over a five-page document, both options, phrases and words across lines, "No matches", options remembered), `ui_pdf_viewer_find_text_steps_through_matches` (Enter, Shift+Enter, F3, Ctrl+G and the buttons in document order, around both ends with the note, Esc, reopening from another page, typing on, the row shown in Two Pages, cover-alone and right-to-left), `ui_pdf_viewer_find_text_keys_work_as_typed` (every find key sent to the viewer's window as the window system does, `QTest::keyClick` on the `QWindow`, with the main window used first and the keyboard in the field, on a page, on an option, on the page list and in the page field; `QTest::keyClick` on a widget hands the key to that widget whatever has the focus, which is how the other tests missed Enter doing nothing outside the field), `ui_pdf_viewer_find_text_highlights_follow_the_page` (the current match scrolled into view and tinted over its letters at three zooms, in a detail render and at every quarter turn; plain marks on the rest; none after closing), `ui_pdf_viewer_find_text_reports_no_text_layer`, `ui_pdf_viewer_find_text_sample_document` (six pages of prose; writes the `ui_pdf_viewer_find_text` capture). Links, history and outline (`tests/ui/pdf_viewer_links_tests.cpp`, one generated six-page fixture with every kind of link and a nested outline): `ui_pdf_viewer_links_are_read_from_the_pdf` (targets, points, the address typed in the text, no link for a script action, what `pdf_link_url_opens` takes and refuses), `ui_pdf_viewer_links_hover_and_click` (hand and tooltip, plain click and Ctrl+click on every kind of address, the second click that is no double-click, a press that becomes a drag), `ui_pdf_viewer_links_jump_in_every_layout` (the point named at the top of the window in every layout, right to left, at two quarter turns, one row at a time), `ui_pdf_viewer_links_follow_the_page` (link areas over their link-colored text at four zooms, in a detail render, at every quarter turn and in the two-page layouts; the hand after a scroll), `ui_pdf_viewer_links_context_menu`, `ui_pdf_viewer_history_back_and_forward` (the keys through the window system's path as in the find key test, the mouse's side buttons, the toolbar, what is and is not a jump, the scroll position and the same place at another zoom), `ui_pdf_viewer_outline_sidebar` (tree, jumps, the entry being read, the remembered view, a PDF without an outline), `ui_pdf_viewer_links_sample_document` (writes the `ui_pdf_viewer_links` capture with the tooltip painted in). Text selection: [pdf-viewer-selection.md](pdf-viewer-selection.md). Not built yet: a find results list, a page-number labels track, the PDF's own open and closed outline states, following a link into another PDF.
+- **Opening and navigation.** `ui_pdf_viewer_opens_pdf_files` checks viewer reuse, the opening preference, remembered page, and Edit's selection and focus. `ui_pdf_viewer_open_updates_home_recent_list` covers [Recent Files](ui-conventions-menus.md#recent-files). `ui_pdf_viewer_spreads_and_page_turns` covers layout, page turns, zoom and full screen. `ui_pdf_viewer_close_keys_close_only_the_viewer` checks standard and rebound Close keys with both windows open.
+- **Rendering and output.** `ui_pdf_viewer_detail_renders_match_the_page` pins Qt PDF clipping at each quarter turn. `ui_pdf_book_print_writes_sheets_pdf` covers Unicode output paths.
+- **Find.** `ui_pdf_viewer_find_text_matching_rules`, `ui_pdf_viewer_find_text_counts_and_options` and `ui_pdf_viewer_find_text_steps_through_matches` cover matching, options, order, wrapping and spreads. `ui_pdf_viewer_find_text_reports_no_text_layer` covers image-only pages. `ui_pdf_viewer_find_text_highlights_follow_the_page` covers three zooms, detail rendering and every quarter turn. `ui_pdf_viewer_find_text_sample_document` writes the six-page prose capture.
+- **Shortcut focus.** `ui_pdf_viewer_find_text_keys_work_as_typed` sends `QTest::keyClick` to the `QWindow` with focus in different controls. Sending it directly to a widget bypasses the window system's focus routing. The history test uses the window path too.
+- **Links.** The six-page fixture in `tests/ui/pdf_viewer_links_tests.cpp` contains link targets and a nested outline. `ui_pdf_viewer_links_are_read_from_the_pdf`, `ui_pdf_viewer_links_hover_and_click` and `ui_pdf_viewer_links_context_menu` cover allowed addresses, mouse gestures and context actions. `ui_pdf_viewer_links_jump_in_every_layout` and `ui_pdf_viewer_links_follow_the_page` check target placement and hit areas through zoom, rotation, detail rendering and spreads.
+- **History and outline.** `ui_pdf_viewer_history_back_and_forward` checks jumps, side buttons and restoring the reading position at another zoom. `ui_pdf_viewer_outline_sidebar` covers the selected entry, remembered sidebar view and PDFs without an outline. `ui_pdf_viewer_links_sample_document` captures the link tooltip. [Text selection tests](pdf-viewer-selection.md) cover the page text.
+
+The viewer has no find-results list, separate page-number labels, or support for the PDF's saved outline expansion state or links to another PDF.

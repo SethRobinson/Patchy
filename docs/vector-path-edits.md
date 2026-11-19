@@ -214,21 +214,11 @@ Test: `ui_path_align_shapes_inside_a_layer`.
 
 ## Spikes after Break Path at Point (open report)
 
-Break Path at Point on several points must leave a filled shape without spikes (long thin wedges
-along its edges, reported October 31, 2026). The reported steps (Rectangle tool, a corner dragged
-into a quad, one, several and all points marquee-selected, Break) are pinned in
-`ui_path_break_several_points_renders_cleanly`, fill only and with an 8 px miter stroke in every
-alignment, checking the layer bounds and the canvas at 100% and 300% (Dynamic Vector Preview), and
-in core with `path_break_at_points_renders_without_spikes` and the seeded sweep
-`path_point_commands_sweep_renders_inside_the_shape` (60 random convex and curved shapes, every
-point command, fill and three alignments): no spike appears. The wedge shape (widest at a vertex,
-along an edge's extension) is what a miter join draws at a near-reversal; the stroker allows that
-up to the miter limit (100, Photoshop's). The cause in the reported file is still open; the tests
-guard every path the commands produce.
+Breaking a filled path at one or more points must keep its fill and stroke inside the expected bounds. `ui_path_break_several_points_renders_cleanly` checks a distorted rectangle with one, several or all points selected, at 100% and 300% zoom, with fill alone and an 8 px miter stroke in each alignment. Core tests cover the same bounds and a seeded sweep of 60 convex and curved shapes (`path_break_at_points_renders_without_spikes`, `path_point_commands_sweep_renders_inside_the_shape`).
 
-## Usage sweep (October 31, 2026)
+A near-reversal can produce a wedge under Photoshop's miter limit of 100. The original reported spike remains unexplained and the tests above do not reproduce it.
 
-Everyday shape and path tasks in the current build: how, steps, and the test that drives it.
+## Shape and path editing tasks
 
 | Task | How | Steps | Covered by |
 |---|---|---|---|

@@ -16,7 +16,7 @@ Click any image to inspect it at full size. These are captures of the real edito
     </td>
 <td align="center" valign="top" width="50%">
       <a href="images/screenshots/camera_raw.png"><img src="images/screenshots/camera_raw.png" width="430" alt="Camera Raw develop dialog showing a snowy mountain photo with white balance, tone, color, and detail controls"></a>
-      <br><sub>Camera Raw development with white balance, tone, color, demosaic, and denoise controls; 16-bit processing currently produces an 8-bit document</sub>
+      <br><sub>Camera Raw development with white balance, tone, color, demosaic, and denoise controls; 16-bit processing produces an 8-bit document</sub>
     </td>
 </tr>
 <tr>
@@ -36,7 +36,7 @@ Click any image to inspect it at full size. These are captures of the real edito
     </td>
 <td align="center" valign="top" width="50%">
       <a href="images/screenshots/openai_images.png"><img src="images/screenshots/openai_images.png" width="430" alt="OpenAI Image Tools via API Key: a watercolor version of the beach photo made from a prompt with the photo as reference image 1, the result added as a new layer, two variations in the results row"></a>
-      <br><sub>OpenAI Image Tools via API Key: a prompt and a reference image become new layers (here a watercolor of the beach photo). It uses your own OpenAI key; nothing is sent until you click Create</sub>
+      <br><sub>OpenAI Image Tools via API Key: a prompt and a reference image become new layers (here a watercolor of the beach photo). Clicking Create sends the prompt and selected reference images to OpenAI using your own API key</sub>
     </td>
 </tr>
 </table>

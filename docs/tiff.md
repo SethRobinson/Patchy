@@ -215,8 +215,7 @@ resources survive; Qt's flat TIFFs carry no 34377, so their bytes are unchanged.
 the save is not an export (`export_copy`) and no explicit CMYK color form was asked for. So:
 
 - A document without layers a flat file would lose takes the unchanged Qt path, byte for byte.
-- Save (Ctrl+S) on a `.tif` path writes the layers in place: `save_discards_layers` is false
-  for TIFF, so it no longer routes to Save As.
+- A normal layered save (Ctrl+S) replaces the existing TIFF atomically at its current path.
 - Save As to TIFF with such a document shows TIFF Options (`prompt_tiff_save_options`,
   `tiffSaveOptionsDialog`, `tiffLayersCheck`, on by default). Unchecked: a flattened copy, as
   for any flat format, without the flatten warning (the dialog's hint says it).

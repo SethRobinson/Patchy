@@ -1,6 +1,6 @@
 # Testy: the PSD compatibility benchmark
 
-Testy (`testy/`) measures PSD compatibility against Adobe Photoshop 2026: whether each editor opens a file, how closely its render matches Photoshop's, whether it composites layers itself, what native data and bit depth survive its PSD save, whether text survives a save made after the editor re-lays it out, and for 16-bit files how precise its render is. What each measurement means is in [testy-scoring.md](testy-scoring.md); the public write-up of the latest published run is [psd-compatibility-benchmark.md](psd-compatibility-benchmark.md).
+Testy (`testy/`) measures PSD compatibility against the Photoshop installation selected as the reference for the run: whether each editor opens a file, how closely its render matches Photoshop's, whether it composites layers itself, what native data and bit depth survive its PSD save, whether text survives a save made after the editor re-lays it out, and for 16-bit files how precise its render is. What each measurement means is in [testy-scoring.md](testy-scoring.md); the public write-up of the latest published run is [psd-compatibility-benchmark.md](psd-compatibility-benchmark.md).
 
 Related documents:
 
@@ -12,7 +12,7 @@ Related documents:
 
 Machine-specific settings live in `testy/config.local.json` (gitignored): copy
 `testy/config.example.json` and fill in the python path (3.11+ with
-`testy/requirements.txt` installed: pywin32, Pillow, numpy, selenium, pywinauto), the
+`testy/requirements.txt` installed: pywin32, Pillow, numpy, selenium, fonttools, pywinauto), the
 dashboard port, the default corpus (a `corpus_file` list or a `corpus_dir` to scan;
 keep personal file lists out of the repo), optional explicit editor paths (standard
 install locations are discovered automatically), and the optional `build_command` that
@@ -158,7 +158,7 @@ Useful flags:
 
 ## The psd-tools collection and the By folder table
 
-`python testy\fetch_psd_tools_corpus.py` checks out psd-tools' `tests/psd_files` (issue 65), pinned, into `local-test-fixtures/psd-tools` and writes `testy/corpus/psd-tools.txt`; run it with `--corpus corpus\psd-tools.txt`. A multi-folder corpus gets a "By folder" table above the matrix (matches, data kept, bad saves per editor); a row click filters it. "Score without known limitations" drops 16/32-bit files (entry `traits`) from the totals. Same-stem files get distinct artifact directories via the entry's `dir` key (`x~psb`). `psd_tools_corpus_reads_and_round_trips_if_available` covers the same files without Photoshop.
+`python testy\fetch_psd_tools_corpus.py` checks out psd-tools' `tests/psd_files` (issue 65), pinned, into `local-test-fixtures/psd-tools` and writes `testy/corpus/psd-tools.txt`; run it with `--corpus corpus\psd-tools.txt`. A multi-folder corpus gets a "By folder" table above the matrix (matches, data kept, bad saves per editor); a row click filters it. The dashboard option "Score without known limitations" excludes files above 8 bits per channel from every editor's totals, using the source depth recorded in `traits`. Leave it off to include deep files. Same-stem files get distinct artifact directories via the entry's `dir` key (`x~psb`). `psd_tools_corpus_reads_and_round_trips_if_available` covers the same files without Photoshop.
 
 ## Publishing a run as a static site
 

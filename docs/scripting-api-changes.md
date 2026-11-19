@@ -2,18 +2,12 @@
 
 `app.apiVersion` is 1. Bump it only for breaking API changes. Every addition and
 behavioral change is recorded here, newest first, in the same change that makes it; the
-entries are a permanent record. Entries through 2026-09-30 (the July 2026 API, MCP
-attachment, palettes, vector automation, brushes, Slow mode and Pause, text direction,
-Remove Object, Align/Distribute and smart objects) are in
-[scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md),
-those of 2026-10-01 to 2026-10-19 in
-[scripting-api-changes-2026-10-01-to-19.md](scripting-api-changes-2026-10-01-to-19.md), and
-those of 2026-10-20 to 2026-10-28 in
-[scripting-api-changes-2026-10-20-to-28.md](scripting-api-changes-2026-10-20-to-28.md).
-those of 2026-10-20 to 2026-10-29 in
-[scripting-api-changes-2026-10-20-to-29.md](scripting-api-changes-2026-10-20-to-29.md).
-Those of 2026-10-28 to 2026-11-10 are in
-[scripting-api-changes-2026-10-28-to-11-10.md](scripting-api-changes-2026-10-28-to-11-10.md).
+entries are a permanent record. Earlier entries are in four archives:
+
+- [Through September 30, 2026](scripting-api-changes-through-2026-09-30.md)
+- [October 1 to 19](scripting-api-changes-2026-10-01-to-19.md)
+- [October 20 to 28](scripting-api-changes-2026-10-20-to-28.md)
+- [October 28 to November 10](scripting-api-changes-2026-10-28-to-11-10.md)
 
 Rollover: once this file passes 27,000 bytes, move its oldest entries, unchanged and in order,
 out of it until about 12,000 bytes remain, so the next rollover is weeks away. They go into the

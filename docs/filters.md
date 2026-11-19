@@ -107,7 +107,7 @@ The prompt (`rasterizeOrConvertMessageBox`) offers Convert To Smart Object (Acce
 
 ## Last Filter
 
-Filter > Last Filter (`filter.last`; Photoshop's Ctrl+Alt+F, Control+Command+F on macOS; `MainWindow::apply_last_filter`) reruns the last completed filter with its settings, no dialog, on the active layer and selection. `last_filter_` holds a catalog `FilterInvocation` (colors re-read), a Gallery recipe, the G'MIC Library's accepted choice, or an 8BF id. Adjustments, Liquify and Smart Filter dialogs are not recorded; on a Smart Object a natively mapped filter still opens its dialog. Tests: `last_filter`.
+Filter > Last Filter (`filter.last`; Photoshop's Ctrl+Alt+F, Control+Command+F on macOS; `MainWindow::apply_last_filter`) reruns the last completed filter with its settings, no dialog, on the active layer and selection. `last_filter_` holds a catalog `FilterInvocation` (including GEGL, with colors re-read), a Gallery recipe, the G'MIC Library's accepted choice, or an 8BF id. Adjustments, Liquify and Smart Filter dialogs are not recorded; on a Smart Object a natively mapped filter still opens its dialog. Tests: `last_filter`.
 
 ## Auto adjustments
 

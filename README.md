@@ -100,7 +100,7 @@ palette mode, Camera Raw, Perspective Planes, and more.
 | **Paint and retouch** | Pressure-aware brushes, Mixer Brush, stroke smoothing, healing, cloning, Patch, Red Eye, Remove Object, Liquify, Perspective Planes, and selections, including Object Selection that picks out an object from a dragged box. |
 | **Text and vectors** | Rich and vertical text, paragraph controls, Warp Text, Pen paths, shape layers, vector masks, SVG, and image tracing. |
 | **Photos and print** | 16-bit and 32-bit (HDR) editing, Camera Raw development, HEIC/HEIF, AVIF, JPEG XL, JPEG 2000, OpenEXR and Radiance HDR, plus CMYK proofing and CMYK JPEG, TIFF, and PDF export for print. |
-| **Extend your workflow** | The G'MIC filter library (nearly 400 filters with live preview) and over a hundred GEGL filters (desktop), Last Filter to repeat any filter, classic 32-bit and 64-bit Photoshop filter plug-ins on Windows, a built-in JavaScript editor, batch processing, command-line tools, local MCP control for AI assistants, and optional OpenAI Image Tools with your own API key. |
+| **Extend your workflow** | The G'MIC filter library (nearly 400 filters with live preview) and over a hundred GEGL filters (desktop), Last Filter to repeat a supported filter or gallery look with its saved settings, classic 32-bit and 64-bit Photoshop filter plug-ins on Windows, a built-in JavaScript editor, batch processing, command-line tools, local MCP control for AI assistants, and optional OpenAI Image Tools with your own API key. |
 
 [Full feature list and format support](docs/features.md) · [Installing Photoshop plug-ins](docs/features.md#installing-photoshop-plug-ins-windows) · [Scripting guide](scripts/bundled/scripting-guide.md) · [AI control setup](docs/ai-control.md)
 
@@ -108,8 +108,9 @@ palette mode, Camera Raw, Perspective Planes, and more.
 
 - No telemetry or tracking. Your images leave your computer only if you use the optional
   OpenAI Image Tools with your own API key.
-- Optional update checks contact GitHub. One-click updates (Windows and the Linux AppImage)
-  and Object Selection's High Quality model are downloaded only when you ask for them.
+- Optional update checks contact GitHub. Patchy downloads one-click updates (Windows and the
+  Linux AppImage) and optional models for High Quality Object Selection, PP-OCR text
+  recognition and TrustMark watermarks on request.
 - The browser build runs the same editor locally through WebAssembly. Desktop builds have
   more memory available and add printing, scanner and camera import, and command-line
   automation.

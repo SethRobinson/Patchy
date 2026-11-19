@@ -1,7 +1,9 @@
-Licenses for the automatic selection models shipped in ai-models/
-(provenance and checksums: docs/ai-selection.md in the Patchy source)
+Model notices for automatic selection and downloadable text recognition
 
-Every model file is a modified version of the original float32 ONNX models. The
+Automatic selection
+Provenance and checksums: docs/ai-selection-models.md in the Patchy source.
+
+The selection models below are modified versions of the original float32 ONNX models. The
 conversion script is scripts/ai/quantize_models.py in the Patchy source. The
 EfficientViT-SAM files store their weights as float16 (cast back to float32 when
 loaded), and the decoder outputs all four of its masks with their scores instead of
@@ -31,6 +33,21 @@ birefnet_lite_general_1024_int8.onnx (only in builds that include Select Subject
 
 ONNX Runtime's own license and third-party notices are in
 onnxruntime-LICENSE.txt and onnxruntime-ThirdPartyNotices.txt beside this file.
+
+PP-OCR text recognition (optional desktop download)
+
+PaddleOCR, Copyright (c) 2016 PaddlePaddle Authors, Apache License 2.0.
+Project: https://github.com/PaddlePaddle/PaddleOCR
+Model repositories under https://huggingface.co/PaddlePaddle:
+  PP-OCRv6_small_det_onnx and PP-OCRv6_small_rec_onnx
+  <script>_PP-OCRv5_mobile_rec_onnx for korean, cyrillic, eslav, el, th,
+  devanagari, ta and te
+
+Each repository declares Apache License 2.0 at the revision pinned by Patchy.
+On request, Patchy downloads the ONNX files and each recognizer's inference.yml
+under Patchy file names, preserving their original bytes. The download includes
+ppocr_LICENSE.txt beside the models. The pinned revisions are recorded in
+docs/legal-licensing.md and the SHA-256 values in scripts/setup-ai-deps.ps1.
 
 -------------------------------------------------------------------------------
 MIT License (BiRefNet: Copyright (c) 2024 ZhengPeng; the MobileSAM ONNX export)

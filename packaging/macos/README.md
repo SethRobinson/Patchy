@@ -21,7 +21,7 @@ step with File > Open (rules in [file-formats.md](../../docs/file-formats.md)).
 from the folded SVG source. Regenerate all platform icons together with
 `scripts/dev/generate-branding.py`; see [branding](../branding/README.md).
 
-## One-time signing setup (Seth)
+## One-time signing setup
 
 Uses the existing Apple Developer account (Robinson Technologies Corporation).
 
@@ -45,26 +45,16 @@ Uses the existing Apple Developer account (Robinson Technologies Corporation).
 Without that file `make-dmg.sh` run by hand still produces an **unsigned** dmg (users
 must right-click-open / approve in System Settings on first launch).
 
-A RELEASE run is different: `scripts/remote/release-mac.ps1` passes
-`PATCHY_REQUIRE_SIGNING=1`, which turns both skips into hard errors and verifies the
-finished artifact. That flag exists because the skips are only messages in a long
-build log, so a missing `~/.patchy-release-env` used to yield an unsigned dmg that
-looked like a successful release and would have shipped (caught September 2026).
-With it set, `make-dmg.sh` fails when either the signing identity or the notary
-profile is absent, and after stapling it runs
+For a release, `scripts/remote/release-mac.ps1` sets `PATCHY_REQUIRE_SIGNING=1`.
+The packager requires a signing identity and a notary profile. After stapling, it runs
 
 ```
 spctl -a -t open --context context:primary-signature -v <dmg>
 ```
 
-requiring both a non-zero-free assessment and the literal `source=Notarized Developer ID`
-in the output, which is what separates a notarized dmg from a merely signed one. That
-`spctl` call used to end in `|| true`, which hid a rejection.
+The assessment must return exit code 0 and report `source=Notarized Developer ID`.
 
-Do not add `xcrun stapler validate` to that check. It blocks indefinitely on the mac build host
-(September 2026: still running after ten minutes, killed at sixty seconds on a bounded
-retest) and would hang every release; `spctl` covers the same ground in about a third of
-a second.
+Keep `xcrun stapler validate` out of unattended verification. It can block indefinitely on the build host.
 
 ## Unattended keychain access
 
@@ -92,10 +82,8 @@ cancels that request. Fix the requesting session's locked state or credential.
 
 ### Diagnosing a keychain password dialog on the desktop
 
-A dialog such as "com.apple.iCloudHelper wants to use the login keychain" means the
-desktop session's login keychain is locked; it does not mean a build asked for
-anything. Read the unified log before blaming a build (read-only, no `security`
-commands, safe over ssh):
+A system service requesting the login keychain can indicate that the desktop session's
+keychain is locked. These read-only checks can run over SSH.
 
 ```
 log show --last 6h --style compact --predicate 'process == "launchd" AND eventMessage CONTAINS "SecurityAgent"'
@@ -104,32 +92,17 @@ ls -lt /Library/Logs/DiagnosticReports | head
 ps -axo pid,lstart,command | grep "[s]ecurityd -i"
 ```
 
-`Successfully spawned SecurityAgent` is the dialog appearing. A `securityd-<date>.ips`
-report together with a recent start time on `/usr/sbin/securityd -i` means securityd
-crashed, and every session's keychains come back locked when it restarts. September 11,
-2026: securityd logged "reached its thread limit (100) - service deadlock is possible"
-and crashed at 17:03 with no Patchy build or ssh session running (the last remote build
-was two days earlier); the iCloudHelper dialog followed at 17:08. The build scripts only
-ever unlock the keychain and never lock it, and a `SecKeychainGetStatus` probe from an
-ssh session reports that session, not the desktop. The login keychain password equals
-the login password on the mac build host (verified September 11, 2026 with
-`packaging/macos/check-keychain-password.sh`, which pipes the stored credential to
-`sudo -S` and prints only MATCH or DIFFERENT), so login and reboot unlock the keychain
-automatically; after a
-securityd crash in the middle of a session nothing can, and the dialog is answered
-with the login password or by the script below. If the passwords ever diverge (a
-login password reset that skips the keychain), Keychain Access > login > Change
-Password for Keychain restores the match, and `PATCHY_KEYCHAIN_PASSWORD` must be
-updated with it.
+`Successfully spawned SecurityAgent` marks the prompt. A `securityd-<date>.ips`
+report and a recent `securityd` start time can identify a crash that relocked the
+desktop keychain. `check-keychain-password.sh` checks whether the stored credential
+matches the account login and prints only MATCH or DIFFERENT. After a login password change,
+use Keychain Access > login > Change Password for Keychain if needed and update
+`PATCHY_KEYCHAIN_PASSWORD` to match the keychain.
 
-Recovery without touching the desktop: `packaging/macos/desktop-keychain-unlock.sh`
-bootstraps a one-shot helper into the desktop `gui/<uid>` launchd
-domain, the only place that can read or change the desktop session's keychain state.
-The helper unlocks the login keychain there once, with UI disabled, using the release
-credential, then removes itself, so iCloudHelper's next retry succeeds silently
-(September 11, 2026: status 2 = locked before, 7 after). That repairs the session, not
-the cause. Both scripts are run from Windows without any quoting, which PowerShell and
-cmd would otherwise mangle (inner double quotes and `2>/dev/null` do not survive them):
+`desktop-keychain-unlock.sh` installs a one-shot helper in the desktop
+`gui/<uid>` launchd domain. The helper uses the release credential to unlock the
+keychain in that session, with UI disabled, then removes itself. From Windows,
+run the checked-in scripts so SSH receives their shell quoting intact.
 
 ```
 ssh <mac-build-host> bash ~/patchy/src/packaging/macos/check-keychain-password.sh

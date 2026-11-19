@@ -6,9 +6,8 @@ This page covers the Flatpak. The AppImage is built and tested on its own toolch
 
 The Flatpak takes Qt from the
 `org.kde.Platform` runtime named in `packaging/linux/flatpak/com.rtsoft.patchy.yml`
-(6.11 as of October 2026). The Windows and macOS builds use Qt 6.8.3. Linux verification
-therefore runs on the runtime's Qt, never on a different one (Seth, October 13, 2026):
-GitHub issue 88 was a Qt 6.11 behavior change that every suite on Qt 6.8.3 passed.
+(branch 6.11). Run Flatpak verification against that runtime's Qt. A test that passes
+against the Qt 6.8.3 desktop kit can miss a regression specific to the runtime.
 
 ## The rule
 
@@ -93,8 +92,7 @@ false positives in test helpers that reserving the vector up front avoids.
 
 ## Runtime updates and the spin box field (Qt 6.11.3)
 
-The runtime branch takes Qt patch releases without a manifest change: 6.11 moved to Qt
-6.11.3 on October 31, 2026, and the shipped Flatpak with it. Nine UI tests then failed.
+The runtime can update Qt to a new patch release without a manifest change.
 Qt 6.11.3's `QStyleSheetStyle` (and 6.12.0, reported upstream as QTBUG-151308) cuts a spin
 box's edit field at its buttons' rectangles, and a box without buttons gets empty ones at
 the origin: a style sheet box (a border or padding) with `NoButtons`, which is every Patchy

@@ -43,7 +43,7 @@ Where the time goes, and what the build does about it:
 - Incremental cost: `main_window.hpp` and `canvas_widget.hpp` each reach about 200 TUs and
   change in a fifth and a tenth of all commits. The growth rule in
   [code-organization.md](code-organization.md#growth-rule-for-mainwindow-and-canvaswidget)
-  keeps new state out of them and holds the current counts.
+  keeps new state out of these widely included headers.
 
 ## Remote iteration: one target, opt-dev
 
@@ -106,7 +106,9 @@ on every invocation. Packaging runs `patchy_refresh_build_stamp` before its norm
 build; Flatpak supplies a new `PATCHY_BUILD_STAMP_REFRESH_TOKEN` in its generated
 release manifest so its app-module cache cannot reuse an old stamp.
 
-Translation gates cache only successful unchanged inputs; see [localization.md](localization.md).
+When their inputs change, the translation gates rerun. The catalog check measured about
+2.6 s in opt-dev, and the runtime check about 11.5 s in opt-dev and 56 s in release.
+An unchanged successful build reuses the stamps. See [Localization](localization.md).
 `patchy_build_graph_tests` exercises these rules in compiler-free Ninja fixtures:
 no-op/reconfigure, source/header changes, added/removed inputs, failed/retried
 checks, missing outputs and explicit packaging refresh. Fixtures remain under

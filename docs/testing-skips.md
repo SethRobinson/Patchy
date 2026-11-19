@@ -2,7 +2,7 @@
 
 Split from [testing.md](testing.md): how a skip is classified and recorded, how the release verifiers judge skips against an expected list per host, and the two environment variables for local fixtures (`PATCHY_REQUIRE_FIXTURES`, `PATCHY_LOCAL_FIXTURES_DIR`). The per-platform skip list and its reasons are in [platform-tests.md](platform-tests.md).
 
-A skipped test checked nothing. On October 25, 2026 a worktree cleanup emptied `local-test-fixtures` (the `looks` and `dds` folders never came back), every test that needed them turned into a `[SKIP]`, and the release verifiers, which counted only `[PASS]` and `[FAIL]`, read the runs as clean. Skips are therefore counted, recorded and judged.
+A missing fixture can turn a regression test into a skip while the suite still exits successfully. Check the skip count in each summary and compare release runs with the expected list for that host.
 
 ## Skip classes and the record
 

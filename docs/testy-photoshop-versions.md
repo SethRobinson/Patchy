@@ -7,9 +7,10 @@ every resave in more than one Photoshop so such regressions show up in normal ru
 ## Reference and checked versions
 
 - The **reference** renders the ground truth, runs the Photoshop column and does the scored
-  reopen of every resave (`resaveRejected`, `native`, the round-trip render). Unless a run
-  names one, it is exactly what Testy always used: the configured ProgID
-  (`editors.photoshop_progid`, default `Photoshop.Application`, Photoshop 2026 on the dev box).
+  reopen of every resave (`resaveRejected`, `native`, the round-trip render).
+  A run can select a reference explicitly. Otherwise Testy uses the installation
+  Windows associates with `editors.photoshop_progid` (default
+  `Photoshop.Application`).
 - Each **checked version** only opens files: the corpus original, then every editor's resave
   (no render). Its verdicts sit beside the reference's; they never change the reference's
   numbers.

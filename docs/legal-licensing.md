@@ -32,7 +32,7 @@ Decided 2026-11-02. Design: [gegl-filters.md](gegl-filters.md); every source con
 
 ## Scanner and camera libraries in the Flatpak
 
-Decided 2026-11-05 (Seth, on PR #648: keep the bundling and publish the source). Design: [import-scanner.md](import-scanner.md).
+Decision of 2026-11-05 (PR #648): keep the Flatpak libraries bundled and publish their source. Design: [import-scanner.md](import-scanner.md).
 
 - **What ships.** Only the Flatpak we publish (`PatchyLinux.flatpak`, `PatchyLinuxArm64.flatpak` and the rtsoft.com Flatpak repository) builds sane-backends and libgphoto2 from the pinned release tarballs its manifest names, unmodified (configure options only). The AppImage and native builds use the system's copies and ship neither; never bundle them there without a new decision.
 - **Licenses.** sane-backends is GNU GPL version 2 or later. Most of its backends, and `libsane` itself (the `dll` backend), add SANE's exception that permits linking without affecting the program's license; its `LICENSE` file says not every backend applies it, so treat the backends as plain GPL-2+. libgphoto2 is GNU LGPL version 2.1 or later. Both texts ship in `share/licenses/com.rtsoft.patchy/` (`sane-backends-COPYING.txt`, `sane-backends-LICENSE.txt`, `libgphoto2-COPYING.txt`).

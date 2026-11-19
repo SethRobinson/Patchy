@@ -42,18 +42,17 @@ Two things keep a handle at the pointer on a large document.
 
 | Case | Through the document | View preview |
 | --- | --- | --- |
-| metroid (i9-11900KF, Windows), event loop per move | 34 to 47 ms | 13 to 17 ms |
-| glados (24 threads, Linux, offscreen), event loop per move | 31 to 46 ms | 13 to 15 ms |
+| Windows, i9-11900KF, event loop per move | 34 to 47 ms | 13 to 17 ms |
+| Linux, 24 threads, offscreen, event loop per move | 31 to 46 ms | 13 to 15 ms |
 | One preview | a 19 Mpx draft, the layer thumbnail and a full composite in the background | 3 to 5 ms for the 448 x 672 on screen (raster about 2, composite about 1.7), nothing in the background |
-| Release with the bake on the GUI thread (history, repaint) | 275 to 320 ms on metroid | 180 to 215 ms |
-| glados, live Wayland, Qt 6.8.3, a quarter of a core, 3.3 s drag | 9 repaints (390 ms apart), every one a stale fill, 199 ms behind the pointer | 296 repaints (12 ms apart), none stale, 5 ms behind |
+| Linux, live Wayland, Qt 6.8.3, a quarter of a core, 3.3 s drag | 9 repaints (390 ms apart), every one a stale fill, 199 ms behind the pointer | 296 repaints (12 ms apart), none stale, 5 ms behind |
 | The same at full speed | 69 repaints (42 ms apart), every one stale, 40 ms behind | 1795 repaints (2 ms apart), none stale, 1 ms behind |
 
-The release rows are from before the background bake; a release now returns in a few milliseconds ([Release without a pause](#release-without-a-pause)). Through the document (GitHub issue 663 follow-up, metroid): 4000x3000 took 22 to 27 ms per move (an 11 ms draft) against 110 to 160 ms with an exact 92 ms bake per preview, 8000x8000 about 160 ms, mostly allocating and writing the 256 MB raster.
+Release timings for the background bake are under [Release without a pause](#release-without-a-pause).
 
 ## Release without a pause
 
-GitHub #714, third follow-up: after letting go of a drag on a large image the next drag had to wait. The release baked the full-size fill on the GUI thread, and the first paint after it rebuilt the display mips of the frame from before. On an i7-12700KF: 0.45 to 0.75 s at 3580 x 5370 and 1.0 to 1.8 s at 8000 x 6000, for a handle drag and for a Fill Layer mode drag alike.
+Baking a large fill and rebuilding display mips on the GUI thread can block the next drag. The release timings below cover both operations.
 
 **Background bake** (`MainWindow::PendingGradientFillBake`, main_window_vector.cpp). A commit of a fill the canvas can preview at view resolution (`gradient_fill_bake_runs_in_background`: pathless, 8-bit, 1 Mpx and up, never the web build; `PATCHY_GRADIENT_FILL_BACKGROUND_BAKE=0` turns it off) hands a copy of the layer with the new gradient, its raster dropped, to a worker and returns. Handle commits, a click that adds a stop, Delete, the opacity popup and the stop color picker go this way when no preview went through the document, and so does a Fill Layer mode release (a redrawn fill, or a new layer built by `build_fill_layer` without its raster). A stroke's gradient, a fill with a path, and 16 or 32-bit documents commit on the spot as before.
 

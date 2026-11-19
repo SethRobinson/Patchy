@@ -43,25 +43,18 @@ Split from [high-bit-depth.md](high-bit-depth.md): Phase 2 (PSD/PSB read and wri
 
 ## Phase 8: Other formats and the script API
 
-8. **Other formats and the script API** (partly done). With the gate on, a 16-bit or
-   float QImage from a loader (PNG 16, TIFF) opens at 16 or 32 bits
-   (`document_from_qimage`, `deep_import_depth`), and the flat-alpha promotion keeps
-   the mask and color at depth. Script API: `doc.bitDepth`, `doc.convertBitDepth(bits)`
-   (throws for other values, with the gate off, or on Indexed documents);
-   `getPixels`/`setPixels` stay RGBA8 and convert at the boundary. Export: PNG and TIFF
-   keep 16 bits (`deep_export_qimage`); a 32-bit document writes float TIFF with its
-   linear values (`float_export_qimage`); still JPEG XL keeps 16-bit and float samples
-   natively (`jxl::write_jxl`, docs/jxl.md); the other writers are 8-bit. JPEG, WebP and
-   PDF narrow the deep composite (`flat_export_qimage`); the native flat writers (BMP,
-   TGA, DDS, GIF, PCX, ICO/CUR, IFF, RTTEX, JXR), animated GIF/WebP/JPEG XL, any export
-   transform, and the layered SVG and Aseprite writers receive a copy converted like
-   Image > Mode > 8 Bits/Channel (`document_for_8bit_writer`, ui/image_document_io.hpp),
-   because they composite at 8 bits and would otherwise fail.
-   HDR sources open at 32 bits (October 2026): JPEG XR float frames (scRGB as stored,
-   docs/jxr.md), AVIF PQ and HLG (docs/avif.md), and PQ/HLG HEIF on macOS and Linux (PQ
-   only on Windows), with other deeper-than-8-bit HEIF at 16 where the decoder delivers it
-   (docs/heif.md); PQ and HLG decode through `formats/hdr_transfer` (docs/hdr-formats.md).
-   With deep editing off they tone map to 8 bits. Still to do: DDS 16-bit and float sources
-   at depth (they open tone mapped or narrowed: docs/dds.md), 10-bit SDR HEIF on Windows
-   (WIC hands it over as 8 bits), JPEG XR 16-bit integer frames, gain maps, raw at 16 bits,
-   deep .af import.
+With deep editing enabled, `document_from_qimage` and `deep_import_depth` preserve 16-bit PNG and TIFF samples and float TIFF samples. Promoting flat-image alpha to a mask preserves the depth of both mask and color. Scripts read the depth with `doc.bitDepth` and convert with `doc.convertBitDepth(bits)`. The conversion rejects unsupported depths, Indexed documents and a disabled deep-editing gate. `getPixels` and `setPixels` exchange RGBA8 and convert at the boundary.
+
+| Export | Precision |
+| --- | --- |
+| PNG and TIFF | Preserve 16-bit samples. Float TIFF preserves a 32-bit document's linear values. |
+| Still JPEG XL | Preserves 16-bit and float samples. [JPEG XL](jxl.md). |
+| OpenEXR and Radiance HDR | Export the linear HDR composite. OpenEXR stores float channels. Radiance uses RGBE with a shared exponent. [HDR formats](hdr-formats.md). |
+| JPEG 2000 | Writes lossless JP2 at 16 bits for a 16-bit document and at 8 bits for 8-bit or float input. [JPEG 2000](hdr-formats.md#jpeg-2000-jp2-j2k-j2c-jpc-jpx-jpf). |
+| JPEG, WebP and flattened PDF | Narrow the composite for output. |
+
+The 8-bit-only writers for BMP, TGA, DDS, GIF, PCX, ICO/CUR, IFF, RTTEX and JPEG XR use `document_for_8bit_writer`. Animated GIF, WebP, JPEG XL and PNG, indexed PNG, CMYK export and flat export transforms also use an 8-bit working copy. The layered SVG and Aseprite export paths use the same conversion.
+
+Float JPEG XR opens as 32-bit scRGB. PQ and HLG AVIF open as 32-bit linear sRGB, as do PQ and HLG HEIF on macOS and Linux and PQ HEIF on Windows. Other high-depth HEIF opens at 16 bits where the decoder provides it. With deep editing disabled, HDR JPEG XR and AVIF tone map to 8 bits. HEIF uses its platform-specific 8-bit path. [JPEG XR](jxr.md), [AVIF](avif.md), [HEIF](heif.md), [PQ and HLG conversion](hdr-formats.md#pq-and-hlg).
+
+DDS narrows 16-bit channels and tone maps float sources. Windows WIC returns 10-bit SDR HEIF as 8-bit pixels. Other open precision gaps include integer 16-bit JPEG XR, HEIF gain maps, camera raw output and Affinity raster import. [DDS](dds.md), [camera raw precision](camera-raw.md#decoder-and-precision), [Affinity import](af-format.md).

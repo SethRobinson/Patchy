@@ -1,6 +1,6 @@
 # GEGL filters: provenance log
 
-Evidence that Patchy's GEGL helper and bundle were built from interface facts only. The binding rule is [legal-licensing.md](legal-licensing.md#gegl-operations-through-a-helper); the design is [gegl-filters.md](gegl-filters.md). Add a dated entry for every new source, tool or decision, in the same change that uses it. Each entry names the source, its version and licence, and the facts taken from it. (The removed GIMP 3 plug-in bridge kept its own log, `docs/gimp-plugins-provenance.md`, in the branch history.)
+Evidence that Patchy's GEGL helper and bundle were built from interface facts only. The binding rule is [legal-licensing.md](legal-licensing.md#gegl-operations-through-a-helper); the design is [gegl-filters.md](gegl-filters.md). Add a dated entry for every new source, tool or decision, in the same change that uses it. Each entry names the source, its version and licence, and the facts taken from it.
 
 ## Never read
 

@@ -3,7 +3,7 @@
 Entries of the permanent scripting API change log, moved here unchanged when
 [scripting-api-changes.md](scripting-api-changes.md) reached its size limit. Newer entries
 live there, older ones in
-[scripting-api-changes-2026-10-20-to-29.md](scripting-api-changes-2026-10-20-to-29.md).
+[scripting-api-changes-2026-10-20-to-28.md](scripting-api-changes-2026-10-20-to-28.md).
 `app.apiVersion` stayed 1 throughout. Newest first.
 
 2026-11-10 (additive): `doc.cssForLayers(layers)` returns the text Layer > Export > Copy CSS copies
