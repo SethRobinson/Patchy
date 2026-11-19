@@ -16,13 +16,14 @@ if errorlevel 1 (
   goto fail
 )
 set "SITE_DIR=build\package\wasm-site"
-for %%F in (patchy.data patchy.wasm patchy.js qtloader.js patchy.data.br patchy.data.gz patchy.wasm.br patchy.wasm.gz patchy.js.br patchy.js.gz qtloader.js.br qtloader.js.gz patchy-logo.svg favicon.ico apple-touch-icon.png patchy-192.png patchy-512.png site.webmanifest NOTICE-THIRD-PARTY.md libheif-COPYING.txt .htaccess patchy.html index.html) do (
+for %%F in (patchy.data patchy.wasm patchy.js qtloader.js patchy.data.br patchy.data.gz patchy.wasm.br patchy.wasm.gz patchy.js.br patchy.js.gz qtloader.js.br qtloader.js.gz patchy-logo.svg favicon.ico apple-touch-icon.png patchy-192.png patchy-512.png site.webmanifest .htaccess patchy.html index.html) do (
   if not exist "%SITE_DIR%\%%F" (
     echo %%F is missing from %SITE_DIR% - run scripts\release\build-wasm.bat first.
     if /i not "%~1"=="nopause" pause
     exit /b 1
   )
 )
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0verify-license-notices.ps1" -Directory "%SITE_DIR%" -Web || goto fail
 set "ORT_WEB_DIR="
 for /d %%D in ("%SITE_DIR%\onnxruntime-web-*") do set "ORT_WEB_DIR=%%~nxD"
 if not defined ORT_WEB_DIR (
@@ -48,7 +49,7 @@ rem scp -r from Windows creates the folders as 707, which Apache refuses
 rem (403); give them the same 775 as the rest of the site.
 ssh -n %UPLOAD_SSH% "chmod 775 www/patchy/ai-models www/patchy/%ORT_WEB_DIR%"
 if errorlevel 1 goto fail
-scp "%SITE_DIR%\patchy.data" "%SITE_DIR%\patchy.wasm" "%SITE_DIR%\patchy.js" "%SITE_DIR%\qtloader.js" "%SITE_DIR%\patchy.data.br" "%SITE_DIR%\patchy.data.gz" "%SITE_DIR%\patchy.wasm.br" "%SITE_DIR%\patchy.wasm.gz" "%SITE_DIR%\patchy.js.br" "%SITE_DIR%\patchy.js.gz" "%SITE_DIR%\qtloader.js.br" "%SITE_DIR%\qtloader.js.gz" "%SITE_DIR%\patchy-logo.svg" "%SITE_DIR%\favicon.ico" "%SITE_DIR%\apple-touch-icon.png" "%SITE_DIR%\patchy-192.png" "%SITE_DIR%\patchy-512.png" "%SITE_DIR%\site.webmanifest" "%SITE_DIR%\NOTICE-THIRD-PARTY.md" "%SITE_DIR%\libheif-COPYING.txt" "%SITE_DIR%\.htaccess" "%SITE_DIR%\patchy.html" "%SITE_DIR%\index.html" %UPLOAD_SSH%:www/patchy/
+scp "%SITE_DIR%\patchy.data" "%SITE_DIR%\patchy.wasm" "%SITE_DIR%\patchy.js" "%SITE_DIR%\qtloader.js" "%SITE_DIR%\patchy.data.br" "%SITE_DIR%\patchy.data.gz" "%SITE_DIR%\patchy.wasm.br" "%SITE_DIR%\patchy.wasm.gz" "%SITE_DIR%\patchy.js.br" "%SITE_DIR%\patchy.js.gz" "%SITE_DIR%\qtloader.js.br" "%SITE_DIR%\qtloader.js.gz" "%SITE_DIR%\patchy-logo.svg" "%SITE_DIR%\favicon.ico" "%SITE_DIR%\apple-touch-icon.png" "%SITE_DIR%\patchy-192.png" "%SITE_DIR%\patchy-512.png" "%SITE_DIR%\site.webmanifest" "%SITE_DIR%\LICENSE" "%SITE_DIR%\NOTICE-THIRD-PARTY.md" "%SITE_DIR%\libheif-COPYING.txt" "%SITE_DIR%\.htaccess" "%SITE_DIR%\patchy.html" "%SITE_DIR%\index.html" %UPLOAD_SSH%:www/patchy/
 if errorlevel 1 goto fail
 rem The multithreaded app dies without cross-origin isolation, and .htaccess
 rem directives are IfModule-guarded (a host missing mod_headers serves the

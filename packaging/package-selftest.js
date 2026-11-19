@@ -106,6 +106,8 @@ if (pluginsFolder) {
   for (var r = 0; r < required.length; r++) {
     check(patchy.io.fileExists(root + required[r]), "missing file: " + required[r]);
   }
+  check(patchy.io.listFiles(root + "licenses/qt", "qtdeclarative-*.spdx").length > 0,
+    "Qt QML module SPDX notice is missing");
   var scriptFolders = ["Demos", "Effects", "Games", "Utilities"];
   for (var s = 0; s < scriptFolders.length; s++) {
     check(patchy.io.listFiles(root + "scripts/" + scriptFolders[s], "*.js").length > 0,

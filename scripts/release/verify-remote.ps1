@@ -29,8 +29,8 @@ fail on the lock and the closing tail would echo the file back into itself witho
 -Target windows-arm64 checks the ARM64 package the windows builder cross-compiled here:
   1. both full suites from a native windows-arm64-opt-dev build on the ARM64 host (the cross
      build cannot run here, and an LTCG link may not fit the host's memory; skip with
-     -SkipSuites, which then requires the host's work tree to hold this tree's two
-     verification scripts),
+     -SkipSuites, which requires the host's verification scripts and notice files to
+     match this checkout),
   2. PatchyWindowsArm64Installer.exe and PatchyWindowsArm64NoInstaller.zip copied to the
      host and checked there by verify-windows-package.ps1 -Arch arm64 -RequireRun
      -NoDesktop (the wizard step ran on this PC with the windows builder).
@@ -103,20 +103,26 @@ if ($Target -eq 'windows-arm64') {
   $workTree = $remote.workTree.Replace('\', '/').TrimEnd('/')
   $packageDir = $workTree + '/build/package/arm64-release-check'
   $log = Join-Path $logs 'verify-windows-arm64-checks.log'
-  $packages = @('build\package\PatchyWindowsArm64Installer.exe', 'build\package\PatchyWindowsArm64NoInstaller.zip')
-  foreach ($package in $packages) {
-    if (-not (Test-Path $package)) { Write-Output "missing $package (run the windows builder first)"; exit 1 }
+  # A native ARM64 Qt kit can have a different SBOM from the cross-built kit that supplied
+  # the DLL. Send the original from the package builder for the byte comparison.
+  $armQtKit = Join-Path $root '.deps/Qt/6.8.3/msvc2022_arm64'
+  $qml = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $armQtKit 'bin/Qt6Qml.dll'))
+  $qtNotice = Join-Path $armQtKit ('sbom/qtdeclarative-{0}.{1}.{2}.spdx' -f $qml.FileMajorPart, $qml.FileMinorPart, $qml.FileBuildPart)
+  $inputsToCopy = @('build\package\PatchyWindowsArm64Installer.exe', 'build\package\PatchyWindowsArm64NoInstaller.zip', $qtNotice)
+  foreach ($inputFile in $inputsToCopy) {
+    if (-not (Test-Path -LiteralPath $inputFile -PathType Leaf)) { Write-Output "missing $inputFile (run the windows builder first)"; exit 1 }
   }
   $lockPath = Get-PatchyLockPath $true $remote
   $lockOwner = Get-PatchyLockOwner $root
   $why = Enter-PatchyRemoteLock $remoteHost $true $lockPath $lockOwner
   if ($why) { Write-Output "== $why =="; exit 75 }
   try {
-    # The checks run from the host's work tree: it must hold this tree's scripts (the suites
-    # step above just pushed it there).
-    $scripts = @('scripts/release/verify-windows-package.ps1', 'packaging/package-selftest.js', 'packaging/ocr-models-check.js')
+    # The checks read scripts and original notices from the host's work tree. The suites
+    # step above just pushed them there.
+    $inputs = @('scripts/release/verify-windows-package.ps1', 'scripts/release/verify-license-notices.ps1',
+      'packaging/package-selftest.js', 'packaging/ocr-models-check.js', 'LICENSE', 'NOTICE-THIRD-PARTY.md')
     $stale = @()
-    foreach ($relative in $scripts) {
+    foreach ($relative in $inputs) {
       $want = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $root $relative)).Hash
       $have = (ssh -n -o ConnectTimeout=30 $remoteHost ("(Get-FileHash -Algorithm SHA256 -LiteralPath '" + $workTree + '/' + $relative + "').Hash") 2>$null | Select-Object -Last 1)
       if ("$have".Trim() -ne $want) { $stale += $relative }
@@ -128,15 +134,15 @@ if ($Target -eq 'windows-arm64') {
     Write-Output "== windows-arm64 package checks (verify-windows-package.ps1 -Arch arm64 on $remoteHost) =="
     $code = Invoke-CmdLine ('ssh -n -o ConnectTimeout=30 ' + $remoteHost + ' "New-Item -ItemType Directory -Force -Path ''' +
                            $packageDir + ''' | Out-Null" > "' + $log + '" 2>&1')
-    foreach ($package in $packages) {
+    foreach ($inputFile in $inputsToCopy) {
       if ($code -eq 0) {
-        $code = Invoke-CmdLine ('scp -q "' + $package + '" "' + $remoteHost + ':' + $packageDir + '/" >> "' + $log + '" 2>&1')
+        $code = Invoke-CmdLine ('scp -q "' + $inputFile + '" "' + $remoteHost + ':' + $packageDir + '/" >> "' + $log + '" 2>&1')
       }
     }
     if ($code -eq 0) {
       $command = 'powershell -NoProfile -ExecutionPolicy Bypass -File ''' + $workTree + '/scripts/release/verify-windows-package.ps1'' -Arch arm64' +
         ' -Installer ''' + $packageDir + '/PatchyWindowsArm64Installer.exe'' -Zip ''' + $packageDir + '/PatchyWindowsArm64NoInstaller.zip''' +
-        ' -Version ' + $version + ' -NoDesktop -RequireRun; exit $LASTEXITCODE'
+        ' -QtSbomDir ''' + $packageDir + ''' -Version ' + $version + ' -NoDesktop -RequireRun; exit $LASTEXITCODE'
       $code = Invoke-CmdLine ('ssh -n -o ConnectTimeout=30 ' + $remoteHost + ' "' + $command + '" >> "' + $log + '" 2>&1')
     }
   } finally {

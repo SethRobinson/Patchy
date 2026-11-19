@@ -67,6 +67,9 @@ echo "== stage the AppDir =="
 APPDIR="$ROOT/build/appimage-appdir"
 rm -rf "${ROOT:?}/build/appimage-appdir"
 cmake --install build/appimage --prefix "$APPDIR/usr"
+for notice in LICENSE NOTICE-THIRD-PARTY.md; do
+  cmp "$ROOT/$notice" "$APPDIR/usr/share/licenses/com.rtsoft.patchy/$notice"
+done
 # AppRun starts the MCP connector as usr/bin/patchy --mcp-connector (GitHub issue 336), so
 # the installed patchy-mcp wrapper script would only name a path inside one launch's mount.
 rm -f "${APPDIR:?}/usr/bin/patchy-mcp"

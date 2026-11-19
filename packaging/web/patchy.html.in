@@ -67,7 +67,7 @@
     <div id="loader">
       <img src="patchy-logo.svg?v=__PATCHY_CACHE_TAG__" width="142" height="142" alt="Patchy logo">
       <h1 id="title">Patchy <span>__PATCHY_VERSION__</span></h1>
-      <p class="info">Free, open-source image editor &middot; <a href="https://www.rtsoft.com/" target="_top">rtsoft.com</a> &middot; <a href="https://github.com/SethRobinson/Patchy" target="_top">Source</a> &middot; <a href="NOTICE-THIRD-PARTY.md" target="_top">Licenses</a></p>
+      <p class="info">Free, open-source image editor &middot; <a href="https://www.rtsoft.com/" target="_top">rtsoft.com</a> &middot; <a href="https://github.com/SethRobinson/Patchy" target="_top">Source</a> &middot; <a href="LICENSE?v=__PATCHY_CACHE_TAG__" target="_top">Patchy license</a> &middot; <a href="NOTICE-THIRD-PARTY.md?v=__PATCHY_CACHE_TAG__" target="_top">Third-party notices</a></p>
       <div id="bar"><div id="bar-fill"></div></div>
       <div id="status">Preparing...</div>
       <noscript>JavaScript is disabled. Please enable JavaScript to use Patchy.</noscript>

@@ -34,7 +34,7 @@ else
 fi
 mkdir -p "$DEPS_DIR"
 DEST="$DEPS_DIR/libomp-$LLVM_VERSION-macos$DEPLOYMENT_TARGET"
-if [[ -f "$DEST/lib/libomp.dylib" && -f "$DEST/include/omp.h" ]]; then
+if [[ -f "$DEST/lib/libomp.dylib" && -f "$DEST/include/omp.h" && -s "$DEST/LICENSE.TXT" ]]; then
   echo "libomp $LLVM_VERSION for macOS $DEPLOYMENT_TARGET is in place: $DEST"
   exit 0
 fi

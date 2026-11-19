@@ -4,6 +4,7 @@ Split from [legal-constraints.md](legal-constraints.md) (feature boundaries from
 
 ## Format, copyright, trademarks, and assets
 
+- The root [LICENSE](../LICENSE) covers Patchy's own application code. [Third-Party Notices](../NOTICE-THIRD-PARTY.md) identifies vendored code and assets, including local changes to upstream components. When a binary distribution requires a notice, include the full text in that file or ship it with the component. Keep each copyright holder's own notice even when two components use the same license.
 - **Open from Clipboard** makes only an unsaved in-memory raster document ([clipboard.md](clipboard.md)); never extend it to automatic clipboard-to-file/cloud storage or shortcut-bound destinations.
 - PSD interoperability comes from observed output of a licensed Photoshop, never decompilation. Never copy verbatim Adobe specification text into the repository; link to it. Use self-authored fixtures only and never support the undocumented PSDC cloud format.
 - "Smart Object(s)", "Smart Filter(s)", "Filter Gallery", and "PSD" are not Adobe trademarks in the reviewed record. PHOTOSHOP is registered and policed. Use referential language ("compatible with Adobe Photoshop"); never put Adobe marks in Patchy's name, icons or branding, and keep README.md's Trademark Notice.

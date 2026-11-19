@@ -192,7 +192,7 @@ and Windows packaging. Contributors and automation tools should read [AGENTS.md]
 
 ## License
 
-Patchy is released under the MIT License on every platform. Third-party runtime notices are tracked in `NOTICE-THIRD-PARTY.md`.
+Patchy's own application code is licensed under the [MIT License](LICENSE). The repository and release packages also contain separately licensed code, artwork, fonts, and models. Some test files in the repository have their own terms as well. See [Third-Party Notices](NOTICE-THIRD-PARTY.md) and the license notices alongside the files you use.
 
 Some packages also carry separately licensed libraries: every desktop package includes GEGL (GNU LGPL, with its GPL-3 operations module), and the Linux Flatpak includes SANE (GNU GPL) and libgphoto2 (GNU LGPL) for scanner and camera import. Their license texts ship inside the package, and each release publishes their source next to the downloads as `PatchyGeglSources.zip` and `PatchyLinuxScannerSources.zip`. These licenses cover those libraries; Patchy's own code stays MIT.
 

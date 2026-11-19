@@ -20,6 +20,9 @@ import threading
 from pathlib import Path
 
 TYPES = {
+    "LICENSE": "text/plain; charset=utf-8",
+    ".txt": "text/plain; charset=utf-8",
+    ".md": "text/plain; charset=utf-8",
     ".html": "text/html; charset=utf-8",
     ".js": "text/javascript",
     ".mjs": "text/javascript",
@@ -60,7 +63,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 body = file.read_bytes()
             self.send_response(200)
             self.send_header(
-                "Content-Type", TYPES.get(file.suffix.lower(), "application/octet-stream")
+                "Content-Type", TYPES.get(file.suffix.lower() or file.name, "application/octet-stream")
             )
             if content_encoding:
                 self.send_header("Content-Encoding", content_encoding)

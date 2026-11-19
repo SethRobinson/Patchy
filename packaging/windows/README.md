@@ -27,7 +27,7 @@ build\package\PatchyWindowsInstaller.exe
 
 `PatchyWindowsInstaller.exe` is built with Windows IExpress from the zip payload plus installer-only helper executables. It opens a small per-user setup wizard, installs to `%LOCALAPPDATA%\Programs\Patchy` by default or to a folder the user chooses, creates a Start Menu shortcut, offers a default-checked desktop shortcut, registers a Windows uninstall entry under the current user, and offers to launch Patchy when setup finishes. The wizard and update mode start Patchy through `Start-PatchyInForeground` while their own window is still up: Windows lets a new process take the foreground only while its starter owns it, so a Patchy started after the window closed opens under other windows.
 
-The wizard heading shows `Install Patchy <version>` using the version passed by the packaged launcher. The legal notice, installation status, progress bar, and bottom buttons occupy separate rows with space between them.
+The wizard heading shows `Install Patchy <version>` using the version passed by the packaged launcher. A notice in the user's Windows UI language identifies the MIT license for Patchy's original code and points to `NOTICE-THIRD-PARTY.md` for other components. Its text wraps above the installation status and progress bar.
 
 The package is intentionally limited to the files needed by end users:
 
@@ -41,7 +41,7 @@ The package is intentionally limited to the files needed by end users:
 - app-local Microsoft Visual C++ runtime DLLs copied from the local Visual Studio redist CRT directory, plus `vcomp140.dll` from the OpenMP directory beside it (the G'MIC engine)
 - app and Qt base translations for every shipped language (German, Spanish, French, Italian, Japanese, Korean, Polish, Brazilian Portuguese, Russian, Simplified and Traditional Chinese) under `translations`
 - bundled compatibility fonts under `fonts`
-- `README.md`, `LICENSE`, `NOTICE-THIRD-PARTY.md`, Qt module SPDX notices under `licenses\qt`, and the G'MIC and pocketfft license texts under `licenses\gmic`
+- `README.md`, `LICENSE`, `NOTICE-THIRD-PARTY.md`, Qt module SPDX notices (including Qt QML's `qtdeclarative` notice) under `licenses\qt`, and the G'MIC and pocketfft license texts under `licenses\gmic`
 - `patchy-gegl-host.exe` and Patchy's own GEGL under `gegl`, including GEGL's GPL-3 operation module (`gegl-common-gpl3*`, loaded only by the helper; docs/legal-licensing.md), with a license text for each of its libraries and `SOURCES.txt` under `gegl\licenses` (docs/gegl-filters.md); the release publishes its source as `PatchyGeglSources.zip`
 
 The zip does not include build files, tests, test fixtures, Qt translations for languages Patchy does not ship, Qt generic input plugins, installer-only helpers such as `InstallPatchy.exe` and `UninstallPatchy.exe`, the Visual C++ Redistributable installer, or developer packaging notes.
@@ -103,6 +103,7 @@ After signing, `build-release.bat` runs `scripts\release\verify-windows-package.
 - runs it with `-ArchitectureCheck`, which tests the processor rule above and the wrong-processor message in every language, and checks that the payload's `PatchyArchitecture.txt` names the package's architecture;
 - checks the machine type of every shipped `.exe` and `.dll`: the package's architecture (`-Arch x64` or `arm64`), except `patchy-8bf-host32.exe` (x86) and `patchy-8bf-host64.exe` (x64). An ARM64X image (an x64 header with hybrid ARM64EC code; the ARM64 runtime's `vcruntime140_1.dll` is one) passes in either package;
 - unpacks the zip and compares it with `PatchyInstallManifest.txt`;
+- compares the packaged `LICENSE` and `NOTICE-THIRD-PARTY.md` byte for byte with the release checkout and checks the Qt QML SPDX document name against the shipped DLL version. The release builder supplies the target kit's `sbom` directory through `-QtSbomDir` to verify the packaged SPDX file byte for byte on each architecture;
 - checks the unpacked executable's display name, product name, original filename,
   and file/product versions against the package version;
 - reads the imports of every executable and DLL with `dumpbin` and requires each one to be in the package or part of Windows. Qt and Visual C++ runtime DLLs must be in the package even when the build machine has copies in System32;

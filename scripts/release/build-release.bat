@@ -67,7 +67,7 @@ set "PACKAGE_SUFFIX="
 set "STAGING_NAME=staging"
 set "INSTALLER_WORK_NAME=installer"
 set "VERIFY_WORK_NAME=verify"
-set "QT_SBOM_MODULES=qtbase qtimageformats qtsvg qtpdf"
+set "QT_SBOM_MODULES=qtbase qtdeclarative qtimageformats qtsvg qtpdf"
 set "CONFIGURE_EXTRA="
 rem The ARM64 kit, aqt's win64_msvc2022_arm64_cross_compiled per docs/building.md, has no
 rem qtpdf: PDF import is the stub there and its SPDX notice is not shipped. cmd.exe is
@@ -84,7 +84,7 @@ if /i "%PATCHY_ARCH%"=="arm64" (
   set "STAGING_NAME=staging-arm64"
   set "INSTALLER_WORK_NAME=installer-arm64"
   set "VERIFY_WORK_NAME=verify-arm64"
-  set "QT_SBOM_MODULES=qtbase qtimageformats qtsvg"
+  set "QT_SBOM_MODULES=qtbase qtdeclarative qtimageformats qtsvg"
   set "CONFIGURE_EXTRA=-DQT_HOST_PATH=%QT_HOST_PREFIX:\=/%"
   if /i not "%PROCESSOR_ARCHITECTURE%"=="ARM64" set "CAN_RUN_PACKAGE=0"
 )
@@ -270,7 +270,7 @@ call :CopyBundledFonts
 if not "!ERRORLEVEL!"=="0" goto fail
 
 copy /Y "%REPO%\README.md" "%STAGE_DIR%\README.md" >nul
-copy /Y "%REPO%\NOTICE-THIRD-PARTY.md" "%STAGE_DIR%\NOTICE-THIRD-PARTY.md" >nul
+copy /Y "%REPO%\NOTICE-THIRD-PARTY.md" "%STAGE_DIR%\NOTICE-THIRD-PARTY.md" >nul || goto fail
 copy /Y "%REPO%\LICENSE" "%STAGE_DIR%\LICENSE" >nul || goto fail
 copy /Y "%APP_ICON%" "%STAGE_DIR%\Patchy.ico" >nul || goto fail
 
@@ -325,7 +325,7 @@ rem wizard's smoke mode, a self-contained DLL check, and packaging\package-selft
 rem on the unpacked patchy.exe. A package that fails is moved aside so the upload
 rem scripts can never publish it (issue 55 shipped an installer nobody had run).
 echo Verifying the built packages...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%REPO%\scripts\release\verify-windows-package.ps1" -Arch %PATCHY_ARCH% -Installer "%INSTALLER_PATH%" -Zip "%ZIP_PATH%" -Version "%PATCHY_PACKAGE_VERSION%" -WorkDir "%PACKAGE_ROOT%\%VERIFY_WORK_NAME%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%REPO%\scripts\release\verify-windows-package.ps1" -Arch %PATCHY_ARCH% -Installer "%INSTALLER_PATH%" -Zip "%ZIP_PATH%" -Version "%PATCHY_PACKAGE_VERSION%" -WorkDir "%PACKAGE_ROOT%\%VERIFY_WORK_NAME%" -QtSbomDir "%QT_PREFIX%\sbom"
 if not "!ERRORLEVEL!"=="0" goto rejectpackage
 
 echo Release installer created: "%INSTALLER_PATH%"

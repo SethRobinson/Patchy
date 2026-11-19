@@ -5,7 +5,7 @@
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
-import { extname, join, normalize, sep } from 'node:path';
+import { basename, extname, join, normalize, sep } from 'node:path';
 
 // Flags are filtered out before the positional arguments so --open can sit
 // anywhere on the command line.
@@ -15,6 +15,9 @@ const positional = args.filter((argument) => !argument.startsWith('--'));
 const root = normalize(positional[0] ?? '.');
 const port = Number(positional[1] ?? 8973);
 const types = {
+  'LICENSE': 'text/plain; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8',
+  '.md': 'text/plain; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript',
   '.mjs': 'text/javascript',
@@ -57,7 +60,7 @@ createServer(async (request, response) => {
     }
     body ??= await readFile(file);
     response.writeHead(200, {
-      'Content-Type': types[extname(file).toLowerCase()] ?? 'application/octet-stream',
+      'Content-Type': types[extname(file).toLowerCase() || basename(file)] ?? 'application/octet-stream',
       ...(contentEncoding ? { 'Content-Encoding': contentEncoding, 'Vary': 'Accept-Encoding' } : {}),
       'Cache-Control': 'no-store',
       // Cross-origin isolation, matching the deployed .htaccess: the

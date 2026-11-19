@@ -21,6 +21,11 @@ mount_dir="$PWD/build/verify-dmg-check"
 mkdir -p "$mount_dir"
 hdiutil attach -readonly -nobrowse -mountpoint "$mount_dir" "$DMG"
 trap 'diskutil eject "$mount_dir"' EXIT
+licenses="$mount_dir/Patchy.app/Contents/Resources/licenses"
+for notice in LICENSE NOTICE-THIRD-PARTY.md; do
+  cmp "$notice" "$licenses/$notice"
+done
+cmp build/mac-release/Patchy.app/Contents/Resources/licenses/libomp-LICENSE.txt "$licenses/libomp-LICENSE.txt"
 echo '== DMG TEXT RECOGNITION ENGINE =='
 # The downloadable PP-OCR engine inside the package (docs/ocr-engines.md, "PP-OCR"): listed
 # as a download while its models folder is empty, then reading drawn text from this host's

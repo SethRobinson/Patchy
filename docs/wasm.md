@@ -177,8 +177,8 @@ onto setTimeout before qtloader runs (harness below).
 - **libheif license delivery.** LGPL-3.0-or-later source and license are
   vendored; Patchy's MIT source and reproducible wasm build instructions
   permit relinking with a modified library, and the staged site carries
-  `NOTICE-THIRD-PARTY.md` plus `libheif-COPYING.txt`. Keep those files in
-  `build-wasm.bat` and `upload-wasm-to-rtsoft.bat`.
+  Patchy's `LICENSE`, `NOTICE-THIRD-PARTY.md` and `libheif-COPYING.txt`.
+  Staging and both uploads verify those files ([release-wasm.md](release-wasm.md)).
 - **Asyncify + JS exceptions.** `-sASYNCIFY` makes the nested-event-loop
   sites (`QDialog::exec`, `run_non_modal_dialog`, pumps) work unmodified.
   Asyncify does not support wasm-native exceptions, so the app compiles with

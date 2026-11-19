@@ -106,6 +106,9 @@ if command -v appstreamcli >/dev/null; then
 else
   echo "NOTE: appstreamcli is not installed; the metainfo was not validated" >&2
 fi
+for notice in LICENSE NOTICE-THIRD-PARTY.md; do
+  cmp "$ROOT/$notice" "$BUILD_DIR/files/share/licenses/$APP_ID/$notice"
+done
 # GEGL's labels follow Patchy's language from GEGL's own catalogs, inside the app (the
 # manifest's separate-locales: false; a .Locale extension is not in the bundle).
 [ -f "$BUILD_DIR/files/share/locale/de/LC_MESSAGES/gegl-0.4.mo" ] && [ ! -L "$BUILD_DIR/files/share/locale/de" ] \

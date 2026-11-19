@@ -2,7 +2,7 @@
 # and the portable zip, runs the installer wizard in its self-closing smoke mode, checks
 # that the unpacked tree is self-contained, and runs packaging\package-selftest.js on the
 # unpacked patchy.exe. build-release.bat runs it after signing; it also runs standalone,
-# for example against files downloaded from a published release:
+# for example from a matching release checkout against the downloaded files:
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\release\verify-windows-package.ps1 [-Arch arm64]
 #
@@ -24,6 +24,9 @@ param(
     # machine every shipped executable and DLL must have.
     [ValidateSet("x64", "arm64")]
     [string]$Arch = "x64",
+    # The packaging build supplies the target Qt kit's SBOM folder. Standalone checks
+    # can still validate the notice's identity against Qt6Qml.dll without the kit.
+    [string]$QtSbomDir,
     # Skip the wizard step, which needs a desktop (an ssh session has none).
     [switch]$NoDesktop,
     # Fail, instead of skipping, when this PC cannot run the package's executables.
@@ -324,6 +327,22 @@ $listed = @(Get-Content -LiteralPath $manifestPath | Where-Object { $_ -ne "" })
 $actual = @(Get-ChildItem -LiteralPath $appDir -Recurse -File | ForEach-Object { $_.FullName.Substring($prefix.Length) })
 $difference = @(Compare-Object -ReferenceObject $listed -DifferenceObject $actual)
 Write-Step ($difference.Count -eq 0) "zip contents match the install manifest ($($actual.Count) files)" $(if ($difference.Count) { (($difference | Select-Object -First 5 | ForEach-Object { $_.SideIndicator + " " + $_.InputObject }) -join "; ") } else { "" })
+
+# Check both architectures here, including ARM64 packages verified on an x64 PC.
+try {
+    $qml = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $appDir "Qt6Qml.dll"))
+    $module = "qtdeclarative-{0}.{1}.{2}" -f $qml.FileMajorPart, $qml.FileMinorPart, $qml.FileBuildPart
+    $notice = Join-Path $appDir "licenses\qt\$module.spdx"
+    if (-not (Select-String -LiteralPath $notice -Pattern "^DocumentName: $([regex]::Escape($module))$" -Quiet)) {
+        throw "No matching SPDX document name in $notice"
+    }
+    $noticeParams = @{ Directory = $appDir }
+    if ($QtSbomDir) { $noticeParams.QtDeclarativeNotice = Join-Path $QtSbomDir "$module.spdx" }
+    & (Join-Path $PSScriptRoot "verify-license-notices.ps1") @noticeParams
+    Write-Step $true "package license texts and Qt QML notice"
+} catch {
+    Write-Step $false "package license texts and Qt QML notice" $_.Exception.Message
+}
 
 # 4b. Explorer must also have a friendly name for portable copies, which never run
 #     the installer. Read the actual executable resource, not the source template.

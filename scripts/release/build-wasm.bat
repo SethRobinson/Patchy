@@ -93,8 +93,12 @@ rem The shell page needs the uncompressed wasm size: its progress bar counts
 rem decompressed bytes, which Content-Length cannot provide once the server
 rem answers with a precompressed (br/gzip) variant.
 for %%S in ("%SITE_DIR%\patchy.wasm") do set "PATCHY_WASM_SIZE=%%~zS"
-copy /Y "%REPO%\NOTICE-THIRD-PARTY.md" "%SITE_DIR%\NOTICE-THIRD-PARTY.md" >nul || goto fail
+for %%F in (LICENSE NOTICE-THIRD-PARTY.md) do (
+  copy /B /Y "%REPO%\%%F" "%SITE_DIR%\%%F" >nul || goto fail
+)
 copy /Y "%REPO%\src\formats\libheif\COPYING" "%SITE_DIR%\libheif-COPYING.txt" >nul || goto fail
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%REPO%\scripts\release\verify-license-notices.ps1" -Directory "%SITE_DIR%" -Web || goto fail
 
 rem Configure the shell template; it is staged as both patchy.html and an
 rem index.html copy so https://rtsoft.com/patchy/ serves the app directly.

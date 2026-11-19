@@ -12,6 +12,7 @@ Errors (exit 1):
     was renamed, split away or deleted without updating the comment). URLs are ignored.
   - Conclusion wording in a legal record (legal-constraints*, legal-licensing*, patent-research*):
     those docs state what a claim requires, what Patchy does and how they differ, never a verdict.
+  - A complete upstream license reproduced in the third-party notices differs from its source.
 Warnings (exit 0 unless --strict):
   - A docs/*.md file no other checked document links to (unreachable from the index).
   - AGENTS.md or a docs/*.md file over 27,000 bytes: split it by subtopic now, while there is
@@ -162,6 +163,17 @@ def main() -> int:
     root_docs = [ROOT / "AGENTS.md", ROOT / "README.md", ROOT / "RELEASE-HISTORY.md", ROOT / "NOTICE-THIRD-PARTY.md"]
     checked = [p for p in root_docs if p.exists()] + docs
     errors, warnings, linked, images_used = [], [], set(), set()
+
+    # These vendored license files are reproduced in full for recipients of a binary package.
+    notices = (ROOT / "NOTICE-THIRD-PARTY.md").read_text(encoding="utf-8")
+    for source in ("src/formats/tinyexr/LICENSE", "src/formats/openjpeg/LICENSE",
+                   "src/formats/miniz/LICENSE", "src/formats/zstd/LICENSE", "src/color/lcms2/LICENSE",
+                   "src/formats/libraw/LICENSE.CDDL"):
+        license_text = (ROOT / source).read_text(encoding="utf-8")
+        if not license_text.endswith("\n"):
+            license_text += "\n"
+        if f"```text\n{license_text}```" not in notices:
+            errors.append(f"NOTICE-THIRD-PARTY.md: missing or altered license text from {source}")
 
     for path in [ROOT / "AGENTS.md"] + docs:
         size = path.stat().st_size

@@ -2428,15 +2428,6 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
           COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_BINARY_DIR}/gegl/licenses"
                   "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/gegl/licenses")
       endif()
-      # The G'MIC engine's OpenMP runtime (cmake/patchy_gmic.cmake), found through the
-      # executables' @executable_path/../Frameworks rpath.
-      if(APPLE AND PATCHY_LIBOMP_DYLIB)
-        list(APPEND PATCHY_BUNDLE_AI_COMMANDS
-          COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Frameworks"
-          COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PATCHY_LIBOMP_DYLIB}"
-                  "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Frameworks/")
-        list(APPEND PATCHY_BUNDLE_RESOURCE_DEPS "${PATCHY_LIBOMP_DYLIB}")
-      endif()
       # License texts the bundle carries: Patchy's own, the third-party notice and,
       # with the G'MIC engine, the CeCILL and pocketfft texts.
       set(PATCHY_BUNDLE_LICENSE_COMMANDS
@@ -2446,6 +2437,18 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
                 "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/licenses/")
       list(APPEND PATCHY_BUNDLE_RESOURCE_DEPS
            "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_SOURCE_DIR}/NOTICE-THIRD-PARTY.md")
+      # setup-openmp-mac.sh installs the LLVM license in the same prefix as lib/libomp.dylib.
+      if(APPLE AND PATCHY_LIBOMP_DYLIB)
+        get_filename_component(patchy_libomp_libdir "${PATCHY_LIBOMP_DYLIB}" DIRECTORY)
+        set(patchy_libomp_license "${patchy_libomp_libdir}/../LICENSE.TXT")
+        list(APPEND PATCHY_BUNDLE_LICENSE_COMMANDS
+          COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Frameworks"
+          COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PATCHY_LIBOMP_DYLIB}"
+                  "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Frameworks/"
+          COMMAND ${CMAKE_COMMAND} -E copy_if_different "${patchy_libomp_license}"
+                  "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/licenses/libomp-LICENSE.txt")
+        list(APPEND PATCHY_BUNDLE_RESOURCE_DEPS "${PATCHY_LIBOMP_DYLIB}" "${patchy_libomp_license}")
+      endif()
       if(PATCHY_ENABLE_GMIC)
         list(APPEND PATCHY_BUNDLE_LICENSE_COMMANDS
           COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PROJECT_SOURCE_DIR}/src/filters/gmic/COPYING"

@@ -64,6 +64,7 @@ function ConvertFrom-PatchyUnicodeEscapes {
 
 $PatchyInstallerText = @{
     en = @{
+        LicenseNotice = "Patchy's original code uses the MIT License. See NOTICE-THIRD-PARTY.md for third-party terms. Patchy comes as-is, without warranty. Back up important files."
         RunningPatchyRetryMessage = "Patchy is currently running. Save your work, close Patchy, then click Retry to continue installation."
         RunningPatchyQuietMessage = "Patchy is currently running. Close Patchy and run setup again."
         FileInUseQuietMessage = "Patchy could not be updated because installed files are in use. Close Patchy and run setup again."
@@ -75,6 +76,7 @@ $PatchyInstallerText = @{
         WrongArchitectureMessage = "This installer is for PCs with an ARM64 processor (Windows on Arm), and this PC has a different processor. Download the standard Patchy installer from {0} instead."
     }
     ja = @{
+        LicenseNotice = ConvertFrom-PatchyUnicodeEscapes "Patchy \u72EC\u81EA\u306E\u30B3\u30FC\u30C9\u306B\u306F MIT \u30E9\u30A4\u30BB\u30F3\u30B9\u304C\u9069\u7528\u3055\u308C\u307E\u3059\u3002\u7B2C\u4E09\u8005\u306E\u30E9\u30A4\u30BB\u30F3\u30B9\u6761\u4EF6\u306F NOTICE-THIRD-PARTY.md \u306B\u8A18\u8F09\u3055\u308C\u3066\u3044\u307E\u3059\u3002Patchy \u306F\u73FE\u72B6\u306E\u307E\u307E\u7121\u4FDD\u8A3C\u3067\u63D0\u4F9B\u3055\u308C\u307E\u3059\u3002\u91CD\u8981\u306A\u30D5\u30A1\u30A4\u30EB\u306F\u30D0\u30C3\u30AF\u30A2\u30C3\u30D7\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u306F\u73FE\u5728\u5B9F\u884C\u4E2D\u3067\u3059\u3002\u4F5C\u696D\u3092\u4FDD\u5B58\u3057\u3066 Patchy \u3092\u9589\u3058\u3066\u304B\u3089\u3001[\u518D\u8A66\u884C] \u3092\u30AF\u30EA\u30C3\u30AF\u3057\u3066\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u3092\u7D9A\u884C\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
         RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u306F\u73FE\u5728\u5B9F\u884C\u4E2D\u3067\u3059\u3002Patchy \u3092\u9589\u3058\u3066\u304B\u3089\u30BB\u30C3\u30C8\u30A2\u30C3\u30D7\u3092\u3082\u3046\u4E00\u5EA6\u5B9F\u884C\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
         FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u6E08\u307F\u306E\u30D5\u30A1\u30A4\u30EB\u304C\u4F7F\u7528\u4E2D\u306E\u305F\u3081\u3001Patchy \u3092\u66F4\u65B0\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\u3002Patchy \u3092\u9589\u3058\u3066\u304B\u3089\u30BB\u30C3\u30C8\u30A2\u30C3\u30D7\u3092\u3082\u3046\u4E00\u5EA6\u5B9F\u884C\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
@@ -86,6 +88,7 @@ $PatchyInstallerText = @{
         WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "\u3053\u306E\u30A4\u30F3\u30B9\u30C8\u30FC\u30E9\u30FC\u306F ARM64 \u30D7\u30ED\u30BB\u30C3\u30B5\u30FC\u642D\u8F09\u306E PC (Windows on Arm) \u7528\u3067\u3059\u304C\u3001\u3053\u306E PC \u306B\u306F\u5225\u306E\u30D7\u30ED\u30BB\u30C3\u30B5\u30FC\u304C\u642D\u8F09\u3055\u308C\u3066\u3044\u307E\u3059\u3002\u4EE3\u308F\u308A\u306B {0} \u304B\u3089\u901A\u5E38\u306E Patchy \u30A4\u30F3\u30B9\u30C8\u30FC\u30E9\u30FC\u3092\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
     }
     de = @{
+        LicenseNotice = ConvertFrom-PatchyUnicodeEscapes "Der eigene Code von Patchy steht unter der MIT-Lizenz. Die Lizenzbedingungen Dritter stehen in NOTICE-THIRD-PARTY.md. Patchy wird ohne Gew\u00E4hr bereitgestellt. Sichern Sie wichtige Dateien."
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy wird derzeit ausgef\u00FChrt. Speichern Sie Ihre Arbeit, schlie\u00DFen Sie Patchy und klicken Sie dann auf \u201EWiederholen\u201C, um die Installation fortzusetzen."
         RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy wird derzeit ausgef\u00FChrt. Schlie\u00DFen Sie Patchy und f\u00FChren Sie das Setup erneut aus."
         FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy konnte nicht aktualisiert werden, weil installierte Dateien gerade verwendet werden. Schlie\u00DFen Sie Patchy und f\u00FChren Sie das Setup erneut aus."
@@ -97,6 +100,7 @@ $PatchyInstallerText = @{
         WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "Dieses Installationsprogramm ist f\u00FCr PCs mit ARM64-Prozessor (Windows on Arm) bestimmt, dieser PC hat jedoch einen anderen Prozessor. Laden Sie stattdessen das normale Patchy-Installationsprogramm von {0} herunter."
     }
     es = @{
+        LicenseNotice = ConvertFrom-PatchyUnicodeEscapes "El c\u00F3digo propio de Patchy se distribuye bajo la licencia MIT. Consulte las licencias de terceros en NOTICE-THIRD-PARTY.md. Patchy se ofrece tal cual, sin garant\u00EDa. Haga copias de seguridad de sus archivos importantes."
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy se est\u00E1 ejecutando. Guarde su trabajo, cierre Patchy y haga clic en Reintentar para continuar con la instalaci\u00F3n."
         RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy se est\u00E1 ejecutando. Cierre Patchy y vuelva a ejecutar el instalador."
         FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "No se pudo actualizar Patchy porque los archivos instalados est\u00E1n en uso. Cierre Patchy y vuelva a ejecutar el instalador."
@@ -108,6 +112,7 @@ $PatchyInstallerText = @{
         WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "Este instalador es para equipos con procesador ARM64 (Windows on Arm) y este equipo tiene otro procesador. Descargue en su lugar el instalador normal de Patchy desde {0}."
     }
     fr = @{
+        LicenseNotice = ConvertFrom-PatchyUnicodeEscapes "Le code propre \u00E0 Patchy est sous licence MIT. Les conditions des tiers figurent dans NOTICE-THIRD-PARTY.md. Patchy est fourni en l\u2019\u00E9tat, sans garantie. Sauvegardez vos fichiers importants."
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy est en cours d'ex\u00E9cution. Enregistrez votre travail, fermez Patchy, puis cliquez sur R\u00E9essayer pour poursuivre l'installation."
         RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy est en cours d'ex\u00E9cution. Fermez Patchy, puis relancez le programme d'installation."
         FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Impossible de mettre \u00E0 jour Patchy, car des fichiers install\u00E9s sont en cours d'utilisation. Fermez Patchy, puis relancez le programme d'installation."
@@ -119,6 +124,7 @@ $PatchyInstallerText = @{
         WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "Ce programme d\u2019installation est destin\u00E9 aux PC dot\u00E9s d\u2019un processeur ARM64 (Windows on Arm), et ce PC a un autre processeur. T\u00E9l\u00E9chargez plut\u00F4t le programme d\u2019installation standard de Patchy sur {0}."
     }
     it = @{
+        LicenseNotice = ConvertFrom-PatchyUnicodeEscapes "Il codice originale di Patchy \u00E8 distribuito con licenza MIT. Le condizioni di terze parti si trovano in NOTICE-THIRD-PARTY.md. Patchy \u00E8 fornito cos\u00EC com\u2019\u00E8, senza garanzie. Esegui una copia di sicurezza dei file importanti."
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u00E8 in esecuzione. Salva il lavoro, chiudi Patchy e fai clic su Riprova per continuare l'installazione."
         RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u00E8 in esecuzione. Chiudi Patchy ed esegui di nuovo il programma di installazione."
         FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Impossibile aggiornare Patchy perch\u00E9 i file installati sono in uso. Chiudi Patchy ed esegui di nuovo il programma di installazione."
@@ -130,6 +136,7 @@ $PatchyInstallerText = @{
         WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "Questo programma di installazione \u00E8 per PC con processore ARM64 (Windows on Arm), ma questo PC ha un processore diverso. Scarica invece il programma di installazione standard di Patchy da {0}."
     }
     ko = @{
+        LicenseNotice = ConvertFrom-PatchyUnicodeEscapes "Patchy \uC790\uCCB4 \uCF54\uB4DC\uC5D0\uB294 MIT \uB77C\uC774\uC120\uC2A4\uAC00 \uC801\uC6A9\uB429\uB2C8\uB2E4. \uD0C0\uC0AC \uB77C\uC774\uC120\uC2A4 \uC870\uAC74\uC740 NOTICE-THIRD-PARTY.md\uC5D0\uC11C \uD655\uC778\uD558\uC138\uC694. Patchy\uB294 \uBCF4\uC99D \uC5C6\uC774 \uC788\uB294 \uADF8\uB300\uB85C \uC81C\uACF5\uB429\uB2C8\uB2E4. \uC911\uC694\uD55C \uD30C\uC77C\uC740 \uBC31\uC5C5\uD558\uC138\uC694."
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy\uAC00 \uC2E4\uD589 \uC911\uC785\uB2C8\uB2E4. \uC791\uC5C5\uC744 \uC800\uC7A5\uD558\uACE0 Patchy\uB97C \uB2EB\uC740 \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uB97C \uD074\uB9AD\uD558\uC5EC \uC124\uCE58\uB97C \uACC4\uC18D\uD558\uC138\uC694."
         RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy\uAC00 \uC2E4\uD589 \uC911\uC785\uB2C8\uB2E4. Patchy\uB97C \uB2EB\uACE0 \uC124\uCE58 \uD504\uB85C\uADF8\uB7A8\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC138\uC694."
         FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "\uC124\uCE58\uB41C \uD30C\uC77C\uC774 \uC0AC\uC6A9 \uC911\uC774\uC5B4\uC11C Patchy\uB97C \uC5C5\uB370\uC774\uD2B8\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. Patchy\uB97C \uB2EB\uACE0 \uC124\uCE58 \uD504\uB85C\uADF8\uB7A8\uC744 \uB2E4\uC2DC \uC2E4\uD589\uD558\uC138\uC694."
@@ -141,6 +148,7 @@ $PatchyInstallerText = @{
         WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "\uC774 \uC124\uCE58 \uD504\uB85C\uADF8\uB7A8\uC740 ARM64 \uD504\uB85C\uC138\uC11C\uAC00 \uC788\uB294 PC(Windows on Arm)\uC6A9\uC774\uC9C0\uB9CC \uC774 PC\uC5D0\uB294 \uB2E4\uB978 \uD504\uB85C\uC138\uC11C\uAC00 \uC788\uC2B5\uB2C8\uB2E4. \uB300\uC2E0 {0}\uC5D0\uC11C \uC77C\uBC18 Patchy \uC124\uCE58 \uD504\uB85C\uADF8\uB7A8\uC744 \uB2E4\uC6B4\uB85C\uB4DC\uD558\uC138\uC694."
     }
     pl = @{
+        LicenseNotice = ConvertFrom-PatchyUnicodeEscapes "W\u0142asny kod Patchy jest udost\u0119pniany na licencji MIT. Warunki licencji innych autor\u00F3w podano w pliku NOTICE-THIRD-PARTY.md. Patchy jest udost\u0119pniany w obecnej postaci, bez gwarancji. Tw\u00F3rz kopie zapasowe wa\u017Cnych plik\u00F3w."
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy jest uruchomiony. Zapisz swoj\u0105 prac\u0119, zamknij Patchy, a nast\u0119pnie kliknij Pon\u00F3w pr\u00F3b\u0119, aby kontynuowa\u0107 instalacj\u0119."
         RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy jest uruchomiony. Zamknij Patchy i ponownie uruchom instalator."
         FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Nie mo\u017Cna zaktualizowa\u0107 Patchy, poniewa\u017C zainstalowane pliki s\u0105 u\u017Cywane. Zamknij Patchy i ponownie uruchom instalator."
@@ -152,6 +160,7 @@ $PatchyInstallerText = @{
         WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "Ten instalator jest przeznaczony dla komputer\u00F3w z procesorem ARM64 (Windows on Arm), a ten komputer ma inny procesor. Zamiast tego pobierz standardowy instalator Patchy ze strony {0}."
     }
     pt_BR = @{
+        LicenseNotice = ConvertFrom-PatchyUnicodeEscapes "O c\u00F3digo pr\u00F3prio do Patchy \u00E9 distribu\u00EDdo sob a licen\u00E7a MIT. Os termos de terceiros est\u00E3o em NOTICE-THIRD-PARTY.md. O Patchy \u00E9 fornecido no estado em que se encontra, sem garantia. Fa\u00E7a c\u00F3pias de seguran\u00E7a dos arquivos importantes."
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "O Patchy est\u00E1 em execu\u00E7\u00E3o. Salve seu trabalho, feche o Patchy e clique em Repetir para continuar a instala\u00E7\u00E3o."
         RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "O Patchy est\u00E1 em execu\u00E7\u00E3o. Feche o Patchy e execute o instalador novamente."
         FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "N\u00E3o foi poss\u00EDvel atualizar o Patchy porque os arquivos instalados est\u00E3o em uso. Feche o Patchy e execute o instalador novamente."
@@ -163,6 +172,7 @@ $PatchyInstallerText = @{
         WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "Este instalador \u00E9 para PCs com processador ARM64 (Windows on Arm), e este PC tem outro processador. Baixe o instalador padr\u00E3o do Patchy em {0}."
     }
     ru = @{
+        LicenseNotice = ConvertFrom-PatchyUnicodeEscapes "\u0421\u043E\u0431\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u0439 \u043A\u043E\u0434 Patchy \u0440\u0430\u0441\u043F\u0440\u043E\u0441\u0442\u0440\u0430\u043D\u044F\u0435\u0442\u0441\u044F \u043F\u043E \u043B\u0438\u0446\u0435\u043D\u0437\u0438\u0438 MIT. \u0423\u0441\u043B\u043E\u0432\u0438\u044F \u0441\u0442\u043E\u0440\u043E\u043D\u043D\u0438\u0445 \u043B\u0438\u0446\u0435\u043D\u0437\u0438\u0439 \u043F\u0440\u0438\u0432\u0435\u0434\u0435\u043D\u044B \u0432 \u0444\u0430\u0439\u043B\u0435 NOTICE-THIRD-PARTY.md. Patchy \u043F\u043E\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u00AB\u043A\u0430\u043A \u0435\u0441\u0442\u044C\u00BB, \u0431\u0435\u0437 \u0433\u0430\u0440\u0430\u043D\u0442\u0438\u0439. \u0414\u0435\u043B\u0430\u0439\u0442\u0435 \u0440\u0435\u0437\u0435\u0440\u0432\u043D\u044B\u0435 \u043A\u043E\u043F\u0438\u0438 \u0432\u0430\u0436\u043D\u044B\u0445 \u0444\u0430\u0439\u043B\u043E\u0432."
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u0443\u0436\u0435 \u0437\u0430\u043F\u0443\u0449\u0435\u043D. \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u0435 \u0440\u0430\u0431\u043E\u0442\u0443, \u0437\u0430\u043A\u0440\u043E\u0439\u0442\u0435 Patchy \u0438 \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \u00AB\u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C\u00BB, \u0447\u0442\u043E\u0431\u044B \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C \u0443\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0443."
         RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u0443\u0436\u0435 \u0437\u0430\u043F\u0443\u0449\u0435\u043D. \u0417\u0430\u043A\u0440\u043E\u0439\u0442\u0435 Patchy \u0438 \u0437\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u0435 \u0443\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0443 \u0441\u043D\u043E\u0432\u0430."
         FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u0431\u043D\u043E\u0432\u0438\u0442\u044C Patchy, \u043F\u043E\u0441\u043A\u043E\u043B\u044C\u043A\u0443 \u0443\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D\u043D\u044B\u0435 \u0444\u0430\u0439\u043B\u044B \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u044E\u0442\u0441\u044F. \u0417\u0430\u043A\u0440\u043E\u0439\u0442\u0435 Patchy \u0438 \u0437\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u0435 \u0443\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0443 \u0441\u043D\u043E\u0432\u0430."
@@ -174,6 +184,7 @@ $PatchyInstallerText = @{
         WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "\u042D\u0442\u043E\u0442 \u0443\u0441\u0442\u0430\u043D\u043E\u0432\u0449\u0438\u043A \u043F\u0440\u0435\u0434\u043D\u0430\u0437\u043D\u0430\u0447\u0435\u043D \u0434\u043B\u044F \u043A\u043E\u043C\u043F\u044C\u044E\u0442\u0435\u0440\u043E\u0432 \u0441 \u043F\u0440\u043E\u0446\u0435\u0441\u0441\u043E\u0440\u043E\u043C ARM64 (Windows on Arm), \u0430 \u0432 \u044D\u0442\u043E\u043C \u043A\u043E\u043C\u043F\u044C\u044E\u0442\u0435\u0440\u0435 \u0434\u0440\u0443\u0433\u043E\u0439 \u043F\u0440\u043E\u0446\u0435\u0441\u0441\u043E\u0440. \u0421\u043A\u0430\u0447\u0430\u0439\u0442\u0435 \u0432\u043C\u0435\u0441\u0442\u043E \u043D\u0435\u0433\u043E \u043E\u0431\u044B\u0447\u043D\u044B\u0439 \u0443\u0441\u0442\u0430\u043D\u043E\u0432\u0449\u0438\u043A Patchy \u043F\u043E \u0430\u0434\u0440\u0435\u0441\u0443 {0}."
     }
     zh_CN = @{
+        LicenseNotice = ConvertFrom-PatchyUnicodeEscapes "Patchy \u81EA\u8EAB\u7684\u4EE3\u7801\u91C7\u7528 MIT \u8BB8\u53EF\u8BC1\u3002\u7B2C\u4E09\u65B9\u8BB8\u53EF\u6761\u6B3E\u89C1 NOTICE-THIRD-PARTY.md\u3002Patchy \u6309\u539F\u6837\u63D0\u4F9B\uFF0C\u4E0D\u4F5C\u4EFB\u4F55\u62C5\u4FDD\u3002\u8BF7\u5907\u4EFD\u91CD\u8981\u6587\u4EF6\u3002"
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u6B63\u5728\u8FD0\u884C\u3002\u8BF7\u4FDD\u5B58\u60A8\u7684\u5DE5\u4F5C\uFF0C\u5173\u95ED Patchy\uFF0C\u7136\u540E\u5355\u51FB\u201C\u91CD\u8BD5\u201D\u7EE7\u7EED\u5B89\u88C5\u3002"
         RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u6B63\u5728\u8FD0\u884C\u3002\u8BF7\u5173\u95ED Patchy\uFF0C\u7136\u540E\u91CD\u65B0\u8FD0\u884C\u5B89\u88C5\u7A0B\u5E8F\u3002"
         FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "\u65E0\u6CD5\u66F4\u65B0 Patchy\uFF0C\u56E0\u4E3A\u5DF2\u5B89\u88C5\u7684\u6587\u4EF6\u6B63\u5728\u4F7F\u7528\u4E2D\u3002\u8BF7\u5173\u95ED Patchy\uFF0C\u7136\u540E\u91CD\u65B0\u8FD0\u884C\u5B89\u88C5\u7A0B\u5E8F\u3002"
@@ -185,6 +196,7 @@ $PatchyInstallerText = @{
         WrongArchitectureMessage = ConvertFrom-PatchyUnicodeEscapes "\u6B64\u5B89\u88C5\u7A0B\u5E8F\u9002\u7528\u4E8E\u642D\u8F7D ARM64 \u5904\u7406\u5668\u7684\u7535\u8111 (Windows on Arm)\uFF0C\u800C\u8FD9\u53F0\u7535\u8111\u4F7F\u7528\u7684\u662F\u5176\u4ED6\u5904\u7406\u5668\u3002\u8BF7\u6539\u4E3A\u4ECE {0} \u4E0B\u8F7D\u6807\u51C6\u7248 Patchy \u5B89\u88C5\u7A0B\u5E8F\u3002"
     }
     zh_TW = @{
+        LicenseNotice = ConvertFrom-PatchyUnicodeEscapes "Patchy \u81EA\u8EAB\u7684\u7A0B\u5F0F\u78BC\u4F9D MIT \u6388\u6B0A\u689D\u6B3E\u91CB\u51FA\u3002\u7B2C\u4E09\u65B9\u6388\u6B0A\u689D\u6B3E\u8ACB\u53C3\u95B1 NOTICE-THIRD-PARTY.md\u3002Patchy \u4F9D\u73FE\u72C0\u63D0\u4F9B\uFF0C\u4E0D\u63D0\u4F9B\u4EFB\u4F55\u64D4\u4FDD\u3002\u8ACB\u5099\u4EFD\u91CD\u8981\u6A94\u6848\u3002"
         RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u6B63\u5728\u57F7\u884C\u4E2D\u3002\u8ACB\u5132\u5B58\u60A8\u7684\u5DE5\u4F5C\uFF0C\u95DC\u9589 Patchy\uFF0C\u7136\u5F8C\u6309\u4E00\u4E0B\u300C\u91CD\u8A66\u300D\u4EE5\u7E7C\u7E8C\u5B89\u88DD\u3002"
         RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u6B63\u5728\u57F7\u884C\u4E2D\u3002\u8ACB\u95DC\u9589 Patchy\uFF0C\u7136\u5F8C\u91CD\u65B0\u57F7\u884C\u5B89\u88DD\u7A0B\u5F0F\u3002"
         FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "\u7121\u6CD5\u66F4\u65B0 Patchy\uFF0C\u56E0\u70BA\u5DF2\u5B89\u88DD\u7684\u6A94\u6848\u6B63\u5728\u4F7F\u7528\u4E2D\u3002\u8ACB\u95DC\u9589 Patchy\uFF0C\u7136\u5F8C\u91CD\u65B0\u57F7\u884C\u5B89\u88DD\u7A0B\u5F0F\u3002"
@@ -1638,9 +1650,10 @@ function Show-PatchyInstallerWizard {
     $form.Controls.Add($desktopShortcutCheck)
 
     $legalNotice = New-Object System.Windows.Forms.Label
-    $legalNotice.Text = "Patchy is provided under the MIT License as-is, without warranty. Keep backups of important files."
+    $legalNotice.Text = Get-PatchyInstallerText "LicenseNotice"
     $legalNotice.ForeColor = [System.Drawing.Color]::FromArgb(83, 92, 104)
-    $legalNotice.Size = New-Object System.Drawing.Size 344, 40
+    $legalNotice.MaximumSize = New-Object System.Drawing.Size 344, 0
+    $legalNotice.AutoSize = $true
     $legalNotice.Location = New-Object System.Drawing.Point $contentLeft, 218
     $form.Controls.Add($legalNotice)
 
@@ -1673,6 +1686,8 @@ function Show-PatchyInstallerWizard {
     $buttonPanel.Dock = [System.Windows.Forms.DockStyle]::Bottom
     $buttonPanel.BackColor = [System.Drawing.Color]::FromArgb(246, 248, 251)
     $form.Controls.Add($buttonPanel)
+    # Leave room for wrapped translations above the docked buttons.
+    $form.ClientSize = New-Object System.Drawing.Size $form.ClientSize.Width, ([Math]::Max($form.ClientSize.Height, $progress.Bottom + $buttonPanel.Height + 12))
 
     $installButton = New-Object System.Windows.Forms.Button
     $installButton.Text = "Install"

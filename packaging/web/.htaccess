@@ -6,8 +6,11 @@
 # string that changes every deploy, so those URLs can cache forever: a new
 # build means a new URL, and stale cached entries are never used again.
 #
-# Every directive is wrapped in IfModule so a host missing a module serves the
-# site without caching hints instead of failing with a 500.
+# Optional modules are guarded so a host missing one can still serve the site.
+<FilesMatch "^(LICENSE|NOTICE-THIRD-PARTY\.md|libheif-COPYING\.txt)$">
+ForceType text/plain
+AddDefaultCharset UTF-8
+</FilesMatch>
 <IfModule mod_mime.c>
 AddType application/wasm .wasm
 AddType application/manifest+json .webmanifest

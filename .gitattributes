@@ -51,3 +51,6 @@ src/formats/libavif/** -whitespace
 
 # Keep the upstream font license byte-for-byte, including its trailing spaces.
 third_party/fonts-web/nanum_gothic/OFL.txt -whitespace
+
+# Fenced upstream license texts retain the trailing spaces in the original notices.
+NOTICE-THIRD-PARTY.md whitespace=-blank-at-eol

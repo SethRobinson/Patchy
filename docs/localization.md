@@ -212,10 +212,10 @@ stay as they were, and translations must not assume localized decimal separators
   `packaging/linux/com.rtsoft.patchy.desktop` and the AppStream metainfo carry
   `GenericName`, `Comment`, `summary` and description translations for every language.
 - Windows installer (`packaging/windows/InstallPatchy.ps1`): every message in its
-  `$PatchyInstallerText` table (running-Patchy, file-in-use, locked file, canceled, and the
-  install folder refusals) exists in every language, and the script picks one from the UI
+  `$PatchyInstallerText` table (the license notice, running-Patchy, file-in-use, locked
+  file, cancellation, and install folder refusals) exists in every language. The script picks one from the UI
   culture with the same script-aware Chinese and Brazilian Portuguese fallback rules.
-  The wizard's own labels stay English.
+  Other wizard labels are in English.
 - wasm: the `/translations` preload takes the directory; the qtbase catalogs come from the
   host kit. The browser exposes no system fonts, so the build bundles Noto Sans JP, SC and
   TC plus Nanum Gothic Regular/Bold, and orders them by the active language (`wasm_cjk_fallback_families`, docs/fonts.md).
