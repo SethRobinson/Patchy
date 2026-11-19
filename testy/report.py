@@ -131,9 +131,6 @@ _PAGE = r"""<!DOCTYPE html>
   .copyable { cursor: pointer; border-bottom: 1px dotted var(--dim); }
   .copyable:hover { color: var(--accent); }
   .copied-flash { color: var(--good); font-size: 11px; margin-left: 6px; }
-  #known-toggle { padding: 0 22px 10px; font-size: 12px; color: var(--dim); }
-  #known-toggle label { cursor: pointer; color: var(--text); }
-  tr.known-limit td.file b { color: var(--dim); }
   #groups { margin: 0 0 18px; }
   #groups h2 { font-size: 14px; margin: 0 0 6px; }
   #groups table { border-collapse: collapse; font-size: 12px; }
@@ -164,7 +161,6 @@ score means keeping documents as PSDs and moving them to and from Photoshop will
 program, nothing more. <a href="https://github.com/SethRobinson/Patchy/blob/main/docs/testy.md">How the test works</a> &middot;
 <a href="https://github.com/SethRobinson/Patchy">Testy and Patchy on GitHub</a><span id="corpus-credit"></span></div>
 <div id="summary"></div>
-<div id="known-toggle"></div>
 <main>
   <section id="groups"></section>
   <table class="matrix"><thead id="matrix-head"></thead><tbody id="matrix-body"></tbody></table>
@@ -222,6 +218,7 @@ function totalSize(files) {
 function fileFacts(f) {
   const facts = [];
   if (f.docSize) facts.push(f.docSize[0] + "x" + f.docSize[1]);
+  if (f.traits && Number.isInteger(f.traits.depth)) facts.push(f.traits.depth + "-bit");
   if (f.layerCount) facts.push(f.layerCount + " layers");
   if (f.sizeBytes != null) facts.push(fmtSize(f.sizeBytes));
   return facts.join(" &middot; ");
@@ -281,33 +278,6 @@ function groupRollup(files, groups, editors, badFraction, limit) {
     });
   });
   return out;
-}
-
-// Files exercising things Patchy deliberately does not do: 16/32-bit documents (it
-// converts to 8-bit on open). Artboards render since docs/artboards.md. The header switch leaves them out of
-// every editor's totals, so the scores read as "of the files in scope".
-function knownLimit(f) {
-  const t = f.traits;
-  if (!t) return "";
-  const why = [];
-  if (t.depth > 8) why.push(t.depth + "-bit");
-  return why.join(", ");
-}
-let skipKnown = false;
-try { skipKnown = localStorage.getItem("testy.skipKnown") === "1"; } catch (e) {}
-function setSkipKnown(on) {
-  skipKnown = !!on;
-  try { localStorage.setItem("testy.skipKnown", skipKnown ? "1" : "0"); } catch (e) {}
-  render();
-}
-function scoredFiles() { return skipKnown ? S.files.filter(f => !knownLimit(f)) : S.files; }
-function renderKnownToggle() {
-  const box = document.getElementById("known-toggle");
-  const known = S.files.filter(f => knownLimit(f)).length;
-  if (!S.files.some(f => f.traits)) { box.innerHTML = ""; return; }
-  box.innerHTML = '<label><input type="checkbox"' + (skipKnown ? " checked" : "") +
-    ' onchange="setSkipKnown(this.checked)"> Score without known limitations</label> (16/32-bit files: ' +
-    known + " of " + S.files.length + (skipKnown ? ", left out of the totals above and the folder table" : "") + ")";
 }
 
 // The one-glance ranking: every editor but the ground truth, best render match first,
@@ -482,10 +452,7 @@ function renderGroups(groups, editors) {
   const box = document.getElementById("groups");
   const names = [...new Set(groups)].sort();
   if (names.length < 2) { box.innerHTML = ""; groupFilter = null; return; }
-  const scored = S.files.map((f, i) => i).filter(i => !(skipKnown && knownLimit(S.files[i])));
-  const roll = groupRollup(scored.map(i => S.files[i]), scored.map(i => groups[i]), editors,
-                           compareBadFraction, poorMatchLimit());
-  names.forEach(name => { roll[name] = roll[name] || { files: 0, editors: {} }; });
+  const roll = groupRollup(S.files, groups, editors, compareBadFraction, poorMatchLimit());
   const cell = a => {
     if (!a || !a.total) return "<td>-</td>";
     const failed = a.total - a.opened;
@@ -958,14 +925,12 @@ function render() {
     const revision = latest ? '<div class="nums">Updated ' + esc(latest.at) + ' (' +
       Object.entries(latest.editors).map(([k, v]) => esc(v.displayName || k) + ' ' + esc(v.version || '?')).join(', ') +
       ') · <a href="' + esc(artUrl(latest.previous)) + '" target="_blank">Previous results</a></div>' : "";
-    const limit = knownLimit(f);
-    const limitNote = limit ? '<div class="nums">known limitation: ' + esc(limit) + "</div>" : "";
     const versionNote = Object.entries(f.psVersions || {}).filter(([, v]) => v.state !== "ok").map(([label, v]) =>
       '<div class="nums" title="' + esc(v.error || "") + '">PS ' + esc(label) +
       (v.state === "rejected" ? " cannot open this file (resaves not checked there)" : " did not run") + "</div>").join("");
-    return "<tr" + (limit ? " class='known-limit'" : "") + "><td class='file'><b class='copyable' title='" + esc(f.source) +
+    return "<tr><td class='file'><b class='copyable' title='" + esc(f.source) +
       " (click to copy path)' onclick='copyPath(" + fi + ", this)'>" + esc(f.name) + "</b>" +
-      '<div class="nums">' + fileFacts(f) + "</div>" + limitNote + versionNote + gtNote + scanNote + revision + rerunRowControls(f, fi) + "</td>" +
+      '<div class="nums">' + fileFacts(f) + "</div>" + versionNote + gtNote + scanNote + revision + rerunRowControls(f, fi) + "</td>" +
       editors.map(k => "<td class='cell' onclick='openDetail(" + fi + ",\"" + k + "\")'>" +
                        cellSummary((f.cells || {})[k], (f.cells || {}).photoshop) + replayNote(f, k) +
                        textSaveNote(f, k) +
@@ -976,8 +941,7 @@ function render() {
   editors.forEach(k => agg[k] = { opened: 0, total: 0, badSaves: 0, rejectedBy: {}, acc: [], vis: [], native: [], text: [0, 0], adj: [0, 0], smart: [0, 0], fx: [0, 0], textFiles: [],
                                    depth: [0, 0], deepRoundtrip: [], textSave: [0, 0], textSaveRejected: 0,
                                    textTally: { scores: [], files: 0, noRender: 0, noSave: 0 } });
-  renderKnownToggle();
-  scoredFiles().forEach(f => editors.forEach(k => {
+  S.files.forEach(f => editors.forEach(k => {
     const c = (f.cells || {})[k];
     if (!c || c.state === "pending" || c.state === "running" || c.state === "skipped") return;
     const a = agg[k];
@@ -1097,7 +1061,7 @@ function render() {
     // psd text handling, ranked on its own and strict (see psdTextStanding): an editor
     // that cannot render Photoshop text objects, or cannot save them back as text,
     // scores 0 on that file, and the reason is spelled out under the list.
-    const textFiles = scoredFiles().filter(f => f.textLayers &&
+    const textFiles = S.files.filter(f => f.textLayers &&
       !((f.groundTruth || {}).textFontsMissing || (f.groundTruth || {}).mutateSkipped)).length;
     const tally = {}, names = {};
     editors.forEach(k => { tally[k] = agg[k].textTally; names[k] = (S.editors[k] || {}).displayName || k; });
@@ -1114,8 +1078,7 @@ function render() {
       text.notes.map(n => '<div class="nums" style="margin-top:4px">' + esc(n.mark) + " - " + esc(n.text) +
         "</div>").join("");
     return '<div class="card standing"><h3>Standing</h3><div class="ver">' +
-      (perceptual ? "perceptual" : "byte") + " match to Photoshop" +
-      (skipKnown ? ", known limitations left out" : "") + "; unopened files count as 0</div>" +
+      (perceptual ? "perceptual" : "byte") + " match to Photoshop; unopened files count as 0</div>" +
       ranked.map((r, i) => '<div class="row' + (r.key === "patchy" ? " me" : "") + '"><span>' + (i + 1) + ". " +
         esc((S.editors[r.key] || {}).displayName || r.key) + "</span><b>" + pct(r.score) + "</b></div>").join("") +
       textBlock + "</div>";

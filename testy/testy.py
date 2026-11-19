@@ -1160,9 +1160,8 @@ def _file_size(path: Path) -> int | None:
 
 
 def file_traits(path: Path) -> dict | None:
-    """What the report's "known limitations" switch keys on: the PSD header's bit
-    depth and color mode, and whether any layer carries artboard data. None for a
-    source that is gone or is not a PSD/PSB."""
+    """Read the source depth, color mode and feature markers recorded in a run.
+    Return None for an unreadable file or a missing PSD/PSB header."""
     try:
         data = path.read_bytes()
     except OSError:

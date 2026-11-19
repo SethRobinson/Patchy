@@ -45,9 +45,9 @@ The match percentages are means over the files Photoshop produced a reference fo
 
 PhotoCraft 0.22.0 had no rejected saves; 0.7.0 had 42, most of them PSB sources saved with a PSB-only block. Photopea stops responding while loading three files (`cmyk-alpha-spot.psd`, `group-divider-blend-mode.psd`, `4x4_16bit_lab.psd`) in every run; Photoshop refuses the last two itself, so only the first counts against it.
 
-### Without known limitations
+### Files at 8 bits per channel or below
 
-29 of the 309 files are 16-bit or 32-bit documents, which several programs do not claim to support. Leaving them out (280 files), the perceptual match is: Patchy 98.6%, PhotoCraft 95.6%, Photopea 86.1%, Krita 52.5%, GIMP 43.1%, PhotoDemon 41.3%.
+The November 10 run also reported perceptual match for the 280 files at 8 bits per channel or below. Patchy scored 98.6%, PhotoCraft 95.6%, Photopea 86.1%, Krita 52.5%, GIMP 43.1%, and PhotoDemon 41.3%. The main table includes all 309 files.
 
 ### Photoshop text
 

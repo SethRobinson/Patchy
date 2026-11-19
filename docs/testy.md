@@ -119,8 +119,9 @@ broken panel. For Patchy, PhotoCraft and Photopea a cell with type layers also r
 update" row, and the detail panel shows Photoshop's render of that save and names the
 layers that are no longer text or changed, with what changed.
 
-Each file's row shows document size, layer count, and file size (shown even when
-ground truth failed); the header totals the corpus, and a scan run's card adds a
+Each file's row and detail panel show its dimensions, source bit depth, layer count
+and file size when recorded. File size remains available even if ground truth failed.
+The header totals the corpus, and a scan run's card adds a
 bytes done/total row. A cell's status line
 qualifies "opened": a render missing the scan threshold (10% default, by the run's
 comparison mode) reads "opened - poor matching" with a yellow dot; a resave
@@ -158,7 +159,7 @@ Useful flags:
 
 ## The psd-tools collection and the By folder table
 
-`python testy\fetch_psd_tools_corpus.py` checks out psd-tools' `tests/psd_files` (issue 65), pinned, into `local-test-fixtures/psd-tools` and writes `testy/corpus/psd-tools.txt`; run it with `--corpus corpus\psd-tools.txt`. A multi-folder corpus gets a "By folder" table above the matrix (matches, data kept, bad saves per editor); a row click filters it. The dashboard option "Score without known limitations" excludes files above 8 bits per channel from every editor's totals, using the source depth recorded in `traits`. Leave it off to include deep files. Same-stem files get distinct artifact directories via the entry's `dir` key (`x~psb`). `psd_tools_corpus_reads_and_round_trips_if_available` covers the same files without Photoshop.
+`python testy\fetch_psd_tools_corpus.py` checks out psd-tools' `tests/psd_files` (issue 65), pinned, into `local-test-fixtures/psd-tools` and writes `testy/corpus/psd-tools.txt`; run it with `--corpus corpus\psd-tools.txt`. A multi-folder corpus gets a "By folder" table above the matrix (matches, data kept, bad saves per editor); a row click filters it. The report scores the full corpus across all source bit depths. Each measure uses the files eligible for that comparison, as described in the [scoring guide](testy-scoring.md). Same-stem files get distinct artifact directories via the entry's `dir` key (`x~psb`). `psd_tools_corpus_reads_and_round_trips_if_available` covers the same files without Photoshop.
 
 ## Publishing a run as a static site
 

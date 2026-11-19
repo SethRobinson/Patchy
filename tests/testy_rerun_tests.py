@@ -903,6 +903,64 @@ class RerunTests(unittest.TestCase):
         self.assertEqual(testy.TEXT_RENDER_BASIS['patchy'][0], 'open')
         self.assertNotIn('mutate', photoshop._PROBE_JSX)
 
+    def test_report_scores_all_source_depths_with_old_preferences(self):
+        script = report._PAGE.split('<script>', 1)[1].split('</script>', 1)[0]
+        # Render a completed status file in Node, with the retired preference left on.
+        # The oldest row predates both source traits and depth measurements.
+        browser = """
+const assert = require('node:assert/strict');
+const location = {pathname: '/report.html', protocol: 'file:'};
+const localStorage = {getItem: key => key === 'testy.skipKnown' ? '1' : null};
+const elements = new Map();
+const document = {getElementById(id) {
+  if (!elements.has(id))
+    elements.set(id, {innerHTML: '', addEventListener() {}, classList: {add() {}}});
+  return elements.get(id);
+}};
+function source(name, folder, depth, score) {
+  const patchy = {state: 'done', opens: 'ok', renderMetrics: {accuracy: score, badFraction: 1 - score}};
+  const other = {state: 'done', opens: 'ok', renderMetrics: {accuracy: 0.9, badFraction: 0.1}};
+  const file = {name, source: 'corpus/' + folder + '/' + name, cells: {patchy, other}};
+  if (depth !== null) file.traits = {depth};
+  return file;
+}
+const files = [source('old.psd', 'flat', null, 1), source('flat.psd', 'flat', 8, 1),
+               source('wide.psd', 'deep', 16, 0.5), source('float.psd', 'deep', 32, 0.5)];
+files[2].cells.patchy.saveDepth = {original: 16, resaved: 16, kept: true};
+files[2].cells.patchy.deepRoundtrip = {state: 'done', accuracy: 0.9};
+files[3].cells.patchy.saveDepth = {original: 32, resaved: 8, kept: false};
+const status = {state: 'done', run: {editorOrder: ['patchy', 'other']}, editors: {patchy: {}, other: {}}, files};
+const fetch = async path => ({ok: path === 'status.json', json: async () => status});
+"""
+        assertions = r"""
+setImmediate(() => {
+  const html = id => document.getElementById(id).innerHTML;
+  const words = markup => markup.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const summary = words(html('summary'));
+  assert.match(summary, /opened 4\/4/);
+  assert.match(summary, /byte match 75\.0%/);
+  assert.match(summary, /16\/32-bit saves kept depth 1\/2/);
+  assert.match(summary, /16-bit precision after save 90\.0%/);
+  assert.match(summary, /1\. other 90\.0% 2\. patchy 75\.0%/);
+  assert.match(words(html('groups')), /deep 2 0\/2 match/);
+  const rows = html('matrix-body').split('</tr>').filter(Boolean).map(words);
+  assert.equal(rows.length, 4);
+  assert.doesNotMatch(rows[0], /\d+-bit/);
+  assert.match(rows[1], /flat\.psd 8-bit/);
+  assert.match(rows[2], /wide\.psd 16-bit/);
+  assert.match(rows[3], /float\.psd 32-bit/);
+  assert.doesNotMatch(rows.join(' '), /known limitation/i);
+  openDetail(3, 'patchy', false);
+  assert.match(words(html('detail-body')), /float\.psd .*patchy 32-bit done/);
+  assert.match(words(html('detail-body')), /8-bit \(original 32-bit\) bit depth lost/);
+});
+"""
+        self.assertNotIn('Score without known limitations', report._PAGE)
+        test_file = self.runs / 'mixed-depth-report.js'
+        test_file.write_text(browser + script + assertions, encoding='utf-8')
+        result = subprocess.run(['node', str(test_file)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_report_javascript_and_photoshop_font_preflight(self):
         script = report._PAGE.split('<script>', 1)[1].split('</script>', 1)[0]
         js_file = self.runs/'report.js'
@@ -958,16 +1016,6 @@ const rolled = groupRollup(groupFiles, groupNames, ['patchy'], c => c.bad == nul
 assert.deepEqual(rolled[TOP_GROUP].editors.patchy, {total:1,opened:1,matched:1,compared:1,badSaves:0,native:[1]});
 assert.equal(rolled.fx.files, 3);
 assert.deepEqual(rolled.fx.editors.patchy, {total:2,opened:1,matched:0,compared:1,badSaves:1,native:[0.5]});
-"""
-        known = script.split('function knownLimit', 1)[1].split('let skipKnown', 1)[0]
-        test_js += 'function knownLimit' + known + """
-assert.equal(knownLimit({}), '');
-assert.equal(knownLimit({traits:{depth:8,mode:3}}), '');
-assert.equal(knownLimit({traits:{depth:1,mode:0}}), '');
-assert.equal(knownLimit({traits:{depth:16,mode:3}}), '16-bit');
-// Artboards render since docs/artboards.md, so they are no longer a known limitation.
-assert.equal(knownLimit({traits:{depth:32,mode:3,artboards:true}}), '32-bit');
-assert.equal(knownLimit({traits:{depth:8,mode:3,artboards:true}}), '');
 """
         scoring = script.split('function refusedWithReference', 1)[1].split('let groupFilter', 1)[0]
         test_js += 'function refusedWithReference' + scoring + """
