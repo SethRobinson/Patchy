@@ -1120,6 +1120,19 @@ function zoomTiny(image) {
   }
 }
 
+// Photoshop renders that took more than one open to settle (render_check.py): the
+// reference, this cell's own render (Photoshop column), Photoshop's render of the
+// editor's resave, and of its save after the text update. A check that found
+// nothing unusual carries no note.
+function renderCheckNotes(gt, cell) {
+  let html = "";
+  [[gt.renderCheck, "Reference: "], [cell.renderCheck, ""], [cell.roundtripCheck, ""],
+   [(cell.textSave || {}).renderCheck, ""]].forEach(([check, prefix]) => {
+    if (check && check.note) html += '<div class="nums">' + prefix + esc(check.note) + "</div>";
+  });
+  return html;
+}
+
 function openDetail(fi, ek, keep) {
   selected = [fi, ek];
   const f = S.files[fi], cell = (f.cells || {})[ek] || {}, gt = cell.groundTruth || f.groundTruth || {};
@@ -1158,6 +1171,7 @@ function openDetail(fi, ek, keep) {
   (gt.dialogs || []).forEach(d => {
     html += '<div class="nums">Photoshop warned while opening this file: ' + esc(d) + "</div>";
   });
+  html += renderCheckNotes(gt, cell);
   (cell.dialogs || []).forEach(d => {
     html += '<div class="nums">Photoshop warned during this cell (its probe also '
       + "re-saves the file, and save-time warnings are modal too): " + esc(d) + "</div>";

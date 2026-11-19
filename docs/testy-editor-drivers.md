@@ -19,10 +19,28 @@ Split from [testy.md](testy.md): how Testy drives each editor (Photoshop over CO
   TySh EngineData) instead. The probe never sets a text style, for a reading or for the
   reference render ([testy-scoring.md](testy-scoring.md#the-reference-render)). Other versions can reopen every resave too:
   [testy-photoshop-versions.md](testy-photoshop-versions.md).
-  Photoshop 28.0 (November 2026) sometimes renders psd-tools' `layer_mask_data.psd` with
-  part of the green layer's mask ignored, on the original and on reopened resaves alike;
-  byte-identical resaves scored 100% and 24% in two runs. A sudden drop on that file
-  is Photoshop's render, not the editor's: compare the resave bytes before blaming it.
+- Photoshop does not always draw a file the same way twice. Photoshop 28.0 (November
+  2026) sometimes renders psd-tools' `layer_mask_data.psd` with part of the green layer's
+  mask ignored, on the original and on reopened resaves alike (byte-identical resaves
+  scored 100% and 24% in two runs). So every Photoshop render something is scored
+  against goes through `testy/render_check.py`. Two renders agree when no pixel is more
+  than 6/255 apart on any channel; Photoshop's renders of one file always did on the 373
+  corpus files. The reference is drawn from two opens, a disagreement takes a third, and
+  the picture two opens agree on is kept. The Photoshop column's render and Photoshop's
+  renders of each resave and each save after a text update are drawn again only when
+  they disagree with the reference: an open that draws the same picture again means the
+  difference is the file's, one that matches the reference replaces the first, and a
+  third open settles the rest. Three different pictures keep the first; so does a render
+  Photoshop cannot draw again, and such a reference is checked again on its next use.
+  Extra opens render to `againN-<name>.png`, deleted once settled. The detail panel names
+  every render that needed more than one open to settle (`groundTruth.renderCheck`,
+  `renderCheck`, `roundtripCheck`, `textSave.renderCheck`).
+  Cost: one more open per new reference, and one per resave that differs from it (about
+  half of Krita's, GIMP's and PhotoDemon's on psd-tools, paid once while cells are
+  cached). A reference cached before the check (November 20, 2026) is confirmed on its
+  next use; if it was wrong, the cache entry is corrected and that run measures the
+  file's cached cells again (an editor left out of that run keeps its old cell). Cached
+  cells are not otherwise checked again; `--fresh` re-measures them.
 - Krita 5.3.2 runs its own Python: `kritarunner.com -s testy_krita_export -f main <in>
   <out> <report>`, started in `drivers/krita_scripts/` (kritarunner replaces PYTHONPATH,
   so the module is found through the working directory). The script opens the file,

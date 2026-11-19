@@ -43,6 +43,7 @@ import config
 import fetch_psd_tools_corpus
 import manifest as manifest_mod
 import report
+import render_check
 import rerun
 import staging
 import text_sheets
@@ -1411,6 +1412,11 @@ def resave_rejected_by(cell: dict, photoshop_run: dict | None) -> list[str]:
 
 
 class Runner:
+    # Files whose cached reference render this run found Photoshop had drawn wrong and
+    # replaced (ground_truth): their cached cells were scored against it, so they are
+    # measured again. Reassigned, never mutated, so the class default stays empty.
+    _reference_replaced: frozenset[int] = frozenset()
+
     def __init__(self, args: argparse.Namespace) -> None:
         global _in_process_run_dir
         self.args = args
@@ -1822,14 +1828,27 @@ class Runner:
             for name in ("render.png", "render16.png"):
                 if (cache_dir / name).exists():
                     shutil.copyfile(cache_dir / name, gt_dir / name)
+            if result.get("ok") and "renderCheck" not in result and (gt_dir / "render.png").exists():
+                # Cached before the reference was confirmed by a second open: confirm it
+                # once now. Cells cached against a reference Photoshop drew wrong were
+                # scored against the wrong picture, so this run measures them again.
+                check = self._confirm_reference(entry, staged, gt_dir, result)
+                if check["outcome"] == "replaced":
+                    self._reference_replaced = self._reference_replaced | {index}
+                    for name in ("render.png", "render16.png"):
+                        if (gt_dir / name).exists():
+                            shutil.copyfile(gt_dir / name, cache_dir / name)
+                result_path.write_text(json.dumps(self._cacheable_truth(result)), encoding="utf-8")
         else:
             result = self.ps.probe(staged.original, gt_dir / "render.png")
             if result.get("ok"):
                 # Hyphenate and the line composer where a paragraph leaves them to its
                 # sheet: Photoshop does not report those, the file does.
                 text_sheets.fill_paragraph_settings(staged.original, result.get("layers") or [])
+                if (gt_dir / "render.png").exists():
+                    self._confirm_reference(entry, staged, gt_dir, result)
                 cache_dir.mkdir(parents=True, exist_ok=True)
-                result_path.write_text(json.dumps(result), encoding="utf-8")
+                result_path.write_text(json.dumps(self._cacheable_truth(result)), encoding="utf-8")
                 for name in ("render.png", "render16.png"):
                     if (gt_dir / name).exists():
                         shutil.copyfile(gt_dir / name, cache_dir / name)
@@ -1879,6 +1898,8 @@ class Runner:
             "missingFonts": result.get("missingFonts", []),
             "artifacts": artifacts,
         }
+        if (result.get("renderCheck") or {}).get("note"):
+            entry["groundTruth"]["renderCheck"] = result["renderCheck"]
         # Alerts Photoshop raised while opening the file (the driver acknowledged
         # them so the probe could finish); they say something about the file, so
         # the report shows them rather than swallowing them.
@@ -1887,6 +1908,38 @@ class Runner:
             log(f"    Photoshop warned while opening this file: {result['dialogs'][0]}")
         (gt_dir / "manifest.json").write_text(json.dumps(result["layers"], indent=1), encoding="utf-8")
         self.push()
+        return result
+
+    def _settle_photoshop_render(self, source: Path, render_png: Path, reference: Path | None,
+                                 what: str) -> dict | None:
+        """A Photoshop render something is scored against, checked against Photoshop
+        drawing it wrong (render_check.py): one that disagrees with the reference
+        render, or the reference itself (reference None), is drawn again from a fresh
+        open of `source`, and the picture two opens agree on ends up at render_png.
+        Returns the record for the report, or None when the render matched."""
+        check = render_check.settle_render(self.ps.probe, source, render_png, reference,
+                                           analyze.renders_agree, what)
+        if check and check.get("note"):
+            log(f"    {check['note']}")
+        return check
+
+    def _confirm_reference(self, entry: dict, staged: staging.StagedPsd, gt_dir: Path,
+                           result: dict) -> dict:
+        """The reference render every editor is scored against is drawn twice, from
+        two opens, and a third open settles a disagreement. The verdict goes into the
+        ground-truth result as renderCheck."""
+        entry["groundTruth"]["stage"] = "drawing the Photoshop reference again to confirm it"
+        self.push()
+        check = self._settle_photoshop_render(staged.original, gt_dir / "render.png", None, "this file")
+        result["renderCheck"] = check
+        return check
+
+    @staticmethod
+    def _cacheable_truth(result: dict) -> dict:
+        """A reference Photoshop could not draw a second time stays unconfirmed in
+        the cache, so the next run that reuses it tries again."""
+        if (result.get("renderCheck") or {}).get("outcome") == "unconfirmed":
+            return {key: value for key, value in result.items() if key != "renderCheck"}
         return result
 
     def _rel(self, path: Path) -> str:
@@ -1947,7 +2000,11 @@ class Runner:
         cache_dir = config.CACHE_DIR / (
             f"cell-{staged.sha1}-{editor_key}-{_version_slug(version_key)}-{self.suffix}"
         )
-        if cache_dir.exists() and not self.args.fresh:
+        reference_replaced = index in self._reference_replaced
+        if cache_dir.exists() and reference_replaced:
+            log(f"    {editor_key}: measuring again; the cached cell was scored against a "
+                "reference render Photoshop had drawn wrong")
+        if cache_dir.exists() and not self.args.fresh and not reference_replaced:
             cached_cell = json.loads((cache_dir / "cell.json").read_text(encoding="utf-8"))
             for item in cache_dir.iterdir():
                 if item.name != "cell.json":
@@ -1992,6 +2049,14 @@ class Runner:
             self.push()
             return
 
+        truth_render = self.files_dir / artifact_dir_name(entry) / "_truth" / "render.png"
+        if editor_key == "photoshop" and truth is not None and render_png.exists() and truth_render.exists():
+            cell["stage"] = "checking Photoshop's render against the reference"
+            self.push()
+            check = self._settle_photoshop_render(staged.original, render_png, truth_render, "this file")
+            if check:
+                cell["renderCheck"] = check
+
         self._no_cache_leg(entry, editor_key, info, staged, cell, cell_dir, render_png, truth)
         if (cell_dir / "render_as_opened.png").exists():
             artifacts["renderAsOpened"] = self._rel(cell_dir / "render_as_opened.png")
@@ -2008,7 +2073,6 @@ class Runner:
         if resave_psd.exists():
             artifacts["resavePsd"] = self._rel(resave_psd)
 
-        truth_render = self.files_dir / artifact_dir_name(entry) / "_truth" / "render.png"
         document_size = tuple(entry.get("docSize", (0, 0)))
 
         if truth is not None and render_png.exists() and truth_render.exists() and document_size[0]:
@@ -2051,6 +2115,11 @@ class Runner:
                 )
                 cell["native"] = manifest_mod.compare_manifests(truth["layers"], roundtrip["layers"])
                 if (cell_dir / "roundtrip.png").exists():
+                    if truth_render.exists():
+                        check = self._settle_photoshop_render(resave_psd, cell_dir / "roundtrip.png",
+                                                              truth_render, "this save")
+                        if check:
+                            cell["roundtripCheck"] = check
                     artifacts["roundtripRender"] = self._rel(cell_dir / "roundtrip.png")
                     thumb = _thumb(cell_dir / "roundtrip.png", cell_dir / "roundtrip_thumb.png")
                     if thumb:
@@ -2430,11 +2499,16 @@ class Runner:
             text_sheets.fill_paragraph_settings(save_psd, probe.get("layers") or [])
             (cell_dir / "textsave_manifest.json").write_text(json.dumps(probe["layers"], indent=1),
                                                              encoding="utf-8")
+            truth_render = self.files_dir / artifact_dir_name(entry) / "_truth" / "render.png"
             if save_png.exists():
+                if truth_render.exists():
+                    check = self._settle_photoshop_render(save_psd, save_png, truth_render,
+                                                          "the save after the text update")
+                    if check:
+                        leg["renderCheck"] = check
                 artifacts["textSaveRender"] = self._rel(save_png)
                 if _thumb(save_png, cell_dir / "textsave_thumb.png"):
                     artifacts["textSaveThumb"] = self._rel(cell_dir / "textsave_thumb.png")
-            truth_render = self.files_dir / artifact_dir_name(entry) / "_truth" / "render.png"
             opened_render = cell_dir / "roundtrip.png"
             leg.update(score_text_save(
                 truth["layers"], probe, tuple(entry.get("docSize", (0, 0))),
@@ -2854,7 +2928,7 @@ class Runner:
                     "nocache_plain_fontkept.psd", "nocache_plain_fontkept.psb",
                     "nocache_plain_textkept.psd", "nocache_plain_textkept.psb")
     SCRUB_TRUTH = ("render.png", "render_thumb.png", "render16.png", "mutated.png",
-                   "mutated_thumb.png", "manifest.json")
+                   "mutated_thumb.png", "manifest.json") + render_check.scratch_names("render")
     SCRUB_CELL = ("render.png", "render_thumb.png", "render_as_opened.png", "nocache.png",
                   "nocache_plain.png", "nocache_resave.psd", "nocache_unused.png", "resave.psd", "trap.png",
                   "trap_thumb.png", "mutated.png", "mutated_thumb.png", "heatmap.png",  # mutated*: older runs
@@ -2863,7 +2937,9 @@ class Runner:
                   # the text-save leg: the save after the editor's text update, as Photoshop opens it
                   "textsave.psd", "textsave.png", "textsave16.png", "textsave_thumb.png", "textsave_manifest.json",
                   # 16-bit originals of the other legs' renders (analyze.split_deep_png)
-                  "trap16.png", "nocache16.png", "nocache_plain16.png")
+                  "trap16.png", "nocache16.png", "nocache_plain16.png",
+                  # opens a render check (render_check.py) deletes once it settles
+                  ) + render_check.scratch_names("render", "roundtrip", "textsave")
 
     def _apply_scan_policy(self, index: int) -> None:
         """After every cell of a file finished: flag it, or scrub a passing file."""

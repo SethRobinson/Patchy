@@ -651,6 +651,17 @@ def _load_over_white(path: Path, size: tuple[int, int] | None) -> tuple[np.ndarr
     return rgb, native_size
 
 
+def renders_agree(first_png: Path, second_png: Path) -> bool:
+    """Do two renders show the same picture: same size, and no pixel more than
+    PIXEL_TOLERANCE apart on any channel once composited over white? Photoshop's
+    renders of one file always do (render_check.py), so this tells a glitch apart."""
+    first, first_size = _load_over_white(first_png, None)
+    second, second_size = _load_over_white(second_png, None)
+    if tuple(first_size) != tuple(second_size):
+        return False
+    return not bool((np.abs(first - second) > PIXEL_TOLERANCE).any())
+
+
 def sentinel_fraction(render_png: Path) -> float:
     """Fraction of pixels that are (near-)pure magenta - the trap composite color."""
     rgb, _ = _load_over_white(render_png, None)

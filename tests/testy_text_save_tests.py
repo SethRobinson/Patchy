@@ -325,6 +325,21 @@ class TextSaveLeg(unittest.TestCase):
         self.assertEqual(cell['textSave']['state'], 'not measured')
         self.assertTrue(cell['uncacheable'])
 
+    def test_a_glitched_photoshop_render_of_the_save_is_drawn_again(self):
+        class Glitching(FakePhotoshop):
+            def probe(self, path, render_png=None, resave_psd=None):
+                answer = super().probe(path, render_png, resave_psd)
+                if len(self.probes) == 1:  # the lower half filled, as Photoshop 28.0 can draw a mask
+                    picture(render_png, [[0, 60, SIZE[0], SIZE[1]]])
+                return answer
+
+        photoshop = Glitching({'ok': True, 'layers': original_layers()})
+        cell = self.leg(photoshop)
+        self.assertEqual(photoshop.probes, ['textsave.psd', 'textsave.psd'])
+        self.assertEqual((cell['textSave']['same'], cell['textSave']['changed']), (2, []))
+        self.assertIn('1 of 2 opens', cell['textSave']['renderCheck']['note'])
+        self.assertFalse([p.name for p in self.cell_dir.iterdir() if p.name.startswith('again')])
+
     def test_unreached_and_font_fallback_layers_are_not_measured(self):
         photoshop = FakePhotoshop({'ok': True, 'layers': original_layers()}, marks=[[30, 76, 170, 96]])
         cell = self.leg(photoshop, saved={'fontFallback': ['Body']})
