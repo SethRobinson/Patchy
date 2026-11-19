@@ -91,6 +91,10 @@ whose second line overflows; its story keeps that line.
 The imported-text metric calibration (`calibrated_box_text_metric_scale`) renders with
 `TextToolSettings::keep_overflow_lines`: a substituted font that runs long shows as extra lines,
 which is what starts its scale search (`ui_tips_psd_speed_mode_line_clip_if_available`, Linux).
+The comparison counts bands of ink in each raster. A narrow stroke between denser rows
+keeps them in one band. This lets a semicolon descend below the rest of a line without
+triggering a width adjustment and changing the paragraph's word breaks
+(`ui_arduboy_psd_text_update_preserves_line_breaks_if_available`).
 Known gap: an imported PSD frame's commit crops the last line's descenders at the frame bottom
 (the live render draws them; `ui_imported_psd_box_text_line_clip_renders_full_visible_line_after_edit`).
 

@@ -1,5 +1,7 @@
 #include "ui/alpha_row_bands.hpp"
 
+#include "core/pixel_depth.hpp"
+
 #include <algorithm>
 #include <cstddef>
 
@@ -15,32 +17,45 @@ std::vector<AlphaRowBand> alpha_row_bands(const PixelBuffer& pixels) {
     return bands;
   }
   const auto alpha_channel = channels == 1U ? 0U : 3U;
-  const auto stride = pixels.stride_bytes();
-  const auto bytes = pixels.data();
   const auto active_threshold = std::max(2, pixels.width() / 180);
-  constexpr int kAlphaThreshold = 12;
+  const auto count_ink = [active_threshold](const auto& row, std::size_t first, std::size_t step) {
+    constexpr int kAlphaThreshold = 12;
+    int count = 0;
+    for (auto i = first; i < row.size() && count < active_threshold; i += step) {
+      count += row[i] >= kAlphaThreshold;
+    }
+    return count;
+  };
+  std::vector<float> deep_row;
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    deep_row.resize(static_cast<std::size_t>(pixels.width()) * 4U);
+  }
   constexpr int kMergeGap = 2;
 
   bool in_band = false;
   int band_top = 0;
   int last_active = -1;
+  int last_ink = -1;
   for (int y = 0; y < pixels.height(); ++y) {
-    int active_pixels = 0;
-    const auto row_offset = static_cast<std::size_t>(y) * stride;
-    for (int x = 0; x < pixels.width(); ++x) {
-      const auto offset = row_offset + static_cast<std::size_t>(x) * channels + alpha_channel;
-      if (offset < bytes.size() && bytes[offset] >= kAlphaThreshold) {
-        ++active_pixels;
-      }
+    int ink = 0;
+    if (deep_row.empty()) {
+      ink = count_ink(pixels.row(y), alpha_channel, channels);
+    } else {
+      load_rgba_row(pixels, y, 0, pixels.width(), deep_domain_for(pixels.format().bit_depth), deep_row);
+      ink = count_ink(deep_row, 3U, 4U);
     }
-    const bool active = active_pixels >= active_threshold;
-    if (active) {
+    // A thin stroke can connect two dense rows. Only blank rows separate bands;
+    // the density threshold still decides where the measurable ink starts and ends.
+    if (ink > 0) {
+      last_ink = y;
+    }
+    if (ink >= active_threshold) {
       if (!in_band) {
         in_band = true;
         band_top = y;
       }
       last_active = y;
-    } else if (in_band && last_active >= 0 && y - last_active > kMergeGap) {
+    } else if (in_band && y - last_ink > kMergeGap) {
       if (last_active + 1 - band_top >= 2) {
         bands.push_back(AlphaRowBand{band_top, last_active + 1});
       }

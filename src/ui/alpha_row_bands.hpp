@@ -13,9 +13,10 @@ struct AlphaRowBand {
 };
 
 // The visible-alpha row bands of a raster (a text layer's lines, typically).
-// A row is active when at least max(2, width / 180) of its pixels have alpha
-// 12 or more; active rows at most two rows apart join one band, and a band
-// must be at least two rows tall. Empty for buffers without an alpha channel.
+// A band's endpoints each have at least max(2, width / 180) pixels with alpha
+// at or above 12/255. Sparser ink between them belongs to the band. Three
+// consecutive blank rows separate bands. A band must be at least two rows tall.
+// A single-channel buffer supplies coverage. Empty for RGB without alpha.
 // MainWindow scores PSD text re-renders against the original raster with it,
 // and the UI tests measure the same bands, so this is the one definition.
 [[nodiscard]] std::vector<AlphaRowBand> alpha_row_bands(const PixelBuffer& pixels);

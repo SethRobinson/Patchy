@@ -8,6 +8,7 @@
 #include "ui/text_font_service.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
 #include "ui/font_picker.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -2289,6 +2290,78 @@ void ui_box_text_metric_scale_narrows_the_drawn_glyphs() {
       alpha_pixel_bounds_in_rows(committed->pixels(), 0, committed->pixels().height());
   CHECK(committed_ink.has_value());
   CHECK(committed_ink.has_value() && committed_ink->width() == scaled_ink.width());
+}
+
+void ui_text_line_bands_keep_connected_punctuation_at_all_depths() {
+  patchy::PixelBuffer source(1080, 32, patchy::PixelFormat::rgba8());
+  // At this width, six samples at alpha 12/255 qualify a row. Five samples can
+  // connect two qualifying sections of a glyph, but cannot start or extend a line.
+  const QColor ink(0, 0, 0, 12);
+  fill_pixel_rect(source, QRect(400, 0, 5, 15), ink);
+  fill_pixel_rect(source, QRect(400, 3, 6, 3), ink);
+  fill_pixel_rect(source, QRect(400, 10, 6, 3), ink);
+  fill_pixel_rect(source, QRect(400, 15, 6, 3), QColor(0, 0, 0, 11));
+  fill_pixel_rect(source, QRect(400, 18, 6, 3), ink);
+  fill_pixel_rect(source, QRect(400, 21, 5, 3), ink);
+  fill_pixel_rect(source, QRect(400, 27, 5, 4), ink);
+
+  for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
+    const auto pixels = patchy::convert_pixel_buffer_depth(source, depth, patchy::SampleKind::Color);
+    const auto bands = alpha_row_bands(pixels);
+    CHECK(bands.size() == 2U);
+    CHECK(bands[0].top == 3 && bands[0].bottom == 13);
+    CHECK(bands[1].top == 18 && bands[1].bottom == 21);
+  }
+}
+
+void ui_arduboy_psd_text_update_preserves_line_breaks_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("Arduboy.psd");
+  patchy::test::skip_unless_exists(path);
+  skip_without_arial_for_psd_text_preview();
+  const auto source = patchy::psd::DocumentIo::read_file(path);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(source, QStringLiteral("Arduboy"));
+  require_action(window, "typeUpdateAllTextLayersAction")->trigger();
+
+  const auto& updated = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  int text_layers = 0;
+  for (const auto& saved : source.layers()) {
+    if (!saved.metadata().contains(patchy::kLayerMetadataText)) {
+      continue;
+    }
+    ++text_layers;
+    const auto* rendered = updated.find_layer(saved.id());
+    CHECK(rendered != nullptr);
+    CHECK(rendered->metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+
+    // Both Arial boxes have a 100 px baseline pitch. Measure each line in its own
+    // document rows, including the blank lines and the semicolon's thin tail.
+    // The third paragraph in the taller frame ends with "one." on a line of its own.
+    constexpr int pitch = 100;
+    const auto line_ink = [](const patchy::Layer& layer, int top) -> std::optional<QRect> {
+      const auto local_top = top - layer.bounds().y;
+      if (const auto ink = alpha_pixel_bounds_in_rows(layer.pixels(), local_top, local_top + pitch)) {
+        return ink->translated(layer.bounds().x, layer.bounds().y);
+      }
+      return std::nullopt;
+    };
+    int visible_lines = 0;
+    for (int top = saved.bounds().y - 8; top < saved.bounds().y + saved.bounds().height; top += pitch) {
+      const auto expected = line_ink(saved, top);
+      const auto actual = line_ink(*rendered, top);
+      CHECK(actual.has_value() == expected.has_value());
+      if (expected) {
+        ++visible_lines;
+        CHECK(std::abs(actual->left() - expected->left()) <= 4);
+        CHECK(std::abs(actual->right() - expected->right()) <= 8);
+        CHECK(std::abs(actual->top() - expected->top()) <= 4);
+        CHECK(std::abs(actual->bottom() - expected->bottom()) <= 4);
+      }
+    }
+    CHECK(visible_lines == (saved.bounds().height > 1000 ? 15 : 4));
+  }
+  CHECK(text_layers == 2);
 }
 
 void ui_tips_psd_speed_mode_line_clip_if_available() {
@@ -4633,6 +4706,10 @@ std::vector<patchy::test::TestCase> psd_text_import_tests() {
        ui_imported_psd_box_text_follows_markers_after_edit_if_available},
       {"ui_box_text_metric_scale_narrows_the_drawn_glyphs",
        ui_box_text_metric_scale_narrows_the_drawn_glyphs},
+      {"ui_text_line_bands_keep_connected_punctuation_at_all_depths",
+       ui_text_line_bands_keep_connected_punctuation_at_all_depths},
+      {"ui_arduboy_psd_text_update_preserves_line_breaks_if_available",
+       ui_arduboy_psd_text_update_preserves_line_breaks_if_available},
       {"ui_tips_psd_speed_mode_line_clip_if_available",
        ui_tips_psd_speed_mode_line_clip_if_available},
       {"ui_horror_virtualboy_caret_tracks_zoom_if_available",
