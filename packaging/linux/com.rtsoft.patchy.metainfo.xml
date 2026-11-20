@@ -147,6 +147,17 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.40" date="2026-11-21">
+      <description>
+        <ul>
+          <li>Preview artwork outside the canvas and save or load selections using alpha channels.</li>
+          <li>Open embedded Aseprite tilemaps as pixel layers and preserve the appearance of cel blending on export.</li>
+          <li>Read older floating-point GIMP files, saved XCF filters, Krita Pixelize filters and default linear fills more accurately.</li>
+          <li>Preserve 8-bit and 16-bit Photoshop Smart Filter masks and improve CMYK, Lab, HDR and layer-style rendering.</li>
+          <li>Compare native layered formats and full-precision Photoshop images in Testy.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.39" date="2026-11-19">
       <description>
         <ul>

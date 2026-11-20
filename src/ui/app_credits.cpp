@@ -19,7 +19,7 @@ QString contributors_link_html(const QString& link_color) {
   // and the README's copy from GitHub (docs/release-process.md), so never edit
   // them by hand.
   static constexpr Contributor kContributors[] = {
-      {"philipzae", "https://github.com/philipzae", 550},
+      {"philipzae", "https://github.com/philipzae", 551},
       {"malnaanah", "https://github.com/malnaanah", 26},
       {"KevDoy", "https://github.com/KevDoy", 22},
       {"lucastucious", "https://github.com/lucastucious", 12},
@@ -32,10 +32,11 @@ QString contributors_link_html(const QString& link_color) {
       {"jackpini", "https://github.com/jackpini", 4},
       {"fivetenth", "https://github.com/fivetenth", 4},
       {"revae", "https://github.com/revae", 3},
-      {"c-sanchez", "https://github.com/c-sanchez", 2},
+      {"c-sanchez", "https://github.com/c-sanchez", 3},
       {"alexanderadam", "https://github.com/alexanderadam", 2},
       {"WinterTreat", "https://github.com/WinterTreat", 2},
       {"heshmatagha", "https://github.com/heshmatagha", 2},
+      {"Oppa-YA", "https://github.com/Oppa-YA", 2},
       {"csbun", "https://github.com/csbun", 1},
       {"softwaregames1", "https://github.com/softwaregames1", 1},
       {"chiddekel", "https://github.com/chiddekel", 1},
@@ -44,7 +45,6 @@ QString contributors_link_html(const QString& link_color) {
       {"ProShi", "https://github.com/ProShi", 1},
       {"popkc3", "https://github.com/popkc3", 1},
       {"RDR77", "https://github.com/RDR77", 1},
-      {"Oppa-YA", "https://github.com/Oppa-YA", 1},
       {"CHJ85", "https://github.com/CHJ85", 1},
       {"DavidLee1115", "https://github.com/DavidLee1115", 1},
       {"Uthopik", "https://github.com/Uthopik", 1},
