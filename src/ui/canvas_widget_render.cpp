@@ -25,6 +25,7 @@
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/measurement_units.hpp"
+#include "ui/qt_geometry.hpp"
 #include "ui/session_history.hpp"
 #include "ui/theme_palette.hpp"
 
@@ -69,6 +70,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <unordered_set>
 #include <future>
 #include <memory>
 #include <mutex>
@@ -418,6 +420,7 @@ void CanvasWidget::end_processing_operation() {
 }
 
 void CanvasWidget::notify_document_changed(DocumentChangeReason reason) {
+  invalidate_outside_canvas();
   note_document_changed_for_gradient_view_preview();
   note_document_changed_for_gradient_drag_hold();
   invalidate_vector_preview();
@@ -514,6 +517,7 @@ void CanvasWidget::document_changed_async_preview_impl(bool preserve_scaled_docu
 }
 
 void CanvasWidget::force_refresh() {
+  invalidate_outside_canvas();
   if (document_ == nullptr) {
     return;
   }
@@ -827,6 +831,220 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
   }
 }
 
+void CanvasWidget::set_show_outside_canvas(bool enabled) {
+  if (show_outside_canvas_ == enabled) return;
+  show_outside_canvas_ = enabled;
+  outside_canvas_patches_.clear();
+  outside_canvas_moving_.clear();
+  ++outside_canvas_revision_;
+  update();
+}
+
+void CanvasWidget::invalidate_outside_canvas() {
+  if (!show_outside_canvas_) return;
+  ++outside_canvas_revision_;
+  // A document edit may repaint only an interior patch. The old and new
+  // projections can both lie entirely beyond it.
+  update();
+}
+
+std::vector<CanvasWidget::OutsideCanvasPatch> CanvasWidget::build_outside_canvas_patches(
+    const Document& document, const std::vector<LayerId>& moving, const RenderedDocumentPatch& floating) {
+  // Each run stays in stack order. Only a live drag splits the stack, at
+  // boundaries between stationary and moving leaves. Its transform then
+  // applies to cached pictures without touching the compositor on each move.
+  struct Run {
+    bool moving;
+    QRegion region;
+    std::vector<LayerId> members;
+  };
+  std::vector<Run> runs;
+  std::vector<LayerId> leaves;
+  const QRect canvas(0, 0, document.width(), document.height());
+  const auto collect = [&](auto&& self, const Layer& layer, int padding) -> void {
+    if (!layer.visible() || layer.opacity() <= 0.0F) return;
+    if (layer.kind() == LayerKind::Group) {
+      const int extra = layer_style_effect_padding(layer.layer_style());
+      for (const auto& child : layer.children()) self(self, child, padding + extra);
+      return;
+    }
+    const auto effects = layer_bounds_with_effects(layer, layer_pixel_bounds(layer));
+    const bool target = std::ranges::find(moving, layer.id()) != moving.end();
+    const bool moves = target && floating.image.isNull();
+    if (runs.empty() || runs.back().moving != moves) runs.push_back({moves, {}, {}});
+    auto& run = runs.back();
+    run.members.push_back(layer.id());
+    leaves.push_back(layer.id());
+    if (layer.kind() == LayerKind::Adjustment || effects.empty()) return;
+    QRegion area(to_qrect(effects).adjusted(-padding, -padding, padding, padding));
+    if (!moves) area -= canvas;
+    run.region += area;
+    if (target && !floating.image.isNull()) {
+      // A selection starts inside the document. Its remaining exterior is
+      // already in the stationary run; only the lifted pixels follow the drag.
+      runs.push_back({true, QRegion(floating.document_rect), {layer.id()}});
+    }
+  };
+  for (const auto& layer : document.layers()) collect(collect, layer, 0);
+
+  // Budget the actual footprints, not the bounding box between distant
+  // layers. Large projections reuse the Move tool's depth-aware mip builder.
+  double pixels = 0;
+  for (const auto& run : runs) pixels += static_cast<double>(region_area(run.region));
+  int level = 0;
+  while (pixels > 4'000'000 && level < 20) {
+    pixels *= 0.25;
+    ++level;
+  }
+  const int block = 1 << level;
+  std::optional<Document> scaled;
+  if (level) scaled.emplace(build_preview_scaled_document(document, level));
+  const auto& source = scaled ? *scaled : document;
+  std::optional<Document> lifted;
+  if (!floating.image.isNull() && !moving.empty()) {
+    lifted.emplace(document);
+    if (auto* layer = lifted->find_layer(moving.front())) {
+      layer->set_pixels(pixels_from_image_native(floating.image));
+      layer->set_bounds(to_core_rect(floating.document_rect));
+    }
+    if (level) *lifted = build_preview_scaled_document(*lifted, level);
+  }
+  std::vector<OutsideCanvasPatch> result;
+  for (const auto& run : runs) {
+    if (run.region.isEmpty()) continue;
+    std::vector<LayerId> hidden;
+    if (runs.size() > 1) {
+      const std::unordered_set<LayerId> members(run.members.begin(), run.members.end());
+      for (const auto id : leaves) {
+        if (!members.contains(id)) hidden.push_back(id);
+      }
+    }
+    QRegion samples;
+    for (const auto& rect : run.region) {
+      // Round outwards, including at negative coordinates.
+      const QRectF bounds(rect);
+      samples += QRectF(bounds.x() / block, bounds.y() / block, bounds.width() / block,
+                        bounds.height() / block).toAlignedRect();
+    }
+    for (const auto& rect : samples) {
+      auto image = render_pasteboard_patch(run.moving && lifted ? *lifted : source, rect, hidden);
+      if (!image.isNull()) {
+        const QRectF bounds(rect);
+        result.push_back({QRectF(bounds.topLeft() * block, bounds.size() * block),
+                          image.convertToFormat(QImage::Format_ARGB32_Premultiplied), run.moving});
+      }
+    }
+  }
+  return result;
+}
+
+void CanvasWidget::request_outside_canvas_refresh() {
+  if (outside_canvas_pending_ || outside_canvas_built_revision_ == outside_canvas_revision_) return;
+  outside_canvas_pending_ = true;
+  // Take the COW snapshot outside paint and only once for a burst of edits.
+  QTimer::singleShot(0, this, [this] {
+    if (!show_outside_canvas_ || !document_) {
+      outside_canvas_pending_ = false;
+      return;
+    }
+    const auto revision = outside_canvas_revision_;
+    auto snapshot = std::make_shared<const Document>(*document_);
+    RenderedDocumentPatch floating;
+    if (transform_floating_ && !outside_canvas_moving_.empty()) {
+      floating = {transform_original_rect_.toAlignedRect(), transform_floating_->floating};
+    }
+    auto* app = QCoreApplication::instance();
+    QPointer<CanvasWidget> widget(this);
+    run_tracked_background_worker([app, widget, revision, snapshot, floating, moving = outside_canvas_moving_] {
+      std::vector<OutsideCanvasPatch> patches;
+      try {
+        patches = build_outside_canvas_patches(*snapshot, moving, floating);
+      } catch (const std::exception&) {
+        // A failed preview must leave the canvas usable. A later edit retries.
+      }
+      QMetaObject::invokeMethod(app, [widget, revision, patches = std::move(patches)]() mutable {
+        if (!widget) return;
+        widget->outside_canvas_pending_ = false;
+        if (revision == widget->outside_canvas_revision_) {
+          // Patches of one kind never overlap: they came from one QRegion.
+          widget->outside_canvas_mixed_runs_ = std::ranges::any_of(patches, &OutsideCanvasPatch::moving) &&
+              std::ranges::any_of(patches, [](const OutsideCanvasPatch& patch) { return !patch.moving; });
+          widget->outside_canvas_patches_ = std::move(patches);
+          widget->outside_canvas_built_revision_ = revision;
+          ++widget->render_cache_diagnostics_.outside_canvas_refreshes;
+        }
+        widget->update();
+      }, Qt::QueuedConnection);
+    });
+  });
+}
+
+void CanvasWidget::draw_outside_canvas(QPainter& painter, QRect exposed) {
+  std::vector<LayerId> movers;
+  QTransform motion;
+  if (moving_layer_ || move_drag_pending_) {
+    for (const auto& item : moving_layers_) movers.push_back(item.id);
+    motion.translate(move_preview_delta_.x(), move_preview_delta_.y());
+  } else if (transforming_layer_ && !transform_selection_only_) {
+    if (transform_layer_id_) movers.push_back(*transform_layer_id_);
+    for (const auto& target : transform_targets_) movers.push_back(target.id);
+    motion = free_transform_preview_delta();
+  }
+  const auto float_key = transform_floating_ ? transform_floating_->floating.cacheKey() : 0;
+  if (movers != outside_canvas_moving_ || float_key != outside_canvas_float_key_) {
+    outside_canvas_float_key_ = float_key;
+    outside_canvas_moving_ = std::move(movers);
+    invalidate_outside_canvas();
+  }
+  request_outside_canvas_refresh();
+  if (outside_canvas_patches_.empty()) return;
+  const auto view = view_transform();
+  QPainterPath clip;
+  clip.addRect(view_content_rect().intersected(QRectF(exposed)));
+  QPainterPath interior;
+  interior.addPolygon(view.map_document_rect(QRectF(0, 0, document_->width(), document_->height())));
+  interior.closeSubpath();
+  painter.save();
+  painter.setClipPath(clip.subtracted(interior), Qt::IntersectClip);
+  const auto draw = [&](QPainter& target) {
+    const auto base = target.worldTransform();
+    const auto placement = view.to_widget() * base;
+    target.setRenderHint(QPainter::SmoothPixmapTransform, uses_smooth_display_scaling(view_zoom(), deep_zoom_pixels_active()));
+    for (const auto& patch : outside_canvas_patches_) {
+      target.setWorldTransform(patch.moving ? motion * placement : placement);
+      if (patch.moving && transform_floating_ && transform_floating_->preserve_alpha) {
+        target.save();
+        target.setWorldTransform(placement);
+        target.setClipRect(to_qrect(transform_floating_->remainder_bounds), Qt::IntersectClip);
+        target.setWorldTransform(motion * placement);
+        target.drawImage(patch.bounds, patch.image);
+        target.restore();
+      } else {
+        target.drawImage(patch.bounds, patch.image);
+      }
+    }
+  };
+  painter.setOpacity(0.44);
+  if (outside_canvas_mixed_runs_) {
+    // Moving and stationary runs may overlap. Blend them first at screen
+    // resolution so the pasteboard shows through the finished stack once.
+    const auto dpr = devicePixelRatioF();
+    QImage stack((QSizeF(exposed.size()) * dpr).toSize(), QImage::Format_ARGB32_Premultiplied);
+    if (!stack.isNull()) {
+      stack.setDevicePixelRatio(dpr);
+      stack.fill(Qt::transparent);
+      QPainter parts(&stack);
+      parts.translate(-exposed.topLeft());
+      draw(parts);
+      parts.end();
+      painter.drawImage(exposed.topLeft(), stack);
+    }
+  } else {
+    draw(painter);
+  }
+  painter.restore();
+}
+
 void CanvasWidget::paintEvent(QPaintEvent* event) {
   ZoomTraceScope trace("paint", zoom_);
   QPainter painter(this);
@@ -853,6 +1071,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   // A rotated view draws its backdrop, tiles and document under the view transform
   // (paint_rotated_document); everything axis-aligned below is the upright view's.
   const bool rotated_view = !view_axis_aligned();
+  if (show_outside_canvas_ && !tiling_preview_enabled_) draw_outside_canvas(painter, exposed_rect);
   if (!rotated_view) {
     draw_canvas_backdrop(painter, target_rect, exposed_rect);
   }

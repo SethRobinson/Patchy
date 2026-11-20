@@ -1128,6 +1128,20 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
                        select_background_action_, remove_background_action_, select_object_action_}) {
     action->setProperty("patchy.quickMaskBlocked", true);
   }
+  const auto add_menu_command = [this](QMenu* menu, const char* source, const char* object_name, const char* hotkey_id,
+                                       const char* status_source, std::function<void()> handler, bool block_channel_view = true) {
+    auto* action = menu->addAction(QString());
+    action->setObjectName(QLatin1String(object_name));
+    action->setMenuRole(QAction::NoRole);
+    action->setProperty("patchy.channelViewBlocked", block_channel_view);
+    bind_action_text(action, source);
+    bind_translated_status_tip(action, status_source);
+    apply_bound_translation(action);
+    register_hotkey(action, QString::fromLatin1(hotkey_id));
+    connect(action, &QAction::triggered, this, [handler = std::move(handler)] { handler(); });
+    register_document_action(action);
+    return action;
+  };
   select_menu->addAction(select_all_action);
   select_menu->addAction(clear_selection_action);
   select_menu->addAction(reselect_action);
@@ -1150,6 +1164,15 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   select_menu->addAction(smooth_selection_action);
   select_menu->addAction(feather_selection_action);
   select_menu->addAction(layer_transparency_action);
+  save_selection_action_ = add_menu_command(
+      select_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Save Selection..."), "selectSaveSelectionAction",
+      "select.save_selection", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Save the selection as an alpha channel"),
+      [this] { if (canvas_ && canvas_->has_selection()) save_selection_as_channel(); }, false);
+  load_selection_action_ = add_menu_command(
+      select_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Load Selection..."), "selectLoadSelectionAction",
+      "select.load_selection", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Load a selection from an alpha channel"),
+      [this] { load_saved_selection_dialog(); }, false);
+  connect(select_menu, &QMenu::aboutToShow, this, &MainWindow::refresh_saved_selection_actions);
   select_menu->addSeparator();
   select_menu->addAction(transform_selection_action);
   // Grayed without a selection while the menu is open; the previous state comes back
@@ -1229,20 +1252,6 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_document_action(trace_image_action);
   // Artboards (docs/artboards.md), in New like Photoshop's Layer > New > Artboard.
   layer_new_menu->addSeparator();
-  const auto add_menu_command = [this](QMenu* menu, const char* source, const char* object_name, const char* hotkey_id,
-                                       const char* status_source, std::function<void()> handler) {
-    auto* action = menu->addAction(QString());
-    action->setObjectName(QLatin1String(object_name));
-    action->setMenuRole(QAction::NoRole);
-    action->setProperty("patchy.channelViewBlocked", true);
-    bind_action_text(action, source);
-    bind_translated_status_tip(action, status_source);
-    apply_bound_translation(action);
-    register_hotkey(action, QString::fromLatin1(hotkey_id));
-    connect(action, &QAction::triggered, this, [handler = std::move(handler)] { handler(); });
-    register_document_action(action);
-    return action;
-  };
   add_menu_command(layer_new_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "&Artboard..."), "layerNewArtboardAction",
                    "layer.new_artboard", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Add an artboard beside the others"),
                    [this] { new_artboard(); });
@@ -3005,6 +3014,18 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   view_pixel_grid_action_->setCheckable(true);
   view_pixel_grid_action_->setChecked(view_pixel_grid_visible_);
   register_hotkey(view_pixel_grid_action_, "view.pixel_grid");
+  outside_canvas_action_ = add_menu_command(
+      show_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Content Outside Canvas"), "viewContentOutsideCanvasAction",
+      "view.content_outside_canvas", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Show layer content beyond the canvas edges"),
+      [this] {
+        show_outside_canvas_ = outside_canvas_action_->isChecked();
+        for (const auto& session : sessions_) {
+          if (session->canvas) session->canvas->set_show_outside_canvas(show_outside_canvas_);
+        }
+        save_view_settings();
+      }, false);
+  outside_canvas_action_->setCheckable(true);
+  outside_canvas_action_->setChecked(show_outside_canvas_);
   show_menu->addSeparator();
   auto* extras_options_action = show_menu->addAction(tr("Show &Extras Options..."));
   extras_options_action->setObjectName(QStringLiteral("viewExtrasOptionsAction"));

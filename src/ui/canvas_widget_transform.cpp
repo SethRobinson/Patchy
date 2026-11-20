@@ -4604,6 +4604,13 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
     return;
   }
 
+  // The exterior cache draws the dimmed pixels. Keep the ordinary source
+  // blit inside the canvas, while the handles remain usable on the pasteboard.
+  if (show_outside_canvas_) {
+    painter.save();
+    painter.setClipRect(widget_rect_for_document_rect(QRectF(0, 0, document_->width(), document_->height())),
+                        Qt::IntersectClip);
+  }
   if (transform_vector_preview_drawn_) {
     // Dynamic Vector Preview drew the transformed shape sharp; a resampled blit would
     // cover it with document pixels.
@@ -4676,6 +4683,8 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
     }
     painter.restore();
   }
+
+  if (show_outside_canvas_) painter.restore();
 
   if (!extra_shown(ViewExtra::TransformControls)) {
     // View > Extras (Ctrl+H) hides the box, handles and reference point; the session

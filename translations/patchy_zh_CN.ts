@@ -36960,6 +36960,54 @@ Locked: %1</source>
         <source>Adjust the density and feather of the vector mask</source>
         <translation>调整矢量蒙版的密度和羽化程度</translation>
     </message>
+    <message>
+        <source>Save Selection...</source>
+        <translation>存储选区...</translation>
+    </message>
+    <message>
+        <source>Save the selection as an alpha channel</source>
+        <translation>将选区存储为 Alpha 通道</translation>
+    </message>
+    <message>
+        <source>Load Selection...</source>
+        <translation>载入选区...</translation>
+    </message>
+    <message>
+        <source>Load a selection from an alpha channel</source>
+        <translation>从 Alpha 通道载入选区</translation>
+    </message>
+    <message>
+        <source>Content Outside Canvas</source>
+        <translation>画布外的内容</translation>
+    </message>
+    <message>
+        <source>Show layer content beyond the canvas edges</source>
+        <translation>显示画布边界外的图层内容</translation>
+    </message>
+    <message>
+        <source>Load Selection</source>
+        <translation>载入选区</translation>
+    </message>
+    <message>
+        <source>Channel:</source>
+        <translation>通道：</translation>
+    </message>
+    <message>
+        <source>New selection</source>
+        <translation>新建选区</translation>
+    </message>
+    <message>
+        <source>Add to selection</source>
+        <translation>添加到选区</translation>
+    </message>
+    <message>
+        <source>Subtract from selection</source>
+        <translation>从选区中减去</translation>
+    </message>
+    <message>
+        <source>Intersect with selection</source>
+        <translation>与选区相交</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

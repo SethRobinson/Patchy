@@ -36960,6 +36960,54 @@ Locked: %1</source>
         <source>Adjust the density and feather of the vector mask</source>
         <translation>ベクトルマスクの密度とぼかしを調整</translation>
     </message>
+    <message>
+        <source>Save Selection...</source>
+        <translation>選択範囲を保存...</translation>
+    </message>
+    <message>
+        <source>Save the selection as an alpha channel</source>
+        <translation>選択範囲をアルファチャンネルとして保存</translation>
+    </message>
+    <message>
+        <source>Load Selection...</source>
+        <translation>選択範囲を読み込み...</translation>
+    </message>
+    <message>
+        <source>Load a selection from an alpha channel</source>
+        <translation>アルファチャンネルから選択範囲を読み込む</translation>
+    </message>
+    <message>
+        <source>Content Outside Canvas</source>
+        <translation>キャンバス外のコンテンツ</translation>
+    </message>
+    <message>
+        <source>Show layer content beyond the canvas edges</source>
+        <translation>キャンバスの外側にあるレイヤーの内容を表示</translation>
+    </message>
+    <message>
+        <source>Load Selection</source>
+        <translation>選択範囲を読み込み</translation>
+    </message>
+    <message>
+        <source>Channel:</source>
+        <translation>チャンネル:</translation>
+    </message>
+    <message>
+        <source>New selection</source>
+        <translation>新規選択</translation>
+    </message>
+    <message>
+        <source>Add to selection</source>
+        <translation>選択範囲に追加</translation>
+    </message>
+    <message>
+        <source>Subtract from selection</source>
+        <translation>選択範囲から削除</translation>
+    </message>
+    <message>
+        <source>Intersect with selection</source>
+        <translation>選択範囲との共通範囲</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

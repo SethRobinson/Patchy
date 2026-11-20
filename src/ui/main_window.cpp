@@ -7142,6 +7142,7 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       [this, canvas](QString label, CanvasWidget::SelectionSnapshot before, bool coalesce) {
         if (auto* target_session = session_for_canvas(canvas); target_session != nullptr) {
           push_selection_history(*target_session, std::move(label), std::move(before), coalesce);
+          if (canvas == canvas_) refresh_saved_selection_actions();
         }
       });
   canvas->set_quick_mask_changed_callback([this, canvas] {
@@ -15291,6 +15292,7 @@ void MainWindow::update_document_action_state() {
   }
   refresh_add_layer_mask_button_state();
   refresh_mask_properties_action_states();
+  refresh_saved_selection_actions();
   refresh_layer_styles_button_state();
   refresh_layer_link_action_states();
   refresh_revert_action();

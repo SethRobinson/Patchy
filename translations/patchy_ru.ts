@@ -37190,6 +37190,54 @@ Locked: %1</source>
         <source>Adjust the density and feather of the vector mask</source>
         <translation>Настроить плотность и растушёвку векторной маски</translation>
     </message>
+    <message>
+        <source>Save Selection...</source>
+        <translation>Сохранить выделение...</translation>
+    </message>
+    <message>
+        <source>Save the selection as an alpha channel</source>
+        <translation>Сохранить выделение как альфа-канал</translation>
+    </message>
+    <message>
+        <source>Load Selection...</source>
+        <translation>Загрузить выделение...</translation>
+    </message>
+    <message>
+        <source>Load a selection from an alpha channel</source>
+        <translation>Загрузить выделение из альфа-канала</translation>
+    </message>
+    <message>
+        <source>Content Outside Canvas</source>
+        <translation>Содержимое за пределами холста</translation>
+    </message>
+    <message>
+        <source>Show layer content beyond the canvas edges</source>
+        <translation>Показывать содержимое слоёв за краями холста</translation>
+    </message>
+    <message>
+        <source>Load Selection</source>
+        <translation>Загрузить выделение</translation>
+    </message>
+    <message>
+        <source>Channel:</source>
+        <translation>Канал:</translation>
+    </message>
+    <message>
+        <source>New selection</source>
+        <translation>Новое выделение</translation>
+    </message>
+    <message>
+        <source>Add to selection</source>
+        <translation>Добавить к выделению</translation>
+    </message>
+    <message>
+        <source>Subtract from selection</source>
+        <translation>Вычесть из выделения</translation>
+    </message>
+    <message>
+        <source>Intersect with selection</source>
+        <translation>Пересечь с выделением</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

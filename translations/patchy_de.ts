@@ -37075,6 +37075,54 @@ Fixiert: %1</translation>
         <source>Adjust the density and feather of the vector mask</source>
         <translation>Dichte und weiche Kante der Vektormaske anpassen</translation>
     </message>
+    <message>
+        <source>Save Selection...</source>
+        <translation>Auswahl speichern...</translation>
+    </message>
+    <message>
+        <source>Save the selection as an alpha channel</source>
+        <translation>Auswahl als Alphakanal speichern</translation>
+    </message>
+    <message>
+        <source>Load Selection...</source>
+        <translation>Auswahl laden...</translation>
+    </message>
+    <message>
+        <source>Load a selection from an alpha channel</source>
+        <translation>Auswahl aus einem Alphakanal laden</translation>
+    </message>
+    <message>
+        <source>Content Outside Canvas</source>
+        <translation>Inhalt außerhalb der Arbeitsfläche</translation>
+    </message>
+    <message>
+        <source>Show layer content beyond the canvas edges</source>
+        <translation>Ebeneninhalte außerhalb der Arbeitsfläche anzeigen</translation>
+    </message>
+    <message>
+        <source>Load Selection</source>
+        <translation>Auswahl laden</translation>
+    </message>
+    <message>
+        <source>Channel:</source>
+        <translation>Kanal:</translation>
+    </message>
+    <message>
+        <source>New selection</source>
+        <translation>Neue Auswahl</translation>
+    </message>
+    <message>
+        <source>Add to selection</source>
+        <translation>Zur Auswahl hinzufügen</translation>
+    </message>
+    <message>
+        <source>Subtract from selection</source>
+        <translation>Von Auswahl abziehen</translation>
+    </message>
+    <message>
+        <source>Intersect with selection</source>
+        <translation>Schnittmenge mit Auswahl bilden</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

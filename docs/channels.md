@@ -13,6 +13,12 @@ Patchy keeps Photoshop document channels separate from layer masks. `Layer::mask
 - Composite, Red, Green, and Blue rows are derived views of the rendered document. They are not stored channels and are read-only.
 - While the active canvas simulates the print (View > Proof Colors, or the document is in Image > Mode > CMYK Proof), Cyan, Magenta, Yellow and Black rows follow Blue: the ink plates of the working CMYK separation, read-only like the components ([cmyk.md](cmyk.md)). `CanvasWidget::is_component_preview` covers all seven views; every read-only gate uses it. Row lookups go by `RowKind`, never by position.
 
+## Saved selections
+
+Select > Save Selection... stores the active selection as a new alpha channel, including soft edges. It uses the Channels panel's Save selection as channel command. Rename the channel in the Channels panel. PSD and PSB files keep it with the document.
+
+Select > Load Selection... lists the document's alpha channels in panel order. Choose a channel and replace the selection, add to it, subtract from it or intersect it. The Channels panel also loads a channel directly with its Load channel as selection button or Ctrl/Cmd-click. The menu command IDs are `select.save_selection` and `select.load_selection`. Channel choices use `ChannelId`, including when two channels have the same name.
+
 ## Channel visibility
 
 The Channels panel's eyes choose which color channels the canvas shows (GitHub issue 412). `ChannelView` (`core/channel_view.hpp`, Qt-free, tested by `channel_view_eyes_follow_the_composite_rules`) holds the rules; each `CanvasWidget` keeps its own view, so it is per document. It is a view only: it never changes pixels, pushes no undo step, marks nothing modified and is never saved.

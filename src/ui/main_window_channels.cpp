@@ -26,6 +26,9 @@
 
 #include <QAction>
 #include <QColor>
+#include <QComboBox>
+#include <QDialogButtonBox>
+#include <QFormLayout>
 #include <QImage>
 #include <QInputDialog>
 #include <QKeySequence>
@@ -34,6 +37,7 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QPoint>
+#include <QPointer>
 #include <QRect>
 #include <QSignalBlocker>
 #include <QSize>
@@ -462,6 +466,7 @@ void MainWindow::apply_channel_view_change(ChannelViewChange change) {
 }
 
 void MainWindow::refresh_channel_panel() {
+  refresh_saved_selection_actions();
   // The Paths dock rides the same refresh cadence (document switches, undo
   // restores, mutations) so its rows never go stale relative to Channels.
   refresh_paths_panel();
@@ -745,6 +750,47 @@ void MainWindow::create_alpha_channel() {
     statusBar()->showMessage(tr("Created channel %1").arg(QString::fromStdString(name)));
   } catch (const std::exception& error) {
     QMessageBox::warning(this, tr("New Channel"), translate_data_text(error.what()));
+  }
+}
+
+void MainWindow::refresh_saved_selection_actions() {
+  if (!save_selection_action_ || !load_selection_action_) return;
+  const bool available = canvas_ && has_active_document() && !preview_dialog_edit_locked() && !canvas_->quick_mask_active();
+  save_selection_action_->setEnabled(available && canvas_->has_selection() &&
+      std::as_const(document()).channels().size() < document().maximum_saved_channel_count());
+  load_selection_action_->setEnabled(available && std::ranges::any_of(std::as_const(document()).channels(),
+      [](const DocumentChannel& channel) { return channel.kind() == DocumentChannelKind::Alpha; }));
+}
+
+void MainWindow::load_saved_selection_dialog() {
+  if (!canvas_ || !has_active_document()) return;
+  QPointer<CanvasWidget> owner = canvas_;
+  QDialog dialog(this);
+  dialog.setObjectName(QStringLiteral("loadSelectionDialog"));
+  dialog.setWindowTitle(tr("Load Selection"));
+  QFormLayout form(&dialog);
+  QComboBox channels(&dialog);
+  channels.setObjectName(QStringLiteral("savedSelectionChannel"));
+  for (const auto& channel : std::as_const(document()).channels()) {
+    if (channel.kind() == DocumentChannelKind::Alpha) {
+      channels.addItem(QString::fromStdString(channel.name()), QVariant::fromValue<qulonglong>(channel.id()));
+      if (canvas_->active_document_channel_id() == channel.id()) channels.setCurrentIndex(channels.count() - 1);
+    }
+  }
+  if (channels.count() == 0) return;
+  form.addRow(tr("Channel:"), &channels);
+  QComboBox operations(&dialog);
+  operations.setObjectName(QStringLiteral("savedSelectionOperation"));
+  operations.addItems({tr("New selection"), tr("Add to selection"), tr("Subtract from selection"),
+                       tr("Intersect with selection")});
+  form.addRow(tr("Operation:"), &operations);
+  QDialogButtonBox buttons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  connect(&buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(&buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  form.addRow(&buttons);
+  if (exec_dialog(dialog) == QDialog::Accepted && owner && owner == canvas_ && has_active_document()) {
+    load_channel_as_selection(ChannelPanel::RowKind::Alpha, channels.currentData().toULongLong(),
+                              operations.currentIndex());
   }
 }
 

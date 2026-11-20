@@ -493,6 +493,7 @@ struct CanvasRenderCacheDiagnostics {
   std::uint64_t vector_preview_peak_raster_bytes{0};
   double vector_preview_elapsed_ms{0.0};
   int full_refreshes{0};
+  int outside_canvas_refreshes{0};
   // Background refreshes that finished while a newer one was already pending and
   // were shown as an intermediate frame (the cache stays dirty; GitHub #601).
   int intermediate_refreshes{0};

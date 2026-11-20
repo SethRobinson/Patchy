@@ -6,18 +6,25 @@
 #include "ui/main_window.hpp"
 #include "test_harness.hpp"
 #include "scripting_test_support.hpp"
+#include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
 
 #include <QApplication>
+#include <QComboBox>
+#include <QTimer>
 #include <QDoubleSpinBox>
 #include <QScrollBar>
+#include <QMenu>
+#include <QMenuBar>
 #include <QTest>
 #include <QTextEdit>
 
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 using namespace patchy::test::ui;
@@ -464,6 +471,179 @@ void ui_view_rotation_tool_and_commands() {
   CHECK(require_action(window, "toolSmudgeAction")->shortcut().isEmpty());
 }
 
+void ui_content_outside_canvas() {
+  patchy::Document document(128, 88, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paper", solid_pixels(128, 88, patchy::PixelFormat::rgba8(), QColor(236, 224, 196)));
+  auto& stripe = document.add_layer(patchy::Layer(document.allocate_layer_id(), "Stripe",
+      solid_pixels(104, 36, patchy::PixelFormat::rgba8(), QColor(26, 153, 151))));
+  stripe.set_bounds({56, 28, 104, 36});
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(460, 320);
+  canvas.set_document(&document);
+  canvas.show();
+  canvas.set_zoom_centered(2.0);
+  canvas.center_document_in_view();
+  QApplication::processEvents();
+  const auto frame = [&] { return canvas.grab().toImage(); };
+  const auto sample = [&](const QImage& image, int x, int y) {
+    return image.pixelColor((canvas.widget_position_f(QPointF(x, y)) * image.devicePixelRatio()).toPoint());
+  };
+  const auto wait_for_refresh = [&](int previous) {
+    CHECK(QTest::qWaitFor([&] { return canvas.render_cache_diagnostics().outside_canvas_refreshes > previous; }, 5000));
+  };
+  const auto off = frame();
+  const auto paper = sample(off, 20, 40);
+  const auto ink = sample(off, 100, 40);
+  const auto backdrop = sample(off, 142, 40);
+  CHECK(ink == QColor(26, 153, 151));
+  CHECK(backdrop == sample(off, 142, 17));
+  CHECK(canvas.render_cache_diagnostics().outside_canvas_refreshes == 0);
+  canvas.set_show_outside_canvas(true);
+  wait_for_refresh(0);
+  const auto shown = frame();
+  const auto ghost = sample(shown, 142, 40);
+  CHECK(std::abs(ghost.green() - (0.44 * ink.green() + 0.56 * backdrop.green())) <= 2.0);
+  CHECK(ghost != backdrop && ghost != ink);
+  CHECK(sample(shown, 20, 40) == paper);
+  const auto a = canvas.widget_position_f(QPointF(1, 1)) * off.devicePixelRatio();
+  const auto b = canvas.widget_position_f(QPointF(127, 87)) * off.devicePixelRatio();
+  const QRect inside(a.toPoint(), b.toPoint());
+  CHECK(shown.copy(inside) == off.copy(inside));
+  save_widget_artifact("outside_canvas", canvas);
+  canvas.set_view_rotation(25.0);
+  CHECK(sample(frame(), 142, 40) == ghost);
+  canvas.set_view_rotation(0.0);
+  canvas.center_document_in_view();
+  CHECK(sample(frame(), 142, 40) == ghost);
+  CHECK(canvas.render_cache_diagnostics().outside_canvas_refreshes == 1);
+
+  // A masked part of the overhang must disappear after the edit.
+  patchy::PixelBuffer mask(104, 36, patchy::PixelFormat::gray8());
+  mask.clear(255);
+  for (int y = 0; y < mask.height(); ++y) {
+    for (int x = 80; x < mask.width(); ++x) *mask.pixel(x, y) = 0;
+  }
+  stripe.set_mask(patchy::LayerMask{stripe.bounds(), std::move(mask), 255, false});
+  canvas.document_changed();
+  wait_for_refresh(1);
+  CHECK(sample(frame(), 142, 40) == backdrop);
+  CHECK(sample(frame(), 132, 40) == ghost);
+  stripe.set_visible(false);
+  canvas.document_changed();
+  wait_for_refresh(2);
+  CHECK(sample(frame(), 132, 40) == backdrop);
+  stripe.set_visible(true);
+  stripe.clear_mask();
+  canvas.document_changed();
+  wait_for_refresh(3);
+
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  CHECK(canvas.begin_free_transform());
+  const auto state = canvas.transform_controls_state();
+  CHECK(state.has_value());
+  CHECK(canvas.set_transform_controls_state(state->reference_position + QPointF(0, 24), 100, 100, 0));
+  wait_for_refresh(4);
+  CHECK(sample(frame(), 142, 71) == ghost);
+  CHECK(sample(frame(), 142, 40) == backdrop);
+  canvas.cancel_free_transform();
+  const auto restored = [&] { return sample(frame(), 142, 40) == ghost; };
+  CHECK(QTest::qWaitFor(restored, 5000));
+  canvas.set_snap_enabled(false);
+  canvas.set_auto_select_layer(false);
+  canvas.set_show_transform_controls(false);
+  const auto press = canvas.widget_position_f(QPointF(105, 46)).toPoint();
+  const auto drag_to = canvas.widget_position_f(QPointF(105, 66)).toPoint();
+  send_mouse(canvas, QEvent::MouseButtonPress, press, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, drag_to, Qt::NoButton, Qt::LeftButton);
+  CHECK(QTest::qWaitFor([&] { return sample(frame(), 142, 75) == ghost; }, 5000));
+  CHECK(sample(frame(), 142, 38) == backdrop);
+  send_mouse(canvas, QEvent::MouseButtonRelease, drag_to, Qt::LeftButton, Qt::NoButton);
+  CHECK(QTest::qWaitFor([&] { return sample(frame(), 142, 75) == ghost; }, 5000));
+  canvas.set_show_outside_canvas(false);
+  CHECK(sample(frame(), 142, 40) == backdrop);
+}
+
+void ui_saved_selection_menu() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), Qt::white));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Selections"));
+  show_window(window);
+  auto* transparency = require_action(window, "selectLayerTransparencyAction");
+  for (auto* action : window.menuBar()->actions()) {
+    auto* menu = action->menu();
+    if (menu && menu->actions().contains(transparency)) {
+      auto* save = require_action(window, "selectSaveSelectionAction");
+      auto* load = require_action(window, "selectLoadSelectionAction");
+      CHECK(menu->actions().contains(save) && menu->actions().contains(load));
+      CHECK(!save->isEnabled() && !load->isEnabled());
+      auto* canvas = require_canvas(window);
+      patchy::PixelBuffer coverage(64, 48, patchy::PixelFormat::gray8());
+      coverage.clear(0);
+      *coverage.pixel(20, 20) = 192;
+      canvas->replace_selection_from_grayscale(coverage, QStringLiteral("Selection"));
+      CHECK(save->isEnabled());
+      save->trigger();
+      auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+      CHECK(doc.channels().size() == 1u);
+      CHECK(*std::as_const(doc).channels().front().pixels().pixel(20, 20) == 192);
+      CHECK(load->isEnabled());
+      menu->popup(window.mapToGlobal(QPoint(120, 40)));
+      QApplication::processEvents();
+      save_widget_artifact("saved_selection_menu", *menu);
+      menu->hide();
+      // A spot and a duplicate name test the list filter and ID-based lookup.
+      const auto name = std::as_const(doc).channels().front().name();
+      coverage.clear(255);
+      doc.add_channel({doc.allocate_channel_id(), "Spot", patchy::DocumentChannelKind::Spot, coverage});
+      *coverage.pixel(20, 20) = 128;
+      doc.add_channel({doc.allocate_channel_id(), name, patchy::DocumentChannelKind::Alpha, coverage});
+      const std::array<int, 4> expected{128, 192, 95, 96};
+      for (int op = 0; op < 4; ++op) {
+        *coverage.pixel(20, 20) = 192;
+        canvas->apply_grayscale_to_selection(coverage);
+        QTimer::singleShot(0, guarded([op] {
+          auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+          CHECK(dialog != nullptr);
+          auto* channels = dialog->findChild<QComboBox*>(QStringLiteral("savedSelectionChannel"));
+          auto* operations = dialog->findChild<QComboBox*>(QStringLiteral("savedSelectionOperation"));
+          CHECK(channels && operations);
+          CHECK(channels->count() == 2 && channels->itemText(0) == channels->itemText(1));
+          channels->setCurrentIndex(1);
+          operations->setCurrentIndex(op);
+          dialog->accept();
+        }));
+        load->trigger();
+        CHECK(canvas->selection_alpha_at(QPoint(20, 20)) == expected[static_cast<std::size_t>(op)]);
+      }
+      return;
+    }
+  }
+  CHECK(false);
+}
+
+void ui_outside_canvas_setting_persists() {
+  const QString key = QStringLiteral("view/contentOutsideCanvas");
+  SettingsValueRestorer restore(key);
+  patchy::ui::app_settings().remove(key);
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* action = require_action(window, "viewContentOutsideCanvasAction");
+    CHECK(!action->isChecked());
+    action->trigger();
+    CHECK(action->isChecked());
+    CHECK(patchy::ui::app_settings().value(key).toBool());
+    auto* canvas = require_canvas(window);
+    patchy::ui::MainWindowTestAccess::float_active_document(window);
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_is_floated(window));
+    CHECK(QTest::qWaitFor([&] { return canvas->render_cache_diagnostics().outside_canvas_refreshes > 0; }, 5000));
+  }
+  patchy::ui::MainWindow reopened;
+  show_window(reopened);
+  CHECK(require_action(reopened, "viewContentOutsideCanvasAction")->isChecked());
+}
+
 void ui_script_ui_view_rotation() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -503,6 +683,9 @@ std::vector<patchy::test::TestCase> view_rotation_tests() {
       {"ui_view_rotation_overlays_draw_under_rotation", ui_view_rotation_overlays_draw_under_rotation},
       {"ui_view_rotation_text_editing_turns_with_the_view", ui_view_rotation_text_editing_turns_with_the_view},
       {"ui_view_rotation_tool_and_commands", ui_view_rotation_tool_and_commands},
+      {"ui_outside_canvas_setting_persists", ui_outside_canvas_setting_persists},
+      {"ui_content_outside_canvas", ui_content_outside_canvas},
+      {"ui_saved_selection_menu", ui_saved_selection_menu},
       {"ui_script_ui_view_rotation", ui_script_ui_view_rotation},
   };
 }

@@ -505,6 +505,8 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   clear_retained_move_caches();
   reset_move_live_latch();
   document_ = document;
+  outside_canvas_patches_.clear();
+  invalidate_outside_canvas();
   set_move_transform_controls_layer(std::nullopt);
   selected_guide_index_ = -1;
   dragging_guide_ = false;

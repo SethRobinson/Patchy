@@ -37075,6 +37075,54 @@ Verrouillé : %1</translation>
         <source>Adjust the density and feather of the vector mask</source>
         <translation>Régler la densité et le contour progressif du masque vectoriel</translation>
     </message>
+    <message>
+        <source>Save Selection...</source>
+        <translation>Enregistrer la sélection...</translation>
+    </message>
+    <message>
+        <source>Save the selection as an alpha channel</source>
+        <translation>Enregistrer la sélection dans une couche alpha</translation>
+    </message>
+    <message>
+        <source>Load Selection...</source>
+        <translation>Charger une sélection...</translation>
+    </message>
+    <message>
+        <source>Load a selection from an alpha channel</source>
+        <translation>Charger une sélection depuis une couche alpha</translation>
+    </message>
+    <message>
+        <source>Content Outside Canvas</source>
+        <translation>Contenu hors du canevas</translation>
+    </message>
+    <message>
+        <source>Show layer content beyond the canvas edges</source>
+        <translation>Afficher le contenu des calques au-delà des bords du canevas</translation>
+    </message>
+    <message>
+        <source>Load Selection</source>
+        <translation>Charger une sélection</translation>
+    </message>
+    <message>
+        <source>Channel:</source>
+        <translation>Couche :</translation>
+    </message>
+    <message>
+        <source>New selection</source>
+        <translation>Nouvelle sélection</translation>
+    </message>
+    <message>
+        <source>Add to selection</source>
+        <translation>Ajouter à la sélection</translation>
+    </message>
+    <message>
+        <source>Subtract from selection</source>
+        <translation>Soustraire de la sélection</translation>
+    </message>
+    <message>
+        <source>Intersect with selection</source>
+        <translation>Intersection avec la sélection</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
