@@ -525,6 +525,7 @@ void ui_light_scheme_about_dialog_reads_as_a_light_surface() {
       dialog->accept();
       return;
     }
+    CHECK(artwork->size() == QSize(136, 136));
     save_widget_artifact("ui_light_scheme_about_dialog", *dialog);
 
     // In the right margin below the button row: inside the 1px border, clear of

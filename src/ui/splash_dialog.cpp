@@ -17,6 +17,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QFrame>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
@@ -24,6 +25,7 @@
 #include <QPoint>
 #include <QPushButton>
 #include <QPointer>
+#include <QScreen>
 #include <QStandardPaths>
 #include <QString>
 #include <QTimer>
@@ -88,8 +90,7 @@ bool refresh_memory_label(QLabel& label) {
 // panel carries the branding and the startup update check lives in MainWindow.
 class PatchySplashDialog final : public QDialog {
 public:
-  static constexpr int kDialogWidth = 650;
-  static constexpr int kMinimumDialogHeight = 435;
+  static constexpr int kDialogWidth = 820;
 
   // `offers_update`: the caller can open the update prompt, so a check that finds a newer
   // version shows the Update button.
@@ -101,7 +102,10 @@ public:
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
     apply_frameless_window_effects_on_show(*this, WindowCornerRadius::Standard);
     setModal(true);
-    setFixedWidth(ui_text_length(kDialogWidth));
+    const auto* target_screen = parent ? parent->screen() : screen();
+    const int preferred_width = ui_text_length(kDialogWidth);
+    setFixedWidth(target_screen ? std::min(preferred_width, target_screen->availableGeometry().width() - 24)
+                                : preferred_width);
     set_themed_style(*this, QStringLiteral(R"(
       QDialog#patchySplashScreen {
         background: @splash_bg;
@@ -122,7 +126,7 @@ public:
         color: @splash_subtitle_text;
         font-size: 15px;
       }
-      QLabel#splashCredit {
+      QLabel#splashVersion, QLabel#splashCredit {
         color: @splash_body_text;
         font-size: 13px;
       }
@@ -142,23 +146,25 @@ public:
         color: @splash_status_text;
         font-size: 12px;
       }
-      QLabel#splashSettingsCaption, QLabel#splashDataCaption {
+      QLabel#splashSettingsCaption, QLabel#splashDataCaption, QLabel#splashPluginsCaption {
         color: @splash_body_text;
         font-size: 12px;
         font-weight: 700;
       }
-      QLabel#splashSettingsPath, QLabel#splashDataPath {
+      QLabel#splashSettingsPath, QLabel#splashDataPath, QLabel#splashPluginsPath {
         color: @splash_caption_text;
         font-size: 11px;
       }
-      QPushButton#splashOpenSettingsFolderButton, QPushButton#splashOpenDataFolderButton {
+      QPushButton#splashOpenSettingsFolderButton, QPushButton#splashOpenDataFolderButton,
+      QPushButton#splashOpenPluginsFolderButton {
         background: @splash_button_bg;
         color: @splash_body_text;
         border: 1px solid @splash_button_border;
         padding: 5px 12px;
         min-width: 120px;
       }
-      QPushButton#splashOpenSettingsFolderButton:hover, QPushButton#splashOpenDataFolderButton:hover {
+      QPushButton#splashOpenSettingsFolderButton:hover, QPushButton#splashOpenDataFolderButton:hover,
+      QPushButton#splashOpenPluginsFolderButton:hover {
         background: @splash_button_hover_bg;
       }
       QPushButton#splashUpdateButton {
@@ -195,58 +201,81 @@ public:
       }
     )"));
 
-    auto* layout = new QHBoxLayout(this);
-    layout->setContentsMargins(28, 26, 30, 24);
-    layout->setSpacing(28);
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(24, 16, 24, 16);
+    layout->setSpacing(8);
 
+    auto* header = new QHBoxLayout();
+    header->setSpacing(16);
+    layout->addLayout(header);
     auto* artwork = new SplashArtwork(this);
     artwork->setObjectName(QStringLiteral("splashArtwork"));
-    artwork->setFixedSize(180, 180);
-    layout->addWidget(artwork, 0, Qt::AlignTop);
+    artwork->setFixedSize(136, 136);
+    header->addWidget(artwork, 0, Qt::AlignVCenter);
 
-    auto* copy = new QVBoxLayout();
-    copy->setContentsMargins(0, 12, 0, 6);
-    copy->setSpacing(10);
-    layout->addLayout(copy, 1);
+    auto* identity = new QVBoxLayout();
+    identity->setSpacing(3);
+    header->addLayout(identity, 1);
+    identity->addStretch();
 
     auto* title = new QLabel(QObject::tr("Patchy Image Editor"), this);
     title->setObjectName(QStringLiteral("splashTitle"));
     title->setTextFormat(Qt::PlainText);
     title->setWordWrap(true);
-    copy->addWidget(title);
+    identity->addWidget(title);
 
     auto* subtitle = new QLabel(QObject::tr("Open source photo editing. Free forever, no subscriptions."), this);
     subtitle->setObjectName(QStringLiteral("splashSubtitle"));
     subtitle->setTextFormat(Qt::PlainText);
     subtitle->setWordWrap(true);
-    copy->addWidget(subtitle);
+    identity->addWidget(subtitle);
 
-    auto* divider = new QFrame(this);
-    divider->setFrameShape(QFrame::HLine);
-    set_themed_style(*divider, QStringLiteral("color: @splash_border; background: @splash_border;"));
-    copy->addWidget(divider);
-
-    auto* version = new QLabel(
+    version_ = new QLabel(
         QObject::tr("Version %1 (built %2)").arg(QStringLiteral(PATCHY_VERSION), build_timestamp_text()), this);
-    version->setObjectName(QStringLiteral("splashCredit"));
-    version->setTextFormat(Qt::PlainText);
-    copy->addWidget(version);
+    version_->setObjectName(QStringLiteral("splashVersion"));
+    version_->setTextFormat(Qt::PlainText);
+    version_->setWordWrap(true);
+    identity->addWidget(version_);
 
     // The link colors live inside the rich text, where QSS cannot reach, so they
     // go through set_themed_label_text. Handing the token-bearing markup straight
     // to QLabel leaves "color:@splash_link_text" in the HTML, which the rich-text
     // parser cannot read: the links fall back to Qt's default blue, which is
     // close to unreadable on the dark About surface.
+    const auto link = [](const QString& url, const QString& label) {
+      return QStringLiteral("<a style=\"color:@splash_link_text; text-decoration:none;\" href=\"%1\">%2</a>")
+          .arg(url, label.toHtmlEscaped());
+    };
+    auto* project = new QLabel(this);
+    project->setObjectName(QStringLiteral("splashHome"));
+    project->setTextFormat(Qt::RichText);
+    project->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    project->setOpenExternalLinks(true);
+    set_themed_label_text(*project, QObject::tr("GitHub: %1").arg(
+        link(QStringLiteral("https://github.com/SethRobinson/Patchy"), QStringLiteral("SethRobinson/Patchy"))));
+    identity->addWidget(project);
+    identity->addStretch();
+
+    const auto add_divider = [this, layout] {
+      auto* divider = new QFrame(this);
+      divider->setFrameShape(QFrame::HLine);
+      set_themed_style(*divider, QStringLiteral("color: @splash_border; background: @splash_border;"));
+      layout->addWidget(divider);
+    };
+    add_divider();
+
     auto* credit = new QLabel(this);
     credit->setObjectName(QStringLiteral("splashCredit"));
     credit->setTextFormat(Qt::RichText);
-    set_themed_label_text(
-        *credit, QObject::tr("Created by %1")
-                     .arg(QStringLiteral("<a style=\"color:@splash_link_text; text-decoration:none;\" "
-                                         "href=\"https://github.com/SethRobinson\">Seth A. Robinson</a>")));
+    //: %1 is the creator's name, %2 and %3 are links to his GitHub profile and website.
+    set_themed_label_text(*credit, QObject::tr("Created by %1 (%2, %3)").arg(
+        QStringLiteral("Seth A. Robinson"),
+        link(QStringLiteral("https://github.com/SethRobinson"), QStringLiteral("GitHub")),
+        link(QStringLiteral("https://rtsoft.com"), QObject::tr("Site"))));
     credit->setTextInteractionFlags(Qt::TextBrowserInteraction);
     credit->setOpenExternalLinks(true);
-    copy->addWidget(credit);
+    credit->setWordWrap(true);
+    layout->addWidget(credit);
 
     auto* contributors = new QLabel(this);
     contributors->setObjectName(QStringLiteral("splashContributors"));
@@ -259,48 +288,39 @@ public:
     contributors->setOpenExternalLinks(true);
     // The list outgrows one line; wrap inside the fixed dialog width.
     contributors->setWordWrap(true);
-    copy->addWidget(contributors);
-
-    auto add_home_link = [this, copy](const QString& text) {
-      auto* label = new QLabel(this);
-      label->setObjectName(QStringLiteral("splashHome"));
-      label->setTextFormat(Qt::RichText);
-      label->setTextInteractionFlags(Qt::TextBrowserInteraction);
-      label->setOpenExternalLinks(true);
-      set_themed_label_text(*label, text);
-      copy->addWidget(label);
-    };
-    const auto github_link = QStringLiteral("<a style=\"color:@splash_link_text; text-decoration:none;\" "
-                                            "href=\"https://github.com/SethRobinson/Patchy\">SethRobinson/Patchy</a>");
-    add_home_link(QObject::tr("GitHub: %1").arg(github_link));
-    const auto seth_site_link = QStringLiteral("<a style=\"color:@splash_link_text; text-decoration:none;\" "
-                                               "href=\"https://rtsoft.com\">rtsoft.com</a>");
-    add_home_link(QObject::tr("Seth's site: %1").arg(seth_site_link));
+    layout->addWidget(contributors);
 
 #ifndef Q_OS_WASM
     // The wasm settings store is window.localStorage and its user data lives in
     // IndexedDB, so there is no file to display and no folder a file manager could open.
     // Each row: bold caption, selectable path, and a button that opens the folder
     // (creating it first, since the data folder only appears once something is saved).
-    const auto add_folder_row = [this, copy](const QString& caption_text, const QString& path_text,
-                                             const QString& folder_path, const QString& button_text,
-                                             const QString& failure_text, const char* caption_name,
-                                             const char* path_name, const char* button_name,
-                                             std::function<void()> before_open = {}) {
+    add_divider();
+    auto* folders = new QGridLayout();
+    folders->setHorizontalSpacing(12);
+    folders->setVerticalSpacing(4);
+    folders->setColumnStretch(1, 1);
+    layout->addLayout(folders);
+    const auto add_folder_row = [this, folders](const QString& caption_text, const QString& path_text,
+                                               const QString& folder_path, const QString& button_text,
+                                               const QString& failure_text, const char* caption_name,
+                                               const char* path_name, const char* button_name,
+                                               std::function<void()> before_open = {}) {
       auto* caption = new QLabel(caption_text, this);
       caption->setObjectName(QString::fromLatin1(caption_name));
       caption->setTextFormat(Qt::PlainText);
-      copy->addWidget(caption);
+      const int row = folders->count() == 0 ? 0 : folders->rowCount();
+      folders->addWidget(caption, row, 0, Qt::AlignTop);
 
       auto* path = new QLabel(QDir::toNativeSeparators(path_text), this);
       path->setObjectName(QString::fromLatin1(path_name));
       path->setTextFormat(Qt::PlainText);
       path->setTextInteractionFlags(Qt::TextSelectableByMouse);
+      path->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
       path->setWordWrap(true);
-      copy->addWidget(path);
+      path->setToolTip(path->text());
+      folders->addWidget(path, row, 1);
 
-      auto* button_row = new QHBoxLayout();
-      button_row->setContentsMargins(0, 0, 0, 0);
       auto* open_folder = new QPushButton(button_text, this);
       open_folder->setObjectName(QString::fromLatin1(button_name));
       connect(open_folder, &QPushButton::clicked, this, [this, folder_path, failure_text, before_open] {
@@ -309,15 +329,10 @@ public:
         }
         if (folder_path.isEmpty() || !QDir().mkpath(folder_path) ||
             !QDesktopServices::openUrl(QUrl::fromLocalFile(folder_path))) {
-          auto* status = findChild<QLabel*>(QStringLiteral("splashStatus"));
-          if (status != nullptr) {
-            status->setText(failure_text);
-          }
+          set_status(failure_text);
         }
       });
-      button_row->addWidget(open_folder, 0);
-      button_row->addStretch(1);
-      copy->addLayout(button_row);
+      folders->addWidget(open_folder, row + 1, 1, Qt::AlignLeft);
     };
 
     auto settings = app_settings();
@@ -365,9 +380,9 @@ public:
     } else {
       memory->hide();
     }
-    copy->addWidget(memory);
+    layout->addWidget(memory);
 
-    copy->addStretch(1);
+    layout->addStretch(1);
 
     // The status line has the column's whole width, above the buttons: beside Update and
     // Close it wrapped after three words, and a failed check's message ran to many lines.
@@ -375,12 +390,12 @@ public:
     status_->setObjectName(QStringLiteral("splashStatus"));
     status_->setTextFormat(Qt::PlainText);
     status_->setWordWrap(true);
-    copy->addWidget(status_);
+    layout->addWidget(status_);
 
     auto* bottom = new QHBoxLayout();
     bottom->setContentsMargins(0, 0, 0, 0);
     bottom->setSpacing(12);
-    copy->addLayout(bottom);
+    layout->addLayout(bottom);
     bottom->addStretch(1);
 
     // Hidden until the update check finds a newer version (show_update_offer). While
@@ -400,16 +415,9 @@ public:
     connect(close, &QPushButton::clicked, this, &QDialog::accept);
     bottom->addWidget(close, 0);
 
-    // The height follows the content at the fixed width: the folder rows wrap their
-    // paths and the memory row only exists on platforms with a probe, so a fixed
-    // height compressed the column on Windows until a move forced a relayout.
-    // At a non-default interface text size the sheet's font sizes differ more from the
-    // inherited font, so the labels are polished first to measure with them (GitHub issue
-    // 495); the default size keeps its measured height.
-    if (ui_text_size_percent() != 100) {
-      for (auto* child : findChildren<QWidget*>()) {
-        child->ensurePolished();
-      }
+    // Measure the wrapped labels with their themed fonts and the actual screen-capped width.
+    for (auto* child : findChildren<QWidget*>()) {
+      child->ensurePolished();
     }
     fit_height_to_content();
 
@@ -435,7 +443,13 @@ public:
     const QPointer<PatchySplashDialog> dialog_guard(this);
     request_update_check(this, QStringLiteral(PATCHY_VERSION), [dialog_guard](UpdateCheckResult result) {
       if (dialog_guard != nullptr) {
-        dialog_guard->set_status(update_check_status_text(result));
+        if (result.status == UpdateCheckStatus::NoUpdateAvailable) {
+          //: %1 is the version and build timestamp.
+          dialog_guard->version_->setText(QObject::tr("%1 · Up to date").arg(dialog_guard->version_->text()));
+          dialog_guard->set_status({});
+        } else {
+          dialog_guard->set_status(update_check_status_text(result));
+        }
         if (result.update.has_value()) {
           dialog_guard->show_update_offer(*result.update);
         }
@@ -448,9 +462,9 @@ public:
   [[nodiscard]] std::optional<UpdateInfo> requested_update() const { return requested_update_; }
 
   void set_status(const QString& text) {
-    if (status_ != nullptr) {
-      status_->setText(text);
-    }
+    status_->setText(text);
+    status_->setVisible(!text.isEmpty());
+    fit_height_to_content();
   }
 
 protected:
@@ -502,16 +516,9 @@ private:
     fit_height_to_content();
   }
 
-  // As tall as the content at the fixed width, and never shorter than it already was.
   void fit_height_to_content() {
-    auto* content = layout();
-    if (content == nullptr) {
-      return;
-    }
-    content->activate();
-    fitted_height_ = std::max({kMinimumDialogHeight, fitted_height_,
-                               content->totalHeightForWidth(ui_text_length(kDialogWidth))});
-    setFixedHeight(fitted_height_);
+    layout()->activate();
+    setFixedHeight(layout()->totalHeightForWidth(width()));
   }
 
   void place_close_glyph() {
@@ -521,10 +528,10 @@ private:
   }
 
   QToolButton* close_glyph_{nullptr};
+  QLabel* version_{nullptr};
   QLabel* status_{nullptr};
   QPushButton* update_button_{nullptr};
   bool offers_update_{false};
-  int fitted_height_{0};
   std::optional<UpdateInfo> offered_update_;
   std::optional<UpdateInfo> requested_update_;
   bool dragging_{false};

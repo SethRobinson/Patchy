@@ -2796,12 +2796,13 @@ QByteArray about_update_manifest(const char* version) {
       .replace("V", version);
 }
 
-// Opens Help > About's dialog against the manifest at `manifest_url`, waits until its status
-// line starts with `status_prefix`, hands the dialog and its Update button to `inspect`, and
+// Opens Help > About's dialog against the manifest at `manifest_url`, waits until the result
+// label contains `expected_text`, hands the dialog and its Update button to `inspect`, and
 // closes it unless `inspect` already did. Returns how often `open_update` ran.
-int run_about_dialog_update_check(const QString& manifest_url, const QString& status_prefix, bool with_callback,
+int run_about_dialog_update_check(const QString& manifest_url, const QString& expected_text, bool with_callback,
                                   const std::function<void(QDialog&, QPushButton&)>& inspect,
-                                  std::optional<patchy::ui::UpdateInfo>* requested = nullptr) {
+                                  std::optional<patchy::ui::UpdateInfo>* requested = nullptr,
+                                  const char* result_name = "splashStatus") {
   const UpdateManifestUrlOverride override(manifest_url);
   bool inspected = false;
   when_dialog_visible(QStringLiteral("patchySplashScreen"), [&](QDialog& dialog) {
@@ -2809,19 +2810,23 @@ int run_about_dialog_update_check(const QString& manifest_url, const QString& st
     auto* button = dialog.findChild<QPushButton*>(QStringLiteral("splashUpdateButton"));
     CHECK(status != nullptr);
     CHECK(button != nullptr);
+    auto* result = dialog.findChild<QLabel*>(QString::fromLatin1(result_name));
+    CHECK(result != nullptr);
     // Hidden while the check is still out, whatever it will answer. A loopback manifest can
-    // answer before this callback first runs (it does on macOS and Linux); the answer sets
-    // the status line and shows the button together, so the status line tells which it is.
-    if (!status->text().startsWith(status_prefix)) {
+    // answer before this callback first runs, especially on macOS and Linux.
+    if (!result->text().contains(expected_text)) {
+      CHECK(status->isVisible());
+      CHECK(status->text() == QStringLiteral("Checking for updates..."));
       CHECK(button->isHidden());
     }
     const bool answered =
-        process_events_until([&] { return status->text().startsWith(status_prefix); }, 20000);
+        process_events_until([&] { return result->text().contains(expected_text); }, 20000);
     if (!answered) {
-      fprintf(stderr, "  About status stayed \"%s\", want one starting \"%s\"\n", qPrintable(status->text()),
-              qPrintable(status_prefix));
+      fprintf(stderr, "  About result stayed \"%s\", expected \"%s\"\n", qPrintable(result->text()),
+              qPrintable(expected_text));
     }
     CHECK(answered);
+    CHECK(result->isVisible());
     inspect(dialog, *button);
     inspected = true;
     if (dialog.isVisible()) {
@@ -2891,9 +2896,28 @@ void ui_about_dialog_update_button_hands_over_the_newer_version() {
 void ui_about_dialog_update_button_stays_hidden_without_an_update() {
   const auto expect_hidden = [](QDialog&, QPushButton& button) { CHECK(button.isHidden()); };
   {
-    ManifestServer server(about_update_manifest("0.0.1"));
-    CHECK(run_about_dialog_update_check(server.manifest_url(), QStringLiteral("Patchy is up to date"), true,
-                                        expect_hidden) == 0);
+    ManifestServer server(about_update_manifest(PATCHY_VERSION));
+    CHECK(run_about_dialog_update_check(
+              server.manifest_url(), QStringLiteral("Up to date"), true,
+              [](QDialog& dialog, QPushButton& button) {
+                CHECK(button.isHidden());
+                auto* status = dialog.findChild<QLabel*>(QStringLiteral("splashStatus"));
+                CHECK(status->isHidden());
+                auto* version = dialog.findChild<QLabel*>(QStringLiteral("splashVersion"));
+                CHECK(version->text().startsWith(QStringLiteral("Version ")));
+                CHECK(version->text().endsWith(QStringLiteral("Up to date")));
+                // Use example paths in the screenshot saved for review.
+                dialog.findChild<QLabel*>(QStringLiteral("splashSettingsPath"))->setText(
+                    QDir::toNativeSeparators(QStringLiteral("C:/Users/Example/Settings/Patchy.ini")));
+                dialog.findChild<QLabel*>(QStringLiteral("splashDataPath"))->setText(
+                    QDir::toNativeSeparators(QStringLiteral("C:/Users/Example/AppData/Roaming/RTsoft/Patchy")));
+                if (auto* plugins = dialog.findChild<QLabel*>(QStringLiteral("splashPluginsPath"))) {
+                  plugins->setText(QDir::toNativeSeparators(QStringLiteral("C:/Program Files/Patchy/plugins")));
+                }
+                dialog.layout()->activate();
+                save_widget_artifact("ui_about_dialog_current", dialog);
+              },
+              nullptr, "splashVersion") == 0);
     CHECK(server.requests() == 1);
   }
   {

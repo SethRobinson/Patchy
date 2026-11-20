@@ -14,6 +14,7 @@
 #include "ui/theme_manager.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/ui_text_size.hpp"
 #include "ui/app_data_migration.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/build_info.hpp"
@@ -53,6 +54,7 @@
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QScreen>
+#include <QScopeGuard>
 #include <QSet>
 #include <QSpinBox>
 #include <QStyleFactory>
@@ -1482,53 +1484,33 @@ void ui_about_dialog_shows_labeled_external_links() {
       CHECK(close_glyph->geometry().top() <= 8);
     }
 
-    const auto link_labels = dialog->findChildren<QLabel*>(QStringLiteral("splashHome"));
-    CHECK(link_labels.size() == 2);
-    QString combined_text;
-    for (const auto* label : link_labels) {
+    auto* version = dialog->findChild<QLabel*>(QStringLiteral("splashVersion"));
+    auto* project = dialog->findChild<QLabel*>(QStringLiteral("splashHome"));
+    auto* credit = dialog->findChild<QLabel*>(QStringLiteral("splashCredit"));
+    CHECK(version != nullptr && project != nullptr && credit != nullptr);
+    CHECK(version->text().startsWith(QStringLiteral("Version ")));
+    CHECK(version->text().contains(QStringLiteral("(built %1)").arg(patchy::ui::build_timestamp_text())));
+    CHECK(version->geometry().bottom() < project->geometry().top());
+    CHECK(project->geometry().bottom() < credit->geometry().top());
+    CHECK(project->text().startsWith(QStringLiteral("GitHub: ")));
+    CHECK(project->text().contains(QStringLiteral("href=\"https://github.com/SethRobinson/Patchy\">SethRobinson/Patchy</a>")));
+    CHECK(credit->text().startsWith(QStringLiteral("Created by Seth A. Robinson (")));
+    CHECK(credit->text().contains(QStringLiteral("href=\"https://github.com/SethRobinson\">GitHub</a>")));
+    CHECK(credit->text().contains(QStringLiteral("href=\"https://rtsoft.com\">Site</a>")));
+    for (const auto* label : {project, credit}) {
       CHECK(label->textFormat() == Qt::RichText);
       CHECK(label->textInteractionFlags().testFlag(Qt::LinksAccessibleByMouse));
       CHECK(label->openExternalLinks());
-      combined_text += label->text();
-      combined_text += QLatin1Char('\n');
+      CHECK(!label->text().contains(QLatin1Char('@')));
+      CHECK(label->text().contains(
+          QStringLiteral("color:%1;").arg(patchy::ui::theme().splash_link_text.name(QColor::HexRgb))));
     }
-
-    CHECK(combined_text.contains(QStringLiteral("GitHub: ")));
-    CHECK(combined_text.contains(QStringLiteral("href=\"https://github.com/SethRobinson/Patchy\"")));
-    CHECK(combined_text.contains(QStringLiteral(">SethRobinson/Patchy</a>")));
-    CHECK(combined_text.contains(QStringLiteral("Seth's site: ")));
-    CHECK(combined_text.contains(QStringLiteral("href=\"https://rtsoft.com\"")));
-    CHECK(combined_text.contains(QStringLiteral(">rtsoft.com</a>")));
-
-    // A link color lives inside the rich text, where the stylesheet token check
-    // cannot see it. An unresolved one is not an error to Qt, just an unreadable
-    // color: the parser drops it and falls back to its own blue.
-    CHECK(!combined_text.contains(QLatin1Char('@')));
-    CHECK(combined_text.contains(
-        QStringLiteral("color:%1;").arg(patchy::ui::theme().splash_link_text.name(QColor::HexRgb))));
-
-    // The version label shares the splashCredit object name with the credit
-    // line below it; creation order puts the version first.
-    const auto credit_labels = dialog->findChildren<QLabel*>(QStringLiteral("splashCredit"));
-    CHECK(credit_labels.size() == 2);
-    CHECK(credit_labels.first()->text().startsWith(QStringLiteral("Version ")));
-    CHECK(credit_labels.first()->text().endsWith(
-        QStringLiteral("(built %1)").arg(patchy::ui::build_timestamp_text())));
-    // The credit names Seth and links to his GitHub profile in the themed link color.
-    auto* credit = credit_labels.last();
-    CHECK(credit->textFormat() == Qt::RichText);
-    CHECK(credit->openExternalLinks());
-    CHECK(credit->text().startsWith(QStringLiteral("Created by ")));
-    CHECK(credit->text().contains(QStringLiteral("href=\"https://github.com/SethRobinson\"")));
-    CHECK(credit->text().contains(QStringLiteral(">Seth A. Robinson</a>")));
-    CHECK(!credit->text().contains(QStringLiteral("@splash_link_text")));
-    CHECK(credit->text().contains(
-        QStringLiteral("color:%1;").arg(patchy::ui::theme().splash_link_text.name(QColor::HexRgb))));
 
     auto* contributors = dialog->findChild<QLabel*>(QStringLiteral("splashContributors"));
     CHECK(contributors != nullptr);
     CHECK(contributors->textFormat() == Qt::RichText);
     CHECK(contributors->openExternalLinks());
+    CHECK(contributors->height() >= contributors->heightForWidth(contributors->width()));
     // Every credit reads "handle (N)": the handle linked to its GitHub profile,
     // then the person's points as plain text. The entries come from
     // scripts/dev/update-contributors.py and their counts change with every
@@ -1604,6 +1586,54 @@ void ui_about_dialog_shows_labeled_external_links() {
   CHECK(inspected);
 }
 
+void ui_about_dialog_compact_folder_layout_fits_a_modest_screen() {
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  // One long component with no spaces exercises wrapping inside a path.
+  IniRootOverride settings_root(temp.filePath(QString(150, QLatin1Char('W'))));
+  const int previous_percent = patchy::ui::ui_text_size_percent();
+  const auto restore_percent = qScopeGuard([previous_percent] { patchy::ui::set_ui_text_size_percent(previous_percent); });
+  for (const int percent : {100, 125}) {
+    patchy::ui::set_ui_text_size_percent(percent);
+    bool inspected = false;
+    QTimer::singleShot(0, guarded([&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchySplashScreen"));
+      CHECK(dialog != nullptr);
+      if (percent == 100) {
+        CHECK(dialog->height() < 700);
+      }
+      CHECK(dialog->width() == std::min(patchy::ui::ui_text_length(820),
+                                        dialog->screen()->availableGeometry().width() - 24));
+      auto* close = dialog->findChild<QPushButton*>(QStringLiteral("splashCloseButton"));
+      CHECK(close != nullptr && dialog->rect().contains(close->geometry()));
+
+      const auto check_row = [&](const QString& name) {
+        auto* caption = dialog->findChild<QLabel*>(QStringLiteral("splash%1Caption").arg(name));
+        auto* path = dialog->findChild<QLabel*>(QStringLiteral("splash%1Path").arg(name));
+        auto* open = dialog->findChild<QPushButton*>(QStringLiteral("splashOpen%1FolderButton").arg(name));
+        CHECK(caption != nullptr && path != nullptr && open != nullptr);
+        CHECK(caption->y() == path->y());
+        CHECK(caption->geometry().right() < path->x());
+        CHECK(open->x() == path->x());
+        CHECK(open->y() > path->geometry().bottom());
+        CHECK(dialog->rect().contains(path->geometry()));
+        CHECK(path->height() >= path->heightForWidth(path->width()));
+      };
+      check_row(QStringLiteral("Settings"));
+      check_row(QStringLiteral("Data"));
+#ifdef Q_OS_WIN
+      check_row(QStringLiteral("Plugins"));
+#endif
+      const auto* path = dialog->findChild<QLabel*>(QStringLiteral("splashSettingsPath"));
+      CHECK(path->height() >= 2 * path->fontMetrics().height());
+      inspected = true;
+      dialog->accept();
+    }));
+    patchy::ui::show_about_splash();
+    CHECK(inspected);
+  }
+}
+
 // Where Patchy.ini sits in the data folder itself (Windows and macOS, app_settings_file_path())
 // the About dialog lists that folder once; the suite's own settings live elsewhere, so the test
 // above sees both rows, the layout Linux always gets.
@@ -1651,6 +1681,10 @@ void ui_about_dialog_lists_shared_settings_and_data_folder_once() {
     CHECK(path != nullptr && path->text() == QDir::toNativeSeparators(data_folder));
     auto* open_folder = dialog->findChild<QPushButton*>(QStringLiteral("splashOpenDataFolderButton"));
     CHECK(open_folder != nullptr && open_folder->text() == QStringLiteral("Open Folder"));
+    CHECK(caption->y() == path->y());
+    CHECK(caption->geometry().right() < path->x());
+    CHECK(open_folder->x() == path->x());
+    CHECK(open_folder->y() > path->geometry().bottom());
     CHECK(dialog->height() >= dialog->layout()->totalHeightForWidth(dialog->width()));
     save_widget_artifact("ui_about_dialog_shared_folder", *dialog);
     inspected = true;
@@ -1672,9 +1706,6 @@ void ui_about_dialog_shows_memory_row() {
     auto* memory = dialog->findChild<QLabel*>(QStringLiteral("splashMemory"));
     CHECK(memory != nullptr);
     CHECK(memory->isHidden() || memory->text().startsWith(QStringLiteral("Memory used")));
-
-    // The memory row must not join the splashCredit pair the links test pins.
-    CHECK(dialog->findChildren<QLabel*>(QStringLiteral("splashCredit")).size() == 2);
 
     inspected = true;
     dialog->accept();
@@ -2963,6 +2994,8 @@ std::vector<patchy::test::TestCase> app_shell_tests_part3() {
       {"ui_language_catalog_covers_dialog_status_and_properties", ui_language_catalog_covers_dialog_status_and_properties},
       {"ui_filter_gallery_action_retranslates", ui_filter_gallery_action_retranslates},
       {"ui_polygonal_lasso_tool_retranslates", ui_polygonal_lasso_tool_retranslates},
+      {"ui_about_dialog_compact_folder_layout_fits_a_modest_screen",
+       ui_about_dialog_compact_folder_layout_fits_a_modest_screen},
       {"ui_about_dialog_shows_labeled_external_links", ui_about_dialog_shows_labeled_external_links},
       {"ui_about_dialog_lists_shared_settings_and_data_folder_once",
        ui_about_dialog_lists_shared_settings_and_data_folder_once},

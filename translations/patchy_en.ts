@@ -8160,10 +8160,6 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Settings file:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -8983,10 +8979,6 @@ RGB: %2, %3, %4</source>
     </message>
     <message>
         <source>Could not open data folder.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Created by %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -16413,6 +16405,20 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Imported Aseprite animation as %1 frame groups</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Created by %1 (%2, %3)</source>
+        <extracomment>%1 is the creator&apos;s name, %2 and %3 are links to his GitHub profile and website.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Site</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 · Up to date</source>
+        <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -8150,10 +8150,6 @@ RGB：%2, %3, %4</translation>
         <translation>GitHub: %1</translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
-        <translation>Seth 的网站: %1</translation>
-    </message>
-    <message>
         <source>Settings file:</source>
         <translation>设置文件:</translation>
     </message>
@@ -8964,10 +8960,6 @@ RGB：%2, %3, %4</translation>
     <message>
         <source>Could not open data folder.</source>
         <translation>无法打开数据文件夹。</translation>
-    </message>
-    <message>
-        <source>Created by %1</source>
-        <translation>由 %1 创作</translation>
     </message>
     <message>
         <source>Could not write PSD file</source>
@@ -16376,6 +16368,20 @@ Do you want to replace it?</source>
     <message>
         <source>Imported Aseprite animation as %1 frame groups</source>
         <translation>已将 Aseprite 动画导入为 %1 个帧组</translation>
+    </message>
+    <message>
+        <source>Created by %1 (%2, %3)</source>
+        <extracomment>%1 is the creator&apos;s name, %2 and %3 are links to his GitHub profile and website.</extracomment>
+        <translation>由 %1 创作（%2、%3）</translation>
+    </message>
+    <message>
+        <source>Site</source>
+        <translation>网站</translation>
+    </message>
+    <message>
+        <source>%1 · Up to date</source>
+        <extracomment>%1 is the version and build timestamp.</extracomment>
+        <translation>%1 · 已是最新版本</translation>
     </message>
 </context>
 <context>

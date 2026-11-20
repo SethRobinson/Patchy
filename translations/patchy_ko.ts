@@ -8554,16 +8554,8 @@ RGB: %2, %3, %4</translation>
         <translation>버전 %1(빌드 %2)</translation>
     </message>
     <message>
-        <source>Created by %1</source>
-        <translation>%1이(가) 작성함</translation>
-    </message>
-    <message>
         <source>GitHub: %1</source>
         <translation>GitHub: %1</translation>
-    </message>
-    <message>
-        <source>Seth&apos;s site: %1</source>
-        <translation>Seth의 사이트: %1</translation>
     </message>
     <message>
         <source>Settings file:</source>
@@ -16376,6 +16368,20 @@ Do you want to replace it?</source>
     <message>
         <source>Imported Aseprite animation as %1 frame groups</source>
         <translation>Aseprite 애니메이션을 %1개의 프레임 그룹으로 가져왔습니다</translation>
+    </message>
+    <message>
+        <source>Created by %1 (%2, %3)</source>
+        <extracomment>%1 is the creator&apos;s name, %2 and %3 are links to his GitHub profile and website.</extracomment>
+        <translation>제작: %1 (%2, %3)</translation>
+    </message>
+    <message>
+        <source>Site</source>
+        <translation>웹사이트</translation>
+    </message>
+    <message>
+        <source>%1 · Up to date</source>
+        <extracomment>%1 is the version and build timestamp.</extracomment>
+        <translation>%1 · 최신 상태</translation>
     </message>
 </context>
 <context>

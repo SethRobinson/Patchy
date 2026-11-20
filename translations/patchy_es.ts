@@ -8168,10 +8168,6 @@ RGB: %2, %3, %4</translation>
         <translation>GitHub: %1</translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
-        <translation>Sitio de Seth: %1</translation>
-    </message>
-    <message>
         <source>Settings file:</source>
         <translation>Archivo de configuración:</translation>
     </message>
@@ -8992,10 +8988,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Could not open data folder.</source>
         <translation>No se pudo abrir la carpeta de datos.</translation>
-    </message>
-    <message>
-        <source>Created by %1</source>
-        <translation>Creado por %1</translation>
     </message>
     <message>
         <source>Could not write PSD file</source>
@@ -16432,6 +16424,20 @@ Do you want to replace it?</source>
     <message>
         <source>Imported Aseprite animation as %1 frame groups</source>
         <translation>Se importó la animación de Aseprite como %1 grupos de fotogramas</translation>
+    </message>
+    <message>
+        <source>Created by %1 (%2, %3)</source>
+        <extracomment>%1 is the creator&apos;s name, %2 and %3 are links to his GitHub profile and website.</extracomment>
+        <translation>Creado por %1 (%2, %3)</translation>
+    </message>
+    <message>
+        <source>Site</source>
+        <translation>Sitio web</translation>
+    </message>
+    <message>
+        <source>%1 · Up to date</source>
+        <extracomment>%1 is the version and build timestamp.</extracomment>
+        <translation>%1 · Actualizado</translation>
     </message>
 </context>
 <context>

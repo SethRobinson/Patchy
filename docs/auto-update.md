@@ -37,9 +37,9 @@ version: neither raises a prompt by itself.
 ## The About window's Update button
 
 Help > About runs its own check (`PatchySplashDialog::begin_update_check`,
-`src/ui/splash_dialog.cpp`) and shows the result on its status line. When the check finds a
-newer version, an **Update...** button (`splashUpdateButton`) appears under that line, left
-of Close.
+`src/ui/splash_dialog.cpp`) and shows “Up to date” beside the version when current. Progress and errors appear above
+the buttons. When a newer version is available, the message names it and an **Update...**
+button (`splashUpdateButton`) appears to the left of Close.
 
 - Clicking it closes About and then opens the same prompt as the startup check:
   `show_about_splash` takes a callback, and `MainWindow::show_about` passes one that calls
