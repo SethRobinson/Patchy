@@ -37076,32 +37076,12 @@ Verrouillé : %1</translation>
         <translation>Régler la densité et le contour progressif du masque vectoriel</translation>
     </message>
     <message>
-        <source>Save Selection...</source>
-        <translation>Enregistrer la sélection...</translation>
-    </message>
-    <message>
-        <source>Save the selection as an alpha channel</source>
-        <translation>Enregistrer la sélection dans une couche alpha</translation>
-    </message>
-    <message>
-        <source>Load Selection...</source>
-        <translation>Charger une sélection...</translation>
-    </message>
-    <message>
-        <source>Load a selection from an alpha channel</source>
-        <translation>Charger une sélection depuis une couche alpha</translation>
-    </message>
-    <message>
         <source>Content Outside Canvas</source>
         <translation>Contenu hors du canevas</translation>
     </message>
     <message>
         <source>Show layer content beyond the canvas edges</source>
         <translation>Afficher le contenu des calques au-delà des bords du canevas</translation>
-    </message>
-    <message>
-        <source>Load Selection</source>
-        <translation>Charger une sélection</translation>
     </message>
     <message>
         <source>Channel:</source>
@@ -37122,6 +37102,26 @@ Verrouillé : %1</translation>
     <message>
         <source>Intersect with selection</source>
         <translation>Intersection avec la sélection</translation>
+    </message>
+    <message>
+        <source>Save Selection to Alpha Channel...</source>
+        <translation>Enregistrer la sélection dans une couche alpha...</translation>
+    </message>
+    <message>
+        <source>Store the active selection for later use</source>
+        <translation>Conserver la sélection active pour la réutiliser</translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel...</source>
+        <translation>Charger une sélection depuis une couche alpha...</translation>
+    </message>
+    <message>
+        <source>Restore a saved selection or combine it with the current selection</source>
+        <translation>Rétablir une sélection enregistrée ou la combiner avec la sélection actuelle</translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel</source>
+        <translation>Charger une sélection depuis une couche alpha</translation>
     </message>
 </context>
 <context>

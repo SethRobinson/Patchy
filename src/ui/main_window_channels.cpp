@@ -767,7 +767,7 @@ void MainWindow::load_saved_selection_dialog() {
   QPointer<CanvasWidget> owner = canvas_;
   QDialog dialog(this);
   dialog.setObjectName(QStringLiteral("loadSelectionDialog"));
-  dialog.setWindowTitle(tr("Load Selection"));
+  dialog.setWindowTitle(tr("Load Selection from Alpha Channel"));
   QFormLayout form(&dialog);
   QComboBox channels(&dialog);
   channels.setObjectName(QStringLiteral("savedSelectionChannel"));

@@ -36961,32 +36961,12 @@ Locked: %1</source>
         <translation>调整矢量蒙版的密度和羽化程度</translation>
     </message>
     <message>
-        <source>Save Selection...</source>
-        <translation>存储选区...</translation>
-    </message>
-    <message>
-        <source>Save the selection as an alpha channel</source>
-        <translation>将选区存储为 Alpha 通道</translation>
-    </message>
-    <message>
-        <source>Load Selection...</source>
-        <translation>载入选区...</translation>
-    </message>
-    <message>
-        <source>Load a selection from an alpha channel</source>
-        <translation>从 Alpha 通道载入选区</translation>
-    </message>
-    <message>
         <source>Content Outside Canvas</source>
         <translation>画布外的内容</translation>
     </message>
     <message>
         <source>Show layer content beyond the canvas edges</source>
         <translation>显示画布边界外的图层内容</translation>
-    </message>
-    <message>
-        <source>Load Selection</source>
-        <translation>载入选区</translation>
     </message>
     <message>
         <source>Channel:</source>
@@ -37007,6 +36987,26 @@ Locked: %1</source>
     <message>
         <source>Intersect with selection</source>
         <translation>与选区相交</translation>
+    </message>
+    <message>
+        <source>Save Selection to Alpha Channel...</source>
+        <translation>将选区存储到 Alpha 通道...</translation>
+    </message>
+    <message>
+        <source>Store the active selection for later use</source>
+        <translation>存储当前选区以便日后使用</translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel...</source>
+        <translation>从 Alpha 通道载入选区...</translation>
+    </message>
+    <message>
+        <source>Restore a saved selection or combine it with the current selection</source>
+        <translation>恢复已存储的选区或将其与当前选区组合</translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel</source>
+        <translation>从 Alpha 通道载入选区</translation>
     </message>
 </context>
 <context>

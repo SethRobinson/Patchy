@@ -36994,31 +36994,11 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Save Selection...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Save the selection as an alpha channel</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Load Selection...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Load a selection from an alpha channel</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Content Outside Canvas</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Show layer content beyond the canvas edges</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Load Selection</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -37039,6 +37019,26 @@ Locked: %1</source>
     </message>
     <message>
         <source>Intersect with selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save Selection to Alpha Channel...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Store the active selection for later use</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restore a saved selection or combine it with the current selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

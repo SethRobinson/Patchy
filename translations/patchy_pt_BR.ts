@@ -37076,32 +37076,12 @@ Bloqueado: %1</translation>
         <translation>Ajustar a densidade e a difusão da máscara vetorial</translation>
     </message>
     <message>
-        <source>Save Selection...</source>
-        <translation>Salvar seleção...</translation>
-    </message>
-    <message>
-        <source>Save the selection as an alpha channel</source>
-        <translation>Salvar a seleção como um canal alfa</translation>
-    </message>
-    <message>
-        <source>Load Selection...</source>
-        <translation>Carregar seleção...</translation>
-    </message>
-    <message>
-        <source>Load a selection from an alpha channel</source>
-        <translation>Carregar uma seleção de um canal alfa</translation>
-    </message>
-    <message>
         <source>Content Outside Canvas</source>
         <translation>Conteúdo fora da tela</translation>
     </message>
     <message>
         <source>Show layer content beyond the canvas edges</source>
         <translation>Mostrar o conteúdo das camadas além das bordas da tela</translation>
-    </message>
-    <message>
-        <source>Load Selection</source>
-        <translation>Carregar seleção</translation>
     </message>
     <message>
         <source>Channel:</source>
@@ -37122,6 +37102,26 @@ Bloqueado: %1</translation>
     <message>
         <source>Intersect with selection</source>
         <translation>Interseção com a seleção</translation>
+    </message>
+    <message>
+        <source>Save Selection to Alpha Channel...</source>
+        <translation>Salvar seleção em um canal alfa...</translation>
+    </message>
+    <message>
+        <source>Store the active selection for later use</source>
+        <translation>Armazenar a seleção ativa para uso posterior</translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel...</source>
+        <translation>Carregar seleção de um canal alfa...</translation>
+    </message>
+    <message>
+        <source>Restore a saved selection or combine it with the current selection</source>
+        <translation>Restaurar uma seleção salva ou combiná-la com a seleção atual</translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel</source>
+        <translation>Carregar seleção de um canal alfa</translation>
     </message>
 </context>
 <context>

@@ -36961,32 +36961,12 @@ Locked: %1</source>
         <translation>벡터 마스크의 밀도와 페더를 조정합니다</translation>
     </message>
     <message>
-        <source>Save Selection...</source>
-        <translation>선택 영역 저장...</translation>
-    </message>
-    <message>
-        <source>Save the selection as an alpha channel</source>
-        <translation>선택 영역을 알파 채널로 저장</translation>
-    </message>
-    <message>
-        <source>Load Selection...</source>
-        <translation>선택 영역 불러오기...</translation>
-    </message>
-    <message>
-        <source>Load a selection from an alpha channel</source>
-        <translation>알파 채널에서 선택 영역 불러오기</translation>
-    </message>
-    <message>
         <source>Content Outside Canvas</source>
         <translation>캔버스 밖의 내용</translation>
     </message>
     <message>
         <source>Show layer content beyond the canvas edges</source>
         <translation>캔버스 경계 밖에 있는 레이어 내용 표시</translation>
-    </message>
-    <message>
-        <source>Load Selection</source>
-        <translation>선택 영역 불러오기</translation>
     </message>
     <message>
         <source>Channel:</source>
@@ -37007,6 +36987,26 @@ Locked: %1</source>
     <message>
         <source>Intersect with selection</source>
         <translation>선택 영역과 교차</translation>
+    </message>
+    <message>
+        <source>Save Selection to Alpha Channel...</source>
+        <translation>선택 영역을 알파 채널에 저장...</translation>
+    </message>
+    <message>
+        <source>Store the active selection for later use</source>
+        <translation>나중에 사용할 수 있도록 활성 선택 영역 저장</translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel...</source>
+        <translation>알파 채널에서 선택 영역 불러오기...</translation>
+    </message>
+    <message>
+        <source>Restore a saved selection or combine it with the current selection</source>
+        <translation>저장한 선택 영역을 복원하거나 현재 선택 영역과 결합</translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel</source>
+        <translation>알파 채널에서 선택 영역 불러오기</translation>
     </message>
 </context>
 <context>

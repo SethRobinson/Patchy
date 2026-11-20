@@ -37076,32 +37076,12 @@ Fixiert: %1</translation>
         <translation>Dichte und weiche Kante der Vektormaske anpassen</translation>
     </message>
     <message>
-        <source>Save Selection...</source>
-        <translation>Auswahl speichern...</translation>
-    </message>
-    <message>
-        <source>Save the selection as an alpha channel</source>
-        <translation>Auswahl als Alphakanal speichern</translation>
-    </message>
-    <message>
-        <source>Load Selection...</source>
-        <translation>Auswahl laden...</translation>
-    </message>
-    <message>
-        <source>Load a selection from an alpha channel</source>
-        <translation>Auswahl aus einem Alphakanal laden</translation>
-    </message>
-    <message>
         <source>Content Outside Canvas</source>
         <translation>Inhalt außerhalb der Arbeitsfläche</translation>
     </message>
     <message>
         <source>Show layer content beyond the canvas edges</source>
         <translation>Ebeneninhalte außerhalb der Arbeitsfläche anzeigen</translation>
-    </message>
-    <message>
-        <source>Load Selection</source>
-        <translation>Auswahl laden</translation>
     </message>
     <message>
         <source>Channel:</source>
@@ -37122,6 +37102,26 @@ Fixiert: %1</translation>
     <message>
         <source>Intersect with selection</source>
         <translation>Schnittmenge mit Auswahl bilden</translation>
+    </message>
+    <message>
+        <source>Save Selection to Alpha Channel...</source>
+        <translation>Auswahl als Alphakanal speichern...</translation>
+    </message>
+    <message>
+        <source>Store the active selection for later use</source>
+        <translation>Aktuelle Auswahl zur späteren Verwendung speichern</translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel...</source>
+        <translation>Auswahl aus Alphakanal laden...</translation>
+    </message>
+    <message>
+        <source>Restore a saved selection or combine it with the current selection</source>
+        <translation>Gespeicherte Auswahl wiederherstellen oder mit der aktuellen Auswahl kombinieren</translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel</source>
+        <translation>Auswahl aus Alphakanal laden</translation>
     </message>
 </context>
 <context>

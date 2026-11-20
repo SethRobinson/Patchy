@@ -36961,32 +36961,12 @@ Locked: %1</source>
         <translation>ベクトルマスクの密度とぼかしを調整</translation>
     </message>
     <message>
-        <source>Save Selection...</source>
-        <translation>選択範囲を保存...</translation>
-    </message>
-    <message>
-        <source>Save the selection as an alpha channel</source>
-        <translation>選択範囲をアルファチャンネルとして保存</translation>
-    </message>
-    <message>
-        <source>Load Selection...</source>
-        <translation>選択範囲を読み込み...</translation>
-    </message>
-    <message>
-        <source>Load a selection from an alpha channel</source>
-        <translation>アルファチャンネルから選択範囲を読み込む</translation>
-    </message>
-    <message>
         <source>Content Outside Canvas</source>
         <translation>キャンバス外のコンテンツ</translation>
     </message>
     <message>
         <source>Show layer content beyond the canvas edges</source>
         <translation>キャンバスの外側にあるレイヤーの内容を表示</translation>
-    </message>
-    <message>
-        <source>Load Selection</source>
-        <translation>選択範囲を読み込み</translation>
     </message>
     <message>
         <source>Channel:</source>
@@ -37007,6 +36987,26 @@ Locked: %1</source>
     <message>
         <source>Intersect with selection</source>
         <translation>選択範囲との共通範囲</translation>
+    </message>
+    <message>
+        <source>Save Selection to Alpha Channel...</source>
+        <translation>選択範囲をアルファチャンネルに保存...</translation>
+    </message>
+    <message>
+        <source>Store the active selection for later use</source>
+        <translation>現在の選択範囲を後で使えるように保存</translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel...</source>
+        <translation>アルファチャンネルから選択範囲を読み込み...</translation>
+    </message>
+    <message>
+        <source>Restore a saved selection or combine it with the current selection</source>
+        <translation>保存した選択範囲を復元するか、現在の選択範囲と組み合わせる</translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel</source>
+        <translation>アルファチャンネルから選択範囲を読み込み</translation>
     </message>
 </context>
 <context>

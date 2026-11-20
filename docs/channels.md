@@ -15,9 +15,9 @@ Patchy keeps Photoshop document channels separate from layer masks. `Layer::mask
 
 ## Saved selections
 
-Select > Save Selection... stores the active selection as a new alpha channel, including soft edges. It uses the Channels panel's Save selection as channel command. Rename the channel in the Channels panel. PSD and PSB files keep it with the document.
+Select > Save Selection to Alpha Channel... stores the active selection as a new alpha channel, including soft edges. It uses the Channels panel's Save selection as channel command. Rename the channel in the Channels panel. PSD and PSB files keep it with the document.
 
-Select > Load Selection... lists the document's alpha channels in panel order. Choose a channel and replace the selection, add to it, subtract from it or intersect it. The Channels panel also loads a channel directly with its Load channel as selection button or Ctrl/Cmd-click. The menu command IDs are `select.save_selection` and `select.load_selection`. Channel choices use `ChannelId`, including when two channels have the same name.
+Select > Load Selection from Alpha Channel... lists the document's alpha channels in panel order. Choose a channel and replace the selection, add to it, subtract from it or intersect it. The Channels panel also loads a channel directly with its Load channel as selection button or Ctrl/Cmd-click. The menu command IDs are `select.save_selection` and `select.load_selection`. Channel choices use `ChannelId`, including when two channels have the same name.
 
 ## Channel visibility
 

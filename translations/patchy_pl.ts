@@ -37191,32 +37191,12 @@ Zablokowano: %1</translation>
         <translation>Dostosuj gęstość i wtapianie maski wektorowej</translation>
     </message>
     <message>
-        <source>Save Selection...</source>
-        <translation>Zapisz zaznaczenie...</translation>
-    </message>
-    <message>
-        <source>Save the selection as an alpha channel</source>
-        <translation>Zapisz zaznaczenie jako kanał alfa</translation>
-    </message>
-    <message>
-        <source>Load Selection...</source>
-        <translation>Wczytaj zaznaczenie...</translation>
-    </message>
-    <message>
-        <source>Load a selection from an alpha channel</source>
-        <translation>Wczytaj zaznaczenie z kanału alfa</translation>
-    </message>
-    <message>
         <source>Content Outside Canvas</source>
         <translation>Zawartość poza płótnem</translation>
     </message>
     <message>
         <source>Show layer content beyond the canvas edges</source>
         <translation>Pokaż zawartość warstw poza krawędziami płótna</translation>
-    </message>
-    <message>
-        <source>Load Selection</source>
-        <translation>Wczytaj zaznaczenie</translation>
     </message>
     <message>
         <source>Channel:</source>
@@ -37237,6 +37217,26 @@ Zablokowano: %1</translation>
     <message>
         <source>Intersect with selection</source>
         <translation>Część wspólna z zaznaczeniem</translation>
+    </message>
+    <message>
+        <source>Save Selection to Alpha Channel...</source>
+        <translation>Zapisz zaznaczenie w kanale alfa...</translation>
+    </message>
+    <message>
+        <source>Store the active selection for later use</source>
+        <translation>Zapisz aktywne zaznaczenie do późniejszego użycia</translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel...</source>
+        <translation>Wczytaj zaznaczenie z kanału alfa...</translation>
+    </message>
+    <message>
+        <source>Restore a saved selection or combine it with the current selection</source>
+        <translation>Przywróć zapisane zaznaczenie lub połącz je z bieżącym zaznaczeniem</translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel</source>
+        <translation>Wczytaj zaznaczenie z kanału alfa</translation>
     </message>
 </context>
 <context>

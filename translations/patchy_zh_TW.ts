@@ -36961,32 +36961,12 @@ Locked: %1</source>
         <translation>調整向量圖遮色片的濃度與羽化程度</translation>
     </message>
     <message>
-        <source>Save Selection...</source>
-        <translation>儲存選取範圍...</translation>
-    </message>
-    <message>
-        <source>Save the selection as an alpha channel</source>
-        <translation>將選取範圍儲存為 Alpha 色版</translation>
-    </message>
-    <message>
-        <source>Load Selection...</source>
-        <translation>載入選取範圍...</translation>
-    </message>
-    <message>
-        <source>Load a selection from an alpha channel</source>
-        <translation>從 Alpha 色版載入選取範圍</translation>
-    </message>
-    <message>
         <source>Content Outside Canvas</source>
         <translation>畫布外的內容</translation>
     </message>
     <message>
         <source>Show layer content beyond the canvas edges</source>
         <translation>顯示畫布邊界外的圖層內容</translation>
-    </message>
-    <message>
-        <source>Load Selection</source>
-        <translation>載入選取範圍</translation>
     </message>
     <message>
         <source>Channel:</source>
@@ -37007,6 +36987,26 @@ Locked: %1</source>
     <message>
         <source>Intersect with selection</source>
         <translation>與選取範圍交集</translation>
+    </message>
+    <message>
+        <source>Save Selection to Alpha Channel...</source>
+        <translation>將選取範圍儲存至 Alpha 色版...</translation>
+    </message>
+    <message>
+        <source>Store the active selection for later use</source>
+        <translation>儲存目前的選取範圍，以便日後使用</translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel...</source>
+        <translation>從 Alpha 色版載入選取範圍...</translation>
+    </message>
+    <message>
+        <source>Restore a saved selection or combine it with the current selection</source>
+        <translation>還原已儲存的選取範圍，或將其與目前的選取範圍合併</translation>
+    </message>
+    <message>
+        <source>Load Selection from Alpha Channel</source>
+        <translation>從 Alpha 色版載入選取範圍</translation>
     </message>
 </context>
 <context>

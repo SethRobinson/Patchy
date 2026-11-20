@@ -1165,12 +1165,12 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   select_menu->addAction(feather_selection_action);
   select_menu->addAction(layer_transparency_action);
   save_selection_action_ = add_menu_command(
-      select_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Save Selection..."), "selectSaveSelectionAction",
-      "select.save_selection", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Save the selection as an alpha channel"),
+      select_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Save Selection to Alpha Channel..."), "selectSaveSelectionAction",
+      "select.save_selection", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Store the active selection for later use"),
       [this] { if (canvas_ && canvas_->has_selection()) save_selection_as_channel(); }, false);
   load_selection_action_ = add_menu_command(
-      select_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Load Selection..."), "selectLoadSelectionAction",
-      "select.load_selection", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Load a selection from an alpha channel"),
+      select_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Load Selection from Alpha Channel..."), "selectLoadSelectionAction",
+      "select.load_selection", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Restore a saved selection or combine it with the current selection"),
       [this] { load_saved_selection_dialog(); }, false);
   connect(select_menu, &QMenu::aboutToShow, this, &MainWindow::refresh_saved_selection_actions);
   select_menu->addSeparator();
