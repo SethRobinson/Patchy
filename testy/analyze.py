@@ -460,7 +460,7 @@ def png_bit_depth(path: Path) -> int | None:
         return None
 
 
-def read_png16_rgba(path: Path) -> np.ndarray:
+def read_png16_rgba(path: Path | bytes) -> np.ndarray:
     """A 16-bit gray/gray+alpha/RGB/RGBA PNG as float64 RGBA in 0..1. Embedded
     profiles are ignored: every 16-bit render here is sRGB. OpenCV decodes it when
     installed (optional; much faster on large renders), else the decoder below."""
@@ -469,7 +469,10 @@ def read_png16_rgba(path: Path) -> np.ndarray:
     except ImportError:
         cv2 = None
     if cv2 is not None:
-        decoded = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+        if isinstance(path, bytes):
+            decoded = cv2.imdecode(np.frombuffer(path, np.uint8), cv2.IMREAD_UNCHANGED)
+        else:
+            decoded = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
         if decoded is not None and decoded.dtype == np.uint16:
             values = decoded.astype(np.float64) / 65535.0
             if values.ndim == 2:
@@ -486,11 +489,12 @@ def read_png16_rgba(path: Path) -> np.ndarray:
     return _decode_png16_rgba(path)
 
 
-def _decode_png16_rgba(path: Path) -> np.ndarray:
+def _decode_png16_rgba(path: Path | bytes) -> np.ndarray:
     """The dependency-free decoder: non-interlaced 16-bit PNGs, every filter type."""
     import zlib
 
-    data = Path(path).read_bytes()
+    data = path if isinstance(path, bytes) else Path(path).read_bytes()
+    label = "embedded PNG" if isinstance(path, bytes) else str(path)
     header = None
     compressed = bytearray()
     for kind, body in _png_chunks(data):
@@ -501,16 +505,20 @@ def _decode_png16_rgba(path: Path) -> np.ndarray:
         elif kind == b"IEND":
             break
     if header is None:
-        raise ValueError(f"{path}: no IHDR")
+        raise ValueError(f"{label}: no IHDR")
     width = int.from_bytes(header[0:4], "big")
     height = int.from_bytes(header[4:8], "big")
     depth, color_type, interlace = header[8], header[9], header[12]
     channels = {0: 1, 2: 3, 4: 2, 6: 4}.get(color_type)
     if depth != 16 or channels is None or interlace != 0:
-        raise ValueError(f"{path}: not a plain 16-bit PNG (depth {depth}, type {color_type})")
+        raise ValueError(f"{label}: not a plain 16-bit PNG (depth {depth}, type {color_type})")
     bpp = 2 * channels
     stride = width * bpp
-    raw = np.frombuffer(zlib.decompress(bytes(compressed)), dtype=np.uint8)
+    expected = height * (stride + 1)
+    inflater = zlib.decompressobj()
+    raw = np.frombuffer(inflater.decompress(compressed, expected + 1), dtype=np.uint8)
+    if raw.size != expected or not inflater.eof:
+        raise ValueError(f"{label}: image data does not match the declared raster size")
     rows = raw.reshape(height, stride + 1)
     out = np.zeros((height, stride), dtype=np.uint8)
     previous = np.zeros((width, bpp), dtype=np.int32)
@@ -546,7 +554,7 @@ def _decode_png16_rgba(path: Path) -> np.ndarray:
                 current[x] = left
                 upper_left = up
         else:
-            raise ValueError(f"{path}: bad PNG filter {kind}")
+            raise ValueError(f"{label}: bad PNG filter {kind}")
         out[y] = current.reshape(stride)
         previous = current
     samples = out.reshape(height, width * channels, 2)

@@ -49,17 +49,26 @@
   #run-errors { color:#d95c4a; font-size:12.5px; margin-top:8px; white-space:pre-line; }
   #run-skipped { color:var(--warn); font-size:12.5px; margin-top:8px; white-space:pre-line; }
   #run-note { color:var(--good); font-size:12.5px; margin-top:8px; }
+  #native-imports { margin:0 0 22px; padding:14px 18px; border:1px solid var(--line); border-radius:8px; }
+  #native-imports h2 { font-size:15px; margin:0 0 8px; }
+  #native-imports select, #native-imports button { background:var(--panel); color:var(--text); border:1px solid var(--line);
+    border-radius:4px; padding:5px 9px; }
+  #native-imports button { cursor:pointer; }
+  #native-imports button:disabled { color:var(--dim); cursor:default; }
+  #native-imports ul { padding-left:1.3em; }
+  #native-imports li { margin:4px 0; }
+  #native-imports output { display:block; color:var(--warn); }
 </style>
 </head>
 <body>
-<header><h1>Testy <span>PSD compatibility runs</span></h1>
+<header><h1>Testy <span>File compatibility runs</span></h1>
   <button id="shutdown-testy" onclick="shutdownTesty()"
     title="Finish the current step, save progress, then stop the benchmark and dashboard server">Shut down Testy</button>
 </header>
 <main>
   <div id="shutdown-note" role="status" aria-live="polite"></div>
   <section id="new-run">
-    <h2>New run</h2>
+    <h2>PSD compatibility</h2>
     <textarea id="run-files" spellcheck="false"
       placeholder="one absolute .psd path per line - paste your own list here"></textarea>
     <div class="row">
@@ -83,6 +92,15 @@
     <div id="run-errors"></div>
     <div id="run-skipped"></div>
     <div id="run-note"></div>
+  </section>
+  <section id="native-imports">
+    <h2>Patchy native import</h2>
+    <label>Corpus <select id="native-manifest" disabled></select></label>
+    <button id="native-start" type="button" disabled>Run import checks</button>
+    <span id="native-setup" class="scores"></span>
+    <output id="native-message" aria-live="polite"></output>
+    <output id="native-poll-status" aria-live="polite"></output>
+    <ul id="native-runs"></ul>
   </section>
   <div id="runs-toolbar">
     <button id="delete-runs" onclick="deleteRuns()" disabled>Delete selected</button>
@@ -230,7 +248,7 @@ async function refreshRunState() {
     }
     runState = state;
     runInProgress = state.running;
-    document.getElementById("start-run").disabled = state.running;
+    document.getElementById("start-run").disabled = state.busy ?? state.running;
     document.getElementById("cancel-run").style.display = state.running ? "" : "none";
     const pauseButton = document.getElementById("pause-run");
     pauseButton.style.display = state.running ? "" : "none";
@@ -424,9 +442,96 @@ function startRun() {
   }).catch(error => { errorsDiv.textContent = "start failed: " + error; });
 }
 
+let nativeRequestPending = false;
+let nativeRefreshId = 0;
+
+async function nativeAction(endpoint, payload) {
+  if (nativeRequestPending || shuttingDown) return;
+  const message = document.getElementById("native-message");
+  nativeRequestPending = true;
+  document.getElementById("native-start").disabled = true;
+  message.textContent = "";
+  try {
+    const response = await fetch(endpoint, {method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(payload)});
+    const result = await response.json();
+    if (!response.ok) throw new Error((result.errors || ["Request failed"]).join(", "));
+  } catch (error) {
+    message.textContent = String(error);
+  } finally {
+    nativeRequestPending = false;
+    await refreshNative();
+    await refreshRunState();
+  }
+}
+
+document.getElementById("native-start").addEventListener("click", () =>
+  nativeAction("/testy-start-native", {manifest:document.getElementById("native-manifest").value}));
+
+async function refreshNative() {
+  if (shuttingDown || offline) return;
+  const refreshId = ++nativeRefreshId;
+  const pollStatus = document.getElementById("native-poll-status");
+  const list = document.getElementById("native-runs");
+  try {
+    const response = await fetch("/testy-native-state", {cache:"no-store"});
+    if (!response.ok) throw new Error("server returned " + response.status);
+    const state = await response.json();
+    if (refreshId !== nativeRefreshId || shuttingDown) return;
+    pollStatus.textContent = "";
+    const select = document.getElementById("native-manifest");
+    if (JSON.stringify(state.manifests) !== select.dataset.names) {
+      const selected = select.value;
+      select.replaceChildren(...state.manifests.map(name => new Option(name, name)));
+      if (state.manifests.includes(selected)) select.value = selected;
+      select.dataset.names = JSON.stringify(state.manifests);
+    }
+    const empty = !state.manifests.length;
+    select.disabled = empty || state.busy;
+    document.getElementById("native-start").disabled = empty || state.busy || nativeRequestPending;
+    document.getElementById("native-setup").textContent = empty
+      ? "Install a corpus with python testy/fetch_native_corpora.py." : "";
+    const signature = JSON.stringify([state.runs, nativeRequestPending]);
+    if (signature === list.dataset.rows) return;
+    list.dataset.rows = signature;
+    const focusId = list.contains(document.activeElement) ? document.activeElement.dataset.control : null;
+    list.replaceChildren(...state.runs.map(run => {
+      const li = document.createElement("li");
+      const label = run.name || run.run;
+      if (run.report) {
+        const link = document.createElement("a");
+        link.href = "runs/" + encodeURIComponent(run.run) + "/report.html";
+        link.dataset.control = "report-" + run.run;
+        link.textContent = label;
+        li.append(link);
+      } else li.append(document.createTextNode(label));
+      li.append(document.createTextNode(" · " + run.run + " · " + run.state +
+        (run.total ? " · " + run.completed + " / " + run.total + " files" : "") + " "));
+      if (run.canStop) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.control = "stop-" + run.run;
+        button.textContent = run.stopPending ? "Stopping…" : "Stop after this file";
+        button.disabled = run.stopPending || nativeRequestPending;
+        button.onclick = () => nativeAction("/testy-stop-native", {run:run.run});
+        li.append(button);
+      }
+      return li;
+    }));
+    if (focusId) Array.from(list.querySelectorAll("[data-control]")).find(el => el.dataset.control === focusId)?.focus();
+  } catch (error) {
+    if (refreshId !== nativeRefreshId || shuttingDown) return;
+    pollStatus.textContent = "Could not load native imports: " + error;
+    document.getElementById("native-manifest").disabled = true;
+    document.getElementById("native-start").disabled = true;
+    list.querySelectorAll("button").forEach(button => button.disabled = true);
+    delete list.dataset.rows;
+  }
+}
+
 async function refresh() {
   if (offline) return;
-  await refreshRunState();
+  await Promise.all([refreshRunState(), refreshNative()]);
   if (shuttingDown) return;
   const started = await fetchLines("runs/index.jsonl");
   const finished = await fetchLines("runs/history.jsonl");

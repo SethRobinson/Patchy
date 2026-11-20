@@ -1,9 +1,12 @@
-# Testy: the PSD compatibility benchmark
+# Testy compatibility benchmarks
 
 Testy (`testy/`) measures PSD compatibility against the Photoshop installation selected as the reference for the run: whether each editor opens a file, how closely its render matches Photoshop's, whether it composites layers itself, what native data and bit depth survive its PSD save, whether text survives a save made after the editor re-lays it out, and for 16-bit files how precise its render is. What each measurement means is in [testy-scoring.md](testy-scoring.md); the public write-up of the latest published run is [psd-compatibility-benchmark.md](psd-compatibility-benchmark.md).
 
+The dashboard also runs Patchy's native import benchmark for GIMP XCF, Aseprite, Krita and OpenRaster documents. It compares the imported canvas, editable structure, rendered pixels and animation timing with the references provided for each file.
+
 Related documents:
 
+- [testy-native-import.md](testy-native-import.md): pinned corpora, local artwork, manifests, native import reports and per-format scoring.
 - [testy-scoring.md](testy-scoring.md): what each cell measures (opens, render accuracy, the trap, data kept in the .psd save, the round-trip render, text kept in a save made after the editor's text update, bit depth and 16-bit precision, and the cache-free leg that scores an editor on what it draws itself), with the reference-render rules and the "never mark an editor down for the harness's mistake" safeguards.
 - [testy-editor-drivers.md](testy-editor-drivers.md): how each editor is driven (Photoshop over COM, Krita, the patched PhotoDemon build, GIMP, PhotoCraft, Photopea, Affinity) and the defenses against modal dialogs, wedged or crashed editors, failing columns (the circuit breaker) and a Photoshop that draws a file differently from one open to the next.
 - [testy-photoshop-versions.md](testy-photoshop-versions.md): reopening every resave in more Photoshop versions, remote Photoshop hosts, and running Testy on a Photoshop host over ssh.

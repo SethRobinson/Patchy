@@ -1449,13 +1449,18 @@ def write_status(run_dir: Path, status: dict) -> None:
     report page reads it constantly during a live run. Readers hold it only
     briefly, so a short retry loop rides out the collision."""
     status["run"]["updateCounter"] = status["run"].get("updateCounter", 0) + 1
-    temp_path = run_dir / "status.json.tmp"
-    temp_path.write_text(json.dumps(status), encoding="utf-8")
+    write_json_atomic(run_dir / "status.json", status)
+
+
+def write_json_atomic(path: Path, value: dict) -> None:
+    """A dashboard reader can briefly hold the destination open on Windows."""
+    temp_path = path.with_name(path.name + ".tmp")
+    temp_path.write_text(json.dumps(value), encoding="utf-8")
     deadline = time.monotonic() + 5.0
     delay = 0.01
     while True:
         try:
-            os.replace(temp_path, run_dir / "status.json")
+            os.replace(temp_path, path)
             return
         except PermissionError:
             if time.monotonic() >= deadline:

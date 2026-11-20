@@ -38,8 +38,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+if __name__ == "__main__" and sys.argv[1:2] == ["native-import"]:
+    from native_import import main as native_import_main
+    sys.exit(native_import_main(sys.argv[2:]))
+
 import analyze
 import config
+from console_output import log
+import fetch_native_corpora
 import fetch_psd_tools_corpus
 import manifest as manifest_mod
 import report
@@ -179,18 +185,6 @@ OPT_IN_EDITORS = ["affinity", "psdtools"]
 
 # The Patchy release-build refresh command comes from config.local.json
 # ("build_command"); without one, runs measure the existing patchy.exe as-is.
-
-
-def log(message: str) -> None:
-    line = f"[testy] {message}"
-    try:
-        print(line, flush=True)
-    except UnicodeEncodeError:
-        # A console or redirected log in a legacy code page cannot hold a localized
-        # Photoshop's alert text (Japanese on cp1252). A log line must never fail the
-        # work it reports: inside a probe that once read as Photoshop rejecting the file.
-        encoding = getattr(sys.stdout, "encoding", None) or "ascii"
-        print(line.encode(encoding, errors="backslashreplace").decode(encoding), flush=True)
 
 
 def git_hash() -> str:
@@ -346,6 +340,22 @@ def _run_in_progress() -> bool:
     return _in_process_run_active or (_child_run is not None and _child_run.poll() is None)
 
 
+_NATIVE_RUN = re.compile(r"native-[0-9]{8}-[0-9]{6}-[0-9a-f]{8}\Z")
+
+
+def _native_child_dir() -> Path | None:
+    if (_child_run_dir is not None and _NATIVE_RUN.fullmatch(_child_run_dir.name)
+            and _child_run is not None and _child_run.poll() is None):
+        return _child_run_dir
+    return None
+
+
+def _native_manifests() -> dict[str, Path]:
+    corpus = (config.TESTY_ROOT / "corpus").resolve()
+    return {path.name: path for path in sorted(corpus.glob("*.json"))
+            if path.resolve().parent == corpus and path.is_file()}
+
+
 def _child_run_command(
     base_url: str,
     files: list[str],
@@ -433,6 +443,8 @@ def _live_run_dir() -> Path | None:
     if _in_process_run_active and _in_process_run_dir is not None:
         return _in_process_run_dir
     if _child_run is None or _child_run.poll() is not None:
+        return None
+    if _native_child_dir() is not None:
         return None
     if _child_run_dir is not None and (_child_run_dir / "status.json").exists():
         return _child_run_dir
@@ -588,10 +600,19 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         if path == "/testy-run-state":
             self._guarded(self._send_run_state)
             return
+        if path == "/testy-native-state":
+            if not self._native_local_request():
+                return
+            self._guarded(self._send_native_state)
+            return
         if path == "/testy-rerun-state":
             self._guarded(self._send_rerun_state)
             return
         if path.endswith("/report.html") and Path(self.translate_path(self.path)).is_file():
+            parent = Path(self.translate_path(self.path)).parent
+            if parent.parent == config.RUNS_DIR and _NATIVE_RUN.fullmatch(parent.name):
+                super().do_GET()
+                return
             # Existing batches get current controls without rewriting their reports.
             body = report._PAGE.encode("utf-8")
             self.send_response(200)
@@ -653,15 +674,66 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         )
 
     def _send_run_state(self) -> None:
-        live = _live_run_dir() if _run_in_progress() else None
+        busy = _run_in_progress()
+        native = _native_child_dir() is not None
+        live = _live_run_dir() if busy and not native else None
         self._send_json({
-            "running": _run_in_progress(),
+            "running": busy and not native,
+            "busy": busy,
+            "nativeRunning": native,
             "run": live.name if live is not None else None,
             "pausePending": bool(live is not None and (live / PAUSE_FLAG).exists()),
             "resumable": _resumable(),
             "shuttingDown": self.server.stop_requested.is_set(),
             "shutdownError": self.server.stop_error,
         })
+
+    def _send_native_state(self) -> None:
+        with _spawn_lock:
+            owned = _native_child_dir()
+            folders = {p for p in config.RUNS_DIR.glob("native-*")
+                       if _NATIVE_RUN.fullmatch(p.name) and p.is_dir()}
+            # Include a fresh child during startup and a failed launch before its first progress write.
+            if _child_run_dir and _NATIVE_RUN.fullmatch(_child_run_dir.name):
+                folders.add(_child_run_dir)
+            rows = []
+            for path in sorted(folders, reverse=True):
+                try:
+                    row = json.loads((path / "progress.json").read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    row = {}
+                if not isinstance(row, dict):
+                    row = {}
+                state = row.get("state") or ("starting" if path == owned else "failed")
+                if state == "running" and path != owned:
+                    # A CLI run can be active or interrupted. Only a server-owned
+                    # live process establishes that the dashboard can control it.
+                    state = "failed" if path == _child_run_dir else "unconfirmed"
+                rows.append({"run": path.name, "name": row.get("name") or path.name, "state": state,
+                             "completed": row.get("completed", 0), "total": row.get("total", 0),
+                             "report": (path / "report.html").is_file(),
+                             "canStop": path == owned and path.is_dir() and state in {"starting", "running"},
+                             "stopPending": (path / "stop.flag").is_file()})
+            response = {"manifests": list(_native_manifests()), "runs": rows, "busy": _run_in_progress()}
+        self._send_json(response)
+
+    def _native_local_request(self) -> bool:
+        from urllib.parse import urlsplit
+
+        host = self.headers.get("Host", "").lower()
+        origin = self.headers.get("Origin")
+        try:
+            authority = urlsplit("http://" + host)
+            local = (authority.hostname in {"127.0.0.1", "localhost", "::1"}
+                     and authority.username is None and authority.netloc == host
+                     and not authority.path and not authority.query and not authority.fragment)
+        except ValueError:
+            local = False
+        if (not local or (origin is not None and origin.lower() != "http://" + host)
+                or self.headers.get("Sec-Fetch-Site") == "cross-site"):
+            self._send_json({"errors": ["Use the local Testy dashboard to manage native runs"]}, status=403)
+            return False
+        return True
 
     def _send_rerun_state(self) -> None:
         from urllib.parse import parse_qs, urlparse
@@ -673,16 +745,21 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
         path = target / rerun.STATE_FILE
         state = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-        if state.get("state") == "running" and not _run_in_progress():
+        if state.get("state") == "running" and (not _run_in_progress() or _native_child_dir() is not None):
             state.update(state="failed", error="Rerun interrupted; previous results kept.")
         self._send_json(state)
 
     def do_POST(self):  # noqa: N802 - stdlib signature
         from urllib.parse import urlparse
 
+        path = urlparse(self.path).path
+        if path in {"/testy-start-native", "/testy-stop-native"} and not self._native_local_request():
+            return
         handler = {
             "/testy-shutdown": self._shutdown,
             "/testy-start-run": self._start_run,
+            "/testy-start-native": self._start_native,
+            "/testy-stop-native": self._stop_native,
             "/testy-cancel-run": self._cancel_run,
             "/testy-pause-run": self._pause_run,
             "/testy-resume-run": self._resume_run,
@@ -690,7 +767,7 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
             "/testy-retest-file": self._retest_file,
             "/testy-rerun-file": self._rerun_file,
             "/testy-upload": self._upload,
-        }.get(urlparse(self.path).path)
+        }.get(path)
         if handler is None:
             self.send_error(404)
             return
@@ -713,7 +790,8 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         name = parse_qs(parsed.query).get("name", [""])[0]
         runs_root = (config.TESTY_ROOT / "runs").resolve()
         target = (config.TESTY_ROOT / name).resolve()
-        if not str(target).startswith(str(runs_root)):
+        if (not target.is_relative_to(runs_root) or target == runs_root
+                or _NATIVE_RUN.fullmatch(target.relative_to(runs_root).parts[0])):
             self.send_error(403)
             return
         length = int(self.headers.get("Content-Length", "0"))
@@ -753,6 +831,41 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
                 command, stdout=log_file, stderr=subprocess.STDOUT, env=env,
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
+
+    def _start_native(self) -> None:
+        import native_import
+
+        request = self._read_json_body()
+        if request is None:
+            return
+        if _run_in_progress():
+            self._send_json({"errors": ["a run is already in progress"]}, status=409)
+            return
+        name = request.get("manifest")
+        manifest = _native_manifests().get(name) if isinstance(name, str) else None
+        if set(request) != {"manifest"} or manifest is None:
+            self._send_json({"errors": ["Choose a native manifest from the corpus list"]}, status=400)
+            return
+        try:
+            native_import.load_manifest(manifest)
+        except (ValueError, OSError) as error:
+            self._send_json({"errors": [str(error)]}, status=400)
+            return
+        folder = native_import.next_run_dir()
+        self._spawn_child([sys.executable, str(config.TESTY_ROOT / "testy.py"), "native-import",
+                           str(manifest), "--output", str(folder)], run_dir=folder)
+        self._send_json({"started": True, "run": folder.name}, status=202)
+
+    def _stop_native(self) -> None:
+        request = self._read_json_body()
+        if request is None:
+            return
+        folder = _native_child_dir()
+        if folder is None or folder.name != request.get("run") or not folder.is_dir():
+            self._send_json({"errors": ["No active native child with that run name"]}, status=409)
+            return
+        (folder / "stop.flag").touch()
+        self._send_json({"stopping": True, "run": folder.name}, status=202)
 
     def _start_run(self) -> None:
         if _run_in_progress():
@@ -999,7 +1112,7 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         targets: list[tuple[str, Path]] = []
         for name in names:
             target = (config.RUNS_DIR / name).resolve()
-            if target.parent != runs_root or target == runs_root:
+            if target.parent != runs_root or target == runs_root or _NATIVE_RUN.fullmatch(target.name):
                 self._send_json(
                     {"errors": [f"refusing to delete {name}: not a run directory"]}, status=400)
                 return
@@ -1028,6 +1141,9 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         global _child_run
         request = self._read_json_body()
         if request is None:
+            return
+        if _native_child_dir() is not None:
+            self._send_json({"errors": ["Use Stop after file for the active native run"]}, status=409)
             return
         wanted = str(request.get("run") or "")
         if _child_run is not None and _child_run.poll() is None:
@@ -1729,7 +1845,8 @@ class Runner:
                 "compare": self.compare_mode,
                 # Who the test files belong to (None for a local corpus): the report
                 # and the public export credit them.
-                "corpus": fetch_psd_tools_corpus.corpus_credit(corpus),
+                "corpus": (fetch_psd_tools_corpus.corpus_credit(corpus)
+                           or fetch_native_corpora.corpus_credit(corpus)),
             },
             "editors": {key: self._editor_status(key, info) for key, info in self.editors.items()},
             "files": [
@@ -3529,7 +3646,10 @@ class Runner:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Testy PSD compatibility benchmark")
+    parser = argparse.ArgumentParser(
+        description="Testy PSD compatibility benchmark",
+        epilog="For native import checks: python testy/testy.py native-import MANIFEST [--case ID]",
+    )
     parser.add_argument("--files", nargs="*", help="explicit PSD paths (overrides --corpus)")
     parser.add_argument("--corpus", default=None,
                         help="corpus list file (default: config.local.json's corpus_file/corpus_dir)")

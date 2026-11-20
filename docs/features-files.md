@@ -53,6 +53,8 @@ their original format.
 | **Layered TIFF** (.tif, .tiff) | Open and save | Photoshop-style layer data at 8, 16, and 32 bits, including supported text, masks, and effects. Choose Keep Layers when saving; other TIFF readers may show only the merged image. [TIFF details](tiff.md) |
 | **Aseprite** (.ase, .aseprite) | Open and save | Animations open as one editable group per frame with the original timing. Each frame keeps its pixel layers, nested groups, opacity, and supported blend modes. Aseprite saves contain a single frame at 8 bits, with procedural content rasterized. [Format details](file-formats.md#per-format-catalogue) |
 
+[Testy's native import benchmark](testy-native-import.md) checks GIMP, Krita, Aseprite and OpenRaster documents against reference renders, editable document properties and expected animation frames.
+
 Keep a PSD master when you need
 Patchy's editable text, effects, masks, or Smart Objects. Import notices and save
 warnings describe conversions that affect a particular document.
