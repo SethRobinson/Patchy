@@ -20,13 +20,18 @@ Split from [testy.md](testy.md): how Testy drives each editor (Photoshop over CO
   reference render ([testy-scoring.md](testy-scoring.md#the-reference-render)). Other versions can reopen every resave too:
   [testy-photoshop-versions.md](testy-photoshop-versions.md).
 - Photoshop does not always draw a file the same way twice. Photoshop 28.0 (November
-  2026) sometimes renders psd-tools' `layer_mask_data.psd` with part of the green layer's
-  mask ignored, on the original and on reopened resaves alike (byte-identical resaves
-  scored 100% and 24% in two runs). So every Photoshop render something is scored
-  against goes through `testy/render_check.py`. Two renders agree when no pixel is more
-  than 6/255 apart on any channel; Photoshop's renders of one file always did on the 373
-  corpus files. The reference is drawn from two opens, a disagreement takes a third, and
-  the picture two opens agree on is kept. The Photoshop column's render and Photoshop's
+  2026) sometimes renders psd-tools' `layer_mask_data.psd`/`.psb` wrong, on the original
+  and on reopened resaves alike (byte-identical resaves scored 100% and 24% in two runs).
+  Both layers involved have masks with Properties-panel Density and Feather, which
+  Photoshop applies at draw time: once every row below the green layer's stored mask
+  rectangle was drawn fully revealed (a hard-edged band from the rectangle's bottom edge
+  across the full width), and once the yellow layer's three feathered holes came out up
+  to 28/255 stronger. The trigger has not been isolated (next steps: a repeated-render
+  loop on cut-down copies, then driver-side timing changes). So every Photoshop render
+  something is scored against goes through `testy/render_check.py`. Two renders agree
+  when no pixel is more than 6/255 apart on any channel; Photoshop's renders of one file
+  did on every other file of the 373 in the corpora. The reference is drawn from two
+  opens, a disagreement takes a third, and the picture two opens agree on is kept. The Photoshop column's render and Photoshop's
   renders of each resave and each save after a text update are drawn again only when
   they disagree with the reference: an open that draws the same picture again means the
   difference is the file's, one that matches the reference replaces the first, and a
