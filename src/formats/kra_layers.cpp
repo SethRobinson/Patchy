@@ -9,6 +9,8 @@
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
+#include <array>
+#include <charconv>
 #include <cmath>
 #include <iomanip>
 #include <limits>
@@ -339,7 +341,7 @@ struct Planes {
   return planes;
 }
 
-void store_planes(const Planes& planes, PixelBuffer& pixels) {
+void store_planes(const Planes& planes, PixelBuffer& pixels, bool retain_signed = false) {
   const auto domain = domain_of(pixels);
   const bool linear = domain == DeepDomain::Linear;
   std::vector<float> row(static_cast<std::size_t>(planes.width) * 4U);
@@ -349,7 +351,7 @@ void store_planes(const Planes& planes, PixelBuffer& pixels) {
       const float alpha = std::clamp(source[i + 3], 0.0F, kDeepScale);
       for (std::size_t c = 0; c < 3; ++c) {
         float value = alpha > 0.0F ? source[i + c] * kDeepScale / alpha : 0.0F;
-        row[i + c] = linear ? std::max(0.0F, value) : std::clamp(value, 0.0F, kDeepScale);
+        row[i + c] = linear ? (retain_signed ? value : std::max(0.0F, value)) : std::clamp(value, 0.0F, kDeepScale);
       }
       row[i + 3] = alpha;
     }
@@ -398,17 +400,63 @@ void store_planes(const Planes& planes, PixelBuffer& pixels) {
   return convolve_1d(convolve_1d(in, kernel, true), kernel, false);
 }
 
+// The block grid is fixed in document space. A mask's first stored tile can
+// start between grid lines, including on the negative side of the canvas.
+int pixelize_cell_end(int local, int origin, int cell_extent, int extent) {
+  auto phase = (static_cast<std::int64_t>(origin) + local) % cell_extent;
+  if (phase < 0) phase += cell_extent;
+  return local + std::min(extent - local, cell_extent - static_cast<int>(phase));
+}
+
+void pixelize(Planes& image, const FilterConfig& config, Rect bounds) {
+  const auto extent = [&](const char* key) {
+    return static_cast<int>(std::lround(std::clamp(config.number(key, 10.0), 1.0,
+                                                   static_cast<double>(std::numeric_limits<int>::max()))));
+  };
+  const auto cell_width = extent("pixelWidth");
+  const auto cell_height = extent("pixelHeight");
+  for (int y = 0; y < image.height;) {
+    const int bottom = pixelize_cell_end(y, bounds.y, cell_height, image.height);
+    for (int x = 0; x < image.width;) {
+      const int right = pixelize_cell_end(x, bounds.x, cell_width, image.width);
+      std::array<double, 4> sum{};
+      for (int row = y; row < bottom; ++row) {
+        const auto start = (static_cast<std::size_t>(row) * image.width + x) * 4;
+        for (int col = 0; col < right - x; ++col) {
+          const auto pixel = start + static_cast<std::size_t>(col) * 4;
+          for (std::size_t c = 0; c < 4; ++c) sum[c] += image.values[pixel + c];
+        }
+      }
+      const double count = static_cast<double>(right - x) * (bottom - y);
+      std::array<float, 4> mean{};
+      for (std::size_t c = 0; c < 4; ++c) mean[c] = static_cast<float>(sum[c] / count);
+      for (int row = y; row < bottom; ++row) {
+        auto* output = image.values.data() + (static_cast<std::size_t>(row) * image.width + x) * 4;
+        for (int col = x; col < right; ++col, output += 4) std::copy(mean.begin(), mean.end(), output);
+      }
+      x = right;
+    }
+    y = bottom;
+  }
+}
+
 }  // namespace
 
 bool krita_filter_is_applied(const FilterConfig& config) {
-  return config.name == "sharpen" || config.name == "unsharp" || config.name == "gaussian blur";
+  return config.name == "sharpen" || config.name == "unsharp" || config.name == "gaussian blur" ||
+         config.name == "pixelize";
 }
 
-bool apply_krita_filter(const FilterConfig& config, PixelBuffer& pixels) {
+bool apply_krita_filter(const FilterConfig& config, PixelBuffer& pixels, Rect bounds) {
   if (!krita_filter_is_applied(config) || pixels.empty() || pixels.format().channels != 4) {
     return false;
   }
-  const auto planes = load_planes(pixels);
+  auto planes = load_planes(pixels);
+  if (config.name == "pixelize") {
+    pixelize(planes, config, bounds);
+    store_planes(planes, pixels, true);
+    return true;
+  }
   Planes result{planes.width, planes.height, std::vector<float>(planes.values.size())};
   if (config.name == "gaussian blur") {
     const double horizontal = std::clamp(config.number("horizRadius", 5.0), 0.0, 500.0);
@@ -473,12 +521,35 @@ bool apply_krita_filter(const FilterConfig& config, PixelBuffer& pixels) {
 }
 
 std::optional<VectorFill> fill_from_generator(const FilterConfig& config) {
+  if (config.name == "gradient" && config.version == 1 && config.params.empty()) {
+    // The unconfigured generator runs across the entire document, even when
+    // the layer has a small selection. The saved reference has a linear ramp.
+    VectorFill fill;
+    fill.kind = VectorFillKind::Gradient;
+    fill.gradient.angle_degrees = 0.0F;
+    fill.gradient.align_with_layer = false;
+    fill.gradient.smoothness = 0;
+    fill.gradient.color_stops = {{0.0F, {0, 0, 0}}, {1.0F, {255, 255, 255}}};
+    fill.gradient.alpha_stops = {{0.0F, 1.0F}, {1.0F, 1.0F}};
+    return fill;
+  }
   if (config.name != "color") {
     return std::nullopt;
   }
   const auto* text = config.find("color");
   if (text == nullptr) {
     return std::nullopt;
+  }
+  // Krita also writes a plain #RRGGBB string for solid fill layers.
+  if (text->size() == 7 && text->front() == '#') {
+    unsigned int rgb = 0;
+    const auto end = text->data() + text->size();
+    const auto parsed = std::from_chars(text->data() + 1, end, rgb, 16);
+    if (parsed.ec != std::errc{} || parsed.ptr != end) return std::nullopt;
+    VectorFill fill;
+    fill.color = RgbColor{static_cast<std::uint8_t>(rgb >> 16U), static_cast<std::uint8_t>((rgb >> 8U) & 255U),
+                          static_cast<std::uint8_t>(rgb & 255U)};
+    return fill;
   }
   // A KoColor: <color><RGB r= g= b= space=/></color> (or <Gray g=/>), values 0..1.
   svg::XmlNode root;

@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <QString>
 #include "core/document.hpp"
+#include "core/pixel_depth.hpp"
 #include "ui/canvas_widget.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
@@ -596,6 +597,28 @@ void ui_smart_filter_move_drag_and_nudge_rerender_cache_and_roundtrip() {
   verify_moved_state(QPoint(4, 6));
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
         undo_before + 1U);
+
+  // A widened document keeps the identical fractional mask and rerenders the
+  // same nudge from source. The save pair must refer to the new deep display.
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  require_hotkey_action(window, QStringLiteral("image.mode_16_bit"))->trigger();
+  QApplication::processEvents();
+  const auto* deep_start = std::as_const(document).find_layer(layer_id);
+  const auto deep_mask = deep_start->smart_filter_stack()->mask.pixels;
+  CHECK(deep_mask.format().bit_depth == patchy::BitDepth::UInt16);
+  canvas->setFocus(Qt::OtherFocusReason);
+  send_key(*canvas, Qt::Key_Right, Qt::ShiftModifier);
+  QApplication::processEvents();
+  const auto* deep_moved = std::as_const(document).find_layer(layer_id);
+  CHECK(deep_moved->bounds() == nudged_bounds);
+  CHECK(smart_object_placements_equal(patchy::smart_object_placement_from_layer(*deep_moved), nudged_placement));
+  CHECK(deep_moved->pixels().format().bit_depth == patchy::BitDepth::UInt16);
+  const auto* deep_stack = deep_moved->smart_filter_stack();
+  CHECK(deep_stack && deep_stack->layer_preview && deep_stack->layer_preview->matches(*deep_moved));
+  CHECK(deep_stack->mask.pixels.data().data() == deep_mask.data().data());
+  const auto narrowed = patchy::convert_pixel_buffer_depth(deep_moved->pixels(), patchy::BitDepth::UInt8,
+                                                          patchy::SampleKind::Color);
+  CHECK(patchy::ui::pixel_buffers_equal(narrowed, nudged_pixels));
 }
 
 void ui_convert_to_smart_object_rejects_tree_containing_smart_filter() {

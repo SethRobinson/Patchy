@@ -1,6 +1,7 @@
 #include "formats/layered_blend_support.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/aseprite_blend.hpp"
 #include "core/document_depth.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/pixel_depth.hpp"
@@ -11,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <unordered_set>
 #include <utility>
 
 // The bake, in one sentence: for a layer whose mode the format lacks, render the composite
@@ -39,6 +41,53 @@ using Path = std::vector<std::size_t>;
   return layer.kind() == LayerKind::Group;
 }
 
+using AsepriteCels = std::unordered_set<LayerId>;
+
+bool has_native_cel(const std::vector<Layer>& layers) {
+  return std::any_of(layers.begin(), layers.end(), [](const Layer& layer) {
+    return layer.metadata().contains(kAsepriteCelBlend) || (is_group(layer) && has_native_cel(layer.children()));
+  });
+}
+
+bool has_partial_cel_coverage(const Layer& layer) {
+  if (layer.opacity() != 1.0F) return true;
+  const auto bytes = layer.pixels().data();
+  for (std::size_t a = 3; a < bytes.size(); a += 4) {
+    if (bytes[a] != 0U && bytes[a] != 255U) return true;
+  }
+  return false;
+}
+
+// Only a cel that meets an earlier backdrop can lose its blend. A Normal cel
+// with binary coverage shares Photoshop's result even over a translucent
+// backdrop. Scan candidate alpha only during layered save, never per paint.
+Rect find_aseprite_overlaps(const std::vector<Layer>& layers, Rect backdrop, Rect canvas, AsepriteCels& result) {
+  for (const auto& layer : layers) {
+    Rect coverage{};
+    if (is_group(layer)) {
+      const auto initial = layer.blend_mode() == BlendMode::PassThrough ? backdrop : Rect{};
+      coverage = find_aseprite_overlaps(layer.children(), initial, canvas, result);
+    } else {
+      coverage = layer.kind() == LayerKind::Pixel ? intersect_rect(layer_render_bounds(layer), canvas) : canvas;
+      if (!intersect_rect(coverage, backdrop).empty() && uses_aseprite_cel_blend(layer) &&
+          (layer.blend_mode() != BlendMode::Normal || has_partial_cel_coverage(layer))) {
+        result.insert(layer.id());
+      }
+    }
+    if (layer.visible() && layer.opacity() > 0.0F) backdrop = unite_rect(backdrop, coverage);
+  }
+  return backdrop;
+}
+
+AsepriteCels aseprite_save_candidates(const Document& document, LayeredSaveFormat format) {
+  AsepriteCels result;
+  if (format == LayeredSaveFormat::Photoshop && document_bit_depth(document) == BitDepth::UInt8 &&
+      has_native_cel(document.layers())) {
+    find_aseprite_overlaps(document.layers(), {}, {0, 0, document.width(), document.height()}, result);
+  }
+  return result;
+}
+
 [[nodiscard]] bool has_visible_non_normal(const std::vector<Layer>& layers) {
   return std::any_of(layers.begin(), layers.end(), [](const Layer& layer) {
     if (!layer.visible()) {
@@ -59,38 +108,41 @@ using Path = std::vector<std::size_t>;
          has_visible_non_normal(layer.children());
 }
 
-[[nodiscard]] bool mode_lost(LayeredSaveFormat format, const Layer& layer, BitDepth depth) {
+[[nodiscard]] bool mode_lost(LayeredSaveFormat format, const Layer& layer, BitDepth depth, const AsepriteCels& cels) {
   if (is_group(layer) && layer.blend_mode() == BlendMode::PassThrough) {
     return false;  // judged by pass_through_needs_isolation
   }
-  return !layered_format_stores_blend_mode(format, layer.blend_mode(), is_group(layer), depth);
+  return (cels.contains(layer.id()) && layer.metadata().contains(kAsepriteCelBlend)) ||
+         !layered_format_stores_blend_mode(format, layer.blend_mode(), is_group(layer), depth);
 }
 
-[[nodiscard]] bool affected(LayeredSaveFormat format, const Layer& layer, BitDepth depth) {
-  return mode_lost(format, layer, depth) || pass_through_needs_isolation(format, layer, depth);
+[[nodiscard]] bool affected(LayeredSaveFormat format, const Layer& layer, BitDepth depth, const AsepriteCels& cels) {
+  return mode_lost(format, layer, depth, cels) || pass_through_needs_isolation(format, layer, depth);
 }
 
 void collect(const std::vector<Layer>& layers, LayeredSaveFormat format, BitDepth depth,
-             UnsupportedBlendModes& found) {
+             const AsepriteCels& cels, UnsupportedBlendModes& found) {
   for (const auto& layer : layers) {
-    if (affected(format, layer, depth)) {
+    if (affected(format, layer, depth, cels)) {
       found.layer_names.push_back(layer.name());
       if (std::find(found.modes.begin(), found.modes.end(), layer.blend_mode()) == found.modes.end()) {
         found.modes.push_back(layer.blend_mode());
       }
     }
     if (is_group(layer)) {
-      collect(layer.children(), format, depth, found);
+      collect(layer.children(), format, depth, cels, found);
     }
   }
 }
 
-[[nodiscard]] bool subtree_needs_bake(const std::vector<Layer>& layers, LayeredSaveFormat format, BitDepth depth) {
+[[nodiscard]] bool subtree_needs_bake(const std::vector<Layer>& layers, LayeredSaveFormat format, BitDepth depth,
+                                      const AsepriteCels& cels) {
   return std::any_of(layers.begin(), layers.end(), [&](const Layer& layer) {
     if (!layer.visible()) {
       return false;
     }
-    return affected(format, layer, depth) || (is_group(layer) && subtree_needs_bake(layer.children(), format, depth));
+    return affected(format, layer, depth, cels) ||
+           (is_group(layer) && subtree_needs_bake(layer.children(), format, depth, cels));
   });
 }
 
@@ -102,6 +154,19 @@ void collect(const std::vector<Layer>& layers, LayeredSaveFormat format, BitDept
   }
   return group.opacity() >= 1.0F && group.fill_opacity() >= 1.0F && !group.mask().has_value() && group.vector_mask() == nullptr &&
          group.layer_style().empty() && group.raw_psd_blending_ranges().empty() && group.restricted_channels() == 0;
+}
+
+bool groups_continue_parent_composite(const std::vector<Layer>& layers) {
+  return std::all_of(layers.begin(), layers.end(), [](const Layer& layer) {
+    return !is_group(layer) || (continues_parent_composite(layer) && groups_continue_parent_composite(layer.children()));
+  });
+}
+
+LayeredSaveFormat format_for_document(const Document& document, LayeredSaveFormat format) {
+  if (format == LayeredSaveFormat::Aseprite && aseprite_uses_pass_through_groups(document)) {
+    return LayeredSaveFormat::AsepritePassThroughGroups;
+  }
+  return format;
 }
 
 [[nodiscard]] std::vector<Layer>& list_at(Document& document, const Path& path) {
@@ -120,12 +185,13 @@ void collect(const std::vector<Layer>& layers, LayeredSaveFormat format, BitDept
   return *list;
 }
 
-void clear_lost_modes(Layer& layer, LayeredSaveFormat format, BitDepth depth) {
-  if (mode_lost(format, layer, depth)) {
+void clear_lost_modes(Layer& layer, LayeredSaveFormat format, BitDepth depth, const AsepriteCels& cels) {
+  if (mode_lost(format, layer, depth, cels)) {
     layer.set_blend_mode(BlendMode::Normal);
+    if (cels.contains(layer.id())) layer.metadata().erase(kAsepriteCelBlend);
   }
   for (auto& child : layer.children()) {
-    clear_lost_modes(child, format, depth);
+    clear_lost_modes(child, format, depth, cels);
   }
 }
 
@@ -241,33 +307,128 @@ void solve_partial_cover(const std::uint8_t* bp, const std::uint8_t* rp, std::ui
 class Baker {
 public:
   Baker(Document& document, LayeredSaveFormat format)
-      : document_(document), format_(format), depth_(document_bit_depth(document)) {}
+      : document_(document), format_(format), depth_(document_bit_depth(document)),
+        cels_(aseprite_save_candidates(document, format)) {}
 
-  void run() { bake_list({}, {}); }
+  void run() {
+    bake_list({}, {});
+    if (result.baked != 0 && format_ != LayeredSaveFormat::Photoshop && depth_ == BitDepth::UInt8) {
+      const Document standard = document_;
+      settle_aseprite_rounding(standard, {}, {});
+    }
+  }
 
   BlendBakeResult result;
 
 private:
+  // A Keep the Look conversion can also retain a representable mode above a
+  // baked layer. On opaque backdrops its standard and sprite byte kernels can
+  // round in opposite directions. Keep the mode, opacity and alpha. Change
+  // the minimum number of source byte levels that reproduces the target.
+  void settle_aseprite_rounding(const Document& standard, const Path& list_path, const Path& context) {
+    auto& layers = list_at(document_, list_path);
+    for (std::size_t i = 0; i < layers.size(); ++i) {
+      const auto& layer = std::as_const(layers)[i];
+      if (!layer.visible()) continue;
+      if (is_group(layer)) {
+        Path child = list_path;
+        child.push_back(i);
+        settle_aseprite_rounding(standard, child, continues_parent_composite(layer) ? context : child);
+        continue;
+      }
+      if (layer.metadata().contains(kAsepriteCelBlend)) continue;
+      Layer& writable = layers[i];
+      writable.metadata()[kAsepriteCelBlend] = "1";
+      if (!uses_aseprite_cel_blend(layer) || aseprite_component_mode(layer.blend_mode())) continue;
+      const auto bounds = layer.bounds();
+      const Rect content{bounds.x, bounds.y, std::min(bounds.width, layer.pixels().width()),
+                         std::min(bounds.height, layer.pixels().height())};
+      const auto region = intersect_rect(content, Rect{0, 0, document_.width(), document_.height()});
+      if (region.empty()) continue;
+      const auto backdrop = render_running(document_, context, list_path, i, i, false, region);
+      const auto target = render_running(standard, context, list_path, i, i, true, region);
+      if (backdrop.empty() || target.empty()) continue;
+      auto pixels = layer.pixels();
+      bool changed = false;
+      for (std::int32_t y = 0; y < region.height; ++y) {
+        for (std::int32_t x = 0; x < region.width; ++x) {
+          const auto* base = backdrop.pixel(x, y);
+          if (base[3] != 255) continue;
+          const auto px = x + region.x - bounds.x;
+          const auto py = y + region.y - bounds.y;
+          const auto* src = std::as_const(pixels).pixel(px, py);
+          const auto alpha = clamp_byte(src[3] * layer.opacity());
+          if (alpha == 0) continue;
+          const auto color = std::array<std::uint8_t, 3>{src[0], src[1], src[2]};
+          const auto* target_pixel = target.pixel(x, y);
+          const std::array<std::uint8_t, 3> expected{target_pixel[0], target_pixel[1], target_pixel[2]};
+          const auto corrected = fit_aseprite_rounding(color, {base[0], base[1], base[2]}, alpha,
+                                                       layer.blend_mode(), expected);
+          if (corrected != color) {
+            std::copy(corrected.begin(), corrected.end(), pixels.pixel(px, py));
+            changed = true;
+          }
+        }
+      }
+      if (changed) writable.set_pixels(std::move(pixels));
+    }
+  }
+
+  static std::array<std::uint8_t, 3> fit_aseprite_rounding(std::array<std::uint8_t, 3> source, RgbColor backdrop,
+      std::uint8_t alpha, BlendMode mode, const std::array<std::uint8_t, 3>& expected) {
+    auto best = source;
+    const auto evaluate = [&](const std::array<std::uint8_t, 3>& trial) {
+      const auto color = composite_aseprite_cel({trial[0], trial[1], trial[2]}, backdrop, alpha, 255, mode).color;
+      return std::array<int, 3>{std::abs(int(color.red) - expected[0]), std::abs(int(color.green) - expected[1]),
+                                std::abs(int(color.blue) - expected[2])};
+    };
+    auto error = evaluate(source);
+    // Limit compensation to a small neighborhood around the original editable
+    // color. Very low opacity can make a target level unreachable.
+    for (int distance = 1; distance <= 8 && (error[0] || error[1] || error[2]); ++distance) {
+      for (const auto delta : {-distance, distance}) {
+        auto trial = source;
+        for (std::size_t c = 0; c < 3; ++c) {
+          trial[c] = static_cast<std::uint8_t>(std::clamp(int(source[c]) + delta, 0, 255));
+        }
+        const auto candidate = evaluate(trial);
+        for (std::size_t c = 0; c < 3; ++c) {
+          if (candidate[c] < error[c]) {
+            error[c] = candidate[c];
+            best[c] = trial[c];
+          }
+        }
+      }
+    }
+    return best;
+  }
+
   void bake_list(const Path& list_path, const Path& context) {
     for (std::size_t i = 0; i < list_at(document_, list_path).size(); ++i) {
       const auto& layer = std::as_const(list_at(document_, list_path))[i];
+      Path child_path = list_path;
+      child_path.push_back(i);
       if (!layer.visible()) {
+        // Each hidden animation frame can be revealed later. Preserve its own
+        // internal composite just as for the currently visible frame.
+        if (is_group(layer) && !cels_.empty() && has_native_cel(layer.children()) &&
+            layer.blend_mode() != BlendMode::PassThrough) {
+          bake_list(child_path, child_path);
+        }
         if (subtree_has_lost_mode(layer)) {
-          clear_lost_modes(list_at(document_, list_path)[i], format_, depth_);
+          clear_lost_modes(list_at(document_, list_path)[i], format_, depth_, cels_);
           ++result.cleared;
         }
         continue;
       }
-      Path child_path = list_path;
-      child_path.push_back(i);
-      bool whole = affected(format_, layer, depth_);
+      bool whole = affected(format_, layer, depth_, cels_);
       if (!whole && is_group(layer)) {
         if (continues_parent_composite(layer)) {
           bake_list(child_path, context);
         } else if (layer.blend_mode() != BlendMode::PassThrough) {
           bake_list(child_path, child_path);
         } else {
-          whole = subtree_needs_bake(layer.children(), format_, depth_);
+          whole = subtree_needs_bake(layer.children(), format_, depth_, cels_);
         }
       }
       if (!whole) {
@@ -288,7 +449,7 @@ private:
   }
 
   [[nodiscard]] bool subtree_has_lost_mode(const Layer& layer) const {
-    if (mode_lost(format_, layer, depth_)) {
+    if (mode_lost(format_, layer, depth_, cels_)) {
       return true;
     }
     return std::any_of(layer.children().begin(), layer.children().end(),
@@ -303,6 +464,18 @@ private:
     if (!rect.empty()) {
       const auto below = render_running(document_, context, list_path, first, last, false, rect);
       const auto with_unit = render_running(document_, context, list_path, first, last, true, rect);
+      if (first == last && cels_.contains(std::as_const(list_at(document_, list_path))[first].id())) {
+        // The overlap test is conservative. Preserve the original editable
+        // pixels and standard mode when this particular backdrop gives the
+        // same result with Photoshop arithmetic.
+        auto ordinary = document_;
+        list_at(ordinary, list_path)[first].metadata().erase(kAsepriteCelBlend);
+        const auto alternate = render_running(ordinary, context, list_path, first, last, true, rect);
+        if (std::ranges::equal(with_unit.data(), alternate.data())) {
+          list_at(document_, list_path)[first].metadata().erase(kAsepriteCelBlend);
+          return last;
+        }
+      }
       if (!below.empty() && !with_unit.empty()) {
         baked = solve_over(below, with_unit, any);
       }
@@ -311,7 +484,7 @@ private:
     if (!any) {
       // The unit changes nothing visible: it keeps its layers, with Normal where needed.
       for (std::size_t j = first; j <= last; ++j) {
-        clear_lost_modes(list[j], format_, depth_);
+        clear_lost_modes(list[j], format_, depth_, cels_);
         if (pass_through_needs_isolation(format_, std::as_const(list[j]), depth_)) {
           list[j].set_blend_mode(BlendMode::Normal);
         }
@@ -336,9 +509,28 @@ private:
   Document& document_;
   LayeredSaveFormat format_;
   BitDepth depth_;
+  AsepriteCels cels_;
 };
 
 }  // namespace
+
+std::optional<Document> standardize_aseprite_cels_for_photoshop(const Document& document) {
+  if (!has_native_cel(document.layers())) return std::nullopt;
+  Document writable = document;
+  const auto standardize = [&](auto&& self, std::vector<Layer>& layers) -> void {
+    for (auto& layer : layers) {
+      if (std::as_const(layer).metadata().contains(kAsepriteCelBlend)) layer.metadata().erase(kAsepriteCelBlend);
+      if (is_group(layer)) self(self, layer.children());
+    }
+  };
+  standardize(standardize, writable.layers());
+  return writable;
+}
+
+bool aseprite_uses_pass_through_groups(const Document& document) {
+  const auto& layers = document.layers();
+  return std::any_of(layers.begin(), layers.end(), is_group) && groups_continue_parent_composite(layers);
+}
 
 bool layered_format_stores_blend_mode(LayeredSaveFormat format, BlendMode mode, bool is_group,
                                       BitDepth depth) noexcept {
@@ -353,18 +545,23 @@ bool layered_format_stores_blend_mode(LayeredSaveFormat format, BlendMode mode, 
       return blend_mode_supported_at_depth(mode, depth);
     case LayeredSaveFormat::Aseprite:
       return aseprite::stores_blend_mode(mode);
+    case LayeredSaveFormat::AsepritePassThroughGroups:
+      return (is_group && mode == BlendMode::PassThrough) || aseprite::stores_blend_mode(mode);
   }
   return false;
 }
 
 UnsupportedBlendModes find_unsupported_blend_modes(const Document& document, LayeredSaveFormat format) {
   UnsupportedBlendModes found;
-  collect(document.layers(), format, document_bit_depth(document), found);
+  const auto cels = aseprite_save_candidates(document, format);
+  found.includes_aseprite_cels = !cels.empty();
+  collect(document.layers(), format_for_document(document, format), document_bit_depth(document),
+          cels, found);
   return found;
 }
 
 BlendBakeResult bake_unsupported_blend_modes(Document& document, LayeredSaveFormat format) {
-  Baker baker(document, format);
+  Baker baker(document, format_for_document(document, format));
   baker.run();
   return baker.result;
 }

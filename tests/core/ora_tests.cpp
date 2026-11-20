@@ -722,6 +722,17 @@ void ora_reads_gimp_and_krita_files_if_available() {
     CHECK(inner == nullptr || (inner->blend_mode() == BlendMode::PassThrough) == (std::string_view(name) == "krita-structure-from-psd.ora"));
   }
   {
+    const auto read = ora::DocumentIo::read_file(fixture("gimp-modes.ora"));
+    // GIMP's source modes are the fixture's layer names. It stored these two as
+    // svg:src-over, and stored its actual Multiply tile as svg:multiply.
+    for (const auto* layer_name : {"divide", "hard_mix"}) {
+      const auto* layer = find_named(read.layers(), layer_name);
+      CHECK(layer != nullptr && layer->blend_mode() == BlendMode::Normal);
+    }
+    const auto* multiply = find_named(read.layers(), "multiply");
+    CHECK(multiply != nullptr && multiply->blend_mode() == BlendMode::Multiply);
+  }
+  {
     const auto read = ora::DocumentIo::read_file(fixture("krita-modes-from-psd.ora"));
     const std::vector<std::pair<const char*, BlendMode>> expected = {
         {"linear_burn", BlendMode::LinearBurn}, {"addition", BlendMode::LinearDodge}, {"vivid_light", BlendMode::VividLight},
@@ -749,13 +760,16 @@ void ora_reads_gimp_and_krita_files_if_available() {
       CHECK(layer != nullptr && layer->lock_flags() == patchy::kLayerLockNone);
     }
   }
-  // Krita's own merged image against Patchy's composite of the same layers.
-  for (const auto* name : {"krita-structure.ora", "krita-structure-from-psd.ora"}) {
+  // The modes PNG is Krita's independent reopen of the original GIMP archive.
+  // The other PNGs are the corresponding exports from the fixture generator.
+  for (const auto& [name, png_name] : {
+           std::pair{"gimp-modes.ora", "krita-modes.png"},
+           std::pair{"krita-structure.ora", "krita-structure.png"},
+           std::pair{"krita-structure-from-psd.ora", "krita-structure-from-psd.png"}}) {
     const auto bytes = patchy::test::read_binary_file(fixture(name));
     const auto read = ora::DocumentIo::read(bytes);
     const auto ours = patchy::flatten_document_rgba8(read);
-    const auto stem = std::string(name).substr(0, std::string(name).size() - 4);
-    const auto png = patchy::test::read_binary_file(fixture(stem + ".png"));
+    const auto png = patchy::test::read_binary_file(fixture(png_name));
     int width = 0;
     int height = 0;
     int components = 0;

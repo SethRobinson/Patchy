@@ -2,6 +2,7 @@
 
 #include "ui/dialog_utils.hpp"
 #include "ui/network_link_trust.hpp"
+#include "ui/smart_object_render.hpp"
 #include "ui/theme_qss.hpp"
 
 #include <QCheckBox>
@@ -13,10 +14,39 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QVBoxLayout>
+#include <QUrl>
 
 #include <algorithm>
 
 namespace patchy::ui {
+
+bool timeline_audio_file_found(const psd::TimelineAudioLink& link, const QString& document_dir, QString* blocked_server) {
+  auto relative = QString::fromStdString(link.relative_path);
+  auto uri = QString::fromStdString(link.full_path);
+  // Photoshop can put the same absolute file URI in both fields. A moved document
+  // may still find the media beside its PSD. The shared resolver checks network trust before any stat.
+  if (relative == uri) relative.clear();
+  if (relative.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)) {
+    if (uri.isEmpty()) uri = relative;
+    relative = QUrl(relative).toLocalFile();
+  }
+  return resolve_document_file_link(QString::fromStdString(link.name), relative,
+                                    QString::fromStdString(link.original_path), uri, document_dir, blocked_server).has_value();
+}
+
+std::vector<MissingLinkEntry> missing_timeline_audio_files(const Document& document, const QString& document_dir) {
+  std::vector<MissingLinkEntry> entries;
+  for (auto& link : psd::timeline_audio_links(document.metadata().raw_psd_image_resources)) {
+    MissingLinkEntry entry;
+    if (timeline_audio_file_found(link, document_dir, &entry.blocked_server)) continue;
+    entry.file_name = QString::fromStdString(link.name);
+    entry.stored_path = QString::fromStdString(!link.original_path.empty() ? link.original_path
+                                               : !link.relative_path.empty() ? link.relative_path : link.full_path);
+    entry.timeline_audio = std::move(link);
+    entries.push_back(std::move(entry));
+  }
+  return entries;
+}
 
 MissingLinksDialogResult run_missing_links_dialog(
     QWidget* parent, const std::vector<MissingLinkEntry>& links, bool show_on_open,
@@ -28,7 +58,9 @@ MissingLinksDialogResult run_missing_links_dialog(
   dialog.setWindowTitle(QObject::tr("Missing Linked Files"));
   auto* layout = new QVBoxLayout(&dialog);
 
-  auto* intro = new QLabel(QObject::tr("These linked smart objects point to files Patchy cannot find. Relink each "
+  const bool has_audio = std::any_of(links.begin(), links.end(), [](const auto& link) { return link.timeline_audio.has_value(); });
+  auto* intro = new QLabel(has_audio ? QObject::tr("Some linked files are unavailable. You can continue opening the document.")
+                                     : QObject::tr("These linked smart objects point to files Patchy cannot find. Relink each "
                                        "one to a file now, or continue with the stored previews and use Layer > "
                                        "Smart Objects > Relink to File... later."),
                            &dialog);
@@ -56,6 +88,7 @@ MissingLinksDialogResult run_missing_links_dialog(
     auto* relink_button = new QPushButton(QObject::tr("Relink..."), rows_widget);
     relink_button->setObjectName(QStringLiteral("missingLinkRelinkButton%1").arg(index));
     relink_button->setEnabled(static_cast<bool>(relink));
+    relink_button->setVisible(!entry.timeline_audio);
     auto* buttons_column = new QVBoxLayout;
     buttons_column->setSpacing(4);
     buttons_column->addWidget(relink_button);
@@ -66,7 +99,8 @@ MissingLinksDialogResult run_missing_links_dialog(
     name->setTextFormat(Qt::PlainText);
     name->setFont(offset_font(name->font(), 0, true));
     auto* detail = new QLabel(
-        entry.layer_names.size() == 1
+        entry.timeline_audio ? QObject::tr("Used by timeline audio. To relink this file, use a timeline editor.")
+        : entry.layer_names.size() == 1
             ? QObject::tr("Used by layer \"%1\"").arg(entry.layer_names.front())
             : QObject::tr("Used by %n layers: %1", nullptr, static_cast<int>(entry.layer_names.size()))
                   .arg(entry.layer_names.join(QStringLiteral(", "))),
@@ -112,7 +146,7 @@ MissingLinksDialogResult run_missing_links_dialog(
 
     QObject::connect(relink_button, &QPushButton::clicked, &dialog,
                      [&relink, &entry, &result, relink_button, detail, path, allow_button, server] {
-      if (!relink) {
+      if (!relink || entry.timeline_audio) {
         return;
       }
       const auto relinked = relink(entry);
@@ -151,7 +185,8 @@ MissingLinksDialogResult run_missing_links_dialog(
           other.server->setText(QObject::tr("Found on %1").arg(server_name));
           other.path->hide();
         } else {
-          other.server->setText(QObject::tr("Not found on %1 either; relink it to a file").arg(server_name));
+          other.server->setText(other.entry->timeline_audio ? QObject::tr("File not found on %1").arg(server_name)
+                                                            : QObject::tr("Not found on %1 either; relink it to a file").arg(server_name));
         }
       }
     });

@@ -166,6 +166,7 @@
 #include "ui/localization.hpp"
 #include "ui/multipage_pdf_export_dialog.hpp"
 #include "ui/network_link_trust.hpp"
+#include "ui/missing_links_dialog.hpp"
 #include "ui/export_documents_folder_dialog.hpp"
 #include "ui/pdf_export.hpp"
 #include "ui/pdf_recognized_text.hpp"
@@ -436,12 +437,20 @@ std::optional<bool> ask_unsupported_blend_modes(QWidget* parent, const QString& 
                      "looks different.\n\n"
                      "The open document keeps its blend modes either way.")
           .arg(named));
+  if (unsupported.includes_aseprite_cels) {
+    box.setWindowTitle(MainWindow::tr("Save As"));
+    box.setText(QObject::tr("This format uses different blend rules for Aseprite layers."));
+    box.setInformativeText(MainWindow::tr("Keep the look by baking the affected layers, or keep their editable "
+                                          "pixels and use the blend modes this format supports.\n\n%1").arg(named));
+  }
   if (layers.size() > kNamedLayers) {
     box.setDetailedText(layers.join(QLatin1Char('\n')));
   }
   auto* keep_button = box.addButton(MainWindow::tr("Keep the Look"), QMessageBox::AcceptRole);
   keep_button->setObjectName(QStringLiteral("unsupportedBlendModesKeepButton"));
-  auto* normal_button = box.addButton(MainWindow::tr("Save as Normal"), QMessageBox::DestructiveRole);
+  auto* normal_button = box.addButton(unsupported.includes_aseprite_cels ? QObject::tr("Keep layers")
+                                                                         : MainWindow::tr("Save as Normal"),
+                                      QMessageBox::DestructiveRole);
   normal_button->setObjectName(QStringLiteral("unsupportedBlendModesNormalButton"));
   box.addButton(QMessageBox::Cancel);
   box.setDefaultButton(keep_button);
@@ -1524,6 +1533,12 @@ void finish_photoshop_layers_import(Document& opened, const QFileInfo& info, QSt
       }
     }
   }
+  for (const auto& entry : missing_timeline_audio_files(opened, document_dir)) {
+    link_notices.push_back(entry.blocked_server.isEmpty()
+        ? QObject::tr("Linked file %1 was not found").arg(entry.file_name)
+        : QObject::tr("Timeline audio file %1 is on network server %2, which Patchy has not been allowed to access")
+              .arg(entry.file_name, network_link_server_display_name(entry.blocked_server)));
+  }
   for (int i = 0; i < link_notices.size(); ++i) {
     import_notices.insert(i, link_notices.at(i));
   }
@@ -2130,10 +2145,14 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
     try {
       const auto bytes = read_all_file_bytes(path);
       const bool is_aseprite = handler->identifier == "patchy.formats.aseprite";
+      bool aseprite_animation = false;
       FormatReadResult result;
       if (is_aseprite) {
         result.document = aseprite::DocumentIo::read(bytes, &result.notices, &result.partial_import,
-                                                     imported_frame_name);
+            [&](int frame_number, std::uint32_t delay_ms) {
+              aseprite_animation = true;
+              return imported_frame_name(frame_number, delay_ms);
+            });
       } else {
         result = handler->read(bytes);
       }
@@ -2142,7 +2161,7 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
       for (const auto& notice : result.notices) {
         import_notices.push_back(translated_file_message(notice));
       }
-      if (is_aseprite && partial_import) {
+      if (aseprite_animation) {
         import_notices.push_back(QObject::tr("Imported Aseprite animation as %1 frame groups")
                                      .arg(std::as_const(opened).layers().size()));
       }

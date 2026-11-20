@@ -2,11 +2,12 @@
 
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
+#include "psd/psd_io_internal.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/smart_filter.hpp"
 #include "core/psd_source_colors.hpp"
 #include "color/color_management.hpp"
 #include "support/translate_noop.hpp"
-#include "formats/miniz/miniz.h"
 
 #include <algorithm>
 #include <exception>
@@ -26,7 +27,7 @@ constexpr std::uint32_t kSupportedCacheDepth = 8;
 constexpr std::uint32_t kMaximumSupportedCacheChannels = 64;
 constexpr std::int64_t kMaximumPsdDimension = 300000;
 
-[[nodiscard]] std::int32_t read_i32(BigEndianReader &reader) {
+[[nodiscard]] std::int32_t read_filter_coordinate(BigEndianReader &reader) {
   return static_cast<std::int32_t>(reader.read_u32());
 }
 
@@ -71,7 +72,8 @@ checked_edge(std::int32_t start, std::int32_t extent) noexcept {
   if (mask.pixels.empty()) {
     return true;
   }
-  if (mask.pixels.format() != PixelFormat::gray8() || mask.bounds.empty() ||
+  if ((mask.pixels.format() != PixelFormat::gray8() &&
+       mask.pixels.format() != with_bit_depth(PixelFormat::gray8(), BitDepth::UInt16)) || mask.bounds.empty() ||
       mask.bounds.width != mask.pixels.width() ||
       mask.bounds.height != mask.pixels.height() ||
       mask.bounds.width > kMaximumPsdDimension ||
@@ -84,22 +86,23 @@ checked_edge(std::int32_t start, std::int32_t extent) noexcept {
                         static_cast<std::uint64_t>(mask.bounds.height);
   return pixels64 != 0U &&
          pixels64 <= kMaximumEditableSmartFilterMaskPixels &&
-         pixels64 == mask.pixels.data().size();
+         pixels64 * bytes_per_pixel(mask.pixels.format()) == mask.pixels.data().size();
 }
 
 [[nodiscard]] std::vector<std::uint8_t>
-encode_filter_mask_tail(const SmartFilterMask &mask) {
+encode_filter_mask_tail(const SmartFilterMask &mask, BitDepth depth) {
   if (mask.pixels.empty()) {
     return {};
   }
 
+  const auto pixels = convert_pixel_buffer_depth(mask.pixels, depth, SampleKind::Coverage);
+  const auto samples = big_endian_plane(pixels, 0);
+  const auto stride = samples.size() / static_cast<std::size_t>(mask.bounds.height);
   std::vector<std::vector<std::uint8_t>> rows;
   rows.reserve(static_cast<std::size_t>(mask.bounds.height));
   for (std::int32_t y = 0; y < mask.bounds.height; ++y) {
-    const auto row_begin = mask.pixels.data().begin() +
-                           static_cast<std::ptrdiff_t>(y) * mask.bounds.width;
-    rows.push_back(encode_packbits_row(std::span<const std::uint8_t>(
-        row_begin, static_cast<std::size_t>(mask.bounds.width))));
+    rows.push_back(encode_packbits_row(std::span<const std::uint8_t>(samples).subspan(
+        static_cast<std::size_t>(y) * stride, stride)));
   }
 
   BigEndianWriter plane;
@@ -134,10 +137,10 @@ encode_filter_mask_tail(const SmartFilterMask &mask) {
     if (reader.remaining() < 24U) {
       return false;
     }
-    const auto top = read_i32(reader);
-    const auto left = read_i32(reader);
-    const auto bottom = read_i32(reader);
-    const auto right = read_i32(reader);
+    const auto top = read_filter_coordinate(reader);
+    const auto left = read_filter_coordinate(reader);
+    const auto bottom = read_filter_coordinate(reader);
+    const auto right = read_filter_coordinate(reader);
     const auto bounds = checked_rect(top, left, bottom, right);
     record.cache_depth = reader.read_u32();
     record.cache_max_channels = reader.read_u32();
@@ -172,39 +175,39 @@ encode_filter_mask_tail(const SmartFilterMask &mask) {
     }
     record.cache_bounds = *bounds;
     record.cache_layout_valid = true;
-    return record.cache_depth == kSupportedCacheDepth;
+    return record.cache_depth == 8U || record.cache_depth == 16U;
   } catch (const std::runtime_error &) {
     return false;
   }
 }
 
-[[nodiscard]] bool decode_filter_mask(std::span<const std::uint8_t> bytes,
-                                      const Rect &bounds,
-                                      SmartFilterEffectsRecord &record) {
+[[nodiscard]] std::optional<std::vector<std::uint8_t>>
+decode_filter_plane(std::span<const std::uint8_t> bytes, const Rect &bounds, std::uint16_t depth) {
   const auto pixels64 = static_cast<std::uint64_t>(bounds.width) *
                         static_cast<std::uint64_t>(bounds.height);
-  if (pixels64 == 0U ||
+  if ((depth != 8U && depth != 16U) || pixels64 == 0U ||
       pixels64 > kMaximumEditableSmartFilterMaskPixels) {
-    return false;
+    return std::nullopt;
   }
-  const auto expected = static_cast<std::size_t>(pixels64);
+  const auto stride = static_cast<std::size_t>(bounds.width) * (depth / 8U);
+  const auto expected = static_cast<std::size_t>(pixels64) * (depth / 8U);
 
   try {
     BigEndianReader reader(bytes);
     if (reader.remaining() < 2U) {
-      return false;
+      return std::nullopt;
     }
     const auto compression = reader.read_u16();
     std::vector<std::uint8_t> samples;
     if (compression == 0U) {
       if (reader.remaining() != expected) {
-        return false;
+        return std::nullopt;
       }
       samples = reader.read_bytes(expected);
     } else if (compression == 1U) {
       const auto table_bytes = static_cast<std::uint64_t>(bounds.height) * 4ULL;
       if (table_bytes > reader.remaining()) {
-        return false;
+        return std::nullopt;
       }
       std::vector<std::uint32_t> row_lengths(
           static_cast<std::size_t>(bounds.height));
@@ -214,54 +217,48 @@ encode_filter_mask_tail(const SmartFilterMask &mask) {
       samples.reserve(expected);
       for (const auto row_length : row_lengths) {
         if (row_length > reader.remaining()) {
-          return false;
+          return std::nullopt;
         }
         const auto encoded = reader.read_bytes(row_length);
         std::size_t consumed = 0;
-        auto row = decode_packbits(encoded,
-                                   static_cast<std::size_t>(bounds.width),
-                                   &consumed);
+        auto row = decode_packbits(encoded, stride, &consumed);
         if (consumed != encoded.size()) {
-          return false;
+          return std::nullopt;
         }
         samples.insert(samples.end(), row.begin(), row.end());
       }
       if (reader.remaining() != 0U || samples.size() != expected) {
-        return false;
+        return std::nullopt;
       }
     } else if (compression == 2U || compression == 3U) {
-      // Photoshop CC-era files store the mask as a zlib stream, with or without
-      // the 8-bit row delta filter (ag-psd's smart-filter sample, GitHub issue 348).
-      const auto compressed = reader.read_bytes(reader.remaining());
-      samples.resize(expected);
-      mz_ulong out_length = static_cast<mz_ulong>(expected);
-      if (mz_uncompress(samples.data(), &out_length, compressed.data(),
-                        static_cast<mz_ulong>(compressed.size())) != MZ_OK ||
-          out_length != expected) {
-        return false;
-      }
-      if (compression == 3U) {
-        const auto width = static_cast<std::size_t>(bounds.width);
-        for (std::size_t row = 0; row < expected; row += width) {
-          for (std::size_t x = 1; x < width; ++x) {
-            samples[row + x] = static_cast<std::uint8_t>(samples[row + x] + samples[row + x - 1U]);
-          }
-        }
-      }
+      samples = read_channel_samples(reader, compression, bounds.width, bounds.height, true,
+                                     ChannelDecodeInfo{depth, false, reader.remaining()});
+      if (samples.size() != expected || reader.remaining() != 0U) return std::nullopt;
     } else {
-      return false;
+      return std::nullopt;
     }
 
-    SmartFilterEffectsMask mask;
-    mask.bounds = bounds;
-    mask.samples =
-        std::make_shared<const std::vector<std::uint8_t>>(std::move(samples));
-    record.mask = std::move(mask);
-    record.mask_decoded = true;
-    return true;
+    return samples;
   } catch (const std::runtime_error &) {
-    return false;
+    return std::nullopt;
   }
+}
+
+[[nodiscard]] bool decode_filter_mask(std::span<const std::uint8_t> bytes, const Rect &bounds,
+                                      SmartFilterEffectsRecord &record, std::uint16_t depth = 8) {
+  auto samples = decode_filter_plane(bytes, bounds, depth);
+  if (!samples) return false;
+  SmartFilterEffectsMask mask;
+  mask.bounds = bounds;
+  if (depth == 16U) {
+    mask.native_pixels = PixelBuffer(bounds.width, bounds.height, with_bit_depth(PixelFormat::gray8(), BitDepth::UInt16));
+    store_native_plane(mask.native_pixels, 0, *samples, depth);
+  }
+  mask.samples = std::make_shared<const std::vector<std::uint8_t>>(
+      convert_channel_to_8bit(std::move(*samples), depth, false));
+  record.mask = std::move(mask);
+  record.mask_decoded = true;
+  return true;
 }
 
 [[nodiscard]] bool
@@ -283,10 +280,10 @@ parse_optional_filter_mask(std::span<const std::uint8_t> bytes,
       return false;
     }
 
-    const auto top = read_i32(reader);
-    const auto left = read_i32(reader);
-    const auto bottom = read_i32(reader);
-    const auto right = read_i32(reader);
+    const auto top = read_filter_coordinate(reader);
+    const auto left = read_filter_coordinate(reader);
+    const auto bottom = read_filter_coordinate(reader);
+    const auto right = read_filter_coordinate(reader);
     const auto bounds = checked_rect(top, left, bottom, right);
     const auto mask_length = reader.read_u64();
     if (!bounds.has_value() || mask_length > reader.remaining()) {
@@ -296,11 +293,10 @@ parse_optional_filter_mask(std::span<const std::uint8_t> bytes,
     const auto mask_body =
         bytes.subspan(body_offset, static_cast<std::size_t>(mask_length));
     reader.skip(static_cast<std::size_t>(mask_length));
-    if (reader.remaining() != 0U ||
-        record.cache_depth != kSupportedCacheDepth) {
+    if (reader.remaining() != 0U) {
       return false;
     }
-    return decode_filter_mask(mask_body, *bounds, record);
+    return decode_filter_mask(mask_body, *bounds, record, static_cast<std::uint16_t>(record.cache_depth));
   } catch (const std::runtime_error &) {
     return false;
   }
@@ -414,6 +410,89 @@ serialize_filter_effects_record_body(const SmartFilterEffectsRecord &record) {
   return body;
 }
 
+// Photoshop's FEid/FXid length fields and PackBits row table are wide even
+// in a PSD. The optional mask uses the same sample depth as the cache planes.
+[[nodiscard]] SmartFilterEffectsRecord record_at_integer_depth(const SmartFilterEffectsBlock& block,
+                                                               const SmartFilterEffectsRecord& record,
+                                                               BitDepth target) {
+  const auto reject = [] { return std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD filter-effects block cannot be regenerated")); };
+  if (!record.data_supported || (target != BitDepth::UInt8 && target != BitDepth::UInt16)) throw reject();
+  const auto wire = serialize_filter_effects_record_body(record);
+  BigEndianReader reader(wire);
+  reader.skip(1U + wire.front() + 4U);
+  BigEndianWriter body;
+  body.write_bytes(std::span<const std::uint8_t>(wire).first(reader.position()));
+  const auto length = reader.read_u64();
+  if (length > reader.remaining()) throw reject();
+  BigEndianReader cache(reader.read_span(static_cast<std::size_t>(length)));
+  BigEndianWriter converted;
+  converted.write_bytes(cache.read_span(16U));  // cache rectangle
+  cache.skip(4U);
+  converted.write_u32(static_cast<std::uint32_t>(target));
+  converted.write_u32(cache.read_u32());
+  const auto copy_plane = [&](BigEndianReader& input, BigEndianWriter& output, Rect bounds) {
+    const auto size = input.read_u64();
+    if (size > input.remaining()) throw reject();
+    auto data = decode_filter_plane(input.read_span(static_cast<std::size_t>(size)), bounds,
+                                    static_cast<std::uint16_t>(record.cache_depth));
+    if (!data) throw reject();
+    // Both integer depths use display-encoded color and linear coverage.
+    if (target == BitDepth::UInt16) {
+      std::vector<std::uint8_t> widened(data->size() * 2U);
+      for (std::size_t i = 0; i < data->size(); ++i) {
+        widened[2U * i] = (*data)[i];
+        widened[2U * i + 1U] = (*data)[i];
+      }
+      *data = std::move(widened);
+    } else {
+      *data = convert_channel_to_8bit(std::move(*data), 16U, false);
+    }
+    const auto encoded = encode_channel_at_depth(0, bounds.width, bounds.height, *data, target, true);
+    output.write_u64(2ULL + encoded.data.size());
+    output.write_u16(encoded.compression);
+    output.write_bytes(encoded.data);
+  };
+  for (std::uint32_t slot = 0; slot < record.cache_max_channels + 2U; ++slot) {
+    const auto present = cache.read_u32();
+    converted.write_u32(present);
+    if (present != 0U) copy_plane(cache, converted, record.cache_bounds);
+  }
+  if (cache.remaining() != 0U) throw reject();
+  body.write_u64(converted.bytes().size());
+  body.write_bytes(converted.bytes());
+  if (reader.remaining() != 0U) {
+    const auto present = reader.read_u8();
+    body.write_u8(present);
+    if (present != 0U) {
+      if (!record.mask) throw reject();
+      body.write_bytes(reader.read_span(16U));  // the mask can have a different rectangle
+      copy_plane(reader, body, record.mask->bounds);
+    }
+  }
+  if (reader.remaining() != 0U) throw reject();
+  auto storage = std::make_shared<const std::vector<std::uint8_t>>(std::move(body.bytes()));
+  auto result = parse_filter_effects_record(block, storage, 0, storage->size());
+  if (!result.data_supported) throw reject();
+  result.association_unique = record.association_unique;
+  result.native_color_space = record.native_color_space;
+  return result;
+}
+
+[[nodiscard]] bool mask_samples_match(const SmartFilterEffectsRecord& record, const SmartFilterMask& mask) {
+  if (mask.pixels.empty()) return !record.mask_present;
+  if (!record.mask || record.mask->bounds != mask.bounds || !record.mask->samples) return false;
+  if (mask.pixels.format().bit_depth == BitDepth::UInt8) {
+    return std::ranges::equal(*record.mask->samples, mask.pixels.data());
+  }
+  if (!record.mask->native_pixels.empty()) return std::ranges::equal(record.mask->native_pixels.data(), mask.pixels.data());
+  const auto bytes = big_endian_plane(mask.pixels, 0);
+  const auto& samples = *record.mask->samples;
+  for (std::size_t i = 0; i < samples.size(); ++i) {
+    if (bytes[2U * i] != samples[i] || bytes[2U * i + 1U] != samples[i]) return false;
+  }
+  return true;
+}
+
 } // namespace
 
 std::span<const std::uint8_t> raw_filter_effects_record_body(
@@ -467,22 +546,7 @@ bool replace_filter_effects_mask(SmartFilterEffectsStore &store,
 
   // SoLd owns enabled/linked/extension flags. A flag-only change therefore
   // leaves the native FEid/FXid mask bytes exactly untouched.
-  if (mask.pixels.empty()) {
-    if (!target.mask_present) {
-      return true;
-    }
-  } else if (target.mask_present && target.mask_decoded &&
-             target.mask.has_value() && target.mask->samples != nullptr &&
-             target.mask->bounds.x == mask.bounds.x &&
-             target.mask->bounds.y == mask.bounds.y &&
-             target.mask->bounds.width == mask.bounds.width &&
-             target.mask->bounds.height == mask.bounds.height &&
-             target.mask->samples->size() == mask.pixels.data().size() &&
-             std::equal(target.mask->samples->begin(),
-                        target.mask->samples->end(),
-                        mask.pixels.data().begin())) {
-    return true;
-  }
+  if (mask_samples_match(target, mask)) return true;
 
   try {
     // Rebuilding this one block must be safe for every retained raw record.
@@ -491,7 +555,10 @@ bool replace_filter_effects_mask(SmartFilterEffectsStore &store,
       (void)serialize_filter_effects_record_body(record);
     }
 
-    auto current_body = serialize_filter_effects_record_body(target);
+    const auto depth = !mask.pixels.empty() && mask.pixels.format().bit_depth == BitDepth::UInt16
+                           ? BitDepth::UInt16 : static_cast<BitDepth>(target.cache_depth);
+    auto current_body = serialize_filter_effects_record_body(
+        depth == static_cast<BitDepth>(target.cache_depth) ? target : record_at_integer_depth(target_block, target, depth));
     auto current_storage =
         std::make_shared<const std::vector<std::uint8_t>>(current_body);
     auto current = parse_filter_effects_record(
@@ -515,7 +582,7 @@ bool replace_filter_effects_mask(SmartFilterEffectsStore &store,
     }
     reader.skip(static_cast<std::size_t>(cache_length));
     const auto cache_prefix_length = reader.position();
-    const auto replacement_tail = encode_filter_mask_tail(mask);
+    const auto replacement_tail = encode_filter_mask_tail(mask, depth);
 
     std::vector<std::uint8_t> replacement_body;
     replacement_body.reserve(cache_prefix_length + replacement_tail.size());
@@ -531,18 +598,7 @@ bool replace_filter_effects_mask(SmartFilterEffectsStore &store,
     auto replacement = parse_filter_effects_record(
         target_block, replacement_storage, 0U, replacement_storage->size());
     if (!replacement.data_supported || replacement.placed_uuid != placed_uuid ||
-        replacement.mask_present != !mask.pixels.empty() ||
-        (!mask.pixels.empty() &&
-         (!replacement.mask_decoded || !replacement.mask.has_value() ||
-          replacement.mask->samples == nullptr ||
-          replacement.mask->bounds.x != mask.bounds.x ||
-          replacement.mask->bounds.y != mask.bounds.y ||
-          replacement.mask->bounds.width != mask.bounds.width ||
-          replacement.mask->bounds.height != mask.bounds.height ||
-          replacement.mask->samples->size() != mask.pixels.data().size() ||
-          !std::equal(replacement.mask->samples->begin(),
-                      replacement.mask->samples->end(),
-                      mask.pixels.data().begin())))) {
+        !mask_samples_match(replacement, mask)) {
       return false;
     }
     replacement.association_unique = true;
@@ -554,6 +610,45 @@ bool replace_filter_effects_mask(SmartFilterEffectsStore &store,
     return true;
   } catch (const std::exception &) {
     return false;
+  }
+}
+
+std::optional<PixelBuffer> decode_rgb_filter_effects_cache(const SmartFilterEffectsRecord &record) {
+  if (!record.semantic_supported() || (record.cache_depth != 8 && record.cache_depth != 16) || record.cache_max_channels < 3 ||
+      record.native_color_space || record.cache_bounds.empty() ||
+      static_cast<std::uint64_t>(record.cache_bounds.width) * record.cache_bounds.height >
+          kMaximumEditableSmartFilterMaskPixels) return std::nullopt;
+  try {
+    BigEndianReader reader(raw_filter_effects_record_body(record));
+    const auto id_length = reader.read_u8();
+    reader.skip(id_length + 4U);
+    const auto length = reader.read_u64();
+    if (length > reader.remaining()) return std::nullopt;
+    BigEndianReader cache(reader.read_span(static_cast<std::size_t>(length)));
+    cache.skip(24U);
+    const auto depth = static_cast<std::uint16_t>(record.cache_depth);
+    PixelBuffer result(record.cache_bounds.width, record.cache_bounds.height,
+                       with_bit_depth(PixelFormat::rgba8(), static_cast<BitDepth>(depth)));
+    for (std::uint32_t slot = 0; slot < record.cache_max_channels + 2U; ++slot) {
+      const auto present = cache.read_u32();
+      const bool is_alpha = slot == record.cache_max_channels + 1U;
+      if (present == 0U) {
+        if (slot < 3U) return std::nullopt;
+        if (is_alpha) store_native_plane(result, 3, big_endian_plane(result, 4), depth);
+        continue;
+      }
+      const auto plane_length = cache.read_u64();
+      if (present != 1U || plane_length > cache.remaining()) return std::nullopt;
+      const auto plane = cache.read_span(static_cast<std::size_t>(plane_length));
+      if (slot >= 3U && !is_alpha) continue;
+      const auto samples = decode_filter_plane(plane, record.cache_bounds, depth);
+      if (!samples) return std::nullopt;
+      store_native_plane(result, is_alpha ? 3U : slot, *samples, depth);
+    }
+    if (cache.remaining() != 0U) return std::nullopt;
+    return result;
+  } catch (const std::runtime_error &) {
+    return std::nullopt;
   }
 }
 
@@ -803,6 +898,26 @@ serialize_filter_effects_block(const SmartFilterEffectsBlock &block) {
   return writer.bytes();
 }
 
+std::vector<std::uint8_t> serialize_filter_effects_block(const SmartFilterEffectsBlock& block, BitDepth depth) {
+  const auto target = static_cast<std::uint32_t>(depth);
+  const auto original_depth = block.source_document_depth;
+  if (depth == BitDepth::Float32 && original_depth == 32U && block.original_payload)
+    return serialize_filter_effects_block(block);
+  const auto needs_conversion = [&](const SmartFilterEffectsRecord& record) {
+    return record.cache_depth != target && (record.data_supported || (original_depth != 0U && original_depth != target));
+  };
+  if (block.opaque && original_depth != 0U && original_depth != target) {
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD filter-effects block cannot be regenerated"));
+  }
+  if (std::none_of(block.records.begin(), block.records.end(), needs_conversion)) return serialize_filter_effects_block(block);
+  auto converted = block;
+  converted.original_payload.reset();
+  for (auto& record : converted.records) {
+    if (needs_conversion(record)) record = record_at_integer_depth(block, record, depth);
+  }
+  return serialize_filter_effects_block(converted);
+}
+
 std::optional<SmartFilterEffectsRecord>
 author_filter_effects_record(std::string_view placed_uuid,
                              Rect document_bounds,
@@ -811,6 +926,7 @@ author_filter_effects_record(std::string_view placed_uuid,
                              const SmartFilterMask &mask) {
   if (placed_uuid.empty() || placed_uuid.size() > 255U ||
       document_bounds.empty() || unfiltered_pixels.empty() ||
+      (!mask.pixels.empty() && mask.pixels.format() != PixelFormat::gray8()) ||
       document_bounds.width > kMaximumPsdDimension ||
       document_bounds.height > kMaximumPsdDimension ||
       unfiltered_pixels.format().bit_depth != BitDepth::UInt8 ||

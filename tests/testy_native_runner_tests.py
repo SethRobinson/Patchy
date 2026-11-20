@@ -97,12 +97,17 @@ class NativeRun(unittest.TestCase):
 
     def test_rejects_ambiguous_references_or_asset_escape_before_running(self):
         invalid = [
+            [{"source": "a.xcf", "linearSamples": [{"x": 0, "y": 0, "rgba": [0, 1, 2, 3]}]}],
+            [{"source": "a.xcf", "linearSamples": [{"x": -1, "y": 0, "rgba": [0, 0, 0, 1]}]}],
             [{"source": "a.xcf"}, {"source": "a.xcf"}],
             [{"source": "//unrequested/share/a.xcf"}],
             [{"source": "f/a.xcf", "assets": ["f/../other.png"]}],
             [{"source": "a.ase", "reference": "a.png", "frames": ["b.png"]}],
             [{"source": "a.ase", "frames": ["a.png"], "durationsMs": [40, 80]}],
             [{"source": "a.xcf", "reference": "@mergedimage"}],
+            [{"source": "a.ora", "reopenReference": {"png": "//remote/share/a.png", "credit": "Viewer"}}],
+            [{"source": "a.ora", "reopenReference": {"png": "a.png"}}],
+            [{"source": "a.ase", "frames": ["1.png"], "reopenReference": {"png": "a.png", "credit": "Viewer"}}],
         ]
         for cases in invalid:
             with self.subTest(cases=cases):

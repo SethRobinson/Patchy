@@ -363,6 +363,7 @@ def _child_run_command(
     *,
     skip_build: bool = False,
     fresh: bool = False,
+    float32: bool = False,
     scan_threshold: float | None = None,
     compare: str | None = None,
     suffix: str | None = None,
@@ -399,6 +400,8 @@ def _child_run_command(
         command.append("--no-build")
     if fresh:
         command.append("--fresh")
+    if float32:
+        command.append("--float32")
     if scan_threshold is not None:
         command.extend(["--scan", str(scan_threshold)])
     return command
@@ -780,6 +783,14 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._guarded(handler)
 
     def _shutdown(self) -> None:
+        # Windows can reset the connection on close if the POST body is still
+        # in the receive buffer, losing the dashboard's 202 acknowledgment.
+        remaining = int(self.headers.get("Content-Length", "0"))
+        while remaining > 0:
+            chunk = self.rfile.read(min(remaining, 64 * 1024))
+            if not chunk:
+                break
+            remaining -= len(chunk)
         self.server.request_stop()
         self._send_json({"shuttingDown": True}, status=202)
 
@@ -942,6 +953,7 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
                 base_url, files, editors,
                 skip_build=bool(request.get("skipBuild")),
                 fresh=bool(request.get("fresh")),
+                float32=bool(request.get("float32")),
                 scan_threshold=scan_threshold,
                 compare=compare,
                 photoshop=photoshop,
@@ -996,6 +1008,7 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
                 base_url, [source], editors,
                 skip_build=bool(request.get("skipBuild")),
                 compare=run_options.get("compare", "strict"),
+                float32=bool(run_options.get("float32")),
                 suffix=run_options.get("suffix"),
                 photoshop=_batch_photoshop(run_options),
             )
@@ -1025,6 +1038,7 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
             command = _child_run_command(
                 f"http://127.0.0.1:{self.server.server_address[1]}", [job["source"]], editors,
                 fresh=True, compare=options.get("compare", "strict"), suffix=options.get("suffix"),
+                float32=bool(status["run"].get("float32")),
                 photoshop=_batch_photoshop(status["run"]))
             command += ["--apply-to-run", target.name, "--expected-entry", job["expectedEntry"]]
             rerun.note_state(config.RUNS_DIR, job, "running")
@@ -1330,8 +1344,8 @@ def refused_with_reference(entry: dict, cell: dict) -> bool:
     """The editor refused a file Photoshop rendered: a zero for the render averages.
     Harness failures (timeouts, a dead app, breaker skips) are not the editor's
     verdict on the file and stay out, as does any file with no reference render."""
-    truth = entry.get("groundTruth") or {}
-    return (cell.get("opens") == "fail" and truth.get("state") == "done"
+    truth = cell.get("groundTruth") or entry.get("groundTruth") or {}
+    return (cell.get("opens") == "fail" and truth.get("state") == "done" and not render_check.source_exclusion(truth)
             and bool((truth.get("artifacts") or {}).get("render")))
 
 
@@ -1503,7 +1517,7 @@ def reopen_verdict(result: dict) -> dict:
     ran (a launch failure, an unreachable remote agent), which says nothing about the
     file."""
     if result.get("ok"):
-        return {"state": "ok"}
+        return {"state": "ok", **({"dialogs": result["dialogs"]} if result.get("dialogs") else {})}
     verdict = {"state": "error" if result.get("launchFailure") or result.get("agentFailure")
                else "rejected", "error": result.get("error", "unknown")}
     for flag in ("crashed", "hung"):
@@ -1527,11 +1541,29 @@ def resave_rejected_by(cell: dict, photoshop_run: dict | None) -> list[str]:
     return labels
 
 
+def saved_file_warnings(cell: dict) -> list[str]:
+    warnings = list(cell.get("resaveDialogs") or [])
+    text_save = cell.get("textSave") or {}
+    for check in ((cell.get("roundtripCheck") or {}), text_save, text_save.get("renderCheck") or {},
+                  *(cell.get("resaveChecks") or {}).values()):
+        for warning in check.get("dialogs") or []:
+            if warning not in warnings:
+                warnings.append(warning)
+    return warnings
+
+
 class Runner:
     # Files whose cached reference render this run found Photoshop had drawn wrong and
     # replaced (ground_truth): their cached cells were scored against it, so they are
     # measured again. Reassigned, never mutated, so the class default stays empty.
     _reference_replaced: frozenset[int] = frozenset()
+
+    def _cache_suffix(self) -> str:
+        # Adding a column to an old run must still find that run's recorded reference.
+        run = self.status.get("run", {})
+        layer_properties = run.get("photoshopLayerProperties")
+        return (self.suffix + ("-openerrors1" if run.get("warningEnabledOpen") else "")
+                + (f"-layerprops{int(layer_properties)}" if layer_properties else ""))
 
     def __init__(self, args: argparse.Namespace) -> None:
         global _in_process_run_dir
@@ -1683,7 +1715,7 @@ class Runner:
             return self._reopen_memo[memo]
         version = self._check_version(install)
         cache_path = config.CACHE_DIR / (
-            f"reopen-{sha1}-{_version_slug(install.label)}-{_version_slug(version)}-{self.suffix}.json")
+            f"reopen-{sha1}-{_version_slug(install.label)}-{_version_slug(version)}-{self._cache_suffix()}.json")
         if cache_path.exists() and not self.args.fresh:
             result = json.loads(cache_path.read_text(encoding="utf-8"))
         else:
@@ -1696,7 +1728,7 @@ class Runner:
                 version = self._check_version(install)  # a remote agent knows it by now
             if version != "unknown" and reopen_verdict(result)["state"] != "error":
                 cache_path = config.CACHE_DIR / (
-                    f"reopen-{sha1}-{_version_slug(install.label)}-{_version_slug(version)}-{self.suffix}.json")
+                    f"reopen-{sha1}-{_version_slug(install.label)}-{_version_slug(version)}-{self._cache_suffix()}.json")
                 cache_path.write_text(json.dumps(result), encoding="utf-8")
         self._reopen_memo[memo] = result
         return result
@@ -1735,6 +1767,9 @@ class Runner:
         checks: dict = {}
         for install in self.ps_checks:
             original = entry.get("psVersions", {}).get(install.label, {})
+            if original.get("dialogs"):
+                checks[install.label] = {"state": "not checked", "reason": f"{install.display_name} warned on the original"}
+                continue
             if original.get("state") != "ok":
                 checks[install.label] = {
                     "state": "not checked",
@@ -1840,6 +1875,8 @@ class Runner:
                 "patchyVersion": self.editors["patchy"].version,
                 "patchyGit": self.patchy_hash,
                 "suffix": self.suffix,
+                "warningEnabledOpen": True,
+                "photoshopLayerProperties": 1,
                 "editorOrder": self.editor_order,
                 "name": self.run_name,
                 "compare": self.compare_mode,
@@ -1864,6 +1901,8 @@ class Runner:
         for entry, name in zip(self.status["files"], unique_artifact_dirs(corpus)):
             if name:
                 entry["dir"] = name
+        if getattr(self.args, "float32", False):
+            self.status["run"]["float32"] = True
         if self.scan_threshold is not None:
             self.status["run"]["scan"] = {"thresholdPct": self.scan_threshold * 100.0}
         photoshop_run = self._photoshop_run_record()
@@ -1894,6 +1933,19 @@ class Runner:
 
     # ---------- ground truth ----------
 
+    def _float32_requested(self, entry: dict) -> bool:
+        return bool(self.status.get("run", {}).get("float32") and (entry.get("traits") or {}).get("depth") == 32)
+
+    def _float32_probe_options(self, entry: dict) -> dict:
+        if not self._float32_requested(entry):
+            return {}
+        supported = (entry.get("traits") or {}).get("mode") in (1, 3) and getattr(self.ps, "supports_float32", False)
+        return {"float32": True} if supported else {}
+
+    def _truth_renders(self, entry: dict) -> tuple[str, ...]:
+        return ("render.png", "render16.png", "render32.tif") if self._float32_probe_options(entry) else (
+            "render.png", "render16.png")
+
     def _ground_truth_cache_dir(self, entry: dict, staged: staging.StagedPsd) -> Path:
         font_key = self.ps.font_cache_key()
         # (-textattrs2: the manifest lists each type layer's paragraph settings, which
@@ -1901,8 +1953,9 @@ class Runner:
         # sheets instead of a set. Only the ground truth carries it.)
         text_attributes = "-textattrs2" if (entry.get("traits") or {}).get("text") else ""
         return config.CACHE_DIR / (
-            f"gt-{staged.sha1}-{_version_slug(self.ps.version())}-{self.suffix}-fontcheck1-{font_key}"
-            f"{reference_space_key(entry.get('traits'))}{text_attributes}")
+            f"gt-{staged.sha1}-{_version_slug(self.ps.version())}-{self._cache_suffix()}-fontcheck1-{font_key}"
+            f"{reference_space_key(entry.get('traits'))}{text_attributes}"
+            f"{'-floatrgb1' if self._float32_probe_options(entry) else ''}")
 
     def recorded_ground_truth(self, index: int, staged: staging.StagedPsd) -> tuple[dict | None, str]:
         """--add-editors: the ground truth this run's other columns were scored against,
@@ -1922,7 +1975,12 @@ class Runner:
         result = json.loads(result_path.read_text(encoding="utf-8"))
         gt_dir = self.files_dir / artifact_dir_name(entry) / "_truth"
         gt_dir.mkdir(parents=True, exist_ok=True)
-        for name in ("render.png", "render16.png"):
+        for name in self._truth_renders(entry):
+            if name == "render32.tif":
+                recorded = (entry["groundTruth"].get("renderCheck") or {}).get("float32") or {}
+                cached = (result.get("renderCheck") or {}).get("float32") or {}
+                if not recorded.get("sampleSHA256") or recorded.get("sampleSHA256") != cached.get("sampleSHA256"):
+                    continue
             if (cache_dir / name).exists() and not (gt_dir / name).exists():
                 shutil.copyfile(cache_dir / name, gt_dir / name)
         if not (gt_dir / "manifest.json").exists():
@@ -1940,24 +1998,34 @@ class Runner:
         entry["groundTruth"] = {"state": "running", "stage": "Photoshop ground truth"}
         self.push()
 
-        if result_path.exists() and not self.args.fresh:
+        result = None
+        if not self.args.fresh and result_path.exists():
             result = json.loads(result_path.read_text(encoding="utf-8"))
-            for name in ("render.png", "render16.png"):
+        if result and self._float32_probe_options(entry):
+            raw_check = (result.get("renderCheck") or {}).get("float32") or {}
+            lost_tiff = raw_check.get("state") == "confirmed" and not (cache_dir / "render32.tif").is_file()
+            if raw_check.get("retry") or lost_tiff:
+                result = None
+        if result:
+            for name in self._truth_renders(entry):
                 if (cache_dir / name).exists():
                     shutil.copyfile(cache_dir / name, gt_dir / name)
-            if result.get("ok") and "renderCheck" not in result and (gt_dir / "render.png").exists():
+                elif name == "render32.tif":
+                    (gt_dir / name).unlink(missing_ok=True)
+            check_outcome = (result.get("renderCheck") or {}).get("outcome")
+            if result.get("ok") and check_outcome in (None, "unconfirmed", "unstable") and (gt_dir / "render.png").exists():
                 # Cached before the reference was confirmed by a second open: confirm it
                 # once now. Cells cached against a reference Photoshop drew wrong were
                 # scored against the wrong picture, so this run measures them again.
                 check = self._confirm_reference(entry, staged, gt_dir, result)
                 if check["outcome"] == "replaced":
                     self._reference_replaced = self._reference_replaced | {index}
-                    for name in ("render.png", "render16.png"):
+                    for name in self._truth_renders(entry):
                         if (gt_dir / name).exists():
                             shutil.copyfile(gt_dir / name, cache_dir / name)
                 result_path.write_text(json.dumps(self._cacheable_truth(result)), encoding="utf-8")
         else:
-            result = self.ps.probe(staged.original, gt_dir / "render.png")
+            result = self.ps.probe(staged.original, gt_dir / "render.png", **self._float32_probe_options(entry))
             if result.get("ok"):
                 # Hyphenate and the line composer where a paragraph leaves them to its
                 # sheet: Photoshop does not report those, the file does.
@@ -1966,9 +2034,11 @@ class Runner:
                     self._confirm_reference(entry, staged, gt_dir, result)
                 cache_dir.mkdir(parents=True, exist_ok=True)
                 result_path.write_text(json.dumps(self._cacheable_truth(result)), encoding="utf-8")
-                for name in ("render.png", "render16.png"):
+                for name in self._truth_renders(entry):
                     if (gt_dir / name).exists():
                         shutil.copyfile(gt_dir / name, cache_dir / name)
+                    elif name == "render32.tif":
+                        (cache_dir / name).unlink(missing_ok=True)
         if result.get("ok"):
             # (Ground truth cached before the appended-text leg was retired calls it
             # mutateSkipped; only its missing-fonts reason still means anything.)
@@ -2008,14 +2078,16 @@ class Runner:
                 artifacts["renderThumb"] = self._rel(gt_dir / thumb)
         if (gt_dir / "render16.png").exists():
             artifacts["render16"] = self._rel(gt_dir / "render16.png")
+        if self._float32_probe_options(entry) and (gt_dir / "render32.tif").is_file():
+            artifacts["render32"] = self._rel(gt_dir / "render32.tif")
         entry["groundTruth"] = {
             "state": "done",
-            "render": result.get("render"),
+            "render": result.get("render") if "render" in artifacts else "render-error: no reference image",
             "textFontsMissing": result.get("textFontsMissing"),
             "missingFonts": result.get("missingFonts", []),
             "artifacts": artifacts,
         }
-        if (result.get("renderCheck") or {}).get("note"):
+        if (result.get("renderCheck") or {}).get("note") or (result.get("renderCheck") or {}).get("float32"):
             entry["groundTruth"]["renderCheck"] = result["renderCheck"]
         # Alerts Photoshop raised while opening the file (the driver acknowledged
         # them so the probe could finish); they say something about the file, so
@@ -2023,6 +2095,8 @@ class Runner:
         if result.get("dialogs"):
             entry["groundTruth"]["dialogs"] = result["dialogs"]
             log(f"    Photoshop warned while opening this file: {result['dialogs'][0]}")
+        if result.get("operationDialogs"):
+            entry["groundTruth"]["operationDialogs"] = result["operationDialogs"]
         (gt_dir / "manifest.json").write_text(json.dumps(result["layers"], indent=1), encoding="utf-8")
         self.push()
         return result
@@ -2047,15 +2121,22 @@ class Runner:
         ground-truth result as renderCheck."""
         entry["groundTruth"]["stage"] = "drawing the Photoshop reference again to confirm it"
         self.push()
-        check = self._settle_photoshop_render(staged.original, gt_dir / "render.png", None, "this file")
+        if self._float32_probe_options(entry):
+            check = render_check.settle_render(functools.partial(self.ps.probe, float32=True), staged.original,
+                                               gt_dir / "render.png", None, analyze.renders_agree, "this file",
+                                               float_size=(int(result["width"]), int(result["height"])))
+        else:
+            check = self._settle_photoshop_render(staged.original, gt_dir / "render.png", None, "this file")
         result["renderCheck"] = check
+        if check and check.get("dialogs"):
+            result["dialogs"] = list(dict.fromkeys([*result.get("dialogs", []), *check["dialogs"]]))
         return check
 
     @staticmethod
     def _cacheable_truth(result: dict) -> dict:
         """A reference Photoshop could not draw a second time stays unconfirmed in
         the cache, so the next run that reuses it tries again."""
-        if (result.get("renderCheck") or {}).get("outcome") == "unconfirmed":
+        if (result.get("renderCheck") or {}).get("outcome") in ("unconfirmed", "unstable"):
             return {key: value for key, value in result.items() if key != "renderCheck"}
         return result
 
@@ -2064,12 +2145,54 @@ class Runner:
 
     # ---------- editor cells ----------
 
+    def _float32_exclusion(self, entry: dict) -> str | None:
+        truth = entry.get("groundTruth") or {}
+        exclusion = render_check.source_exclusion(truth)
+        if exclusion:
+            return exclusion
+        if not getattr(self.ps, "supports_float32", False):
+            return "The selected Photoshop reference driver does not provide local float TIFFs"
+        if (entry.get("traits") or {}).get("mode") not in (1, 3):
+            return "Only RGB and grayscale sources have a matching linear RGB comparison"
+        size = entry.get("docSize")
+        if size and size[0] * size[1] > 64_000_000:
+            return "Source canvas exceeds the 64-megapixel float comparison limit"
+        record = (truth.get("renderCheck") or {}).get("float32") or {}
+        if record.get("state") != "confirmed":
+            return record.get("reason", "No independently confirmed Photoshop float reference")
+        return None
+
+    def _measure_float32(self, entry: dict, info, staged, cell: dict, cell_dir: Path, reference: Path) -> None:
+        import float32_check
+        reason = self._float32_exclusion(entry)
+        actual = cell_dir / "render32.tif"
+        actual.unlink(missing_ok=True)
+        if not reason and not reference.is_file():
+            reason = "Confirmed Photoshop float TIFF is unavailable"
+            cell["uncacheable"] = True
+        if not reason:
+            result = patchy_driver.export(info.exe, staged.original, actual)
+            if not result["ok"]:
+                reason = "Patchy could not export the original as a float TIFF"
+                cell["uncacheable"] = True
+        if reason:
+            cell["float32"] = {"state": "unscored", "reason": reason}
+            return
+        cell["artifacts"]["render32"] = self._rel(actual)
+        digest = entry["groundTruth"]["renderCheck"]["float32"]["sampleSHA256"]
+        cell["float32"] = float32_check.compare(reference, actual, tuple(entry["docSize"]), expected_digest=digest)
+        if cell["float32"].get("retry"):
+            cell["uncacheable"] = True
+
     def run_cell(self, index: int, editor_key: str, staged: staging.StagedPsd, truth: dict | None) -> None:
         entry = self.file_entry(index)
         cell = entry["cells"][editor_key]
         info = self.editors[editor_key]
         cell_dir = self.files_dir / artifact_dir_name(entry) / editor_key
         cell_dir.mkdir(parents=True, exist_ok=True)
+        float_requested = editor_key == "patchy" and self._float32_requested(entry)
+        if float_requested:
+            cell["float32"] = {"state": "unscored", "reason": self._float32_exclusion(entry) or "No Patchy render"}
 
         if not info.available:
             error = "editor not found on this machine"
@@ -2098,6 +2221,10 @@ class Runner:
             # Its forced-text pixels change when Photoshop's font environment
             # changes too; older cells must not retain an unqualified text score.
             version_key += "-fontcheck1-" + self.ps.font_cache_key()
+            if float_requested:
+                raw = (entry.get("groundTruth", {}).get("renderCheck") or {}).get("float32") or {}
+                basis = self._float32_exclusion(entry) or raw["sampleSHA256"]
+                version_key += "-floatrgb1-" + hashlib.sha256(basis.encode()).hexdigest()[:16]
         if editor_key == "psdtools":
             # Cells cached before the column had its load-and-save leg carry no
             # "data kept" score; the qualifier keeps them from being reused.
@@ -2115,13 +2242,16 @@ class Runner:
         if editor_key in TEXT_SAVE_EDITORS and (entry.get("traits") or {}).get("text"):
             version_key += "-textsave2"  # also saved after the editor's text update (_text_save_leg)
         cache_dir = config.CACHE_DIR / (
-            f"cell-{staged.sha1}-{editor_key}-{_version_slug(version_key)}-{self.suffix}"
+            f"cell-{staged.sha1}-{editor_key}-{_version_slug(version_key)}-{self._cache_suffix()}"
         )
         reference_replaced = index in self._reference_replaced
         if cache_dir.exists() and reference_replaced:
             log(f"    {editor_key}: measuring again; the cached cell was scored against a "
                 "reference render Photoshop had drawn wrong")
-        if cache_dir.exists() and not self.args.fresh and not reference_replaced:
+        has_float_artifacts = (not float_requested or self._float32_exclusion(entry)
+                               or ((cell_dir.parent / "_truth" / "render32.tif").is_file()
+                                   and (cache_dir / "render32.tif").is_file()))
+        if cache_dir.exists() and not self.args.fresh and not reference_replaced and has_float_artifacts:
             cached_cell = json.loads((cache_dir / "cell.json").read_text(encoding="utf-8"))
             for item in cache_dir.iterdir():
                 if item.name != "cell.json":
@@ -2191,6 +2321,8 @@ class Runner:
             artifacts["resavePsd"] = self._rel(resave_psd)
 
         document_size = tuple(entry.get("docSize", (0, 0)))
+        if float_requested:
+            self._measure_float32(entry, info, staged, cell, cell_dir, truth_render.with_name("render32.tif"))
 
         if truth is not None and render_png.exists() and truth_render.exists() and document_size[0]:
             cell["stage"] = "comparing renders"
@@ -2830,7 +2962,7 @@ class Runner:
             # modal too ("contains nested layer groups that may change in
             # appearance..."). The ground truth never saves, so a dialog seen here
             # is one only this leg raises and would otherwise go unrecorded.
-            dialogs = list(result.get("dialogs") or [])
+            dialogs = list(dict.fromkeys([*(result.get("dialogs") or []), *(result.get("operationDialogs") or [])]))
             if not result.get("ok"):
                 cell.update({"state": "failed", "opens": "fail", "error": result.get("error")})
                 self._note_file_rejection(cell, result)
@@ -2838,7 +2970,9 @@ class Runner:
             cell["opens"] = "ok" if result.get("render") == "ok" else "fallback-render"
             if staged.trap is not None:
                 trap_result = self.ps.probe(staged.trap, trap_png)
-                dialogs += [d for d in trap_result.get("dialogs") or [] if d not in dialogs]
+                for message in [*(trap_result.get("dialogs") or []), *(trap_result.get("operationDialogs") or [])]:
+                    if message not in dialogs:
+                        dialogs.append(message)
                 if not trap_result.get("ok"):
                     cell["trapError"] = trap_result.get("error")
             if dialogs:
@@ -3044,13 +3178,13 @@ class Runner:
                     "nocache_fontkept.psd", "nocache_fontkept.psb",
                     "nocache_plain_fontkept.psd", "nocache_plain_fontkept.psb",
                     "nocache_plain_textkept.psd", "nocache_plain_textkept.psb")
-    SCRUB_TRUTH = ("render.png", "render_thumb.png", "render16.png", "mutated.png",
-                   "mutated_thumb.png", "manifest.json") + render_check.scratch_names("render")
+    SCRUB_TRUTH = ("render.png", "render_thumb.png", "render16.png", "render32.tif", "mutated.png",
+                   "mutated_thumb.png", "manifest.json") + render_check.scratch_names("render", float32=True)
     SCRUB_CELL = ("render.png", "render_thumb.png", "render_as_opened.png", "nocache.png",
                   "nocache_plain.png", "nocache_resave.psd", "nocache_unused.png", "resave.psd", "trap.png",
                   "trap_thumb.png", "mutated.png", "mutated_thumb.png", "heatmap.png",  # mutated*: older runs
                   "roundtrip.png", "roundtrip_thumb.png", "roundtrip_manifest.json",
-                  "render16.png", "roundtrip16.png",
+                  "render16.png", "roundtrip16.png", "render32.tif",
                   # the text-save leg: the save after the editor's text update, as Photoshop opens it
                   "textsave.psd", "textsave.png", "textsave16.png", "textsave_thumb.png", "textsave_manifest.json",
                   # 16-bit originals of the other legs' renders (analyze.split_deep_png)
@@ -3061,6 +3195,13 @@ class Runner:
     def _apply_scan_policy(self, index: int) -> None:
         """After every cell of a file finished: flag it, or scrub a passing file."""
         entry = self.file_entry(index)
+        excluded = render_check.source_exclusion(entry.get("groundTruth"))
+        if excluded:
+            entry["scan"] = {"excluded": excluded, "flagged": False, "reasons": [], "artifactsKept": True}
+            self._deferred_cell_caches.pop(index, None)
+            log(f"    scan: unscored - {excluded}")
+            self.push()
+            return
         reasons = self._scan_flag_reasons(entry)
         entry["scan"] = {"flagged": bool(reasons), "reasons": reasons}
         deferred = self._deferred_cell_caches.pop(index, [])
@@ -3081,6 +3222,8 @@ class Runner:
         assert self.scan_threshold is not None
         reasons: list[str] = []
         truth = entry.get("groundTruth", {})
+        if render_check.source_exclusion(truth):
+            return []
         if truth.get("state") != "done":
             reasons.append(f"Photoshop ground truth failed: {truth.get('error', 'unknown')}")
         for editor_key in self.editor_order:
@@ -3093,6 +3236,10 @@ class Runner:
                 continue
             if cell.get("opens") == "fail":
                 reasons.append(f"{name}: failed to open the PSD")
+            raw = cell.get("float32") or {}
+            if raw.get("state") == "done" and raw["fractionOverTolerance"] > self.scan_threshold:
+                reasons.append(f"{name}: float RGB differs by more than {raw['threshold']:g} on "
+                               f"{raw['fractionOverTolerance'] * 100:.1f}% of pixels")
             metrics = cell.get("renderMetrics")
             if metrics is None:
                 if truth.get("state") == "done":
@@ -3135,6 +3282,8 @@ class Runner:
                 if cell.get(key):
                     reasons.append(f"{name}: {label} ({cell[key]})")
             photoshop_run = self.status["run"].get("photoshop")
+            for warning in saved_file_warnings(cell):
+                reasons.append(f"{name}: Photoshop warned on a saved PSD ({warning})")
             if cell.get("resaveRejected"):
                 reasons.append(f"{name}: resave rejected by Photoshop"
                                + (f" {photoshop_run['reference']}" if photoshop_run else ""))
@@ -3202,7 +3351,7 @@ class Runner:
                 lines.append(f"# {reason}")
             lines.append(entry["source"])
         if not flagged:
-            lines.append("# (none - every file passed)")
+            lines.append("# No eligible files were flagged.")
         (self.run_dir / "flagged.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     # ---------- pause / resume ----------
@@ -3422,6 +3571,13 @@ class Runner:
                 log(f"    {truth_error}")
                 self._fail_pending_cells(entry, truth_error)
                 continue
+            excluded = render_check.source_exclusion(entry.get("groundTruth"))
+            if excluded:
+                log(f"    unscored: {excluded}")
+                self._fail_pending_cells(entry, excluded)
+                if self.scan_threshold is not None:
+                    self._apply_scan_policy(index)
+                continue
             self._check_original_in_versions(index, staged, truth)
             for editor_key in self.editor_order:
                 cell = entry["cells"][editor_key]
@@ -3497,7 +3653,7 @@ class Runner:
         version_labels = ([photoshop_run["reference"], *photoshop_run.get("checks", [])]
                           if photoshop_run and photoshop_run.get("checks") else [])
         for editor_key in self.editor_order:
-            opened = total = bad_saves = 0
+            opened = total = bad_saves = warned_saves = 0
             # Resaves each Photoshop version refused (multi-version runs only).
             rejected_by = {label: 0 for label in version_labels}
             render_scores: list[float] = []
@@ -3508,11 +3664,23 @@ class Runner:
             depth_kept = depth_total = 0
             deep_render: list[float] = []
             deep_roundtrip: list[float] = []
+            float_files = {"measured": 0, "withinTolerance": 0, "unscored": 0}
             # The text-save leg: type layers that come back the same after the editor's
             # text update, of those measured; files measured; saves Photoshop refused.
             text_save = {"same": 0, "measured": 0, "files": 0, "rejected": 0}
             for entry in self.status["files"]:
                 cell = entry["cells"].get(editor_key)
+                if (editor_key == "patchy" and self._float32_requested(entry) and cell
+                        and cell.get("state") not in ("pending", "running")):
+                    numeric = cell.get("float32") or {}
+                    excluded = render_check.source_exclusion(cell.get("groundTruth") or entry.get("groundTruth"))
+                    if not excluded and numeric.get("state") == "done":
+                        float_files["measured"] += 1
+                        float_files["withinTolerance"] += numeric["pixelsOverTolerance"] == 0
+                    else:
+                        float_files["unscored"] += 1
+                if render_check.source_exclusion((cell or {}).get("groundTruth") or entry.get("groundTruth")):
+                    continue
                 if not cell or cell.get("state") in ("pending", "running", "skipped"):
                     continue
                 total += 1
@@ -3520,6 +3688,8 @@ class Runner:
                     opened += 1
                 # A save any checked Photoshop refuses is a bad save.
                 rejecting = resave_rejected_by(cell, photoshop_run)
+                if saved_file_warnings(cell):
+                    warned_saves += 1
                 if rejecting:
                     bad_saves += 1
                 for label in rejecting:
@@ -3559,6 +3729,7 @@ class Runner:
                 "opened": opened,
                 "total": total,
                 "badSaves": bad_saves,
+                "warnedSaves": warned_saves,
                 "render": sum(render_scores) / len(render_scores) if render_scores else 0.0,
                 "visual": sum(visual_scores) / len(visual_scores) if visual_scores else 0.0,
                 "native": sum(native_scores) / len(native_scores) if native_scores else 0.0,
@@ -3573,6 +3744,8 @@ class Runner:
             if text_save["files"]:
                 # New keys only: the older ones keep their meaning, so history stays comparable.
                 aggregate[editor_key]["textSave"] = text_save
+            if editor_key == "patchy" and self.status["run"].get("float32"):
+                aggregate[editor_key]["float32"] = float_files
             if version_labels:
                 aggregate[editor_key]["badSavesBy"] = rejected_by
         return aggregate
@@ -3584,6 +3757,9 @@ class Runner:
             "patchy": self.patchy_hash,
             "editors": self._aggregate(),
         }
+        excluded = sum(bool(render_check.source_exclusion(f.get("groundTruth"))) for f in self.status["files"])
+        if excluded:
+            summary["excludedSources"] = excluded
         photoshop_run = self.status["run"].get("photoshop")
         if photoshop_run:
             summary["photoshop"] = {key: photoshop_run.get(key) for key in ("reference", "checks")}
@@ -3613,15 +3789,23 @@ class Runner:
 
     def _print_summary(self) -> None:
         aggregate = self._aggregate()
+        excluded = sum(bool(render_check.source_exclusion(e.get("groundTruth"))) for e in self.status["files"])
+        if excluded:
+            log(f"Photoshop source references excluded from compatibility scores: {excluded}/{len(self.status['files'])}")
         log("summary (mean byte match / perceptual match / data kept in .psd save / opened):")
         for editor_key in self.editor_order:
             a = aggregate[editor_key]
+            if a.get("float32"):
+                raw = a["float32"]
+                log(f"  Patchy float RGB within 0.001 on every pixel of {raw['withinTolerance']}/{raw['measured']} "
+                    f"measured files ({raw['unscored']} unscored 32-bit files)")
             log(
                 f"  {self.editors[editor_key].display_name:<10} "
                 f"byte {a['render'] * 100:5.1f}%   perceptual {a['visual'] * 100:5.1f}%   "
                 + (f"kept {a['native'] * 100:5.1f}%   " if a["nativeMeasured"] else "kept     -    ")
                 +
                 f"opened {a['opened']}/{a['total']}"
+                + (f"   Photoshop warned on saves of {a['warnedSaves']} files" if a["warnedSaves"] else "")
                 + (f"   bad .psd saves {a['badSaves']}" if a["badSaves"] else "")
                 + (" (rejected by " + ", ".join(f"PS {label} {count}" for label, count
                                                 in a["badSavesBy"].items()) + ")"
@@ -3636,7 +3820,7 @@ class Runner:
         if self.scan_threshold is not None:
             flagged = [e for e in self.status["files"] if e.get("scan", {}).get("flagged")]
             basis = "perceptual" if self.compare_mode == "perceptual" else "byte"
-            log(f"scan: {len(flagged)}/{len(self.status['files'])} file(s) flagged "
+            log(f"scan: {len(flagged)}/{len(self.status['files']) - excluded} eligible file(s) flagged "
                 f"(threshold {self.scan_threshold * 100:g}% {basis} difference); "
                 f"passed files' artifacts discarded")
             for entry in flagged:
@@ -3676,6 +3860,7 @@ def main() -> int:
                              "photoshop.reference, else what Photoshop.Application resolves to)")
     parser.add_argument("--no-build", action="store_true", help="skip the Patchy release build refresh")
     parser.add_argument("--fresh", action="store_true", help="ignore cached ground truth / cells")
+    parser.add_argument("--float32", action="store_true", help="compare full-canvas 32-bit PSD samples in the Patchy column")
     parser.add_argument("--resume", default=None, metavar="RUN_DIR",
                         help="continue a paused/canceled/interrupted run directory "
                              "(runs\\<timestamp>), skipping completed work; corpus, "

@@ -67,9 +67,9 @@ def score(entry: dict, corpus: Path, out_dir: Path, exe: Path, worker: int, deep
     result["byte"] = metrics["accuracy"]
     result["perceptual"] = metrics["perceptual"]["accuracy"]
     if "render16" in files:
-        deep = analyze.compare_deep_renders(corpus / files["render16"], render, size)
-        result["deep"] = deep.get("accuracy")
-        result["deepRmse"] = deep.get("rmse")
+        precision = analyze.compare_deep_renders(corpus / files["render16"], render, size)
+        result["deep"] = precision.get("accuracy")
+        result["deepRmse"] = precision.get("rmse")
     error = run_patchy(exe, psd, resave, settings, deep)
     if error:
         result["resaveError"] = error

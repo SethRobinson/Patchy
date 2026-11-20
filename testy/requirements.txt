@@ -2,6 +2,7 @@
 pywin32          # Photoshop COM driver + the modal-dialog guard (win_dialogs.py)
 Pillow           # render comparison
 numpy            # render comparison
+tifffile         # native float TIFF samples, including HDR colors
 selenium         # Photopea driver (headless Chrome; Selenium Manager fetches chromedriver)
 fonttools        # Photopea driver: hands it the font files a document's text uses (fonts.py)
 pywinauto        # Affinity driver (background UI Automation)

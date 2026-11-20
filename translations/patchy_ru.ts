@@ -16495,6 +16495,34 @@ Do you want to replace it?</source>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · Актуальная версия</translation>
     </message>
+    <message>
+        <source>Aseprite tilemaps were rendered as pixel layers.</source>
+        <translation>Карты тайлов Aseprite отрисованы как растровые слои.</translation>
+    </message>
+    <message>
+        <source>Aseprite tilemaps with unavailable tilesets were skipped.</source>
+        <translation>Карты тайлов Aseprite с недоступными наборами тайлов пропущены.</translation>
+    </message>
+    <message>
+        <source>This format uses different blend rules for Aseprite layers.</source>
+        <translation>В этом формате для слоёв Aseprite используются другие правила наложения.</translation>
+    </message>
+    <message>
+        <source>Timeline audio file %1 is on network server %2, which Patchy has not been allowed to access</source>
+        <translation>Звуковой файл %1 со шкалы времени находится на сетевом сервере %2. У Patchy нет разрешения на доступ к этому серверу.</translation>
+    </message>
+    <message>
+        <source>Some linked files are unavailable. You can continue opening the document.</source>
+        <translation>Некоторые связанные файлы недоступны. Вы можете продолжить открытие документа.</translation>
+    </message>
+    <message>
+        <source>Used by timeline audio. To relink this file, use a timeline editor.</source>
+        <translation>Этот файл используется звуковой дорожкой на шкале времени. Чтобы заново связать его, используйте редактор со шкалой времени.</translation>
+    </message>
+    <message>
+        <source>File not found on %1</source>
+        <translation>Файл не найден на %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -37237,6 +37265,14 @@ Locked: %1</source>
     <message>
         <source>Load Selection from Alpha Channel</source>
         <translation>Загрузить выделение из альфа-канала</translation>
+    </message>
+    <message>
+        <source>Keep the look by baking the affected layers, or keep their editable pixels and use the blend modes this format supports.
+
+%1</source>
+        <translation>Чтобы сохранить внешний вид, запишите результат наложения в пиксели затронутых слоёв. Можно также сохранить редактируемые пиксели и использовать режимы наложения, поддерживаемые этим форматом.
+
+%1</translation>
     </message>
 </context>
 <context>

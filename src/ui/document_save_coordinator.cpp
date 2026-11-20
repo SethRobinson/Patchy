@@ -217,7 +217,8 @@ namespace {
 // asked for it, otherwise written as Normal by the writer. Either way the save says so.
 void settle_unsupported_blend_modes(Document& snapshot, LayeredSaveFormat format, bool bake,
                                     std::vector<std::string>& notices) {
-  if (find_unsupported_blend_modes(snapshot, format).empty()) {
+  const auto unsupported = find_unsupported_blend_modes(snapshot, format);
+  if (unsupported.empty()) {
     return;
   }
   if (bake) {
@@ -225,6 +226,8 @@ void settle_unsupported_blend_modes(Document& snapshot, LayeredSaveFormat format
     notices.emplace_back(QT_TRANSLATE_NOOP("QObject",
                                            "Layers in blend modes this format cannot store were rebuilt as Normal "
                                            "layers that keep the look."));
+  } else if (unsupported.includes_aseprite_cels) {
+    notices.emplace_back(QT_TRANSLATE_NOOP("QObject", "This format uses different blend rules for Aseprite layers."));
   } else {
     notices.emplace_back(QT_TRANSLATE_NOOP("QObject",
                                            "Layers in blend modes this format cannot store were saved as Normal, "

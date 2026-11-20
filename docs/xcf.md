@@ -30,14 +30,15 @@ Patchy's own, written from the published format descriptions.
 
 ## Container
 
-- Big-endian throughout. Header `gimp xcf ` + `file` (version 0) or `vNNN` + NUL, then width,
+- Header and record fields are big-endian. Header `gimp xcf ` + `file` (version 0) or `vNNN` + NUL, then width,
   height, base type (RGB, gray, indexed), the precision from version 4, image properties,
   then pointer lists for layers (top first), channels and, from version 18, paths. Pointers
   are 32-bit up to version 10 and 64-bit from 11. Versions 100 and up are CinePaint's
   dialect: refused with their own message.
-- A property is type, length, payload. PROP_COLORMAP and PROP_USER_UNIT carry wrong length
-  words in many files, so their payloads are measured; every other length is trusted,
-  bounds-checked. A repeated parasite name keeps the last one.
+- A property has a type, length and bounded payload. Patchy measures PROP_COLORMAP and
+  PROP_USER_UNIT because their stored lengths can be wrong. Some GIMP 3.2 files undercount
+  PROP_LINK_LAYER by the four-byte path length. Its inner length identifies that case.
+  A repeated parasite name keeps the last one.
 - Every layer of the tree is in the one top-level list, depth first; PROP_ITEM_PATH's length
   gives its depth. A path deeper than the open groups is clamped with a damage notice.
   Group layers carry GIMP's projection pixels; they are not read.
@@ -45,6 +46,10 @@ Patchy's own, written from the published format descriptions.
   zlib (one stream per tile). A tile's data runs to the next tile's start. A zero tile
   pointer ends the list early (GIMP's own test files do this): the rest is transparent,
   not damage. A tile that fails to decode opens transparent with a notice.
+- GIMP development builds wrote multibyte tile samples in native byte order in XCF versions
+  7 through 11. These files have no byte-order marker. Patchy assumes little-endian for
+  their color, alpha and mask/channel samples. A deep file from a big-endian development
+  machine will have swapped samples. Version 12 and later use big-endian samples.
 - Wrappers: gzip (miniz, concatenated members), bzip2 (own decoder, block CRCs checked,
   randomized blocks refused) and xz (own LZMA2 decoder; LZMA2 is the only filter accepted,
   check fields skipped). A sniff decodes only the first chunk.
@@ -66,7 +71,9 @@ nesting past 64 and hostile counts read as damage. Truncated and mutated files a
 | 8-bit non-linear or perceptual | 8 bits, samples copied |
 | 8-bit linear | 16 bits (linear 8-bit values do not survive sRGB encoding at 8 bits) |
 | 16 and 32-bit integer, any curve | 16 bits, encoded with the sRGB curve |
-| half, float and double | 32-bit linear float; 16 bits with a notice when a layer uses a mode Patchy offers only at 8 and 16 bits |
+| half, float and double | 32-bit linear float. A mode that needs a lower layer and is available only at 8 or 16 bits opens the document at 16 bits with a notice. |
+
+For nonlinear half, float and double sources, the transfer to linear float continues the linear segment below zero and the power segment above one. Testy checks these values against the fixture generator as well as checking GIMP’s PNG previews.
 
 With deep editing off every precision opens at 8 bits with a notice. Gray layers widen to
 RGB; indexed layers expand through the colormap (at most 256 entries), alpha on or off at
@@ -91,8 +98,9 @@ curve before that conversion.
   with only the locks GIMP saved, never as Patchy's Background (#547).
 - The floating selection opens as an ordinary layer above the layer it belongs to (notice);
   one attached to a channel or mask is dropped (notice).
-- GIMP 3.2 vector layers open as shape layers ("Vector layers" below); link layers open as
-  their pixels (notice).
+- GIMP 3.2 vector layers open as shape layers ("Vector layers" below). Link layers open
+  from their saved pixel tiles with their original bounds, even when the source file is
+  missing. Import reads no file at the stored path.
 - GIMP's active layer stays active; when the import replaced it (an Erase or Split layer), its
   group stands in, else the top layer (#487: such a file failed to open).
 
@@ -155,6 +163,12 @@ PROP_BLEND_SPACE picks the linear forms: Multiply, Addition, Subtract and Divide
 linear light by default in GIMP 2.10 and later, in the profile curve in legacy files. A mode
 set to blend in another space than its default opens in its usual form with a notice.
 
+At 32 bits Patchy's ordinary Multiply already multiplies linear samples and preserves HDR
+values. A bottom layer with a mode unavailable at 32 bits opens as Normal, which matches
+GIMP's rendering over an empty backdrop. Isolated groups start a new backdrop. Pass-through
+groups share their parent's backdrop. A lower hidden layer still counts when choosing
+precision, so revealing it keeps the upper blend mode.
+
 ## Composite modes and spaces
 
 - GIMP renders the bottom visible layer of the image and of every isolated group as Normal.
@@ -164,10 +178,15 @@ set to blend in another space than its default opens in its usual form with a no
   mask on that base (exact); otherwise it gets a mask made from the coverage below it,
   which approaches GIMP's result (notices). Clip to layer and intersection are treated as
   clip to backdrop (notice).
-- Composite space: GIMP 2.10 and later mix partly covered pixels and opacity in linear
-  light; Patchy mixes 8 and 16-bit documents in display values and 32-bit ones in linear
-  light. This is the main remaining difference: soft edges, faded layers and glows differ
-  by a few levels on average and up to about 70 at single pixels.
+- GIMP records the space for the opacity and coverage mix separately from the blend
+  function. Modern layers commonly mix in linear light. Patchy currently uses the document
+  depth for that mix: display values at 8 and 16 bits, linear light at 32 bits.
+  Against GIMP's saved PNGs, Testy flags 68.63% of the pixels in the three-layer
+  `1024x1024-better-compression.xcf` and 58.64% in `radar.xcf`. Both drop to 0.00% when
+  the same imported layers and effects are composited at 32 bits. In `isometricroom.xcf`,
+  an independent composite that keeps the original blend modes and mixes coverage in
+  linear light reduces the flagged fraction from 12.14% to 3.50%. These diagnostics
+  use the GIMP PNGs in the [local corpus](#corpus).
 
 ## Other content
 

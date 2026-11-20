@@ -21,6 +21,7 @@ namespace patchy {
 // (docs/performance-compositor.md "Float row kernels").
 class Rgb8PixelBufferTarget {
 public:
+  [[nodiscard]] static constexpr bool permits_aseprite_cel_blend() noexcept { return true; }
   // origin_x/origin_y let a strip-sized destination receive document-space
   // composite coordinates (the strip covers rows starting at origin_y).
   explicit Rgb8PixelBufferTarget(PixelBuffer& destination, float initial_alpha, std::int32_t origin_x = 0,
@@ -244,6 +245,7 @@ private:
 // `origin`: the document point the destination's (0, 0) stands for (a rect flatten).
 class Rgba8PixelBufferTarget {
 public:
+  [[nodiscard]] static constexpr bool permits_aseprite_cel_blend() noexcept { return true; }
   // `origin`: the document point the destination's (0, 0) stands for (a rect flatten).
   explicit Rgba8PixelBufferTarget(PixelBuffer& destination, std::int32_t origin_x = 0, std::int32_t origin_y = 0)
       : destination_(destination), origin_x_(origin_x), origin_y_(origin_y) {}
@@ -355,6 +357,7 @@ private:
 // docs/refactor-backlog.md records what a merge needs.
 class Rgb8PerPixelTarget {
 public:
+  [[nodiscard]] static constexpr bool permits_aseprite_cel_blend() noexcept { return true; }
   explicit Rgb8PerPixelTarget(PixelBuffer& destination, float initial_alpha)
       : destination_(destination),
         alpha_(static_cast<std::size_t>(destination.width()) * static_cast<std::size_t>(destination.height()),

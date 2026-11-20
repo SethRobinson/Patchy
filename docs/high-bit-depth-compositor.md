@@ -70,6 +70,7 @@ Exposure (98%).
      t = 2^(-g - 1/(g-1)) it is a cubic Hermite toe leaving black at slope 2^g and
      meeting x^(1/g) in value and slope at t (`levels_gamma_curve`, all depths; ramps
      at gamma 1.2 to 9.99 match within 3/65535 up to gamma 3).
+   - 32-bit Exposure applies its gamma power to the magnitude of the exposed value and restores its sign. Legacy Brightness/Contrast uses an unclamped linear ramp pivoting at 127 on the 0 to 255 scale. Full positive contrast thresholds the result. Photoshop float TIFF captures cover negative shadows and values up to 4.
    - 32-bit Levels maps linear values: (v - black)/(white - black) through a signed
      power, unclamped (negative below the black point). 32-bit Curves applies to the
      linear value times 255.

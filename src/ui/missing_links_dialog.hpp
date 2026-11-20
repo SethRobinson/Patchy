@@ -1,5 +1,7 @@
 #pragma once
 
+#include "psd/psd_timeline_audio.hpp"
+
 #include <QString>
 #include <QStringList>
 
@@ -9,6 +11,8 @@
 #include <vector>
 
 class QWidget;
+
+namespace patchy { class Document; }
 
 namespace patchy::ui {
 
@@ -27,7 +31,13 @@ struct MissingLinkEntry {
   // case; docs/smart-object-editing.md, "Network links"); empty for a file that is simply
   // missing. Such a row also offers Allow Server.
   QString blocked_server;
+  std::optional<psd::TimelineAudioLink> timeline_audio;  // An audio clip has no owning layer or Smart Object relink action.
 };
+
+[[nodiscard]] bool timeline_audio_file_found(const psd::TimelineAudioLink& link, const QString& document_dir,
+                                             QString* blocked_server = nullptr);
+[[nodiscard]] std::vector<MissingLinkEntry> missing_timeline_audio_files(const Document& document,
+                                                                        const QString& document_dir);
 
 struct MissingLinksDialogResult {
   int relinked{0};  // rows whose Relink... succeeded while the dialog was open

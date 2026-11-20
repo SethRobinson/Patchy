@@ -1,6 +1,8 @@
 #include <string_view>
 #include "core/smart_filter.hpp"
 #include "core/document.hpp"
+#include "core/document_depth.hpp"
+#include "core/document_memory.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
@@ -1303,6 +1305,19 @@ void psd_smart_filter_masks_decode_and_coexist_with_layer_mask() {
     CHECK(five_tone.pixels.pixel(x, 20)[0] == expected[band]);
     CHECK(five_tone.pixels.pixel(x + 7, 20)[0] == expected[band]);
   }
+  // Photoshop 28, with this one layer visible and merged over transparency.
+  const auto& masked_layer = require_layer_named(document, "Five-tone filter mask 0 64 128 192 255");
+  const auto check_sample = [&](int x, std::array<int, 4> rgba) {
+    const auto* pixel = masked_layer.pixels().pixel(x - masked_layer.bounds().x, 20 - masked_layer.bounds().y);
+    for (std::size_t c = 0; c < rgba.size(); ++c) CHECK(std::abs(pixel[c] - rgba[c]) <= 1);
+  };
+  check_sample(14, {43, 116, 184, 241});
+  check_sample(18, {81, 83, 71, 255});
+  check_sample(26, {60, 117, 173, 180});
+  const auto reopened = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto& saved_layer = require_layer_named(reopened, masked_layer.name());
+  CHECK(saved_layer.bounds() == masked_layer.bounds());
+  CHECK(std::ranges::equal(saved_layer.pixels().data(), masked_layer.pixels().data()));
 
   const auto& disabled = require_smart_filter_stack(document, "Disabled selection filter mask").mask;
   CHECK(!disabled.enabled);
@@ -1318,6 +1333,68 @@ void psd_smart_filter_masks_decode_and_coexist_with_layer_mask() {
                    static_cast<std::uint8_t>(255)) == 31 * 29);
   CHECK(std::count(disabled.pixels.data().begin(), disabled.pixels.data().end(),
                    static_cast<std::uint8_t>(0)) == 40 * 40 - 31 * 29);
+}
+
+void psd_smart_filter_depth_changes_preserve_the_unmasked_layer_and_history() {
+  using namespace patchy;
+  auto document = psd::DocumentIo::read_file(
+      test::committed_psd_fixture_path("photoshop-smart-filter-model.psd"));
+  const auto& layer = require_layer_named(document, "Five-tone filter mask 0 64 128 192 255");
+  const auto id = layer.id();
+  const auto original = layer.smart_filter_stack()->layer_preview;
+  CHECK(original && original->matches(layer));
+  const auto snapshot = document;
+  for (const auto depth : {BitDepth::UInt16, BitDepth::UInt8}) {
+    convert_document_depth(document, depth);
+    const auto& current = *std::as_const(document).find_layer(id);
+    const auto& preview = current.smart_filter_stack()->layer_preview;
+    CHECK(preview && preview->matches(current));
+    CHECK(preview->displayed.format().bit_depth == depth);
+    CHECK(preview->unmasked.data().data() == original->unmasked.data().data());
+  }
+  const auto reopened = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(document));
+  const auto& saved = require_layer_named(reopened, layer.name());
+  CHECK(saved.bounds() == original->displayed_bounds);
+  CHECK(std::ranges::equal(saved.pixels().data(), original->displayed.data()));
+  CHECK(saved.smart_filter_stack()->layer_preview != nullptr);
+  CHECK(std::ranges::equal(saved.smart_filter_stack()->layer_preview->unmasked.data(), original->unmasked.data()));
+
+  // A detached displayed raster cannot regain stale unmasked pixels. Dropping
+  // the pair releases both old raster allocations unless an undo state owns them.
+  auto edited = snapshot;
+  auto* edited_layer = edited.find_layer(id);
+  edited_layer->pixels().data()[0] ^= 255;
+  auto removed = *std::as_const(*edited_layer).smart_filter_stack();
+  removed.layer_preview.reset();
+  auto without_pair = edited;
+  without_pair.find_layer(id)->set_smart_filter_stack(std::move(removed));
+  PixelStorageSet live, seen;
+  collect_pixel_storage(without_pair, live);
+  CHECK(accumulate_unique_pixel_bytes(snapshot, live, seen) ==
+        original->displayed.byte_size() + original->unmasked.byte_size());
+  CHECK(accumulate_unique_pixel_bytes(edited, live, seen) == 0);
+  convert_document_depth(edited, BitDepth::UInt16);
+  CHECK(!std::as_const(edited).find_layer(id)->smart_filter_stack()->layer_preview);
+  CHECK(original->matches(*std::as_const(snapshot).find_layer(id)));
+
+  // A decoded native mask may share the live layer's coverage at first. If
+  // the mask is later detached, history must still count the old allocation.
+  const auto placed = smart_object_placed_uuid(layer);
+  auto* record = edited.metadata().smart_filter_effects.find_unique(placed);
+  CHECK(record && record->mask);
+  const auto& deep_mask = std::as_const(edited).find_layer(id)->smart_filter_stack()->mask.pixels;
+  record->mask->native_pixels = deep_mask;
+  auto detached = edited;
+  auto stack = *std::as_const(detached).find_layer(id)->smart_filter_stack();
+  stack.mask.pixels.data().front() ^= 255;
+  detached.find_layer(id)->set_smart_filter_stack(std::move(stack));
+  auto no_record_pixels = detached;
+  no_record_pixels.metadata().smart_filter_effects.find_unique(placed)->mask->native_pixels = {};
+  live.clear();
+  seen.clear();
+  collect_pixel_storage(no_record_pixels, live);
+  CHECK(accumulate_unique_pixel_bytes(detached, live, seen) == deep_mask.byte_size());
+  CHECK(accumulate_unique_pixel_bytes(edited, live, seen) == 0);
 }
 
 void psd_smart_filter_instances_have_independent_native_records() {
@@ -1634,7 +1711,7 @@ void smart_filter_effects_codec_rejects_malformed_data_and_accepts_alignment() {
   CHECK(cache_reader.read_u32() == 1U);
   (void)cache_reader.read_u64();
   const auto cache_body_offset = cache_reader.position();
-  write_u32_at(bad_cache_body, cache_body_offset + 16U, 16U);
+  write_u32_at(bad_cache_body, cache_body_offset + 16U, 24U);
   const auto bad_cache = patchy::psd::parse_filter_effects_block(
       "FEid", wrap_record_body(bad_cache_body));
   CHECK(!bad_cache.opaque);
@@ -2017,6 +2094,8 @@ std::vector<patchy::test::TestCase> smart_filter_descriptors_tests_part2() {
        psd_smart_filter_descriptor_semantics_parse_if_available},
       {"psd_smart_filter_masks_decode_and_coexist_with_layer_mask",
        psd_smart_filter_masks_decode_and_coexist_with_layer_mask},
+      {"psd_smart_filter_depth_changes_preserve_the_unmasked_layer_and_history",
+       psd_smart_filter_depth_changes_preserve_the_unmasked_layer_and_history},
       {"psd_smart_filter_instances_have_independent_native_records",
        psd_smart_filter_instances_have_independent_native_records},
       {"psd_smart_filter_clean_resave_preserves_native_data_and_pixels",

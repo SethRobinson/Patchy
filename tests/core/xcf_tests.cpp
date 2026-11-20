@@ -844,6 +844,21 @@ void xcf_reads_every_precision() {
     }
     CHECK(std::abs(loaded[3] - 127.5F) <= 0.6F);
   }
+  if (patchy::depth_supported_on_platform(patchy::BitDepth::Float32)) {
+    builder::Image hdr;
+    hdr.version = 12;
+    hdr.width = 3;
+    hdr.height = 2;
+    hdr.precision = 650;
+    builder::Layer hdr_layer;
+    hdr_layer.drawable = precision_drawable(4, put_float, {-0.25, 0.5, 2.0, 1.0});
+    hdr.layers.push_back(hdr_layer);
+    const auto opened = patchy::xcf::DocumentIo::read(builder::write(hdr));
+    const auto& pixels = opened.layers().at(0).pixels();
+    const auto sample = patchy::load_pixel(pixels.format(), pixels.pixel(1, 1));
+    CHECK(std::abs(sample[0] / 255.0F + 0.25F / 12.92F) < 1.0e-6F);
+    CHECK(std::abs(sample[2] / 255.0F - 4.9538469F) < 1.0e-5F);
+  }
   // With deep editing off, every precision opens at 8 bits and says so.
   patchy::set_deep_editing_override(false);
   builder::Image image;
@@ -859,6 +874,118 @@ void xcf_reads_every_precision() {
   CHECK(narrowed.color_state().bit_depth == patchy::BitDepth::UInt8);
   CHECK(notices.size() == 1 && notices[0].find("8 bits") != std::string::npos);
   patchy::set_deep_editing_override(std::nullopt);
+}
+
+void xcf_historical_deep_tiles_keep_color_and_mask_samples() {
+  patchy::set_deep_editing_override(true);
+  for (const auto& [version, compression] :
+       {std::pair{7, builder::Compression::None}, std::pair{9, builder::Compression::Rle},
+        std::pair{10, builder::Compression::Zlib}, std::pair{11, builder::Compression::Rle}}) {
+    builder::Image image;
+    image.version = version;
+    image.width = image.height = 1;
+    image.precision = 250;  // nonlinear UInt16
+    image.compression = compression;
+    builder::Layer layer;
+    // Asymmetric little-endian samples from a GIMP 2.9.x x86 producer.
+    layer.drawable = builder::solid(1, 1, {0x34, 0x12, 0x56, 0x34, 0x9a, 0x78, 0x00, 0x40});
+    layer.mask = builder::Channel{"Mask", {}, builder::solid(1, 1, {0x23, 0x81})};
+    image.layers.push_back(layer);
+    const auto document = patchy::xcf::DocumentIo::read(builder::write(image));
+    CHECK(document.color_state().bit_depth == patchy::BitDepth::UInt16);
+    const auto& pixels = document.layers().front().pixels();
+    const auto rgba = patchy::load_pixel(pixels.format(), pixels.pixel(0, 0));
+    const std::array expected{0x1234, 0x3456, 0x789a, 0x4000};
+    for (std::size_t c = 0; c < rgba.size(); ++c) {
+      CHECK(std::lround(rgba[c] * 257.0F) == expected[c]);
+    }
+    const auto& mask = document.layers().front().mask();
+    CHECK(mask.has_value());
+    CHECK(std::lround(patchy::coverage_at(mask->pixels, 0, 0) * 65535.0F) == 0x8123);
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+}
+
+void xcf_float_blends_keep_precision_when_the_mode_allows_it() {
+  patchy::set_deep_editing_override(true);
+  builder::Image image;
+  image.version = 9;
+  image.width = image.height = 1;
+  image.precision = 600;  // linear float, little-endian GIMP 2.9.x samples
+  builder::Layer overlay;
+  overlay.name = "Overlay";
+  overlay.properties = {builder::prop_u32(builder::kMode, 23)};
+  overlay.drawable = builder::solid(1, 1, {0, 0, 0, 0x40, 0, 0, 0x80, 0x3e, 0, 0, 0, 0x3f, 0, 0, 0x80, 0x3f});
+  auto multiply = overlay;
+  multiply.name = "Multiply";
+  multiply.properties = {builder::prop_u32(builder::kMode, 30)};
+  image.layers = {multiply, overlay};  // GIMP blends the bottom Overlay as Normal.
+  const auto document = patchy::xcf::DocumentIo::read(builder::write(image));
+  if (patchy::depth_supported_on_platform(patchy::BitDepth::Float32)) {
+    // Two opaque linear float layers (2, 1/4, 1/2). Multiplication retains the HDR result.
+    const auto check_product = [](const Document& result) {
+      CHECK(result.color_state().bit_depth == patchy::BitDepth::Float32);
+      CHECK(result.layers().size() == 2);
+      CHECK(result.layers()[0].blend_mode() == BlendMode::Normal);
+      CHECK(result.layers()[1].blend_mode() == BlendMode::Multiply);
+      const auto flattened = patchy::Compositor().flatten_rgba_deep(result);
+      const auto pixel = patchy::load_pixel(flattened.format(), flattened.pixel(0, 0));
+      const std::array expected{4.0F, 0.0625F, 0.25F, 1.0F};
+      for (std::size_t c = 0; c < pixel.size(); ++c) {
+        CHECK(std::abs(pixel[c] / 255.0F - expected[c]) < 1e-5F);
+      }
+    };
+    check_product(document);
+    check_product(patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document)));
+  }
+
+  // An upper Overlay needs its editable 16-bit mode, including when its backdrop is hidden.
+  multiply.properties.push_back(builder::prop_u32(builder::kVisible, 0));
+  image.layers = {overlay, multiply};
+  const auto narrowed = patchy::xcf::DocumentIo::read(builder::write(image));
+  CHECK(narrowed.color_state().bit_depth == patchy::BitDepth::UInt16);
+  CHECK(narrowed.layers()[1].blend_mode() == BlendMode::Overlay);
+
+  builder::Layer group;
+  group.drawable = overlay.drawable;
+  group.properties = {builder::prop_empty(builder::kGroupItem)};
+  overlay.properties.push_back(builder::prop_item_path({0, 0}));
+  image.layers = {group, overlay, multiply};
+  const auto isolated = patchy::xcf::DocumentIo::read(builder::write(image));
+  if (patchy::depth_supported_on_platform(patchy::BitDepth::Float32)) {
+    CHECK(isolated.color_state().bit_depth == patchy::BitDepth::Float32);
+    CHECK(isolated.layers()[1].children()[0].blend_mode() == BlendMode::Normal);
+  }
+  image.layers[0].properties.push_back(builder::prop_u32(builder::kMode, 61));
+  const auto pass_through = patchy::xcf::DocumentIo::read(builder::write(image));
+  CHECK(pass_through.color_state().bit_depth == patchy::BitDepth::UInt16);
+  CHECK(pass_through.layers()[1].children()[0].blend_mode() == BlendMode::Overlay);
+  patchy::set_deep_editing_override(std::nullopt);
+}
+
+void xcf_link_layers_use_cached_pixels_with_either_property_length() {
+  builder::Image image;
+  image.version = 25;
+  builder::Bytes payload;
+  payload.u32(1);
+  payload.string("missing/image.png");
+  payload.u32(2);
+  payload.u32(2);
+  const auto size = static_cast<std::uint32_t>(payload.data.size());
+  for (const auto length : {size, size - 4}) {
+    auto link = pixel_layer("Placed", builder::solid(2, 2, {23, 45, 67, 200}), -1, 3);
+    link.properties.push_back({48, payload.data, length});
+    link.properties.push_back(builder::prop_u32(builder::kColorTag, 6));
+    image.layers = {link, pixel_layer("Sibling", builder::solid(1, 1, {4, 8, 12, 255}))};
+    std::vector<std::string> notices;
+    const auto document = patchy::xcf::DocumentIo::read(builder::write(image), &notices);
+    CHECK(document.layers().size() == 2 && document.layers()[0].name() == "Sibling");
+    const auto& cached = document.layers()[1];
+    CHECK(cached.name() == "Placed" && cached.color_label() == patchy::kLayerColorRed);
+    CHECK(cached.bounds() == (patchy::Rect{-1, 3, 2, 2}));
+    CHECK(rgba_at(cached, 1, 1) == (std::array<std::uint8_t, 4>{23, 45, 67, 200}));
+    CHECK(notices.size() == 1 && notices[0].find("link layers opened as pixel layers") != std::string::npos);
+  }
 }
 
 void xcf_reads_gray_and_indexed_images() {
@@ -1532,6 +1659,85 @@ void xcf_reads_channels_selection_paths_guides_and_metadata() {
   return b.data;
 }
 
+void xcf_normal_and_replace_effects_use_image_selection_and_distinct_alpha() {
+  builder::Image image;
+  image.version = 22;
+  image.width = 4;
+  image.height = 1;
+  for (const auto mode : {28U, 62U}) {
+    auto owner = pixel_layer(std::to_string(mode), builder::solid(2, 1, {0, 0, 0, 128}), 1, 0);
+    builder::Effect effect{"Invert", "gegl:invert-gamma",
+                           {builder::prop_u32(builder::kMode, mode), builder::prop_u32(builder::kFilterRegion, 0)}};
+    effect.mask = builder::Channel{"Selection", {}, builder::Drawable{4, 1, 1, {0, 255, 0, 0}}};
+    owner.effects.push_back(std::move(effect));
+    image.layers.push_back(std::move(owner));
+  }
+  const auto document = patchy::xcf::DocumentIo::read(builder::write(image));
+  const auto* normal = find_named(document.layers(), "28");
+  const auto* replace = find_named(document.layers(), "62");
+  CHECK(normal != nullptr && replace != nullptr);
+  // A half-transparent white filter result over the half-transparent black input.
+  const auto over = rgba_at(*normal, 0, 0);
+  CHECK(std::abs(static_cast<int>(over[0]) - 213) <= 1 && over[3] == 192);
+  CHECK(rgba_at(*replace, 0, 0)[0] == 255 && rgba_at(*replace, 0, 0)[3] == 128);
+  for (const auto* layer : {normal, replace}) {
+    CHECK(rgba_at(*layer, 1, 0)[0] == 0 && rgba_at(*layer, 1, 0)[3] == 128);
+  }
+}
+
+void xcf_effect_selection_larger_than_canvas_keeps_its_pixel_coordinates() {
+  builder::Image image;
+  image.version = 22;
+  image.width = 4;
+  image.height = 2;
+  auto owner = pixel_layer("Offset layer", builder::solid(2, 1, {10, 10, 10, 255}), 1, 1);
+  auto mask = builder::solid(6, 3, {0});
+  mask.pixels[1 * 6 + 2] = 255;
+  builder::Effect effect{"Invert", "gegl:invert-gamma", {builder::prop_u32(builder::kFilterRegion, 0)}};
+  effect.mask = builder::Channel{"Old canvas selection", {}, std::move(mask)};
+  owner.effects.push_back(std::move(effect));
+  image.layers.push_back(std::move(owner));
+  const auto document = patchy::xcf::DocumentIo::read(builder::write(image));
+  const auto& layer = document.layers().front();
+  CHECK(rgba_at(layer, 0, 0)[0] == 10);
+  CHECK(rgba_at(layer, 1, 0)[0] == 245);
+}
+
+void xcf_curves_use_saved_samples_in_channel_order_and_keep_alpha_separate() {
+  builder::Image image;
+  image.version = 22;
+  image.width = image.height = 1;
+  auto owner = pixel_layer("Curves", builder::solid(1, 1, {128, 0, 255, 128}));
+  const std::string config = "(trc perceptual)(channel red)(curve (samples 2 0.25 0.25))"
+                             "(channel value)(curve (samples 3 0 0.25 1))"
+                             "(channel alpha)(curve (samples 2 0 0.5))";
+  owner.effects.push_back(builder::Effect{"Curves", "gimp:curves",
+      {builder::prop_u32(builder::kMode, 62), filter_argument("config", 6, config_bytes(config))}});
+  image.layers.push_back(std::move(owner));
+  const auto document = patchy::xcf::DocumentIo::read(builder::write(image));
+  const auto pixel = rgba_at(document.layers().front(), 0, 0);
+  CHECK(pixel[0] == 32 && pixel[1] == 0 && pixel[2] == 255 && pixel[3] == 64);
+  for (const auto bad : {"(channel red)(curve (samples 3 0 1))", "(channel alpha)(curve (samples 2 0 bad))",
+                         "(channel unknown)(curve (samples 2 0 1))", "(trc Lab)(channel value)(curve (samples 2 0 1))"}) {
+    CHECK(!patchy::xcf::detail::parse_curves_config(bad).has_value());
+  }
+}
+
+void xcf_pixel_graphs_mix_referenced_branches_and_reject_unhandled_nodes() {
+  const auto mixed = patchy::xcf::detail::parse_point_graph(
+      "id=input invert-linear svg:src-over aux=[ ref=input gegl:invert-gamma invert-gamma ]");
+  CHECK(mixed.has_value());
+  float pixel[4]{0.0F, 0.0F, 0.0F, 0.5F};
+  (*mixed)(pixel);
+  // Half-transparent original black over its half-transparent inverse white.
+  CHECK(std::abs(pixel[0] - static_cast<float>(patchy::srgb_encode(1.0 / 3.0))) < 0.00001F);
+  CHECK(std::abs(pixel[3] - 0.75F) < 0.00001F);
+  for (const auto graph : {"invert-linear opaque-unknown", "load path=picture.png", "ref=missing",
+                           "id=a over aux=[ ref=a invert-linear", "invert-gamma ]", "   "}) {
+    CHECK(!patchy::xcf::detail::parse_point_graph(graph).has_value());
+  }
+}
+
 // GIMP 3 layer effects: color filters bake into the pixels with GIMP's formulas, a drop
 // shadow becomes a layer style, the rest is left out with a notice.
 void xcf_layer_effects_bake_or_become_styles() {
@@ -1619,6 +1825,13 @@ void xcf_effect_runner_gets_gegl_arguments_and_mixes_by_opacity() {
                         {filter_argument("seed", 7, u32_bytes(4000000000U)), filter_argument("linear", 2, u32_bytes(1)),
                          builder::prop_f32(builder::kFloatOpacity, 0.5F)}};
   builder::Effect failing{"Bloom", "gegl:bloom", {}};
+  builder::Effect shift{"Shift", "gegl:shift",
+                        {filter_argument("shift", 1, u32_bytes(2)), filter_argument("direction", 5, u32_bytes(1)),
+                         filter_argument("seed", 7, u32_bytes(12))}};
+  builder::Effect canvas{"Apply Canvas", "gegl:texturize-canvas",
+                         {filter_argument("depth", 1, u32_bytes(4)), filter_argument("direction", 5, u32_bytes(3))}};
+  auto stacked = layer_with("stacked", shift);
+  stacked.effects.push_back(canvas);
   builder::Effect unknown{"Curves", "gimp:curves", {}};
   // Clipping Adjust (FILTER_CLIP 0): the layer gets a margin of the blur length plus one, and
   // keeps what the result covers there.
@@ -1627,7 +1840,7 @@ void xcf_effect_runner_gets_gegl_arguments_and_mixes_by_opacity() {
   auto spread_layer = pixel_layer("spread", builder::solid(4, 2, {200, 100, 50, 255}), 2, 1);
   spread_layer.effects.push_back(spread);
   image.layers = {layer_with("pixelize", pixelize), layer_with("noise", noise), layer_with("failing", failing),
-                  layer_with("unknown", unknown), spread_layer};
+                  layer_with("unknown", unknown), spread_layer, stacked};
   std::vector<patchy::xcf::EffectRun> runs;
   patchy::xcf::set_effect_runner([&runs](const patchy::xcf::EffectRun& run, patchy::PixelBuffer& pixels) {
     runs.push_back(run);
@@ -1657,7 +1870,10 @@ void xcf_effect_runner_gets_gegl_arguments_and_mixes_by_opacity() {
   const auto document = patchy::xcf::DocumentIo::read(builder::write(image), &notices);
   patchy::xcf::set_effect_runner({});
   CHECK(!patchy::xcf::has_effect_runner());
-  CHECK(runs.size() == 4);
+  CHECK(runs.size() == 6);
+  CHECK(std::adjacent_find(runs.begin(), runs.end(), [](const auto& lower, const auto& upper) {
+    return lower.operation == "gegl:texturize-canvas" && upper.operation == "gegl:shift";
+  }) != runs.end());
   const auto* spread_result = find_named(document.layers(), "spread");
   CHECK(spread_result->bounds().x == 1 && spread_result->bounds().y == 1 && spread_result->bounds().width == 5 &&
         spread_result->bounds().height == 2);
@@ -1677,6 +1893,9 @@ void xcf_effect_runner_gets_gegl_arguments_and_mixes_by_opacity() {
   CHECK(setting("gegl:pixelize", "ratio-x")->kind == 'd' && setting("gegl:pixelize", "ratio-x")->value == "0.5");
   CHECK(setting("gegl:pixelize", "background")->kind == 'c' && setting("gegl:pixelize", "background")->value == "1 0.5 0 1");
   CHECK(setting("gegl:pixelize", "config") == nullptr);  // strings stay at GEGL's default
+  CHECK(setting("gegl:texturize-canvas", "depth")->value == "4" && setting("gegl:texturize-canvas", "direction")->value == "3");
+  CHECK(setting("gegl:shift", "shift")->value == "2" && setting("gegl:shift", "direction")->value == "1" &&
+        setting("gegl:shift", "seed")->value == "12");
   CHECK(setting("gegl:noise-rgb", "seed")->kind == 'u' && setting("gegl:noise-rgb", "seed")->value == "4000000000");
   CHECK(setting("gegl:noise-rgb", "linear")->kind == 'b' && setting("gegl:noise-rgb", "linear")->value == "1");
   const auto px = [&](const char* name) { return rgba_at(*find_named(document.layers(), name), 1, 1); };
@@ -2980,6 +3199,9 @@ std::vector<patchy::test::TestCase> xcf_tests() {
       {"xcf_reads_layers_groups_masks_and_properties", xcf_reads_layers_groups_masks_and_properties},
       {"xcf_reads_every_tile_compression_and_pointer_size", xcf_reads_every_tile_compression_and_pointer_size},
       {"xcf_reads_every_precision", xcf_reads_every_precision},
+      {"xcf_historical_deep_tiles_keep_color_and_mask_samples", xcf_historical_deep_tiles_keep_color_and_mask_samples},
+      {"xcf_float_blends_keep_precision_when_the_mode_allows_it", xcf_float_blends_keep_precision_when_the_mode_allows_it},
+      {"xcf_link_layers_use_cached_pixels_with_either_property_length", xcf_link_layers_use_cached_pixels_with_either_property_length},
       {"xcf_reads_gray_and_indexed_images", xcf_reads_gray_and_indexed_images},
       {"xcf_indexed_samples_attach_their_colormap", xcf_indexed_samples_attach_their_colormap},
       {"xcf_maps_every_gimp_layer_mode", xcf_maps_every_gimp_layer_mode},
@@ -3005,6 +3227,14 @@ std::vector<patchy::test::TestCase> xcf_tests() {
       {"xcf_metadata_sample_gps", xcf_metadata_sample_gps},
       {"xcf_metadata_sample_dicom", xcf_metadata_sample_dicom},
       {"xcf_layer_effects_bake_or_become_styles", xcf_layer_effects_bake_or_become_styles},
+      {"xcf_normal_and_replace_effects_use_image_selection_and_distinct_alpha",
+       xcf_normal_and_replace_effects_use_image_selection_and_distinct_alpha},
+      {"xcf_effect_selection_larger_than_canvas_keeps_its_pixel_coordinates",
+       xcf_effect_selection_larger_than_canvas_keeps_its_pixel_coordinates},
+      {"xcf_curves_use_saved_samples_in_channel_order_and_keep_alpha_separate",
+       xcf_curves_use_saved_samples_in_channel_order_and_keep_alpha_separate},
+      {"xcf_pixel_graphs_mix_referenced_branches_and_reject_unhandled_nodes",
+       xcf_pixel_graphs_mix_referenced_branches_and_reject_unhandled_nodes},
       {"xcf_effect_runner_gets_gegl_arguments_and_mixes_by_opacity",
        xcf_effect_runner_gets_gegl_arguments_and_mixes_by_opacity},
       {"xcf_drop_shadow_keeps_color_mode_and_opacity", xcf_drop_shadow_keeps_color_mode_and_opacity},

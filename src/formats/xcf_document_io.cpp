@@ -380,6 +380,13 @@ struct Parasite {
         (void)measure.string();
       }
       length = measure.at() - start;
+    } else if (type == kPropLinkLayer && reader.version() >= 25 && length >= 12) {
+      // Some GIMP 3.2 files count the path bytes but omit its four-byte string length.
+      // The payload is flags, XCF string, width, height. Never resolve the path.
+      const auto path_bytes = reader.u32(start + 4);
+      if (length == 12ULL + path_bytes) {
+        length += 4;
+      }
     }
     cursor.skip(length);
     properties.push_back(Property{type, start, length});
@@ -525,6 +532,7 @@ struct LayerRecord {
   std::int32_t y{0};
   std::uint32_t mode{0};
   bool have_mode{false};
+  bool stack_base{false};  // no lower layer, even if hidden
   std::int32_t composite_mode{0};
   std::int32_t blend_space{0};
   std::uint32_t color_tag{0};
@@ -1213,12 +1221,11 @@ void run_in_parallel(std::size_t count, Work work) {
   return std::isfinite(value) ? value : 0.0F;
 }
 
-// sRGB curve on unbounded values: mirrored below zero, the power segment continued above one.
+// GIMP's nonlinear float and gray transfers extend the linear toe below zero.
 [[nodiscard]] float decode_unbounded(float encoded) noexcept {
-  const float magnitude = std::abs(encoded);
-  const float linear = magnitude <= 1.0F ? static_cast<float>(srgb_decode(magnitude))
-                                         : std::pow((magnitude + 0.055F) / 1.055F, 2.4F);
-  return encoded < 0.0F ? -linear : linear;
+  if (encoded < 0.0F) return encoded / 12.92F;
+  if (encoded <= 1.0F) return static_cast<float>(srgb_decode(encoded));
+  return std::pow((encoded + 0.055F) / 1.055F, 2.4F);
 }
 
 [[nodiscard]] float encode_clamped(float linear) noexcept {
@@ -1374,6 +1381,17 @@ struct DecodeStats {
   std::atomic<std::size_t> damaged_tiles{0};
 };
 
+void normalize_tile_byte_order(int version, std::uint32_t component_size, std::vector<std::uint8_t>& raw) {
+  // XCF v7-v11 development builds wrote tile samples in the producer's unmarked native
+  // order. Use little-endian for those files, as the published format recommends.
+  if (component_size > 1 && version >= 7 && version <= 11) {
+    for (std::size_t at = 0; at < raw.size(); at += component_size) {
+      auto* p = raw.data() + at;
+      std::reverse(p, p + component_size);
+    }
+  }
+}
+
 [[nodiscard]] PixelBuffer decode_color_drawable(const Reader& reader, std::uint64_t hierarchy, std::uint32_t width,
                                                 std::uint32_t height, const ConvertContext& context,
                                                 Compression compression, bool keep_alpha, DecodeStats& stats) {
@@ -1399,6 +1417,7 @@ struct DecodeStats {
     if (!decode_tile(reader, tiles[index], context.layout.bpp(), compression, raw)) {
       stats.damaged_tiles.fetch_add(1);
     }
+    normalize_tile_byte_order(reader.version(), context.layout.component(), raw);
     convert_tile_pixels(context, tiles[index], raw, pixels, bytes);
   });
   return pixels;
@@ -1428,6 +1447,7 @@ struct DecodeStats {
     if (!decode_tile(reader, tiles[index], component_bytes(component), compression, raw)) {
       stats.damaged_tiles.fetch_add(1);
     }
+    normalize_tile_byte_order(reader.version(), component_bytes(component), raw);
     convert_coverage_tile(component, depth, tiles[index], raw, stride, bytes);
   });
   return pixels;
@@ -2200,7 +2220,30 @@ void gaussian_pass(std::vector<float>& rgba, std::int32_t width, std::int32_t he
   return table[static_cast<std::size_t>(std::lround(std::clamp(linear, 0.0F, 1.0F) * 65536.0F))];
 }
 
-void bake_gaussian_blur(Layer& layer, const EffectRecord& effect, const PixelBuffer* mask) {
+// A saved image selection uses canvas coordinates, including when it retains an
+// older, larger canvas extent. A drawable-sized mask uses the layer's own origin.
+struct EffectMask {
+  PixelBuffer pixels;
+  std::int64_t offset_x{0};
+  std::int64_t offset_y{0};
+
+  [[nodiscard]] float sample(std::int32_t x, std::int32_t y) const {
+    const auto mx = x + offset_x;
+    const auto my = y + offset_y;
+    if (mx < 0 || my < 0 || mx >= pixels.width() || my >= pixels.height()) {
+      return 0.0F;
+    }
+    return coverage_at(pixels, static_cast<std::int32_t>(mx), static_cast<std::int32_t>(my));
+  }
+};
+
+// A Normal effect composites the filtered pixels over the original. Replace
+// (the usual GIMP filter mode) interpolates between their premultiplied values.
+[[nodiscard]] bool effect_uses_source_over(const EffectRecord& effect) {
+  return effect.mode == 28 || effect.mode == 0;
+}
+
+void bake_gaussian_blur(Layer& layer, const EffectRecord& effect, const EffectMask* mask) {
   const double sx = std::clamp(float_argument(effect, "std-dev-x").value_or(1.5), 0.0, 1500.0);
   const double sy = std::clamp(float_argument(effect, "std-dev-y").value_or(1.5), 0.0, 1500.0);
   const bool clip_extent = enum_argument(effect, "clip-extent").value_or(1) != 0;
@@ -2234,6 +2277,7 @@ void bake_gaussian_blur(Layer& layer, const EffectRecord& effect, const PixelBuf
   gaussian_pass(rgba, width, height, sx, true, clamp_edges && clip_extent);
   gaussian_pass(rgba, width, height, sy, false, clamp_edges && clip_extent);
   const float opacity = std::clamp(effect.opacity, 0.0F, 1.0F);
+  const bool over = effect_uses_source_over(effect);
   PixelFormat out_format = format;
   out_format.channels = 4;
   PixelBuffer out(width, height, out_format);
@@ -2243,17 +2287,11 @@ void bake_gaussian_blur(Layer& layer, const EffectRecord& effect, const PixelBuf
     const auto y = static_cast<std::int32_t>(row);
     for (std::int32_t x = 0; x < width; ++x) {
       const auto index = (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)) * 4U;
-      float amount = opacity;
-      if (mask != nullptr) {
-        // The selection the effect was made with, in the layer's own pixels.
-        const auto mx = x - pad;
-        const auto my = y - pad;
-        amount *= mx >= 0 && my >= 0 && mx < mask->width() && my < mask->height() ? coverage_at(*mask, mx, my) : 0.0F;
-      }
+      const float amount = mask ? opacity * mask->sample(x - pad, y - pad) : opacity;
+      const float keep = 1.0F - amount * (over ? rgba[index + 3] : 1.0F);
       float mixed[4];
       for (int c = 0; c < 4; ++c) {
-        mixed[c] = original[index + static_cast<std::size_t>(c)] +
-                   (rgba[index + static_cast<std::size_t>(c)] - original[index + static_cast<std::size_t>(c)]) * amount;
+        mixed[c] = keep * original[index + static_cast<std::size_t>(c)] + amount * rgba[index + static_cast<std::size_t>(c)];
       }
       std::array<float, 4> stored{0.0F, 0.0F, 0.0F, 0.0F};
       const float alpha = std::clamp(mixed[3], 0.0F, 1.0F);
@@ -2277,10 +2315,10 @@ void bake_gaussian_blur(Layer& layer, const EffectRecord& effect, const PixelBuf
 
 // --- GIMP's color filters, baked ----------------------------------------------------------
 //
-// Point operations on one pixel: `rgb` holds display-encoded values in 0..1 (and may leave
-// that range; the store clamps). Their formulas were fitted on GIMP 3.2's renders of the
+// Point operations on one pixel: straight display-encoded RGB and coverage alpha in 0..1.
+// Their formulas were fitted on GIMP 3.2's renders of the
 // 4096-color sweep (scripts/dev/xcf/fit_effects.py; docs/xcf-layer-effects.md, "Layer effects").
-using PointOperation = std::function<void(float* rgb)>;
+using detail::PointOperation;
 
 constexpr float kLumaRed = 0.2225045F;  // the D50 sRGB luminance row GIMP's luma and luminance use
 constexpr float kLumaGreen = 0.7168786F;
@@ -2396,9 +2434,44 @@ void hsl_to_rgb(float h, float s, float l, float* rgb) {
   return config_number(forms, 0, name, fallback);
 }
 
+[[nodiscard]] float curve_sample(const std::vector<float>& samples, float v) {
+  if (samples.empty()) return v;
+  const float offset = std::clamp(v, 0.0F, 1.0F) * static_cast<float>(samples.size() - 1);
+  const auto i = static_cast<std::size_t>(offset);
+  if (i + 1 >= samples.size()) return samples.back();
+  return std::lerp(samples[i], samples[i + 1], offset - static_cast<float>(i));
+}
+
 // The point operation for a GIMP filter, or nothing when Patchy cannot reproduce it.
 [[nodiscard]] std::optional<PointOperation> point_operation(const EffectRecord& effect) {
   const auto& op = effect.operation;
+  if (op == "gegl:gegl") {
+    const auto* argument = find_argument(effect, "string");
+    if (argument == nullptr || argument->type != 4 || argument->data.size() < 5 || argument->data.size() > 4101)
+      return std::nullopt;
+    Reader reader(argument->data, 0);
+    Cursor cursor(reader, 0, argument->data.size());
+    try {
+      const auto source = cursor.string();
+      if (cursor.remaining() != 0) return std::nullopt;
+      return detail::parse_point_graph(source);
+    } catch (const ImportError&) {
+      return std::nullopt;
+    }
+  }
+  if (op == "gimp:curves") {
+    auto config = detail::parse_curves_config(config_text(effect));
+    if (!config) return std::nullopt;
+    return PointOperation([curves = std::move(*config)](float* rgba) {
+      for (std::size_t c = 0; c < 3; ++c) {
+        const float input = curves.linear ? decode_unit(rgba[c]) : rgba[c];
+        const float channel = curve_sample(curves.samples[c + 1], input);
+        const float value = curve_sample(curves.samples[0], channel);
+        rgba[c] = curves.linear ? encode_unit(value) : value;
+      }
+      rgba[3] = curve_sample(curves.samples[4], rgba[3]);
+    });
+  }
   if (op == "gegl:invert-gamma" || op == "gimp:invert") {
     return PointOperation([](float* rgb) {
       for (int c = 0; c < 3; ++c) rgb[c] = 1.0F - rgb[c];
@@ -2591,64 +2664,76 @@ void hsl_to_rgb(float h, float s, float l, float* rgb) {
 
 // Applies a point operation to the layer's pixels, mixed with the original in linear light
 // by the effect's opacity and selection mask, as GIMP mixes a filter.
-void bake_point_operation(Layer& layer, const EffectRecord& effect, const PixelBuffer* mask,
+void bake_point_operation(Layer& layer, const EffectRecord& effect, const EffectMask* mask,
                           const PointOperation& operation) {
   auto& pixels = layer.pixels();
   const auto format = pixels.format();
   const bool linear_domain = format.bit_depth == BitDepth::Float32;
   const auto pixel_bytes = bytes_per_pixel(format);
   const float opacity = std::clamp(effect.opacity, 0.0F, 1.0F);
+  const bool over = effect_uses_source_over(effect);
   auto bytes = pixels.data();
   const auto stride = pixels.stride_bytes();
   run_in_parallel(static_cast<std::size_t>(pixels.height()), [&](std::size_t row) {
     const auto y = static_cast<std::int32_t>(row);
     for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      float amount = opacity;
-      if (mask != nullptr) {
-        amount *= x < mask->width() && y < mask->height() ? coverage_at(*mask, x, y) : 0.0F;
-      }
+      const float amount = mask ? opacity * mask->sample(x, y) : opacity;
       if (amount <= 0.0F) {
         continue;
       }
       auto* px = bytes.data() + static_cast<std::size_t>(y) * stride + static_cast<std::size_t>(x) * pixel_bytes;
       auto value = load_pixel(format, px);
-      float rgb[3];
+      const float alpha = std::clamp(value[3] / 255.0F, 0.0F, 1.0F);
+      float rgba[4]{0.0F, 0.0F, 0.0F, alpha};
       float original[3];
       for (int c = 0; c < 3; ++c) {
         const float unit = value[static_cast<std::size_t>(c)] / 255.0F;
         original[c] = linear_domain ? unit : decode_fast(unit);
-        rgb[c] = linear_domain ? encode_unit(unit) : unit;
+        rgba[c] = linear_domain ? encode_unit(unit) : unit;
       }
-      operation(rgb);
+      operation(rgba);
+      const float filtered_alpha = amount * rgba[3];
+      const float out_alpha = filtered_alpha + alpha * (1.0F - (over ? filtered_alpha : amount));
+      const float weight = out_alpha > 0.0F ? filtered_alpha / out_alpha : amount;
       for (int c = 0; c < 3; ++c) {
-        const float filtered = decode_fast(std::clamp(rgb[c], 0.0F, 1.0F));
-        const float mixed = original[c] + (filtered - original[c]) * amount;
+        const float filtered = decode_fast(std::clamp(rgba[c], 0.0F, 1.0F));
+        const float mixed = original[c] + (filtered - original[c]) * weight;
         value[static_cast<std::size_t>(c)] = (linear_domain ? mixed : encode_fast(mixed)) * 255.0F;
       }
+      value[3] = out_alpha * 255.0F;
       store_pixel(format, px, value);
     }
   });
 }
 
-[[nodiscard]] std::optional<PixelBuffer> effect_mask(Build& build, const EffectRecord& effect, const Layer& layer) {
+[[nodiscard]] std::optional<EffectMask> effect_mask(Build& build, const EffectRecord& effect, const Layer& layer) {
   if (effect.region != 0 || effect.mask == 0) {
     return std::nullopt;
   }
   try {
     auto channel = read_channel(build.reader, effect.mask);
     const auto& source = std::as_const(layer).pixels();
-    if (channel.width == static_cast<std::uint32_t>(source.width()) &&
-        channel.height == static_cast<std::uint32_t>(source.height())) {
+    const auto width = static_cast<std::uint32_t>(build.document.width());
+    const auto height = static_cast<std::uint32_t>(build.document.height());
+    const bool layer_sized = channel.width == static_cast<std::uint32_t>(source.width()) &&
+                             channel.height == static_cast<std::uint32_t>(source.height());
+    const bool canvas_selection = (channel.width == width && channel.height == height) ||
+                                  (!layer_sized && channel.width >= width && channel.height >= height);
+    if (canvas_selection || layer_sized) {
+      account(build, channel.width, channel.height);
       auto mask = decode_coverage_drawable(build.reader, channel, build.image_layout.precision.component,
                                            BitDepth::UInt8, build.compression, build.stats);
       // An empty mask is "no selection" when the effect was made: it applies everywhere.
       const auto bytes = std::as_const(mask).data();
       if (std::any_of(bytes.begin(), bytes.end(), [](std::uint8_t value) { return value != 0; })) {
-        return mask;
+        const auto bounds = layer.bounds();
+        return EffectMask{std::move(mask), canvas_selection ? bounds.x : 0, canvas_selection ? bounds.y : 0};
       }
       return std::nullopt;
     }
-    trace("an effect mask's size differs from its layer; the effect applies everywhere");
+    trace("an effect mask matches neither the canvas nor the layer; the effect applies everywhere");
+  } catch (const SizeLimitError&) {
+    throw;
   } catch (const ImportError& error) {
     trace(std::string("effect mask: ") + error.what());
   }
@@ -2659,10 +2744,9 @@ void bake_point_operation(Layer& layer, const EffectRecord& effect, const PixelB
 //
 // GIMP stores a GEGL filter's arguments under GEGL's own property names, so an operation in
 // this table runs with its arguments passed through by name and type (effect_run). Each
-// entry was checked against GIMP 3.2's render of test-fixtures/xcf/gegl-effects.xcf
-// (scripts/dev/xcf/make_gegl_effect_fixture.py); add an operation there before adding it
-// here. Only operations Patchy's GEGL offers as filters belong here (docs/gegl-filters.md,
-// "What is offered" and "Legal review").
+// entry needs a GIMP-rendered reference. Most use test-fixtures/xcf/gegl-effects.xcf.
+// Shift and Texturize Canvas use GIMP Help's saved three-effect stack (docs/xcf-layer-effects.md).
+// Only operations Patchy's GEGL offers as filters belong here (docs/gegl-filters.md, "Legal review").
 struct RunnerEffect {
   std::string_view operation;
   // How far the result reaches past the layer when the filter's clipping is Adjust (GIMP
@@ -2701,9 +2785,11 @@ constexpr RunnerEffect kRunnerEffects[] = {
     {"gegl:ripple"},
     {"gegl:sepia"},
     {"gegl:shadows-highlights"},
+    {"gegl:shift"},
     {"gegl:snn-mean"},
     {"gegl:softglow"},
     {"gegl:stretch-contrast"},
+    {"gegl:texturize-canvas"},
     {"gegl:unsharp-mask"},
     {"gegl:value-invert"},
     {"gegl:vignette"},
@@ -2812,7 +2898,7 @@ constexpr RunnerEffect kRunnerEffects[] = {
 // premultiplied linear light by the effect's opacity and selection mask, as the Gaussian
 // blur does. False when the runner could not run it (the layer is unchanged).
 [[nodiscard]] bool bake_runner_effect(const EffectRunner& runner, Layer& layer, const EffectRecord& effect,
-                                      const PixelBuffer* mask) {
+                                      const EffectMask* mask) {
   const auto& source = std::as_const(layer).pixels();
   if (source.width() <= 0 || source.height() <= 0) {
     return true;
@@ -2861,7 +2947,8 @@ constexpr RunnerEffect kRunnerEffects[] = {
     return false;
   }
   const float opacity = std::clamp(effect.opacity, 0.0F, 1.0F);
-  if (opacity < 1.0F || mask != nullptr) {
+  const bool over = effect_uses_source_over(effect);
+  if (over || opacity < 1.0F || mask != nullptr) {
     const bool linear_domain = format.bit_depth == BitDepth::Float32;
     auto bytes = filtered.data();
     const auto pixel_bytes = bytes_per_pixel(format);
@@ -2877,13 +2964,8 @@ constexpr RunnerEffect kRunnerEffects[] = {
     run_in_parallel(static_cast<std::size_t>(height), [&](std::size_t row) {
       const auto y = static_cast<std::int32_t>(row);
       for (std::int32_t x = 0; x < width; ++x) {
-        float amount = opacity;
-        if (mask != nullptr) {
-          const auto mx = x - pad;
-          const auto my = y - pad;
-          amount *= mx >= 0 && my >= 0 && mx < mask->width() && my < mask->height() ? coverage_at(*mask, mx, my) : 0.0F;
-        }
-        if (amount >= 1.0F) {
+        const float amount = mask ? opacity * mask->sample(x - pad, y - pad) : opacity;
+        if (amount >= 1.0F && !over) {
           continue;
         }
         auto* px = bytes.data() + (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
@@ -2893,10 +2975,11 @@ constexpr RunnerEffect kRunnerEffects[] = {
         premultiplied(load_pixel(format, original.pixel(x, y)), a);
         premultiplied(load_pixel(format, px), b);
         std::array<float, 4> stored{0.0F, 0.0F, 0.0F, 0.0F};
-        const float alpha = std::clamp(a[3] + (b[3] - a[3]) * amount, 0.0F, 1.0F);
+        const float keep = 1.0F - amount * (over ? b[3] : 1.0F);
+        const float alpha = std::clamp(a[3] * keep + b[3] * amount, 0.0F, 1.0F);
         if (alpha > 0.0F) {
           for (int c = 0; c < 3; ++c) {
-            const float linear = (a[c] + (b[c] - a[c]) * amount) / alpha;
+            const float linear = (a[c] * keep + b[c] * amount) / alpha;
             stored[static_cast<std::size_t>(c)] = (linear_domain ? linear : encode_fast(linear)) * 255.0F;
           }
         }
@@ -3079,8 +3162,20 @@ void store_painted_text(const Build& build, const LayerRecord& record, const Par
   }
 }
 
+[[nodiscard]] ModeMapping layer_mode_at_depth(const LayerRecord& record, BitDepth depth) {
+  auto map = map_mode(record.have_mode ? record.mode : 0, record.group, record.blend_space);
+  if (depth == BitDepth::Float32) {
+    if (map.mode == BlendMode::LinearMultiply) {
+      map.mode = BlendMode::Multiply;  // Multiply already operates on linear floats at this depth.
+    } else if (record.stack_base && !blend_mode_supported_at_depth(map.mode, depth)) {
+      map = {BlendMode::Normal, ModeFit::Exact};  // GIMP draws the base over an empty backdrop as Normal.
+    }
+  }
+  return map;
+}
+
 [[nodiscard]] Layer build_layer(Build& build, const LayerRecord& record) {
-  const auto map = map_mode(record.have_mode ? record.mode : 0, record.group, record.blend_space);
+  const auto map = layer_mode_at_depth(record, build.depth);
   if (map.fit == ModeFit::Approximate) {
     build.notices.insert(Notice::ModesApproximated);
   } else if (map.fit == ModeFit::Missing) {
@@ -3651,11 +3746,17 @@ void convert_erase_layers(Build& build, std::vector<Layer>& layers, bool stack_r
   return version;
 }
 
-[[nodiscard]] bool modes_need_sixteen_bits(const std::vector<LayerRecord>& records) {
-  return std::any_of(records.begin(), records.end(), [](const LayerRecord& record) {
-    const auto map = map_mode(record.have_mode ? record.mode : 0, record.group, record.blend_space);
-    return !blend_mode_supported_at_depth(map.mode, BitDepth::Float32);
-  });
+// Nodes are top first. A pass-through group shares its backdrop with its parent.
+// Count hidden lower layers too: revealing one must preserve the upper layer's blend.
+void mark_stack_bases(std::vector<LayerRecord>& records, const std::vector<Node>& nodes, bool empty_backdrop) {
+  for (auto it = nodes.rbegin(); it != nodes.rend(); ++it) {
+    auto& record = records[it->record];
+    record.stack_base = empty_backdrop;
+    if (!it->children.empty()) {
+      mark_stack_bases(records, it->children, empty_backdrop || record.mode != 61);
+    }
+    empty_backdrop = false;
+  }
 }
 
 class PhaseTimer {
@@ -3849,6 +3950,7 @@ private:
     }
   }
 
+  const auto tree = build_tree(records, damaged_structure);
   // The document's depth (docs/xcf.md, "Precision").
   std::set<Notice> depth_notices;
   BitDepth depth = BitDepth::UInt8;
@@ -3856,11 +3958,15 @@ private:
     depth = precision.transfer == Transfer::Linear ? BitDepth::UInt16 : BitDepth::UInt8;
   } else if (precision.component == Component::U16 || precision.component == Component::U32) {
     depth = BitDepth::UInt16;
-  } else if (modes_need_sixteen_bits(records)) {
-    depth = BitDepth::UInt16;
-    depth_notices.insert(Notice::DepthNarrowedForModes);
   } else {
-    depth = BitDepth::Float32;
+    mark_stack_bases(records, tree, true);
+    const bool needs_sixteen = std::any_of(records.begin(), records.end(), [](const LayerRecord& record) {
+      return !blend_mode_supported_at_depth(layer_mode_at_depth(record, BitDepth::Float32).mode, BitDepth::Float32);
+    });
+    depth = needs_sixteen ? BitDepth::UInt16 : BitDepth::Float32;
+    if (needs_sixteen) {
+      depth_notices.insert(Notice::DepthNarrowedForModes);
+    }
   }
   if (depth != BitDepth::UInt8 && !deep_editing_enabled()) {
     depth = BitDepth::UInt8;
@@ -3905,11 +4011,6 @@ private:
     build.notices.insert(Notice::DamagedStructure);
   }
 
-  bool tree_damaged = false;
-  const auto tree = build_tree(records, tree_damaged);
-  if (tree_damaged) {
-    build.notices.insert(Notice::DamagedStructure);
-  }
   timer.mark("records");
   std::unordered_map<std::uint64_t, LayerId> by_offset;
   for (auto& layer : build_layers(build, records, tree, by_offset)) {

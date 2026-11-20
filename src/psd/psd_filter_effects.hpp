@@ -38,10 +38,18 @@ inline constexpr std::uint64_t kMaximumEditableSmartFilterMaskPixels =
 [[nodiscard]] std::vector<std::uint8_t>
 serialize_filter_effects_block(const SmartFilterEffectsBlock &block);
 
+// Keep matching input verbatim. Convert integer cache and mask planes together
+// when saving at another depth, including the separately compressed mask tail.
+[[nodiscard]] std::vector<std::uint8_t>
+serialize_filter_effects_block(const SmartFilterEffectsBlock &block, BitDepth depth);
+
 // Returns the shared raw record-body span, or an empty span for an invalid
 // range.
 [[nodiscard]] std::span<const std::uint8_t>
 raw_filter_effects_record_body(const SmartFilterEffectsRecord &record) noexcept;
+
+// Unfiltered integer RGB cache at its stored depth, including transparency.
+[[nodiscard]] std::optional<PixelBuffer> decode_rgb_filter_effects_cache(const SmartFilterEffectsRecord &record);
 
 // Convert an authored sRGB cache to the save document's ink space, preserving
 // every non-color slot and the exact mask tail. Matching imported caches stay

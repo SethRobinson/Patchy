@@ -47,6 +47,7 @@ private:
   AdjustmentSettings settings_;
   DeepDomain domain_;
   std::vector<CurveSpline> curves_;  // composite, red, green, blue (Curves only)
+  std::array<DeepChannels, 3> photo_filter_matrix_{};  // linear Photo Filter only
 };
 
 [[nodiscard]] DeepChannels apply_adjustment_deep(DeepChannels color, const AdjustmentSettings& settings,

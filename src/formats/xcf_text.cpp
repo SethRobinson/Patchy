@@ -780,6 +780,55 @@ std::optional<std::array<double, 4>> gegl_color_to_srgb(std::string_view format,
   return rgba;
 }
 
+std::optional<CurvesConfig> parse_curves_config(std::string_view text) {
+  // Parse only bounded, fully stored curves. An omitted channel is the identity.
+  if (text.empty() || text.size() > 1024U * 1024U) {
+    return std::nullopt;
+  }
+  constexpr std::array<std::string_view, 5> channels{"value", "red", "green", "blue", "alpha"};
+  CurvesConfig config;
+  auto channel = channels.end();
+  bool have_curve = false;
+  try {
+    for (const auto& form : Parser(text).parse_all()) {
+      if (!form.list || form.items.size() < 2) continue;
+      const auto& key = form.items[0].atom;
+      if (key == "trc") {
+        const auto& trc = form.items[1].atom;
+        if (trc != "linear" && trc != "perceptual" && trc != "non-linear") return std::nullopt;
+        config.linear = trc == "linear";
+      } else if (key == "channel") {
+        channel = std::find(channels.begin(), channels.end(), form.items[1].atom);
+      } else if (key == "curve") {
+        if (channel == channels.end()) return std::nullopt;
+        auto& samples = config.samples[static_cast<std::size_t>(channel - channels.begin())];
+        if (!samples.empty()) return std::nullopt;
+        const auto table = std::find_if(form.items.begin() + 1, form.items.end(), [](const Node& n) {
+          return n.list && !n.items.empty() && n.items.front().atom == "samples";
+        });
+        if (table == form.items.end() || table->items.size() < 4 || table->items.size() > 65538) return std::nullopt;
+        const auto count = table->items.size() - 2;
+        if (table->items[1].atom != std::to_string(count)) return std::nullopt;
+        samples.reserve(count);
+        std::istringstream number;
+        number.imbue(std::locale::classic());
+        for (std::size_t i = 2; i < table->items.size(); ++i) {
+          float v = 0.0F;
+          number.clear();
+          number.str(table->items[i].atom);
+          if (!(number >> v) || !number.eof() || !(v >= 0.0F && v <= 1.0F)) return std::nullopt;
+          samples.push_back(v);
+        }
+        have_curve = true;
+      }
+    }
+  } catch (const ImportError&) {
+    return std::nullopt;
+  }
+  if (!have_curve) return std::nullopt;
+  return config;
+}
+
 std::vector<std::pair<std::string, std::string>> parse_config_forms(std::string_view text) {
   std::vector<std::pair<std::string, std::string>> forms;
   try {

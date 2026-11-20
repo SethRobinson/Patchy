@@ -94,6 +94,15 @@ class TestNativeReport(unittest.TestCase):
         self.assertIn("Open not measured", page)
         self.assertIn("Reference comes from the source editor", page)
 
+    def test_optional_reopen_check_has_its_own_denominator_and_credit(self):
+        item = case("modes", "ora", appearance={"status": "fail"},
+                    reopenAppearance={"status": "pass", "credit": "Krita <editor>"})
+        page = self.generate([item, case("other", "ora")])
+        self.assertIn("Appearance after reopen · Pass", page)
+        self.assertIn("Krita &lt;editor&gt;", page)
+        self.assertIn("1 / 1<small>0 failed &middot; 0 unscored</small>", page)
+        self.assertIn("1 / 2<small>1 failed &middot; 0 unscored</small>", page)
+
     def test_comparison_frames_notes_and_source_credits(self):
         for name in ("reference.png", "actual.png"):
             (self.out / "cells/0001" / name).write_bytes(b"")

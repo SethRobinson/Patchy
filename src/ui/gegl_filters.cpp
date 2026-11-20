@@ -145,6 +145,19 @@ void prepare_helper(QProcess& helper, const GeglHelperCommand& command, const QS
 #endif
   if (!language.isEmpty()) {
     environment.insert(QStringLiteral("LANGUAGE"), language);
+#ifdef Q_OS_WIN
+    // Bundled gettext ignores LANGUAGE when the inherited message locale is C or
+    // C.UTF-8. Split LC_ALL into the other Windows locale categories before
+    // giving only messages the UI language. Filter runs keep their original environment.
+    const auto all = environment.value(QStringLiteral("LC_ALL"));
+    if (!all.isEmpty()) {
+      environment.remove(QStringLiteral("LC_ALL"));
+      for (const auto* category : {"LC_COLLATE", "LC_CTYPE", "LC_MONETARY", "LC_NUMERIC", "LC_TIME"}) {
+        environment.insert(QString::fromLatin1(category), all);
+      }
+    }
+    environment.insert(QStringLiteral("LC_MESSAGES"), language);
+#endif
   }
   helper.setProcessEnvironment(environment);
 }
@@ -561,7 +574,7 @@ GeglFilterScanResult scan_gegl_filters(const GeglHelperCommand& command, const Q
   }
   // The cache: the helper's last list, reused while its key matches. Bump kCacheVersion
   // when the helper's list changes shape.
-  constexpr int kCacheVersion = 2;  // 2: GEGL's version
+  constexpr int kCacheVersion = 3;  // 3: honor Patchy's language under a Windows C locale
   const auto stamp = [](const QString& path) {
     const QFileInfo info(path);
     return QStringLiteral("%1|%2|%3").arg(path).arg(info.size()).arg(info.lastModified().toMSecsSinceEpoch());

@@ -749,39 +749,25 @@ void prepare_inner_glow_softer_mask(std::vector<float>& mask, int width, int hei
   }
 }
 
-// The interior effects' historical blur: 3 box passes of half the size each.
-int interior_style_blur_radius(float size) noexcept {
-  return std::max(0, static_cast<int>(std::lround(size * 0.5F)));
-}
-
-// Photoshop's inner-shadow/inner-glow Choke is the interior mirror of the
-// drop-shadow Spread (COM-probed July 2026 with choke 0/50/100 renders): the
-// inverse matte expands with rounded Euclidean corners to choke% x size and only
-// the remaining (1 - choke%) x size is blurred, so choke 100 leaves a hard
-// Euclidean band exactly `size` deep. Do not reimplement choke as a post-blur
-// gain ((1 - blur) / (1 - choke)): amplifying the box blur's tail exposes the
-// kernel's square support (a small transparent hole radiates a ~1.5 x size
-// rounded box of half-tone dust instead of a size-radius disc). Turns the
-// shape's alpha mask into the interior falloff field, 1 at the contour fading to
-// 0 inside; choke 0 keeps the historical blur-and-invert bit for bit.
-void prepare_layer_style_interior_falloff_mask(std::vector<float>& mask, int width, int height, float size,
-                                                      float choke) {
-  const auto choke_unit = clamp_unit(choke / 100.0F);
-  if (choke_unit <= 0.0F) {
-    blur_mask_in_place(mask, width, height, interior_style_blur_radius(size), 3);
-    for (auto& value : mask) {
-      value = clamp_unit(1.0F - value);
-    }
-    return;
+// Precise is a linear ramp on the distance to the edge. A size-18, choke-30
+// Center glow at Range 50 rises from 0 at distance 5 to 1 at distance 19.
+// At Range 100 the Edge field is half as strong, before the Center complement.
+void prepare_inner_glow_precise_mask(std::vector<float>& mask, int width, int height, float size,
+                                     float choke, float range, bool center_source) {
+  if (size <= 0.0F) {
+    return;  // A Size 0 Center glow uses the shape matte. Edge is skipped by the caller.
   }
-
+  const auto radius = std::round(size);
+  const auto reach = radius + 1.0F;
+  const auto choke_radius = std::round(radius * clamp_unit(choke / 100.0F));
+  const auto scale = 50.0F / (std::clamp(range, 1.0F, 100.0F) * (reach - choke_radius));
   for (auto& value : mask) {
-    value = 1.0F - clamp_unit(value);
+    value = value < 0.5F ? 0.0F : kEdtUnreached;
   }
-  expand_layer_style_mask_in_place(mask, width, height, std::max(0.0F, size) * choke_unit, 1.0F);
-  blur_mask_in_place(mask, width, height, interior_style_blur_radius(size * (1.0F - choke_unit)), 3);
+  exact_squared_distance_transform(mask, width, height);
   for (auto& value : mask) {
-    value = clamp_unit(value);
+    const auto edge = clamp_unit((reach - std::sqrt(value)) * scale);
+    value = center_source ? 1.0F - edge : edge;
   }
 }
 
@@ -1130,7 +1116,7 @@ void apply_effect_contour(std::vector<float>& mask, int width, const StyleContou
   // A constant-white Photoshop contour reveals the exterior reach limiter:
   // coverage ramps to full at 12% of the original blurred matte at any Range.
   const auto limited = [exterior_glow](float mapped_value, float coverage) {
-    return exterior_glow ? std::min(mapped_value, coverage / 0.12F) : mapped_value;
+    return exterior_glow ? exterior_glow_opacity(mapped_value, coverage) : mapped_value;
   };
   if (!anti_aliased) {
     for (auto& value : mask) value = limited(mapped(value), value);

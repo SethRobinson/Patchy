@@ -5,6 +5,7 @@
 #include "core/worker_budget.hpp"
 #include "render/composite_targets.hpp"
 #include "render/native_cmyk.hpp"
+#include "render/native_adjustment_stack.hpp"
 #include "render/native_duotone.hpp"
 #include "support/translate_noop.hpp"
 
@@ -23,6 +24,8 @@ PixelBuffer Compositor::flatten_rgba_deep(const Document& document) const {
   const auto canvas = Rect::from_size(document.width(), document.height());
   const auto domain = deep_domain_for(document.color_state().bit_depth);
   const auto flatten_strip = [&document, domain](Rect clip) {
+    if (auto native = render_native_cmyk16_adjustments(document, clip)) return std::move(*native);
+    if (auto native = render_native_lab_adjustments(document, clip, BitDepth::UInt16)) return std::move(*native);
     render_detail::DeepCompositeTarget target(clip, false, domain);
     render_detail::composite_layers(target, document.layers(), clip, nullptr, true, nullptr,
                                     &document.metadata().patterns);
@@ -62,6 +65,7 @@ PixelBuffer Compositor::flatten_rgba_deep(const Document& document) const {
 PixelBuffer Compositor::flatten_rgb8(const Document& document, std::vector<std::uint8_t>* merged_alpha) const {
   auto native = render_native_cmyk8(document, Rect::from_size(document.width(), document.height()));
   if (!native) native = render_native_duotone8(document, Rect::from_size(document.width(), document.height()));
+  if (!native) native = render_native_lab_adjustments(document, Rect::from_size(document.width(), document.height()), BitDepth::UInt8);
   if (native) {
     PixelBuffer output(native->width(), native->height(), PixelFormat::rgb8());
     if (merged_alpha) merged_alpha->resize(static_cast<std::size_t>(native->width()) * native->height());

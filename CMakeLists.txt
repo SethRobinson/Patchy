@@ -137,6 +137,12 @@ if(NOT MSVC)
     src/core/perspective_planes.cpp
     PROPERTIES COMPILE_OPTIONS "-ffp-contract=off"
   )
+  # Aseprite's component modes truncate after a luminance calculation. A fused
+  # multiply-add changes up to 55 pixel values in a 256x256 reference frame.
+  set_source_files_properties(
+    src/core/blend_math.cpp
+    PROPERTIES COMPILE_OPTIONS "-ffp-contract=off"
+  )
   # The factory brush tips are float coverage math; their masks are pinned
   # (ui_default_brush_tip_masks_digest_is_pinned) and must match MSVC's everywhere.
   set_source_files_properties(
@@ -164,6 +170,7 @@ add_library(patchy_core
   src/core/invisible_watermark.cpp
   src/core/trustmark_payload.cpp
   src/core/blend_math.cpp
+  src/core/aseprite_blend.cpp
   src/core/splitmix64.hpp
   src/core/blend_math_deep.cpp
   src/core/gimp_blend_modes.cpp
@@ -300,6 +307,7 @@ add_library(patchy_render
   src/render/layer_render_types.hpp
   src/render/style_mask_cache.hpp
   src/render/native_cmyk.cpp
+  src/render/native_adjustment_stack.cpp
   src/render/native_duotone.cpp
   src/render/layer_style_mask_ops.cpp
   src/render/tile_cache.cpp
@@ -593,6 +601,7 @@ add_library(patchy_filters
   src/filters/stylize_render_filters.hpp
 )
 target_link_libraries(patchy_filters PUBLIC patchy_core)
+target_link_libraries(patchy_psd PRIVATE patchy_filters)
 patchy_configure_target(patchy_filters)
 # The filter kernels run in float and double. arm64 has fused multiply-add and clang
 # contracts a*b+c into it by default, rounding once where MSVC and x86-64 GCC round
@@ -743,6 +752,7 @@ add_library(patchy_formats
   src/formats/pdn_document_io.cpp
   src/formats/xcf_document_io.cpp
   src/formats/xcf_text.cpp
+  src/formats/xcf_point_graph.cpp
   src/formats/xcf_unwrap.cpp
   src/formats/pdf_content.cpp
   src/formats/pdf_crypt.cpp

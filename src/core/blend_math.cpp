@@ -1,4 +1,5 @@
 #include "core/blend_math.hpp"
+#include "core/aseprite_blend.hpp"
 #include "core/gimp_blend_modes.hpp"
 #include "core/krita_blend_modes.hpp"
 
@@ -658,6 +659,33 @@ std::uint8_t blend_if_underlying_alpha_byte(const LayerBlendIf& settings, RgbCol
   return blend_if_color_alpha_byte(settings, underlying, false);
 }
 
+std::array<std::uint8_t, 3> aseprite_component_color(std::array<std::uint8_t, 3> source,
+    std::array<std::uint8_t, 3> backdrop, BlendMode mode) {
+  const RgbDouble src{source[0] / 255.0, source[1] / 255.0, source[2] / 255.0};
+  const RgbDouble dst{backdrop[0] / 255.0, backdrop[1] / 255.0, backdrop[2] / 255.0};
+  // Aseprite's byte result truncates after setting luminosity. Assign the
+  // maximum directly to avoid round-off before truncation. Equal minima
+  // both become zero, as in the Aseprite 1.3.17 reference.
+  const auto native_sat = [](RgbDouble c, double saturation) -> RgbDouble {
+    const std::array<double, 3> values{c.r, c.g, c.b};
+    const auto lo = std::min({c.r, c.g, c.b});
+    const auto hi = std::max({c.r, c.g, c.b});
+    if (lo == hi) return {};
+    std::array<double, 3> out{};
+    for (std::size_t i = 0; i < values.size(); ++i) {
+      out[i] = (values[i] - lo) * saturation / (hi - lo);
+    }
+    out[c.b == hi ? 2U : c.g == hi ? 1U : 0U] = saturation;
+    return {out[0], out[1], out[2]};
+  };
+  RgbDouble color = mode == BlendMode::Hue ? native_sat(src, pdf_sat(dst))
+                  : mode == BlendMode::Saturation ? native_sat(dst, pdf_sat(src))
+                  : mode == BlendMode::Color ? src : dst;
+  color = pdf_set_lum(color, mode == BlendMode::Luminosity ? pdf_lum(src) : pdf_lum(dst));
+  const auto byte = [](double v) { return static_cast<std::uint8_t>(std::clamp(v, 0.0, 1.0) * 255.0); };
+  return {byte(color.r), byte(color.g), byte(color.b)};
+}
+
 std::array<std::uint8_t, 3> blend_rgb(std::array<std::uint8_t, 3> source,
                                       std::array<std::uint8_t, 3> destination, BlendMode mode) {
   if (blend_mode_is_gimp_color_model(mode)) {
@@ -1112,6 +1140,14 @@ RgbColor gradient_color(const LayerStyleGradient& gradient, float position,
     }
   }
   return stops.back().color;
+}
+
+double native_gradient_segment(double previous, double left, double right, double next,
+                               float t, float midpoint, std::uint16_t smoothness) {
+  const auto fraction = midpoint_remap(t, midpoint);
+  const auto linear = left + (right - left) * fraction;
+  const auto cubic = catmull_rom(previous, left, right, next, fraction);
+  return std::clamp(linear + (cubic - linear) * (smoothness / 4096.0), std::min(left, right), std::max(left, right));
 }
 
 std::array<double, 3> gradient_color_precise(const LayerStyleGradient& gradient, float position,

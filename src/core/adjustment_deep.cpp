@@ -50,7 +50,7 @@ DeepChannels DeepAdjuster::apply_encoded(DeepChannels color) const {
   }
   // Photoshop's 32-bit Hue/Saturation is unbounded: it sees the values as they are.
   if (settings.kind == AdjustmentKind::HueSaturation && domain_ == DeepDomain::Linear &&
-      !settings.hue_saturation.colorize && !adjustment_runs_in_ink_space(settings)) {
+      !adjustment_runs_in_ink_space(settings)) {
     color = raw;
   }
   if (adjustment_runs_in_ink_space(settings)) {
@@ -121,11 +121,12 @@ DeepChannels DeepAdjuster::apply_encoded(DeepChannels color) const {
       return {clamp255(mapped[0]), clamp255(mapped[1]), clamp255(mapped[2])};
     }
     case AdjustmentKind::BlackWhite: {
-      const auto gray = black_white_transfer(settings.black_white, color[0], color[1], color[2], false);
+      const auto gray = black_white_transfer(settings.black_white, color[0], color[1], color[2], BitDepth::UInt16);
       return {clamp255(gray[0]), clamp255(gray[1]), clamp255(gray[2])};
     }
     case AdjustmentKind::GradientMap: {
-      const auto mapped = gradient_map_transfer(settings.gradient_map, color[0], color[1], color[2]);
+      const auto mapped = settings.native_gradient_map ? apply_native_gradient_map(settings, color[0], color[1], color[2]) :
+          gradient_map_transfer(settings.gradient_map, color[0], color[1], color[2]);
       return {clamp255(mapped[0]), clamp255(mapped[1]), clamp255(mapped[2])};
     }
     case AdjustmentKind::Invert:
@@ -224,11 +225,37 @@ DeepAdjuster::DeepAdjuster(const AdjustmentSettings& settings, DeepDomain domain
     curves_.emplace_back(settings.curves.green);
     curves_.emplace_back(settings.curves.blue);
   }
+  if (domain == DeepDomain::Linear && settings.kind == AdjustmentKind::PhotoFilter) {
+    photo_filter_matrix_ = linear_photo_filter_matrix(settings.photo_filter);
+  }
 }
 
 DeepChannels DeepAdjuster::apply(DeepChannels color) const {
   if (domain_ == DeepDomain::Encoded) {
     return apply_encoded(color);
+  }
+  if (settings_.kind == AdjustmentKind::BlackWhite && !adjustment_runs_in_ink_space(settings_)) {
+    const auto mapped = black_white_transfer(settings_.black_white, color[0], color[1], color[2], BitDepth::Float32);
+    return {static_cast<float>(mapped[0]), static_cast<float>(mapped[1]), static_cast<float>(mapped[2])};
+  }
+  if (settings_.kind == AdjustmentKind::ChannelMixer && !adjustment_runs_in_ink_space(settings_)) {
+    const auto& mixer = settings_.channel_mixer;
+    const auto mix = [&color](const ChannelMixerRow& row) {
+      return static_cast<float>(channel_mixer_transfer(row, color[0], color[1], color[2], 127.5));
+    };
+    if (mixer.monochrome) {
+      const float gray = mix(mixer.gray);
+      return {gray, gray, gray};
+    }
+    return {mix(mixer.red), mix(mixer.green), mix(mixer.blue)};
+  }
+  if (settings_.kind == AdjustmentKind::PhotoFilter && !adjustment_runs_in_ink_space(settings_)) {
+    DeepChannels out{};
+    for (std::size_t c = 0; c < 3; ++c) {
+      const auto& row = photo_filter_matrix_[c];
+      out[c] = row[0] * color[0] + row[1] * color[1] + row[2] * color[2];
+    }
+    return out;
   }
   if (settings_.kind == AdjustmentKind::Exposure && !adjustment_runs_in_ink_space(settings_)) {
     const auto exposure = clamp_exposure(settings_.exposure);
@@ -237,10 +264,26 @@ DeepChannels DeepAdjuster::apply(DeepChannels color) const {
     const auto inverse_gamma = 100.0 / static_cast<double>(exposure.gamma_hundredths);
     DeepChannels out{};
     for (std::size_t c = 0; c < 3U; ++c) {
-      const auto linear = std::max(0.0, static_cast<double>(color[c]) / 255.0 * gain + offset);
-      out[c] = static_cast<float>(std::pow(linear, inverse_gamma) * 255.0);
+      const auto linear = static_cast<double>(color[c]) / 255.0 * gain + offset;
+      out[c] = static_cast<float>(std::copysign(std::pow(std::abs(linear), inverse_gamma), linear) * 255.0);
     }
     return out;
+  }
+  if (settings_.kind == AdjustmentKind::BrightnessContrast && settings_.brightness_contrast.use_legacy &&
+      !adjustment_runs_in_ink_space(settings_)) {
+    // Photoshop's 32-bit legacy ramp pivots at 127 on the 255 scale and
+    // extends past black and white. Full positive contrast becomes a threshold.
+    const auto& bc = settings_.brightness_contrast;
+    const int contrast = std::clamp(bc.contrast, -100, 100);
+    const double brightness = static_cast<double>(std::clamp(bc.brightness, -100, 100));
+    if (contrast == 100) {
+      for (auto& value : color) value = value + brightness > 127.0 ? 255.0F : 0.0F;
+    } else {
+      const double slope = contrast > 0 ? 100.0 / (100 - contrast) : (100 + contrast) / 100.0;
+      const double intercept = 127.0 * (1.0 - slope) + brightness * (contrast > 0 ? slope : 1.0);
+      for (auto& value : color) value = static_cast<float>(value * slope + intercept);
+    }
+    return color;
   }
   if (settings_.kind == AdjustmentKind::Levels && !adjustment_runs_in_ink_space(settings_)) {
     // Photoshop 2026's 32-bit Levels (fitted on the deep corpus's adj-levels-32 render):

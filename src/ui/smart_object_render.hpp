@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/document.hpp"
+#include "core/smart_filter.hpp"
 #include "core/smart_object.hpp"
 #include "filters/filter_registry.hpp"
 #include "ui/canvas_types.hpp"
@@ -25,7 +26,11 @@ struct SmartObjectLayerPreview {
   FilterRenderResult unfiltered;
   // Cached pixels displayed by the layer after its Smart Filter stack.
   FilterRenderResult rendered;
+  FilterRenderResult before_mask;
 };
+
+[[nodiscard]] std::shared_ptr<const SmartFilterLayerPreview> smart_filter_layer_preview_for_save(
+    const SmartObjectLayerPreview& preview, const PixelBuffer& displayed);
 
 // What one operation learned about each source it rendered, keyed by source uuid,
 // so a geometry change that re-renders several layers placed from one file (Image
@@ -91,6 +96,11 @@ enum class SmartObjectContentsFormat {
 [[nodiscard]] std::optional<QString> resolve_smart_object_external_path(const SmartObjectSource& source,
                                                                         const QString& parent_document_dir,
                                                                         QString* blocked_server = nullptr);
+
+// The same path and network checks for any Photoshop ExternalFileLink, including timeline audio.
+[[nodiscard]] std::optional<QString> resolve_document_file_link(const QString& filename, const QString& relative,
+                                                               const QString& original_path, const QString& uri,
+                                                               const QString& parent_document_dir, QString* blocked_server);
 
 // The link-element filetype OSType for a file extension (lower case, no dot), pinned
 // from Photoshop 2026 captures: "8BPB", "8BPS", "JPEG", "TIFF", "BMP ", "SVG ", and
@@ -191,7 +201,8 @@ render_smart_object_image_preview(
 // the associated FEid cache before touching layer pixels.
 bool install_smart_object_layer_preview(Document& document, Layer& layer,
                                         SmartObjectLayerPreview preview,
-                                        bool refresh_native_cache = true);
+                                        bool refresh_native_cache = true,
+                                        const SmartFilterMask* byte_cache_mask = nullptr);
 
 // Re-renders `layer`'s preview from its embedded or resolved linked source in
 // `document`'s store: decode + resample, then replace the layer's pixels/bounds and mark

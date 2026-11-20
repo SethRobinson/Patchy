@@ -221,10 +221,21 @@ void ui_gegl_filters_list_and_apply_if_available() {
 
   // GEGL's labels follow the language Patchy asks for, from GEGL's own catalog.
   {
+#ifdef Q_OS_WIN
+    const EnvironmentVariableRestorer restore_all("LC_ALL");
+    qputenv("LC_ALL", "C.UTF-8");
+#endif
     const auto command = patchy::ui::bundled_gegl_command(bundled);
+    const auto english = patchy::ui::scan_gegl_filters(command, QStringLiteral("en"));
+    const auto* english_blur = english.registry != nullptr ? english.registry->find("gegl.gaussian-blur") : nullptr;
+    CHECK(english_blur != nullptr && english_blur->display_name == "Gaussian Blur");
     const auto german = patchy::ui::scan_gegl_filters(command, QStringLiteral("de"));
     const auto* german_blur = german.registry != nullptr ? german.registry->find("gegl.gaussian-blur") : nullptr;
-    CHECK(german_blur != nullptr && german_blur->display_name != blur->display_name);
+    CHECK(german_blur != nullptr && german_blur->display_name.find("Weichzeichner") != std::string::npos);
+    if (german_blur != nullptr) {
+      const auto* german_std_dev = parameter(*german_blur, "std-dev-x");
+      CHECK(german_std_dev != nullptr && std::get<double>(german_std_dev->default_value) == 1.5);
+    }
     // A second scan in the same language comes from the cache, the same list.
     const auto again = patchy::ui::scan_gegl_filters(command, QStringLiteral("de"));
     CHECK(again.registry != nullptr && german.registry != nullptr &&
@@ -656,7 +667,7 @@ void ui_xcf_gegl_layer_effects_match_gimp() {
     return std::any_of(list.begin(), list.end(), [&](const std::string& n) { return n.find(text) != std::string::npos; });
   };
   CHECK(has(notices, "were applied"));
-  CHECK(has(notices, std::string(patchy::xcf::skipped_effects_notice_prefix()) + "curves, median-blur" +
+  CHECK(has(notices, std::string(patchy::xcf::skipped_effects_notice_prefix()) + "median-blur" +
                          patchy::xcf::skipped_effects_notice_suffix()));
   CHECK(has(before_notices, "bloom"));
 
@@ -726,7 +737,7 @@ void ui_xcf_gegl_layer_effects_match_gimp() {
   QStringList failed;
   for (const auto& layer : before.layers()) {
     const auto& name = layer.name();
-    if (name == "background" || name == "curves" || name == "median-blur") {
+    if (name == "background" || name == "median-blur") {
       continue;
     }
     const auto bounds = layer.bounds();

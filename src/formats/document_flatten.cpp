@@ -8,6 +8,7 @@
 #include "render/compositor.hpp"
 #include "render/composite_targets.hpp"
 #include "render/native_cmyk.hpp"
+#include "render/native_adjustment_stack.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -38,6 +39,8 @@ PixelBuffer flatten_document_rgba8(const Document& document) {
   if (auto native = render_native_cmyk8(document, Rect::from_size(document.width(), document.height()))) {
     return std::move(*native);
   }
+  if (auto native = render_native_lab_adjustments(document, Rect::from_size(document.width(), document.height()), BitDepth::UInt8))
+    return std::move(*native);
   if (!render_detail::layers_have_rendered_blend_if(document.layers())) {
     if (auto masked = document_alpha_rgba8(document); masked.has_value()) {
       return std::move(*masked);
@@ -61,6 +64,7 @@ PixelBuffer flatten_document_rgba8_rect(const Document& document, Rect rect) {
   if (rect == canvas) {
     return flatten_document_rgba8(document);
   }
+  if (auto native = render_native_lab_adjustments(document, rect, BitDepth::UInt8)) return std::move(*native);
   if (document.color_state().bit_depth != BitDepth::UInt8) {
     const auto full = deep_flatten_display_rgba8(document);
     PixelBuffer cropped(rect.width, rect.height, PixelFormat::rgba8());

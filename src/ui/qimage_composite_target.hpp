@@ -20,6 +20,7 @@ namespace patchy::ui {
 // pinned by the composite corpus render digests and the compositor canaries.
 class QImageCompositeTarget {
 public:
+  [[nodiscard]] static constexpr bool permits_aseprite_cel_blend() noexcept { return true; }
   QImageCompositeTarget(QImage& destination, bool preserve_alpha, std::int32_t origin_x, std::int32_t origin_y)
       : destination_(destination), preserve_alpha_(preserve_alpha), origin_x_(origin_x), origin_y_(origin_y) {}
 

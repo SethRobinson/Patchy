@@ -5,6 +5,7 @@
 namespace patchy {
 
 struct SmartObjectSource;
+struct NativeGradientMap;
 
 // Original color data, independent of the RGB editing buffers. Shared by undo
 // snapshots; session-only, never serialized as private PSD tags.
@@ -28,6 +29,9 @@ struct PsdNativeLayerColors {
   // The placed source belongs to the document, not the layer snapshot. Keep its
   // immutable import state too so replacing embedded contents invalidates inks.
   std::shared_ptr<const SmartObjectSource> smart_object_source;
+  std::shared_ptr<const NativeGradientMap> gradient_map;
+  // Photoshop's Lab flag in a Brightness/Contrast adjustment selects L* alone.
+  bool brightness_contrast_lightness_only{false};
   std::uint64_t content_revision{0};
   // The planes are a flat file's merged image (no layer records). Its RGB pixels already
   // are those inks converted, so rendering never rebuilds them from the planes.

@@ -2920,7 +2920,7 @@ constexpr std::array<RgbColor, 6> kBlackWhiteSliderHues{{
 QColor black_white_gray_for_hue(const BlackWhiteSettings& settings, RgbColor hue) {
   auto gray_settings = settings;
   gray_settings.tint = false;
-  const auto out = black_white_transfer(gray_settings, hue.red, hue.green, hue.blue, true);
+  const auto out = black_white_transfer(gray_settings, hue.red, hue.green, hue.blue, BitDepth::UInt8);
   const auto level = static_cast<int>(std::clamp(out[0], 0.0, 255.0));
   return QColor(level, level, level);
 }
@@ -3273,7 +3273,7 @@ QImage black_white_thumbnail(const QImage& source, const BlackWhiteSettings& set
     const auto* in = source.constScanLine(y);
     auto* out = result.scanLine(y);
     for (int x = 0; x < source.width(); ++x, in += 3, out += 3) {
-      const auto value = black_white_transfer(settings, in[0], in[1], in[2], true);
+      const auto value = black_white_transfer(settings, in[0], in[1], in[2], BitDepth::UInt8);
       for (int channel = 0; channel < 3; ++channel) {
         out[channel] = static_cast<std::uint8_t>(std::clamp(std::lround(value[static_cast<std::size_t>(channel)]), 0L, 255L));
       }

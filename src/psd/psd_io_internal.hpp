@@ -706,7 +706,8 @@ std::vector<std::uint8_t> photoshop_posterize_payload(const PosterizeAdjustment&
 std::optional<AdjustmentSettings> parse_photoshop_threshold_adjustment(std::span<const std::uint8_t> payload);
 std::vector<std::uint8_t> photoshop_threshold_payload(const ThresholdAdjustment& settings,
                                                       const UnknownPsdBlock* original);
-std::optional<AdjustmentSettings> parse_photoshop_channel_mixer_adjustment(std::span<const std::uint8_t> payload);
+std::optional<AdjustmentSettings> parse_photoshop_channel_mixer_adjustment(std::span<const std::uint8_t> payload,
+                                                                         bool cmyk);
 // Writes the modeled rows over the original payload (bytes past them are kept); fresh
 // layers get Photoshop's 44-byte RGB shape.
 std::vector<std::uint8_t> photoshop_channel_mixer_payload(const ChannelMixerAdjustment& settings,
@@ -716,11 +717,12 @@ std::optional<AdjustmentSettings> parse_photoshop_photo_filter_adjustment(std::s
 // layers get Photoshop's 20-byte version 2 Lab shape.
 std::vector<std::uint8_t> photoshop_photo_filter_payload(const PhotoFilterAdjustment& settings,
                                                          const UnknownPsdBlock* original);
-std::optional<AdjustmentSettings> parse_photoshop_gradient_map_adjustment(std::span<const std::uint8_t> payload);
-// The original payload when the settings are unchanged; otherwise a version 3 block that
-// keeps the original's noise fields.
+std::optional<AdjustmentSettings> parse_photoshop_gradient_map_adjustment(std::span<const std::uint8_t> payload,
+    const CmykColorConverter& source_colors, std::uint16_t source_mode);
+// The unchanged original, or a version 3 block retaining the original noise fields.
+// When a native-mode layer is converted to RGB, write its display colors as RGB stops.
 std::vector<std::uint8_t> photoshop_gradient_map_payload(const GradientMapAdjustment& settings,
-                                                         const UnknownPsdBlock* original);
+                                                        const UnknownPsdBlock* original, bool converting_to_rgb);
 std::optional<AdjustmentSettings> parse_photoshop_black_white_adjustment(std::span<const std::uint8_t> payload);
 // The original payload when the settings are unchanged; otherwise its descriptor with the
 // modeled values replaced (a fresh layer gets Photoshop 2026's shape).
@@ -757,6 +759,7 @@ std::optional<AdjustmentSettings> parse_photoshop_brightness_contrast_adjustment
 struct BrightnessContrastDescriptorParse {
   AdjustmentSettings settings;
   bool use_legacy{false};
+  bool lab_lightness_only{false};
 };
 std::optional<BrightnessContrastDescriptorParse> parse_photoshop_brightness_contrast_descriptor(
     std::span<const std::uint8_t> payload);

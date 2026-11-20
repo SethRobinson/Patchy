@@ -179,8 +179,14 @@ first run on October 24, 2026; the script holds the table.
   covered pixel differs, even at Normal (measured mean 4.5, worst 63 at soft edges). Addition,
   hue, saturation, color and luminosity differ more (linear light plus GIMP's own color models
   for the last four): those modes allow means up to 38 and worst pixels up to 150. Krita's mode names open as Normal in GIMP: reported, not failed.
-- The apps' files in Patchy against each app's export: Krita mean 0.00, worst 1 for every fixture;
-  GIMP mean 0.45, worst 63 (the same linear-light edges).
+- The structure fixtures against the apps' exports measure mean 0.00, worst 1 for Krita and
+  mean 0.45, worst 63 for GIMP (linear-light edges).
+- In the 32-tile `gimp-modes.ora`, 16 original non-Normal modes and the Normal tile all carry
+  `svg:src-over`. Patchy reproduces ordinary source-over from the layers' RGBA samples exactly
+  on those 17 tiles. Across all 32 tiles, Patchy and Krita's independent reopen of this same
+  file differ by a mean of 0.062 and a maximum of 2. GIMP's saved authoring composite differs
+  from Patchy on 65.98% of pixels under Testy's perceptual metric. The missing mode identifiers
+  and the source editor's compositing behavior matter when comparing against that composite.
 
 ## Corpus
 

@@ -2340,6 +2340,8 @@ void ui_layer_style_outer_glow_technique_and_range_map_to_settings() {
   glow.enabled = true;
   glow.technique = patchy::LayerGlowTechnique::Precise;
   glow.range = 80.0F;
+  auto& gradient = glow.gradient.emplace();
+  gradient.color_stops = {{0.0F, {230, 100, 30}}, {1.0F, {20, 10, 190}}};
   layer.layer_style().outer_glows.push_back(glow);
 
   QTimer::singleShot(0, guarded([] {
@@ -2361,6 +2363,8 @@ void ui_layer_style_outer_glow_technique_and_range_map_to_settings() {
     categories->setCurrentItem(glow_items.front());
     QApplication::processEvents();
     CHECK(!range->visibleRegion().isEmpty());
+    auto* solid_color = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleOuterGlowColorPreview"));
+    CHECK(solid_color != nullptr && !solid_color->isEnabled());
     technique->setCurrentIndex(
         std::max(0, technique->findData(static_cast<int>(patchy::LayerGlowTechnique::Softer))));
     range->setValue(25);
@@ -2376,6 +2380,7 @@ void ui_layer_style_outer_glow_technique_and_range_map_to_settings() {
   CHECK(result.technique == patchy::LayerGlowTechnique::Softer);
   CHECK(result.range == 25.0F);
   CHECK(result.spread == 8.0F);
+  CHECK(result.gradient == glow.gradient);
 }
 
 // The Patchy-only Continuous option: its badge sits beside the checkbox, the

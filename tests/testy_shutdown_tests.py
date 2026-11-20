@@ -1,5 +1,6 @@
 """Testy lifecycle regressions using isolated servers and harmless Python children."""
 import http.client
+import io
 import json
 import os
 from pathlib import Path
@@ -89,6 +90,16 @@ class ShutdownTests(unittest.TestCase):
         self.stop_server()
         self.assert_port_released()
         self.assertFalse(self.server.stop_file.exists())
+
+    def test_shutdown_reads_the_post_body_before_stopping(self):
+        body = b"{}"
+        stream = io.BytesIO(body + b"next request")
+        handler = types.SimpleNamespace(headers={"Content-Length": str(len(body))}, rfile=stream,
+                                        server=mock.Mock(), _send_json=mock.Mock())
+        handler.server.request_stop.side_effect = lambda: self.assertEqual(stream.tell(), len(body))
+        testy.TestyRequestHandler._shutdown(handler)
+        handler.server.request_stop.assert_called_once_with()
+        handler._send_json.assert_called_once_with({"shuttingDown": True}, status=202)
 
     def test_active_child_finishes_step_checkpoints_and_exits_before_server(self):
         # No status.json exists at shutdown time, as with a just-spawned run.

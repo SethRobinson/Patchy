@@ -1,6 +1,7 @@
 #include "ui/image_document_io.hpp"
 #include "color/rgb_profiles.hpp"
 #include "ui/document_save_coordinator.hpp"
+#include "ui/edit_conversions.hpp"
 #include "formats/metadata/metadata_inject.hpp"
 #include "formats/metadata/exif_tags.hpp"
 #include "formats/metadata/tiff_ifd.hpp"
@@ -45,6 +46,7 @@
 #include "core/rect_utils.hpp"
 #include "render/compositor.hpp"
 #include "render/native_cmyk.hpp"
+#include "render/native_adjustment_stack.hpp"
 #include "render/native_duotone.hpp"
 #include "render/layer_compositor.hpp"
 #include "ui/qimage_composite_target.hpp"
@@ -976,6 +978,14 @@ QImage render_document_rect_deep(const Document& document, Rect clip, bool prese
                                  : 1.0F;
   const auto render_strip = [&document, overrides, masks, domain, preserve_alpha, at_depth,
                              display_scale](Rect strip_clip) {
+    auto native = render_native_cmyk16_adjustments(document, strip_clip, overrides);
+    if (!native) native = render_native_lab_adjustments(document, strip_clip, BitDepth::UInt16, overrides);
+    if (native) {
+      auto image = at_depth ? qimage_from_pixel_buffer(*native) : display_qimage_from_pixel_buffer(*native);
+      // This retained-ink path has an opaque base. Both output forms carry the same colors.
+      if (!preserve_alpha) image = image.convertToFormat(at_depth ? QImage::Format_RGBX64 : QImage::Format_RGB888);
+      return image;
+    }
     render_detail::DeepCompositeTarget target(strip_clip, false, domain);
     render_detail::composite_sibling_layers(
         target, document.layers(), strip_clip, overrides, false, masks,
@@ -1040,6 +1050,7 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
   const Rect native_clip{native_rect.x(), native_rect.y(), native_rect.width(), native_rect.height()};
   auto native = render_native_cmyk8(document, native_clip, overrides);
   if (!native) native = render_native_duotone8(document, native_clip, overrides);
+  if (!native) native = render_native_lab_adjustments(document, native_clip, BitDepth::UInt8, overrides);
   if (native) {
     if (native->empty()) return {};
     QImage image(native->width(), native->height(), preserve_alpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888);

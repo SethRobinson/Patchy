@@ -134,7 +134,17 @@ enum class MotionBlurKernel { Automatic, Taps, RunningSum };
 render_smart_filter_stack(const PixelBuffer &placed_pixels, Rect placed_bounds,
                           Rect filter_canvas_bounds,
                           const SmartFilterStack &stack,
-                          const FilterProgress *progress = nullptr);
+                          const FilterProgress *progress = nullptr,
+                          FilterRenderResult *before_mask = nullptr);
+
+// Combine the saved Photoshop layer with its unfiltered FEid pixels, without
+// re-running any filter. Both rasters must be straight RGBA in document space
+// with matching 8- or 16-bit integer depth. An RGB16 result may also use a
+// native 16-bit coverage mask.
+[[nodiscard]] std::optional<FilterRenderResult> apply_saved_smart_filter_mask(
+    const FilterRenderResult &base, const FilterRenderResult &filtered, const SmartFilterMask &mask,
+    std::uint64_t maximum_pixels);
+[[nodiscard]] bool smart_filter_mask_modulates(const SmartFilterMask &mask);
 
 // Compatibility/testing form: filters within the supplied placed raster.
 // Production native Smart Filters pass the document-space FEid cache bounds

@@ -10,7 +10,8 @@ Split from [high-bit-depth.md](high-bit-depth.md): Phase 2 (PSD/PSB read and wri
    natively. At 16 bits, CMYK and profiled gray convert through full-range u16 ICC
    transforms, Lab through the D50 Lab-to-sRGB transform, and multichannel planes
    retain their samples. Color conversion never touches transparency or masks.
-   32-bit non-RGB conversion still widens the 8-bit result (gap). RGB and unprofiled
+   Untagged 32-bit grayscale keeps linear samples, including values below zero and above one.
+   Other 32-bit non-RGB conversions still widen an 8-bit result. RGB and unprofiled
    gray narrow exactly to the historical 8-bit reading; transformed modes retain
    more precision than that old path. The writer takes the
    document's depth: header depth, layer records in `Lr16`/`Lr32` behind an empty
@@ -20,6 +21,16 @@ Split from [high-bit-depth.md](high-bit-depth.md): Phase 2 (PSD/PSB read and wri
    (`deep_merged_flatten_composite`). Photoshop 2026 rules found by splicing sections:
    - 32-bit layer channels must be zip with prediction (raw and RLE are refused;
      16-bit RLE and raw open fine).
+   - Layered 8/16-bit Smart Filter saves retain the editable stack, cached original, and
+     filter mask at the file depth. When an integer stack is exported at 32 bits,
+     its layer becomes a raster in the saved file. Other layers and the working
+     document retain their structure. Photoshop 28 flattened the whole 8-bit
+     control before converting it to 32 bits. With translucent layers over a
+     background, the two workflows can differ because the layered 32-bit file
+     composites in linear light. Photoshop's rendering of the saved file matched
+     Patchy's 32-bit canvas within one display level on the hard and gradient
+     mask controls. An original native 32-bit cache is preserved.
+     See [native Smart Filters](smart-filters-native.md).
    - A 32-bit file needs its color mode data: the `hdrt`/`hdra` HDR toning record.
      An empty section is refused ("open options are incorrect"). It is kept from the
      source (`DocumentMetadata::raw_psd_color_mode_data`) or Photoshop 27.10's default

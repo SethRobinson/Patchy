@@ -268,6 +268,7 @@ class DialogGuard:
         self.poll_seconds = poll_seconds
         self.log = log
         self.dismissed: list[str] = []
+        self.first_seen: list[tuple[str, int]] = []
         self.blocked: list[str] = []
         self.timed_out = False
         self._stop = threading.Event()
@@ -364,6 +365,8 @@ class DialogGuard:
                 progressed = True
 
         for dialog in dialogs:
+            if dialog.hwnd not in self._ticks:
+                self.first_seen.append((dialog.describe(), time.time_ns() // 1_000_000))
             button = dialog.acknowledging_button()
             if button is None:
                 # Nothing here answers "carry on", so this guard has no business

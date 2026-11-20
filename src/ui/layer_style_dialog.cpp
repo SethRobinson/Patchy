@@ -3153,6 +3153,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         outer_glow_size->setValue(static_cast<int>(std::round(value.size)));
         outer_glow_spread->setValue(static_cast<int>(std::round(value.spread)));
         outer_glow_range->setValue(std::clamp(static_cast<int>(std::round(value.range)), 1, 100));
+        outer_glow_rows.row_container->setEnabled(!value.gradient.has_value());
         outer_glow_red->setValue(value.color.red);
         outer_glow_green->setValue(value.color.green);
         outer_glow_blue->setValue(value.color.blue);

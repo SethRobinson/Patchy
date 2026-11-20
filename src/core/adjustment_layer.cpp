@@ -2,6 +2,7 @@
 
 #include "core/blend_math.hpp"
 #include "core/pixel_depth.hpp"
+#include "core/psd_source_colors.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -359,10 +360,10 @@ std::optional<std::vector<int>> parse_int_list(std::string_view encoded, std::si
 
 // PDF SetLum with ClipColor on the 0..255 scale, with luma (30R + 59G + 11B) / 100 rounded
 // to a whole level when byte_stages is set.
-std::array<double, 3> set_luma(std::array<double, 3> color, double target, bool byte_stages) {
-  const auto luma = [byte_stages](const std::array<double, 3>& value) {
+std::array<double, 3> set_luma(std::array<double, 3> color, double target, BitDepth depth) {
+  const auto luma = [depth](const std::array<double, 3>& value) {
     const double raw = (30.0 * value[0] + 59.0 * value[1] + 11.0 * value[2]) / 100.0;
-    return byte_stages ? std::floor(raw + 0.5) : raw;
+    return depth == BitDepth::UInt8 ? std::floor(raw + 0.5) : raw;
   };
   const double shift = target - luma(color);
   for (auto& value : color) {
@@ -374,9 +375,11 @@ std::array<double, 3> set_luma(std::array<double, 3> color, double target, bool 
   if (low < 0.0 && center > low) {
     for (auto& value : color) {
       value = center + (value - center) * center / (center - low);
+      // Photoshop retains a half-level bias when it brings a float tint back above black.
+      if (depth == BitDepth::Float32) value += 0.5;
     }
   }
-  if (high > 255.0 && high > center) {
+  if (depth != BitDepth::Float32 && high > 255.0 && high > center) {
     for (auto& value : color) {
       value = center + (value - center) * (255.0 - center) / (high - center);
     }
@@ -971,11 +974,48 @@ int channel_mixer_weight(int percent) noexcept {
   return std::clamp(percent, -200, 200) * 1024 / 100;
 }
 
-double channel_mixer_transfer(const ChannelMixerRow& row, double red, double green, double blue) {
+ChannelMixerInkWeights cmyk_channel_mixer_weights(const ChannelMixerAdjustment& settings) {
+  const auto inks = settings.ink_channels.value_or(ChannelMixerInkChannels{});
+  const auto row = [](ChannelMixerRow mix, int black) -> std::array<int, 5> {
+    return {channel_mixer_weight(mix.red), channel_mixer_weight(mix.green), channel_mixer_weight(mix.blue),
+            channel_mixer_weight(black), channel_mixer_weight(mix.constant)};
+  };
+  if (settings.monochrome) {
+    ChannelMixerInkWeights result{};  // Photoshop puts the monochrome mix entirely in K.
+    result[3] = row(settings.gray, inks.black_inputs[0]);
+    return result;
+  }
+  return {row(settings.red, inks.black_inputs[0]), row(settings.green, inks.black_inputs[1]),
+          row(settings.blue, inks.black_inputs[2]), row(inks.black_output, inks.black_inputs[3])};
+}
+
+std::array<std::uint16_t, 4> mix_cmyk_inks(const ChannelMixerInkWeights& weights,
+    const std::array<std::uint16_t, 4>& inks, int full_scale) noexcept {
+  std::array<std::uint16_t, 4> output{};
+  const bool deep = full_scale == 65535;
+  const int working_scale = deep ? 32768 : full_scale;
+  std::array<int, 4> coverage{};
+  for (std::size_t i = 0; i < inks.size(); ++i) {
+    const int value = full_scale - inks[i];
+    coverage[i] = deep ? (value * 32768 + 32767) / 65535 : value;
+  }
+  for (std::size_t c = 0; c < output.size(); ++c) {
+    const auto& row = weights[c];
+    int sum = working_scale * row[4];
+    for (std::size_t i = 0; i < inks.size(); ++i) sum += coverage[i] * row[i];
+    const int mixed = std::clamp((sum + 512) / 1024, 0, working_scale);
+    // The 16-bit transfer rounds physical ink on Photoshop's 0..32768 scale.
+    const int expanded = deep ? (mixed * 65535 + 16384) / 32768 : mixed;
+    output[c] = static_cast<std::uint16_t>(full_scale - expanded);
+  }
+  return output;
+}
+
+double channel_mixer_transfer(const ChannelMixerRow& row, double red, double green, double blue, double constant_scale) {
   // Integer weights over a power-of-two divisor keep 8-bit inputs exact, so rounding this
   // half up reproduces Photoshop's 8-bit output.
   return (red * channel_mixer_weight(row.red) + green * channel_mixer_weight(row.green) +
-          blue * channel_mixer_weight(row.blue) + 255.0 * channel_mixer_weight(row.constant)) /
+          blue * channel_mixer_weight(row.blue) + constant_scale * channel_mixer_weight(row.constant)) /
          1024.0;
 }
 
@@ -984,7 +1024,8 @@ bool ChannelMixerAdjustment::has_effect() const noexcept {
     return true;  // even 100/0/0 turns color into gray
   }
   const ChannelMixerAdjustment identity;
-  return clamp_channel_mixer_row(red) != identity.red || clamp_channel_mixer_row(green) != identity.green ||
+  return (ink_channels && *ink_channels != ChannelMixerInkChannels{}) ||
+         clamp_channel_mixer_row(red) != identity.red || clamp_channel_mixer_row(green) != identity.green ||
          clamp_channel_mixer_row(blue) != identity.blue;
 }
 
@@ -996,19 +1037,49 @@ PhotoFilterAdjustment clamp_photo_filter(PhotoFilterAdjustment settings) noexcep
   return settings;
 }
 
-RgbColor photo_filter_color(const PhotoFilterAdjustment& settings) {
-  const auto clamped = clamp_photo_filter(settings);
+// Component ratios to the reference white. At 32 bits Photoshop uses them in
+// D65 XYZ. The encoded path presents the same Lab swatch through D50.
+static std::array<double, 3> photo_filter_white_ratios(const PhotoFilterAdjustment& clamped) {
   const auto f_inverse = [](double t) {
     return t * t * t > 216.0 / 24389.0 ? t * t * t : (116.0 * t - 16.0) / (24389.0 / 27.0);
   };
   const double fy = (clamped.lab_l / 100.0 + 16.0) / 116.0;
   const double fx = fy + clamped.lab_a / 100.0 / 500.0;
   const double fz = fy - clamped.lab_b / 100.0 / 200.0;
+  return {f_inverse(fx), f_inverse(fy), f_inverse(fz)};
+}
+
+RgbColor photo_filter_color(const PhotoFilterAdjustment& settings) {
+  const auto ratios = photo_filter_white_ratios(clamp_photo_filter(settings));
   const auto white = d50_white();
   const auto linear =
-      multiply3(xyz_d50_to_srgb(), {f_inverse(fx) * white[0], f_inverse(fy) * white[1], f_inverse(fz) * white[2]});
+      multiply3(xyz_d50_to_srgb(), {ratios[0] * white[0], ratios[1] * white[1], ratios[2] * white[2]});
   const auto byte = [](double value) { return static_cast<std::uint8_t>(round_half_up(linear_to_srgb_byte(value))); };
   return RgbColor{byte(linear[0]), byte(linear[1]), byte(linear[2])};
+}
+
+std::array<std::array<float, 3>, 3> linear_photo_filter_matrix(const PhotoFilterAdjustment& settings) {
+  constexpr std::array<std::array<double, 3>, 3> to_xyz{{{0.4124564, 0.3575761, 0.1804375},
+                                                         {0.2126729, 0.7151522, 0.0721750},
+                                                         {0.0193339, 0.1191920, 0.9503041}}};
+  static const auto to_rgb = inverse3(to_xyz);
+  const auto filter = clamp_photo_filter(settings);
+  const double density = filter.density / 100.0;
+  auto gain = photo_filter_white_ratios(filter);
+  for (auto& value : gain) {
+    value = std::round((1.0 - density + density * std::clamp(value, 0.0, 2.0)) * 32768.0) / 32768.0;
+  }
+  if (filter.preserve_luminosity) {
+    const auto luminance_gain = gain[1];
+    for (auto& value : gain) value = luminance_gain > 0.0 ? value / luminance_gain : 0.0;
+  }
+  std::array<std::array<float, 3>, 3> matrix{};
+  for (std::size_t input = 0; input < 3; ++input) {
+    const auto column = multiply3(to_rgb, {gain[0] * to_xyz[0][input], gain[1] * to_xyz[1][input],
+                                          gain[2] * to_xyz[2][input]});
+    for (std::size_t output = 0; output < 3; ++output) matrix[output][input] = static_cast<float>(column[output]);
+  }
+  return matrix;
 }
 
 PhotoFilterAdjustment photo_filter_with_color(PhotoFilterAdjustment settings, RgbColor color) {
@@ -1648,7 +1719,7 @@ BlackWhiteAdjustment clamp_black_white(BlackWhiteAdjustment settings) noexcept {
 }
 
 std::array<double, 3> black_white_transfer(const BlackWhiteAdjustment& settings, double red, double green,
-                                           double blue, bool byte_stages) {
+                                           double blue, BitDepth depth) {
   const auto clamped = clamp_black_white(settings);
   // The primary is the largest channel; the secondary is the color of the two largest. Ties
   // resolve red, then green, which the probe's grays and pure colors cannot tell apart.
@@ -1670,17 +1741,19 @@ std::array<double, 3> black_white_transfer(const BlackWhiteAdjustment& settings,
   // Hundredths of a level; exact for 8-bit inputs, so the byte path rounds half up in integers.
   const double scaled = low * 100.0 + (middle - low) * secondary + (high - middle) * primary;
   double gray = scaled / 100.0;
-  if (byte_stages) {
+  if (depth == BitDepth::UInt8) {
     const auto hundredths = std::llround(scaled) + 50;
     const auto level = hundredths >= 0 ? hundredths / 100 : -((-hundredths + 99) / 100);
     gray = std::clamp(static_cast<double>(level), 0.0, 255.0);
+  } else if (depth == BitDepth::Float32) {
+    gray = std::max(0.0, gray);
   }
   if (!clamped.tint) {
     return {gray, gray, gray};
   }
   return set_luma({static_cast<double>(clamped.tint_color.red), static_cast<double>(clamped.tint_color.green),
                    static_cast<double>(clamped.tint_color.blue)},
-                  std::clamp(gray, 0.0, 255.0), byte_stages);
+                  depth == BitDepth::Float32 ? gray : std::clamp(gray, 0.0, 255.0), depth);
 }
 
 namespace {
@@ -1905,6 +1978,54 @@ std::array<double, 3> gradient_map_transfer(const GradientMapAdjustment& setting
     position = 1.0F - position;
   }
   return gradient_color_precise(settings.gradient, position, true, false, true);
+}
+
+namespace {
+template <typename Samples, typename Output>
+void sample_native_gradient(const Samples& samples, double position, Output& result) {
+  const auto scaled = (std::isnan(position) ? 0.0 : std::clamp(position, 0.0, 1.0)) * NativeGradientMap::kIntervals;
+  const auto left = static_cast<std::size_t>(scaled);
+  const auto right = std::min(left + 1U, NativeGradientMap::kIntervals);
+  for (std::size_t c = 0; c < result.size(); ++c) {
+    result[c] = std::lerp(static_cast<double>(samples[left][c]), static_cast<double>(samples[right][c]),
+                          scaled - static_cast<double>(left));
+  }
+}
+}
+
+std::array<std::uint16_t, 4> native_gradient_inks(const NativeGradientMap& ramp, double position) {
+  std::array<double, 4> samples{};
+  sample_native_gradient(ramp.inks, position, samples);
+  return {static_cast<std::uint16_t>(std::lround(samples[0])), static_cast<std::uint16_t>(std::lround(samples[1])),
+          static_cast<std::uint16_t>(std::lround(samples[2])), static_cast<std::uint16_t>(std::lround(samples[3]))};
+}
+
+std::array<double, 3> apply_native_gradient_map(const AdjustmentSettings& settings,
+                                               double red, double green, double blue) {
+  const auto& ramp = *settings.native_gradient_map;
+  auto position = green / 255.0;
+  if (ramp.space == NativeGradientMap::Space::Lab) {
+    const auto& row = kSrgbToXyzD50[1];
+    const auto y = row[0] * srgb_byte_to_linear(red) + row[1] * srgb_byte_to_linear(green) +
+                   row[2] * srgb_byte_to_linear(blue);
+    position = (y > 216.0 / 24389.0 ? 116.0 * std::cbrt(y) - 16.0 : (24389.0 / 27.0) * y) / 100.0;
+  } else if (ramp.space == NativeGradientMap::Space::Gray && settings.ink_space && settings.ink_space->is_gray()) {
+    const auto level = std::clamp(green, 0.0, 255.0);
+    const auto low = static_cast<std::size_t>(level);
+    const auto& gray = settings.ink_space->rgb_to_gray;
+    position = std::lerp(gray[low], gray[std::min(low + 1U, std::size_t{255})], level - static_cast<double>(low)) / 255.0;
+  } else if (ramp.space == NativeGradientMap::Space::Cmyk) {
+    position = gradient_map_luma(red, green, blue) / 255.0;
+    if (settings.ink_space && !settings.ink_space->is_gray()) {
+      const auto byte = [](double v) { return static_cast<std::uint8_t>(std::lround(std::clamp(v, 0.0, 255.0))); };
+      const auto ink = settings.ink_space->ink_from_rgb({byte(red), byte(green), byte(blue)});
+      position = (0.30 * ink[0] + 0.59 * ink[1] + 0.11 * ink[2]) * ink[3] / (255.0 * 255.0);
+    }
+  }
+  std::array<double, 3> mapped{};
+  sample_native_gradient(ramp.display, position, mapped);
+  for (auto& value : mapped) value /= 257.0;
+  return mapped;
 }
 
 ColorBalanceTone ColorBalanceAdjustment::tone(ColorBalanceToneRange range) const noexcept {
@@ -2537,7 +2658,18 @@ std::optional<std::array<double, 3>> hue_saturation_transfer(std::array<double, 
                                                              const HueSaturationAdjustment& settings,
                                                              bool unbounded) {
   if (settings.colorize) {
-    return std::nullopt;
+    if (!unbounded) return std::nullopt;
+    // Float Colorize uses continuous HSL. Outside [0,255], a positive
+    // Lightness moves only colors below white, a negative one only colors above black.
+    const auto [minimum, maximum] = std::minmax_element(color.begin(), color.end());
+    double light = (*minimum + *maximum) * 0.5;
+    const double adjustment = std::clamp(settings.colorize_lightness, -100, 100) / 100.0;
+    light += adjustment * (adjustment > 0 ? std::max(0.0, 255.0 - light) : std::max(0.0, light));
+    const double saturation = std::clamp(settings.colorize_saturation, 0, 100) / 100.0 * (1.0 - std::abs(adjustment));
+    int sector = 0;
+    double interpolant = 0.0;
+    photoshop_wheel_split(settings.colorize_hue * 4.25, sector, interpolant);
+    return reconstruct_continuous(light, saturation * std::min(light, 255.0 - light), sector, interpolant, true);
   }
   const auto hue_shift = std::clamp(settings.hue_shift, -180, 180);
   const auto saturation_delta = std::clamp(settings.saturation_delta, -100, 100);
@@ -2940,6 +3072,11 @@ std::optional<AdjustmentSettings> adjustment_settings_from_layer(const Layer& la
                                          defaults.blue);
     mixer.gray = parse_channel_mixer_row(metadata_string_or(layer, kLayerMetadataAdjustmentChannelMixerGray, {}),
                                          defaults.gray);
+    if (const auto inks = parse_int_list(metadata_string_or(layer, kLayerMetadataAdjustmentChannelMixerInks, {}), 8)) {
+      mixer.ink_channels.emplace();
+      std::copy_n(inks->begin(), 4, mixer.ink_channels->black_inputs.begin());
+      mixer.ink_channels->black_output = {(*inks)[4], (*inks)[5], (*inks)[6], (*inks)[7]};
+    }
   }
   {
     const PhotoFilterAdjustment defaults;
@@ -2954,6 +3091,10 @@ std::optional<AdjustmentSettings> adjustment_settings_from_layer(const Layer& la
       gradient.has_value()) {
     gradient->name = std::string(metadata_string_or(layer, kLayerMetadataAdjustmentGradientMapName, gradient->name));
     settings.gradient_map.gradient = std::move(*gradient);
+    const auto& native = layer.psd_native_colors();
+    if (native && native->gradient_map && native->gradient_map->original == settings.gradient_map.gradient) {
+      settings.native_gradient_map = native->gradient_map;
+    }
   }
   if (const auto weights =
           parse_int_list(metadata_string_or(layer, kLayerMetadataAdjustmentBlackWhiteWeights, {}), 6);
@@ -3137,6 +3278,13 @@ void configure_adjustment_layer(Layer& layer, const AdjustmentSettings& settings
                       serialize_channel_mixer_row(settings.channel_mixer.blue));
   set_metadata_string(layer, kLayerMetadataAdjustmentChannelMixerGray,
                       serialize_channel_mixer_row(settings.channel_mixer.gray));
+  if (const auto& inks = settings.channel_mixer.ink_channels) {
+    std::string encoded;
+    for (int black : inks->black_inputs) encoded += std::to_string(black) + ';';
+    set_metadata_string(layer, kLayerMetadataAdjustmentChannelMixerInks, encoded + serialize_channel_mixer_row(inks->black_output));
+  } else {
+    metadata.erase(kLayerMetadataAdjustmentChannelMixerInks);
+  }
   set_metadata_string(layer, kLayerMetadataAdjustmentPhotoFilterLab, serialize_photo_filter_lab(settings.photo_filter));
   set_metadata_int(layer, kLayerMetadataAdjustmentPhotoFilterDensity,
                    clamp_photo_filter(settings.photo_filter).density);
@@ -3208,11 +3356,13 @@ namespace {
 struct InkAdjustmentTables {
   AdjustmentSettings settings;
   std::array<std::array<std::uint8_t, 256>, 4> ink{};
+  ChannelMixerInkWeights mixer_weights{};
   bool valid{false};
 };
 
 bool same_ink_adjustment(const AdjustmentSettings& a, const AdjustmentSettings& b) {
   return a.kind == b.kind && a.ink_space == b.ink_space && a.levels == b.levels && a.curves == b.curves &&
+         (a.kind != AdjustmentKind::ChannelMixer || a.channel_mixer == b.channel_mixer) &&
          a.posterize.levels == b.posterize.levels && a.threshold.level == b.threshold.level &&
          a.brightness_contrast.brightness == b.brightness_contrast.brightness &&
          a.brightness_contrast.contrast == b.brightness_contrast.contrast &&
@@ -3226,6 +3376,11 @@ RgbColor apply_adjustment_on_rgb(RgbColor color, const AdjustmentSettings& setti
 
 void build_ink_adjustment_tables(InkAdjustmentTables& tables, const AdjustmentSettings& settings) {
   tables.settings = settings;
+  if (settings.kind == AdjustmentKind::ChannelMixer) {
+    tables.mixer_weights = cmyk_channel_mixer_weights(settings.channel_mixer);
+    tables.valid = true;
+    return;
+  }
   auto rgb_settings = settings;
   rgb_settings.ink_space = nullptr;
   // The black ink goes through the same stages as the others, with its own record: run
@@ -3256,6 +3411,11 @@ RgbColor apply_adjustment_in_ink_space(RgbColor color, const AdjustmentSettings&
     return settings.ink_space->rgb_from_gray(tables.ink[0][settings.ink_space->gray_from_rgb(color)]);
   }
   auto ink = settings.ink_space->ink_from_rgb(color);
+  if (settings.kind == AdjustmentKind::ChannelMixer) {
+    const auto mixed = mix_cmyk_inks(tables.mixer_weights, {ink[0], ink[1], ink[2], ink[3]}, 255);
+    for (std::size_t i = 0; i < ink.size(); ++i) ink[i] = static_cast<std::uint8_t>(mixed[i]);
+    return settings.ink_space->rgb_from_ink(ink);
+  }
   for (std::size_t channel = 0; channel < ink.size(); ++channel) {
     ink[channel] = tables.ink[channel][ink[channel]];
   }
@@ -3282,11 +3442,12 @@ bool adjustment_runs_in_ink_space(const AdjustmentSettings& settings) noexcept {
     // sRGB pixels already hold (exposure_gray_channel_value): no gray round trip.
     case AdjustmentKind::Exposure:
       return !settings.ink_space->is_gray();
+    case AdjustmentKind::ChannelMixer:
+      return settings.channel_mixer.ink_channels.has_value() && !settings.ink_space->is_gray();
     // Hue/Saturation and Color Balance mix channels (as does Threshold on four inks);
     // Photoshop's CMYK forms of them are not modeled, so they stay on the RGB math.
     case AdjustmentKind::HueSaturation:
     case AdjustmentKind::ColorBalance:
-    case AdjustmentKind::ChannelMixer:
     case AdjustmentKind::PhotoFilter:
     case AdjustmentKind::GradientMap:
     case AdjustmentKind::BlackWhite:
@@ -3299,7 +3460,7 @@ bool adjustment_runs_in_ink_space(const AdjustmentSettings& settings) noexcept {
 }
 
 bool adjustment_depends_on_source_color_mode(const AdjustmentSettings& settings) noexcept {
-  return adjustment_runs_in_ink_space(settings) ||
+  return adjustment_runs_in_ink_space(settings) || (settings.kind == AdjustmentKind::GradientMap && settings.native_gradient_map) ||
          (settings.kind == AdjustmentKind::Exposure && settings.ink_space != nullptr && settings.ink_space->is_gray());
 }
 
@@ -3373,10 +3534,16 @@ RgbColor apply_adjustment_on_rgb(RgbColor color, const AdjustmentSettings& setti
       };
       return RgbColor{byte(out[0]), byte(out[1]), byte(out[2])};
     }
-    case AdjustmentKind::GradientMap:
+    case AdjustmentKind::GradientMap: {
+      if (settings.native_gradient_map) {
+        const auto mapped = apply_native_gradient_map(settings, color.red, color.green, color.blue);
+        return {static_cast<std::uint8_t>(std::lround(mapped[0])), static_cast<std::uint8_t>(std::lround(mapped[1])),
+                static_cast<std::uint8_t>(std::lround(mapped[2]))};
+      }
       return gradient_map_color(settings.gradient_map, color);
+    }
     case AdjustmentKind::BlackWhite: {
-      const auto out = black_white_transfer(settings.black_white, color.red, color.green, color.blue, true);
+      const auto out = black_white_transfer(settings.black_white, color.red, color.green, color.blue, BitDepth::UInt8);
       const auto byte = [](double value) {
         return static_cast<std::uint8_t>(std::clamp(std::floor(value + 0.5), 0.0, 255.0));
       };

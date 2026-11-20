@@ -24,6 +24,7 @@ import config
 import render_check
 import report
 import testy
+from drivers.photoshop import PhotoshopDriver
 
 SIZE = (64, 48)
 
@@ -81,6 +82,17 @@ class RendersAgree(Scratch):
 
 
 class Settle(unittest.TestCase):
+    def test_only_alerts_seen_during_open_affect_source_eligibility(self):
+        guard = types.SimpleNamespace(dismissed=["File info ignored", "PNG export notice"],
+                                      first_seen=[("File info ignored", 120), ("PNG export notice", 240)])
+        result = PhotoshopDriver._with_dialogs(guard, {"ok": True, "openStarted": 100, "openFinished": 200})
+        self.assertEqual(result["dialogs"], ["File info ignored"])
+        self.assertEqual(result["operationDialogs"], ["PNG export notice"])
+        self.assertTrue(render_check.source_exclusion(result))
+        guard.dismissed = ["PNG export notice"]
+        clean = PhotoshopDriver._with_dialogs(guard, {"ok": True, "openStarted": 100, "openFinished": 200})
+        self.assertIsNone(render_check.source_exclusion(clean))
+
     """The decision alone: renders are names, and two agree when they name one picture."""
 
     def run_settle(self, first, later, reference=None):
@@ -178,6 +190,16 @@ class FakePhotoshop:
 
 
 class SettleRender(Scratch):
+    def test_a_warning_only_on_the_confirming_open_is_recorded(self):
+        def probe(source, output):
+            picture(output)
+            return {"ok": True, "dialogs": ["File info ignored"]}
+        first = picture(self.root / "render.png")
+        result = render_check.settle_render(probe, self.root / "file.psd", first, None,
+                                            analyze.renders_agree, "this file")
+        self.assertEqual(result["dialogs"], ["File info ignored"])
+        self.assertEqual(result["outcome"], "repeatable")
+
     def test_the_kept_render_and_its_16_bit_companion_end_up_in_place(self):
         source = self.root / 'resave.psd'
         source.write_bytes(b'8BPS')

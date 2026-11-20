@@ -174,6 +174,9 @@ LAUNCH_FAILURE_LIMIT = 2
 # ExtendScript is ES3: no JSON object, so the probe builds its JSON by hand via q().
 _PROBE_JSX = r"""
 (function () {
+  var oldDialogs = app.displayDialogs, oldRuler = app.preferences.rulerUnits, oldType = app.preferences.typeUnits;
+  try {
+  return (function () {
   app.displayDialogs = DialogModes.NO;
   try { app.preferences.rulerUnits = Units.PIXELS; } catch (e) {}
   try { app.preferences.typeUnits = TypeUnits.PIXELS; } catch (e) {}
@@ -183,6 +186,7 @@ _PROBE_JSX = r"""
   // A 16-bit document also gets its render saved at 16 bits here, for the deep
   // precision comparison (analyze.compare_deep_renders).
   var RENDER16_PNG = %(render16_png)s;
+  var RENDER32_TIF = %(render32_tif)s;
   var deepStatus = 'skipped';
   var RESAVE_PSD = %(resave_psd)s;
 
@@ -266,7 +270,16 @@ _PROBE_JSX = r"""
       var d = null;
       try { d = layerDescriptor(L.id); } catch (e) {}
       var hasFX = false, fxVisible = false, userMask = false, vectorMask = false;
+      var artboard = null, layerVisible = null;
       if (d !== null) {
+        if (isGroup) {
+          artboard = descBool(d, 'artboardEnabled');
+          if (artboard) { kind = 'ARTBOARD'; }
+        }
+        // The DOM folds in the visibility of parent groups. The descriptor has
+        // this layer's own eye switch, even when a hidden parent suppresses it.
+        var visibleKey = stringIDToTypeID('visible');
+        try { if (d.hasKey(visibleKey)) { layerVisible = d.getBoolean(visibleKey); } } catch (e) {}
         hasFX = d.hasKey(stringIDToTypeID('layerEffects'));
         fxVisible = descBool(d, 'layerFXVisible');
         userMask = descBool(d, 'hasUserMask');
@@ -284,6 +297,8 @@ _PROBE_JSX = r"""
       try { blend = String(L.blendMode).replace('BlendMode.', ''); } catch (e) {}
       var entry = '{"path":' + q(p) + ',"name":' + q(L.name) + ',"kind":' + q(kind) +
         ',"group":' + (isGroup ? 'true' : 'false') +
+        (isGroup ? ',"artboard":' + artboard : '') +
+        ',"layerVisible":' + layerVisible +
         ',"visible":' + (L.visible ? 'true' : 'false') +
         ',"opacity":' + opacity +
         ',"blend":' + q(blend) +
@@ -504,9 +519,35 @@ _PROBE_JSX = r"""
     }
   }
 
+  // Preserve the original layers' as-opened pixels, before the display probe's
+  // edit-and-refresh steps. Photoshop flattens transparency over white.
+  function saveFloatOriginal(doc) {
+    if (RENDER32_TIF === null || doc.bitsPerChannel != BitsPerChannelType.THIRTYTWO ||
+        doc.width.as('px') * doc.height.as('px') > 64000000) { return; }
+    var raw = null;
+    try {
+      raw = doc.duplicate();
+      raw.flatten();
+      if (raw.mode == DocumentMode.GRAYSCALE) { raw.changeMode(ChangeMode.RGB); }
+      if (raw.mode != DocumentMode.RGB) { return; }
+      var tiff = new TiffSaveOptions();
+      tiff.imageCompression = TIFFEncoding.NONE;
+      tiff.byteOrder = ByteOrder.IBM;
+      tiff.layers = false;
+      tiff.alphaChannels = false;
+      tiff.embedColorProfile = true;
+      raw.saveAs(new File(RENDER32_TIF), tiff, true, Extension.LOWERCASE);
+    } catch (e) {
+      // A missing raw reference leaves only this optional diagnostic unscored.
+    } finally {
+      if (raw !== null) { raw.close(SaveOptions.DONOTSAVECHANGES); }
+    }
+  }
+
   function renderTo(doc, pngPath, freshText, freshSmart) {
     var dup = null;
     try {
+      saveFloatOriginal(doc);
       dup = doc.duplicate();
       if (freshText) { refreshText(dup, dup.layers, freshText); }
       if (freshSmart) { refreshSmartObjects(dup, dup.layers, freshSmart); }
@@ -576,10 +617,15 @@ _PROBE_JSX = r"""
   }
 
   var opened = null;
+  var openStarted = (new Date()).getTime(), openFinished;
   try {
+    app.displayDialogs = DialogModes.ERROR;
     opened = app.open(INPUT);
   } catch (e) {
     return '{"ok":false,"error":' + q(e) + '}';
+  } finally {
+    openFinished = (new Date()).getTime();
+    app.displayDialogs = DialogModes.NO;
   }
   try {
     // The reference render re-renders text, unless a font the text needs is missing:
@@ -608,6 +654,7 @@ _PROBE_JSX = r"""
     var missingJson = [];
     for (var m = 0; m < missingFonts.length; m++) { missingJson.push(q(missingFonts[m])); }
     var result = '{"ok":true,"width":' + opened.width.as('px') + ',"height":' + opened.height.as('px') +
+      ',"openStarted":' + openStarted + ',"openFinished":' + openFinished +
       ',"resolution":' + opened.resolution +
       ',"depth":' + depthOf(opened) +
       ',"deepRender":' + q(deepStatus) +
@@ -624,6 +671,11 @@ _PROBE_JSX = r"""
   } catch (e) {
     try { opened.close(SaveOptions.DONOTSAVECHANGES); } catch (e2) {}
     return '{"ok":false,"error":' + q('probe-error: ' + e) + '}';
+  }
+  })();
+  } finally {
+    try { app.preferences.typeUnits = oldType; }
+    finally { try { app.preferences.rulerUnits = oldRuler; } finally { app.displayDialogs = oldDialogs; } }
   }
 })();
 """
@@ -741,6 +793,8 @@ def _is_crash(error: Exception) -> bool:
 
 
 class PhotoshopDriver:
+    supports_float32 = True
+
     def __init__(self, log: Callable[[str], None] | None = None,
                  install: PhotoshopInstall | None = None) -> None:
         self._app = None
@@ -853,6 +907,7 @@ class PhotoshopDriver:
         psd_path: Path,
         render_png: Path | None,
         resave_psd: Path | None = None,
+        *, float32: bool = False,
     ) -> dict:
         """Open psd_path; return manifest + render statuses as a dict (ok=False on failure).
 
@@ -867,20 +922,19 @@ class PhotoshopDriver:
         """
         if self.unavailable:
             return {"ok": False, "launchFailure": True, "error": self._unavailable_reason}
-        result = self._probe_once(psd_path, render_png, resave_psd)
+        options = {"float32": True} if float32 else {}
+        result = self._probe_once(psd_path, render_png, resave_psd, **options)
         if result.get("ok"):
             self._launch_failures = 0
             return result
         self.restart()
-        retry = self._probe_once(psd_path, render_png, resave_psd)
+        retry = self._probe_once(psd_path, render_png, resave_psd, **options)
         # Dialogs the first attempt reported are part of this file's story even when
         # the retry is the one that carries the result.
-        dialogs = list(result.get("dialogs") or [])
-        for entry in retry.get("dialogs") or []:
-            if entry not in dialogs:
-                dialogs.append(entry)
-        if dialogs:
-            retry["dialogs"] = dialogs
+        for key in ("dialogs", "operationDialogs"):
+            dialogs = list(dict.fromkeys([*(result.get(key) or []), *(retry.get(key) or [])]))
+            if dialogs:
+                retry[key] = dialogs
         if retry.get("ok"):
             self._launch_failures = 0
             return retry
@@ -908,11 +962,16 @@ class PhotoshopDriver:
         psd_path: Path,
         render_png: Path | None,
         resave_psd: Path | None,
+        *, float32: bool = False,
     ) -> dict:
+        raw_path = render_png.with_name(render_png.stem + "32.tif") if float32 and render_png else None
+        if raw_path is not None:
+            raw_path.unlink(missing_ok=True)
         jsx = _PROBE_JSX % {
             "input": _js_path(psd_path),
             "render_png": _js_path(render_png),
             "render16_png": _js_path(deep_render_path(render_png)),
+            "render32_tif": _js_path(raw_path),
             "resave_psd": _js_path(resave_psd),
         }
         # The guard answers modal alerts Photoshop raises behind the blocked COM call
@@ -951,7 +1010,15 @@ class PhotoshopDriver:
     def _with_dialogs(guard: win_dialogs.DialogGuard, result: dict) -> dict:
         """Record the alerts Photoshop raised, so a warning it shrugged off is
         visible in the report instead of silently costing a few seconds."""
-        if guard.dismissed:
+        started, finished = result.pop("openStarted", None), result.pop("openFinished", None)
+        if guard.dismissed and started is not None and finished is not None:
+            # The guard observes each alert before it sends the acknowledging click.
+            # The wall clocks belong to the same host, including on a remote agent.
+            opening = {message for message, when in guard.first_seen if started <= when <= finished}
+            for message in guard.dismissed:
+                key = "dialogs" if message in opening else "operationDialogs"
+                result.setdefault(key, []).append(message)
+        elif guard.dismissed:
             result["dialogs"] = list(guard.dismissed)
         return result
 

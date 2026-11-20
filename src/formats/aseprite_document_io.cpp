@@ -3,6 +3,7 @@
 // Unknown chunks are skipped by length. Zlib cels use the vendored miniz.
 
 #include "formats/aseprite_document_io.hpp"
+#include "core/aseprite_blend.hpp"
 #include "core/artboard.hpp"
 #include "core/layer_metadata.hpp"
 
@@ -10,6 +11,8 @@
 #include "formats/animation_timing.hpp"
 #include "formats/binary_le.hpp"
 #include "formats/format_file_io.hpp"
+#include "formats/layered_blend_support.hpp"
+#include "formats/metadata/metadata_containers.hpp"
 
 #include "formats/miniz/miniz.h"
 #include "support/decode_budget.hpp"
@@ -17,6 +20,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -32,6 +36,8 @@ constexpr std::uint16_t kHeaderMagic = 0xA5E0;
 constexpr std::uint16_t kFrameMagic = 0xF1FA;
 constexpr std::uint16_t kChunkLayer = 0x2004;
 constexpr std::uint16_t kChunkCel = 0x2005;
+constexpr std::uint16_t kChunkColorProfile = 0x2007;
+constexpr std::uint16_t kChunkTileset = 0x2023;
 constexpr std::uint16_t kChunkPaletteNew = 0x2019;
 constexpr std::uint16_t kChunkPaletteOld = 0x0004;
 constexpr std::uint16_t kChunkPaletteOld2 = 0x0011;
@@ -183,7 +189,7 @@ struct AseHeader {
   std::uint16_t depth{0};  // 32 RGBA, 16 grayscale, 8 indexed
   bool layer_opacity_valid{false};
   // Header flag bit 2: without it, GROUP chunks carry meaningless blend/opacity bytes
-  // (Aseprite itself writes opacity 0 there) and must render as Normal at 100%.
+  // (Aseprite itself writes opacity 0 there). Children then blend through at 100%.
   bool group_opacity_valid{false};
   std::uint8_t transparent_index{0};
 };
@@ -194,22 +200,39 @@ struct AseLayer {
   std::uint16_t child_level{0};
   std::uint16_t blend_mode{0};
   std::uint8_t opacity{255};
+  std::uint32_t tileset{0};
   std::string name;
   std::vector<std::size_t> children;
 };
 
 using AsePalette = std::vector<std::array<std::uint8_t, 4>>;
 
+struct AseTileFormat {
+  std::uint16_t bytes{0};
+  std::uint32_t id_mask{0}, x_flip{0}, y_flip{0}, diagonal{0};
+};
+
 struct AseImage {
   int width{0};
   int height{0};
   bool compressed{false};
   std::span<const std::uint8_t> data;
+  std::optional<AseTileFormat> tile_format;
   // Linked cels share the copy-on-write RGBA pixels. An indexed image can
   // acquire new colors when the same indices are displayed in a later frame.
   PixelBuffer pixels;
   const AsePalette* rendered_palette{nullptr};
+  bool rendered_background{false};
 };
+
+struct AseTileset {
+  int tile_height{0};
+  std::uint32_t count{0};
+  bool empty_zero{false};
+  AseImage atlas;  // tiles stacked vertically, in the document's native color mode
+};
+
+using AseTilesets = std::unordered_map<std::uint32_t, AseTileset>;
 
 struct AseCel {
   std::int32_t x{0};
@@ -224,11 +247,13 @@ struct AseFrame {
   std::uint16_t duration{0};
   std::unordered_map<std::uint16_t, AseCel> cels;
   std::shared_ptr<const AsePalette> palette;
+  std::span<const std::uint8_t> rgb_profile;
 };
 
 constexpr std::uint64_t kMaxCanvasPixels = 268'435'456ULL;  // same canvas limit as animated JPEG XL
 constexpr std::uint64_t kMaxTreeBytes = 512ULL << 20U;
 constexpr std::uint64_t kMaxAnimationRgbaBytes = 4ULL << 30U;
+constexpr std::size_t kMaxProfileBytes = 64U << 20U;
 
 [[noreturn]] void damaged_frame() {
   throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Aseprite frame header is damaged"));
@@ -351,25 +376,64 @@ void read_cel(std::span<const std::uint8_t> data, AseFrame& frame, std::vector<A
   reader.skip(5);
   if (type == 1) {
     cel.linked_frame = reader.read_u16();
-  } else if (type == 0 || type == 2) {
+  } else if (type == 0 || type == 2 || type == 3) {
     AseImage image;
     image.width = reader.read_u16();
     image.height = reader.read_u16();
     if (image.width == 0 || image.height == 0) {
       throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Aseprite image has invalid dimensions"));
     }
-    image.compressed = type == 2;
+    image.compressed = type != 0;
+    if (type == 3) {
+      const auto bits = reader.read_u16();
+      if (bits != 8 && bits != 16 && bits != 32) damaged_frame();
+      AseTileFormat format;
+      format.bytes = static_cast<std::uint16_t>(bits / 8);
+      format.id_mask = reader.read_u32();
+      format.x_flip = reader.read_u32();
+      format.y_flip = reader.read_u32();
+      format.diagonal = reader.read_u32();
+      if (format.id_mask == 0) damaged_frame();
+      reader.skip(10);
+      image.tile_format = format;
+    }
     image.data = data.subspan(reader.position());
     cel.image = images.size();
     images.push_back(std::move(image));
   } else {
-    return;  // e.g. tilemap, reported once for its layer
+    return;
   }
   if (!frame.cels.emplace(layer_index, std::move(cel)).second) damaged_frame();
 }
 
+void read_tileset(std::span<const std::uint8_t> data, AseTilesets& tilesets) {
+  auto reader = ase_reader(data);
+  const auto id = reader.read_u32();
+  const auto flags = reader.read_u32();
+  AseTileset tileset;
+  tileset.empty_zero = (flags & 4U) != 0;
+  tileset.count = reader.read_u32();
+  tileset.atlas.width = reader.read_u16();
+  tileset.tile_height = reader.read_u16();
+  reader.skip(16);  // base index is only a UI display preference; then 14 reserved bytes
+  reader.skip(reader.read_u16());  // tileset name
+  if ((flags & 1U) != 0) reader.skip(8);  // external file and tileset IDs; never open their paths
+  if ((flags & 2U) != 0) {
+    const auto height = static_cast<std::uint64_t>(tileset.tile_height) * tileset.count;
+    if (height > std::numeric_limits<int>::max()) image_too_large();
+    tileset.atlas.height = static_cast<int>(height);
+    const auto size = reader.read_u32();
+    if (size > reader.remaining()) damaged_frame();
+    tileset.atlas.compressed = true;
+    tileset.atlas.data = data.subspan(reader.position(), size);
+    if (tileset.atlas.width == 0 || tileset.tile_height == 0) damaged_frame();
+  }
+  if (!tilesets.emplace(id, std::move(tileset)).second) damaged_frame();
+}
+
 AseFrame read_frame(std::span<const std::uint8_t> data, const AseHeader& header, std::vector<AseLayer>& layers,
-                    std::vector<AseImage>& images, const std::shared_ptr<const AsePalette>& previous_palette,
+                    std::vector<AseImage>& images, AseTilesets& tilesets,
+                    const std::shared_ptr<const AsePalette>& previous_palette,
                     bool first_frame) {
   auto reader = ase_reader(data);
   reader.skip(4);
@@ -401,9 +465,23 @@ AseFrame read_frame(std::span<const std::uint8_t> data, const AseHeader& header,
       layer.opacity = fields.read_u8();
       fields.skip(3);
       layer.name = read_ase_string(fields);
+      if (layer.type == 2) layer.tileset = fields.read_u32();
       layers.push_back(std::move(layer));
     } else if (type == kChunkCel) {
       read_cel(payload, frame, images);
+    } else if (type == kChunkTileset) {
+      read_tileset(payload, tilesets);
+    } else if (type == kChunkColorProfile && first_frame) {
+      auto fields = ase_reader(payload);
+      const auto profile_type = fields.read_u16();
+      fields.skip(14);  // flags, fixed gamma, reserved
+      if (profile_type == 2) {
+        const auto profile_size = fields.read_u32();
+        if (profile_size > fields.remaining()) damaged_frame();
+        if (profile_size > kMaxProfileBytes) image_too_large();
+        const auto profile = payload.subspan(fields.position(), profile_size);
+        if (metadata::icc_profile_is_rgb(profile)) frame.rgb_profile = profile;
+      }
     } else if (header.depth == 8 && (type == kChunkPaletteNew || type == kChunkPaletteOld || type == kChunkPaletteOld2)) {
       palette_chunks.emplace_back(type, payload);
       has_new_palette |= type == kChunkPaletteNew;
@@ -444,7 +522,9 @@ std::size_t resolve_image(std::vector<AseFrame>& frames, std::uint16_t layer, As
 
 const PixelBuffer& decode_image(AseImage& image, const AseHeader& header, const AsePalette* palette,
                                 bool background, DecodeAllowance& rgba_budget) {
-  if (!image.pixels.empty() && image.rendered_palette == palette) return image.pixels;
+  if (!image.pixels.empty() && image.rendered_palette == palette && image.rendered_background == background) {
+    return image.pixels;
+  }
   const auto source_bytes = checked_decode_bytes(image.width, image.height, header.depth / 8U, image.data.size());
   const auto rgba_bytes = checked_buffer_bytes(static_cast<std::uint64_t>(image.width) * image.height, 4U);
   if (!source_bytes || !rgba_bytes || !rgba_budget.charge(*rgba_bytes)) image_too_large();
@@ -476,7 +556,63 @@ const PixelBuffer& decode_image(AseImage& image, const AseHeader& header, const 
   }
   image.pixels = std::move(pixels);
   image.rendered_palette = palette;
+  image.rendered_background = background;
   return image.pixels;
+}
+
+// A map stores one tile word per cell. Cel coordinates are already in pixels,
+// including off-canvas art. Reuse the decoded atlas across cels and linked frames.
+const PixelBuffer& decode_tilemap(AseImage& map, AseTileset& tileset, const AseHeader& header,
+                                  const AsePalette* palette, bool background, DecodeAllowance& budget) {
+  if (!map.tile_format) damaged_frame();
+  if (!map.pixels.empty() && map.rendered_palette == palette) return map.pixels;
+  const auto& format = *map.tile_format;
+  const int tw = tileset.atlas.width, th = tileset.tile_height;
+  const auto width = static_cast<std::int64_t>(map.width) * tw;
+  const auto height = static_cast<std::int64_t>(map.height) * th;
+  const auto raster_bytes = checked_decode_bytes(width, height, 4, map.data.size() + tileset.atlas.data.size(),
+                                                kMaxDecodeExpansion, kDecodeAllowanceBytes, kMaxCanvasPixels);
+  const auto map_bytes = checked_decode_bytes(map.width, map.height, format.bytes, map.data.size());
+  if (!raster_bytes || !map_bytes || width > std::numeric_limits<int>::max() ||
+      height > std::numeric_limits<int>::max() || !budget.charge(*raster_bytes)) image_too_large();
+  const auto words = inflate_cel(map.data, *map_bytes);
+  const auto& atlas = decode_image(tileset.atlas, header, palette, background, budget);
+  PixelBuffer pixels(static_cast<int>(width), static_cast<int>(height), PixelFormat::rgba8());
+  const auto legacy_empty = std::numeric_limits<std::uint32_t>::max() >> (32U - 8U * format.bytes);
+  for (int gy = 0; gy < map.height; ++gy) {
+    for (int gx = 0; gx < map.width; ++gx) {
+      const auto offset = (static_cast<std::size_t>(gy) * map.width + gx) * format.bytes;
+      std::uint32_t word = 0;
+      for (unsigned b = 0; b < format.bytes; ++b) {
+        word |= static_cast<std::uint32_t>(words[offset + b]) << (8U * b);
+      }
+      const auto tile = (word & format.id_mask) >> std::countr_zero(format.id_mask);
+      if (tileset.empty_zero ? tile == 0 : word == legacy_empty) continue;
+      if (tile >= tileset.count) damaged_frame();
+      const int top = static_cast<int>(tile) * th;
+      const bool flip_x = (word & format.x_flip) != 0;
+      const bool flip_y = (word & format.y_flip) != 0;
+      const bool diagonal = (word & format.diagonal) != 0;
+      for (int y = 0; y < th; ++y) {
+        auto* dst = pixels.pixel(gx * tw, gy * th + y);
+        const int row = flip_y ? th - 1 - y : y;
+        if (!flip_x && !diagonal) {
+          const auto src = atlas.row(top + row);
+          std::copy(src.begin(), src.end(), dst);
+          continue;
+        }
+        for (int x = 0; x < tw; ++x, dst += 4) {
+          int sx = flip_x ? tw - 1 - x : x;
+          int sy = row;
+          if (diagonal) std::swap(sx, sy);
+          if (sx < tw && sy < th) std::copy_n(atlas.pixel(sx, top + sy), 4, dst);
+        }
+      }
+    }
+  }
+  map.pixels = std::move(pixels);
+  map.rendered_palette = palette;
+  return map.pixels;
 }
 
 // Aseprite orders each frame by layer index + cel z-index, then z-index for
@@ -502,6 +638,7 @@ struct FrameLayerBuilder {
   const std::vector<AseLayer>& layers;
   std::vector<AseFrame>& frames;
   std::vector<AseImage>& images;
+  AseTilesets& tilesets;
   DecodeAllowance& rgba_budget;
   const PixelBuffer empty_cel{1, 1, PixelFormat::rgba8()};
 
@@ -515,9 +652,13 @@ struct FrameLayerBuilder {
     }
     auto& cel = it->second;
     auto& image = images[resolve_image(frames, layer_index, cel)];
-    const auto& pixels = decode_image(image, header, frame.palette.get(), (source.flags & 8U) != 0, rgba_budget);
+    const bool background = (source.flags & 8U) != 0;
+    if (image.tile_format.has_value() != (source.type == 2)) damaged_frame();
+    const auto& pixels = source.type == 2
+        ? decode_tilemap(image, tilesets.at(source.tileset), header, frame.palette.get(), background, rgba_budget)
+        : decode_image(image, header, frame.palette.get(), background, rgba_budget);
     Layer layer(document.allocate_layer_id(), source.name, pixels);
-    layer.set_bounds(Rect{cel.x, cel.y, image.width, image.height});
+    layer.set_bounds(Rect{cel.x, cel.y, pixels.width(), pixels.height()});
     layer.set_opacity(opacity * cel.opacity / 255.0F);
     return layer;
   }
@@ -531,12 +672,14 @@ struct FrameLayerBuilder {
       const bool group = source.type == 1;
       Layer layer = group ? Layer(document.allocate_layer_id(), source.name, LayerKind::Group)
                           : pixel_layer(source, static_cast<std::uint16_t>(index), frame);
+      if (!group) layer.metadata()[kAsepriteCelBlend] = "1";
       layer.set_visible((source.flags & 1U) != 0);
+      if ((source.flags & 2U) == 0) set_layer_locks_all(layer, true);
+      else if ((source.flags & 4U) != 0) set_layer_locks_position(layer, true);
       if (!group || header.group_opacity_valid) {
         layer.set_blend_mode(blend_mode_from_aseprite(source.blend_mode).value_or(BlendMode::Normal));
-      } else if (frames.size() > 1) {
-        // Without the group-blending flag Aseprite composites the sprite's
-        // layers together. Keep the single-frame editor's original mapping.
+      } else {
+        // Without header flag 2, children blend onto the group's existing backdrop.
         layer.set_blend_mode(BlendMode::PassThrough);
       }
       if (group) {
@@ -614,6 +757,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
   std::vector<AseLayer> layers;
   std::vector<AseFrame> frames;
   std::vector<AseImage> images;
+  AseTilesets tilesets;
   if (header.frames > reader.remaining() / 16) damaged_frame();
   frames.reserve(header.frames);
   for (std::uint32_t index = 0; index < header.frames; ++index) {
@@ -621,7 +765,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
     const auto size = reader.read_u32();
     if (size < 16 || size - 4 > reader.remaining()) damaged_frame();
     const auto previous = frames.empty() ? nullptr : frames.back().palette;
-    frames.push_back(read_frame(bytes.subspan(start, size), header, layers, images, previous, index == 0));
+    frames.push_back(read_frame(bytes.subspan(start, size), header, layers, images, tilesets, previous, index == 0));
     reader.skip(size - 4);
   }
   if (layers.empty()) {
@@ -631,14 +775,19 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
   std::vector<std::size_t> roots;
   std::vector<std::size_t> parents;
   std::vector<std::string> lossy_blend_layers;
-  int skipped_tilemaps = 0;
+  bool rendered_tilemaps = false, skipped_tilemaps = false;
   std::uint64_t tree_bytes = sizeof(Layer);
   for (std::size_t index = 0; index < layers.size(); ++index) {
     auto& source = layers[index];
     tree_bytes += sizeof(Layer) + source.name.size();
     if (source.type == 2) {
-      ++skipped_tilemaps;
-      continue;
+      if (partial_import) *partial_import = true;
+      const auto found = tilesets.find(source.tileset);
+      if (found == tilesets.end() || !found->second.atlas.compressed) {
+        skipped_tilemaps = true;
+        continue;
+      }
+      rendered_tilemaps = true;
     }
     // A damaged layer that skips a level lands at the root and closes the
     // previous groups. Bound nesting before building a recursive Layer tree.
@@ -658,8 +807,10 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
   if (tree_bytes * frames.size() > kMaxTreeBytes) image_too_large();
   DecodeAllowance rgba_budget(kMaxAnimationRgbaBytes);
   Document document(header.width, header.height, PixelFormat::rgba8());
+  const auto profile = frames.front().rgb_profile;
+  document.color_state().embedded_icc_profile.assign(profile.begin(), profile.end());
   if (frames.size() > 1) document.layers().reserve(frames.size());
-  FrameLayerBuilder builder{document, header, layers, frames, images, rgba_budget};
+  FrameLayerBuilder builder{document, header, layers, frames, images, tilesets, rgba_budget};
   for (std::size_t i = frames.size(); i-- > 0;) {
     auto& frame = frames[i];
     Layer* frame_group = nullptr;
@@ -694,8 +845,11 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
       }
       notices->push_back("Unsupported blend modes were replaced with Normal on: " + names);
     }
-    if (skipped_tilemaps > 0) {
-      notices->push_back("Skipped " + std::to_string(skipped_tilemaps) + " tilemap layers (not supported)");
+    if (rendered_tilemaps) {
+      notices->emplace_back(PATCHY_TRANSLATE_NOOP("QObject", "Aseprite tilemaps were rendered as pixel layers."));
+    }
+    if (skipped_tilemaps) {
+      notices->emplace_back(PATCHY_TRANSLATE_NOOP("QObject", "Aseprite tilemaps with unavailable tilesets were skipped."));
     }
   }
   return document;
@@ -783,6 +937,21 @@ std::vector<std::uint8_t> DocumentIo::write(const Document& document) {
   LittleEndianWriter frame_chunks;
   std::uint32_t chunk_count = 0;
 
+  const auto& profile = document.color_state().embedded_icc_profile;
+  if (metadata::icc_profile_is_rgb(profile)) {
+    if (profile.size() > kMaxProfileBytes) image_too_large();
+    LittleEndianWriter payload;
+    payload.write_u16(2);  // RGB ICC profile
+    payload.write_u16(0);  // no fixed gamma override
+    payload.write_u32(0);
+    payload.write_u32(0);  // reserved
+    payload.write_u32(0);
+    payload.write_u32(static_cast<std::uint32_t>(profile.size()));
+    payload.write_bytes(profile);
+    write_chunk(frame_chunks, kChunkColorProfile, payload.bytes());
+    ++chunk_count;
+  }
+
   if (!palette.empty() && palette.size() <= 256) {
     LittleEndianWriter payload;
     payload.write_u32(static_cast<std::uint32_t>(palette.size()));
@@ -805,7 +974,10 @@ std::vector<std::uint8_t> DocumentIo::write(const Document& document) {
   for (const auto& entry : flat) {
     LittleEndianWriter payload;
     std::uint16_t flags = entry.layer->visible() ? 1 : 0;
-    flags |= 2;  // editable
+    if (!layer_locks_all(*entry.layer)) {
+      flags |= 2;  // editable; a fully locked layer already prevents movement
+      if (layer_locks_position(*entry.layer)) flags |= 4;
+    }
     if (entry.layer->kind() == LayerKind::Group && !layer_group_expanded(*entry.layer)) {
       flags |= 32;  // group displayed collapsed
     }
@@ -896,7 +1068,7 @@ std::vector<std::uint8_t> DocumentIo::write(const Document& document) {
   file.write_u16(static_cast<std::uint16_t>(document.width()));
   file.write_u16(static_cast<std::uint16_t>(document.height()));
   file.write_u16(indexed ? 8 : 32);
-  file.write_u32(1U | 2U);  // layer opacity valid + group blend/opacity valid
+  file.write_u32(aseprite_uses_pass_through_groups(document) ? 1U : (1U | 2U));
   file.write_u16(100);
   file.write_u32(0);
   file.write_u32(0);

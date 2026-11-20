@@ -22,6 +22,63 @@ def _unscored(reason):
     return {"status": "unscored", "reason": reason}
 
 
+def validate_linear_samples(samples):
+    if not isinstance(samples, list) or not 1 <= len(samples) <= 4096:
+        raise ValueError("linearSamples needs 1 to 4096 canvas samples")
+    for sample in samples:
+        if (not isinstance(sample, dict) or type(sample.get("x")) is not int or sample["x"] < 0
+                or type(sample.get("y")) is not int or sample["y"] < 0):
+            raise ValueError("linearSamples coordinates must be nonnegative integers")
+        rgba = sample.get("rgba")
+        if (not isinstance(rgba, list) or len(rgba) != 4
+                or any(type(v) not in (int, float) or not -3.402824e38 <= v <= 3.402824e38 for v in rgba)
+                or not 0 <= rgba[3] <= 1):
+            raise ValueError("linearSamples needs four finite RGBA values with alpha between zero and one")
+
+
+def _linear_samples(samples, observed, folder):
+    if not observed.get("opened") or not observed.get("inspected"):
+        return _unscored("Document inspection did not finish")
+    if observed.get("depth") != 32:
+        return {"status": "fail", "reason": "Expected a 32-bit floating-point document"}
+    if not observed.get("floatExported"):
+        return _unscored("No floating-point TIFF was exported")
+    try:
+        import tifffile
+        with tifffile.TiffFile(folder / "render32.tif") as image:
+            page = image.pages[0]
+            if (page.dtype.kind != "f" or page.dtype.itemsize != 4 or page.photometric != tifffile.PHOTOMETRIC.RGB
+                    or page.axes != "YXS" or page.samplesperpixel not in (3, 4)
+                    or (page.samplesperpixel == 4 and page.extrasamples != (tifffile.EXTRASAMPLE.UNASSALPHA,))):
+                return {"status": "fail", "reason": "Expected linear float RGB or straight RGBA in the TIFF"}
+            if (page.imagewidth, page.imagelength) != (observed.get("width"), observed.get("height")):
+                return {"status": "fail", "reason": "Float export dimensions differ from the canvas"}
+            if page.imagewidth * page.imagelength > MAX_PIXELS:
+                return _unscored("Float render exceeds the comparison size limit")
+            pixels = page.asarray(out="memmap")
+            results = []
+            for sample in samples:
+                x, y = sample["x"], sample["y"]
+                if x >= page.imagewidth or y >= page.imagelength:
+                    return {"status": "fail", "reason": f"Expected sample ({x}, {y}) falls outside the canvas"}
+                actual = pixels[y, x].tolist()
+                if len(actual) == 3:
+                    actual.append(1.0)
+                expected = sample["rgba"]
+                # Straight color is undefined at zero coverage. Always check alpha.
+                channels = range(4) if expected[3] else (3,)
+                passed = all(math.isclose(expected[c], actual[c], rel_tol=2e-6, abs_tol=1e-7) for c in channels)
+                results.append({**sample, "actual": [v if math.isfinite(v) else str(v) for v in actual],
+                                "status": "pass" if passed else "fail"})
+    except (ImportError, OSError, ValueError, IndexError) as error:
+        return _unscored(f"Cannot read floating-point samples: {error}")
+    failed = sum(row["status"] == "fail" for row in results)
+    result = {"status": "fail" if failed else "pass", "checked": len(results), "samples": results}
+    if failed:
+        result["reason"] = f"{failed} of {len(results)} linear RGBA samples differ"
+    return result
+
+
 def _properties(expected, observed, surface):
     if not expected:
         return _unscored(f"No {surface} expectations")
@@ -44,6 +101,9 @@ def _properties(expected, observed, surface):
                 compare(w, h, f"{path}[{index}]")
         else:
             checks += 1
+            if (path.endswith(".opacity") and type(want) in (int, float) and type(have) in (int, float)
+                    and math.isclose(want, have, rel_tol=0, abs_tol=0.00001)):
+                return  # Layer opacity crosses the C++ float to JS percent boundary.
             if want != have or isinstance(want, bool) != isinstance(have, bool):
                 problems.append(f"{path}: expected {want!r}, got {have!r}")
 
@@ -127,6 +187,38 @@ def _display_png(source):
     return buf
 
 
+def _sprite_differences(reference, actual):
+    """Compare visible bytes exactly and measure error after weighting RGB by alpha."""
+    ref_pixels = reference.reshape(-1, 4)
+    actual_pixels = actual.reshape(-1, 4)
+    different = raw_max = raw_bad = premultiplied_max = premultiplied_bad = 0
+    tolerance = analyze.PIXEL_TOLERANCE
+    # Keep wider temporary arrays bounded on large sprites. Fully transparent RGB is invisible.
+    for start in range(0, len(ref_pixels), 65536):
+        ref = ref_pixels[start:start + 65536]
+        got = actual_pixels[start:start + 65536]
+        unequal = np.any(ref != got, axis=1) & ((ref[:, 3] != 0) | (got[:, 3] != 0))
+        if not np.any(unequal):
+            continue
+        ref = ref[unequal].astype(np.int32)
+        got = got[unequal].astype(np.int32)
+        different += len(ref)
+        raw = np.abs(ref - got).max(axis=1)
+        raw_max = max(raw_max, int(raw.max()))
+        raw_bad += int(np.count_nonzero(raw > tolerance))
+        # Carry a denominator of 255 through the comparison. Alpha stays a full-strength channel.
+        ref[:, :3] *= ref[:, 3:4]
+        got[:, :3] *= got[:, 3:4]
+        ref[:, 3] *= 255
+        got[:, 3] *= 255
+        premultiplied = np.abs(ref - got).max(axis=1)
+        premultiplied_max = max(premultiplied_max, int(premultiplied.max()))
+        premultiplied_bad += int(np.count_nonzero(premultiplied > tolerance * 255))
+    return {"differentPixels": different, "maxVisibleDelta": raw_max, "visiblePixelsOverTolerance": raw_bad,
+            "maxPremultipliedDelta": round(premultiplied_max / 255, 3),
+            "premultipliedPixelsOverTolerance": premultiplied_bad, "deltaTolerance": tolerance}
+
+
 def _score_image(spec, case, manifest_dir, render, render_path, observed, exact, capture):
     if not spec:
         return _unscored("No reference PNG for this frame")
@@ -153,12 +245,14 @@ def _score_image(spec, case, manifest_dir, render, render_path, observed, exact,
                     "documentSize": list(doc_size), **dimensions}
     if exact:
         actual = np.asarray(render.convert("RGBA"))
-        visible = (ref[:, :, 3] != 0) | (actual[:, :, 3] != 0)
-        different = np.count_nonzero(np.any(ref != actual, axis=2) & visible)
-        result = {"status": "fail" if different else "pass", "differentPixels": int(different),
-                  "pixels": ref_size[0] * ref_size[1], "metric": "visible RGBA8"}
+        deltas = _sprite_differences(ref, actual)
+        different = deltas["differentPixels"]
+        result = {"status": "fail" if different else "pass", "pixels": ref_size[0] * ref_size[1],
+                  "metric": "visible RGBA8", **deltas}
         if different:
-            result["reason"] = f"{different} visible RGBA8 pixels differ"
+            result["reason"] = (f"{different} visible RGBA8 pixels differ, max {deltas['maxVisibleDelta']}/255. "
+                                f"Premultiplied max {deltas['maxPremultipliedDelta']:g}/255, "
+                                f"{deltas['premultipliedPixelsOverTolerance']} pixels exceed {deltas['deltaTolerance']}/255")
             if capture:
                 _capture_pair(result, Image.fromarray(ref), Image.fromarray(actual), render_path.parent)
         return result
@@ -220,23 +314,33 @@ def _summarize(rows, expected_count, actual_count):
 
 def score_case(case: dict, observed: dict, folder: Path, manifest_dir: Path) -> dict:
     """Return independent document, structure, appearance and timing checks. Frame numbers start at 1."""
+    reopen = case.get("reopenReference")
     if not observed.get("opened"):
-        return {key: _unscored("Source did not open") for key in ("appearance", "document", "structure", "timing")}
+        result = {key: _unscored("Source did not open") for key in ("appearance", "document", "structure", "timing")}
+        if "linearSamples" in case:
+            result["linearSamples"] = _unscored("Source did not open")
+        if reopen:
+            result["reopenAppearance"] = {**_unscored("Source did not open"), "credit": reopen["credit"]}
+        return result
     expect = case.get("expect", {})
     doc_keys = {"width", "height", "depth", "profile"}
     result = {"structure": _properties({k: v for k, v in expect.items() if k not in doc_keys}, observed, "structure"),
               "document": _properties({k: v for k, v in expect.items() if k in doc_keys}, observed, "document"),
               "appearance": _unscored("No reference PNG"), "timing": _unscored("No expected frame durations")}
+    if "linearSamples" in case:
+        result["linearSamples"] = _linear_samples(case["linearSamples"], observed, folder)
     refs = case.get("frames")
     if refs is None and case.get("reference"):
         refs = [case["reference"]]
     durations = case.get("durationsMs")
-    if refs is None and durations is None:
+    if not reopen and refs is None and durations is None:
         return result
     checks = [key for key, wanted in (("appearance", refs), ("timing", durations)) if wanted is not None]
     if not observed.get("exported"):
         for key in checks:
             result[key] = _unscored("No render was exported")
+        if reopen:
+            result["reopenAppearance"] = {**_unscored("No render was exported"), "credit": reopen["credit"]}
         return result
 
     path = folder / "render.png"
@@ -246,6 +350,17 @@ def score_case(case: dict, observed: dict, folder: Path, manifest_dir: Path) -> 
             _check_png(render)
             first = int(bool(render.info.get("default_image")))  # APNG's separate fallback still
             n_frames = render.n_frames - first
+            if reopen:
+                try:
+                    render.seek(first)
+                    if n_frames == 1:
+                        checked = _score_image(reopen["png"], case, manifest_dir, render, path, observed, exact,
+                                               capture=False)
+                    else:
+                        checked = {"status": "fail", "reason": f"Expected one still image, rendered {n_frames} frames"}
+                except Exception as error:
+                    checked = _unscored(f"Cannot compare reopen reference: {error}")
+                result["reopenAppearance"] = {**checked, "credit": reopen["credit"]}
             appearance, timing = [], []
             captured = False
             for index in range(max(len(refs or []), len(durations or []))):
@@ -282,4 +397,6 @@ def score_case(case: dict, observed: dict, folder: Path, manifest_dir: Path) -> 
     except Exception as error:
         for key in checks:
             result[key] = _unscored(f"Cannot read render: {error}")
+        if reopen and "reopenAppearance" not in result:
+            result["reopenAppearance"] = {**_unscored(f"Cannot read render: {error}"), "credit": reopen["credit"]}
     return result

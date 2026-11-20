@@ -300,6 +300,14 @@ std::optional<Document> decode_smart_object_source_document(const SmartObjectSou
 std::optional<QString> resolve_smart_object_external_path(const SmartObjectSource& source,
                                                           const QString& parent_document_dir,
                                                           QString* blocked_server) {
+  return resolve_document_file_link(QString::fromStdString(source.filename), QString::fromStdString(source.external_rel_path),
+                                    QString::fromStdString(source.external_original_path),
+                                    QString::fromStdString(source.external_full_path), parent_document_dir, blocked_server);
+}
+
+std::optional<QString> resolve_document_file_link(const QString& filename, const QString& relative,
+                                                 const QString& original_path, const QString& uri,
+                                                 const QString& parent_document_dir, QString* blocked_server) {
   // A candidate on a server the user has not allowed is never stat'ed: the stat alone
   // connects to it (docs/smart-object-editing.md, "Network links"). Checked as written and
   // cleaned, because cleaning may fold a leading "//" or let ".." step to another host.
@@ -323,8 +331,7 @@ std::optional<QString> resolve_smart_object_external_path(const SmartObjectSourc
     return std::nullopt;
   };
   bool try_sibling = true;
-  if (!parent_document_dir.isEmpty() && !source.external_rel_path.empty()) {
-    const auto relative = QString::fromStdString(source.external_rel_path);
+  if (!parent_document_dir.isEmpty() && !relative.isEmpty()) {
     const auto candidate = QDir(parent_document_dir).absoluteFilePath(relative);
     if (auto found = existing(candidate)) {
       return found;
@@ -332,25 +339,24 @@ std::optional<QString> resolve_smart_object_external_path(const SmartObjectSourc
     // When both stored paths agree, this is a known missing file. A different
     // file next to the PSD may have the same name, particularly after copying
     // a layer from another project. A moved folder's old absolute path differs.
-    const auto original = QDir::fromNativeSeparators(QString::fromStdString(source.external_original_path));
+    const auto original = QDir::fromNativeSeparators(original_path);
     try_sibling = !QDir::isRelativePath(relative) || QDir::cleanPath(candidate) != QDir::cleanPath(original);
   }
   // A bare filename fallback next to the parent covers files whose stored relative
   // path pointed elsewhere (the tent-file case after the folder was copied).
-  if (try_sibling && !parent_document_dir.isEmpty() && !source.filename.empty()) {
+  if (try_sibling && !parent_document_dir.isEmpty() && !filename.isEmpty()) {
     if (auto found =
-            existing(QDir(parent_document_dir).absoluteFilePath(QString::fromStdString(source.filename)))) {
+            existing(QDir(parent_document_dir).absoluteFilePath(filename))) {
       return found;
     }
   }
-  if (auto found = existing(QString::fromStdString(source.external_original_path))) {
+  if (auto found = existing(original_path)) {
     return found;
   }
-  if (!source.external_full_path.empty()) {
+  if (!uri.isEmpty()) {
     // Photoshop stores the URI undecorated (no percent-encoding), so the text after
     // "file://" is the path itself; a name holding '#' or '%' would not survive a
     // QUrl parse. Encoded URIs from other writers take the QUrl route below.
-    const auto uri = QString::fromStdString(source.external_full_path);
     if (uri.startsWith(QStringLiteral("file://"))) {
       auto literal = uri.mid(7);
       if (literal.size() > 2 && literal.at(0) == QLatin1Char('/') && literal.at(2) == QLatin1Char(':')) {
@@ -663,7 +669,7 @@ std::optional<SmartObjectLayerPreview> render_smart_object_layer_preview(
                                                           document.width(),
                                                           document.height(),
                                                           result.unfiltered.bounds),
-                                                      *stack);
+                                                      *stack, nullptr, &result.before_mask);
   } catch (const std::exception&) {
     return std::nullopt;
   }
@@ -772,16 +778,25 @@ std::optional<SmartObjectLayerPreview> render_smart_object_image_preview(
                                                       result.unfiltered.bounds,
                                                       smart_filter_canvas_bounds(document.width(), document.height(),
                                                                                  result.unfiltered.bounds),
-                                                      *stack);
+                                                      *stack, nullptr, &result.before_mask);
   } catch (const std::exception&) {
     return std::nullopt;
   }
   return result;
 }
 
+std::shared_ptr<const SmartFilterLayerPreview> smart_filter_layer_preview_for_save(
+    const SmartObjectLayerPreview& preview, const PixelBuffer& displayed) {
+  if (preview.before_mask.pixels.empty() || displayed.format().color_mode != ColorMode::RGB ||
+      displayed.format().channels != 4) return {};
+  return std::make_shared<SmartFilterLayerPreview>(SmartFilterLayerPreview{
+      preview.before_mask.pixels, preview.before_mask.bounds, displayed, preview.rendered.bounds});
+}
+
 bool install_smart_object_layer_preview(Document& document, Layer& layer,
                                         SmartObjectLayerPreview preview,
-                                        bool refresh_native_cache) {
+                                        bool refresh_native_cache,
+                                        const SmartFilterMask* byte_cache_mask) {
   auto filter_effects = document.metadata().smart_filter_effects;
   if (const auto* stack = std::as_const(layer).smart_filter_stack();
       stack != nullptr) {
@@ -794,7 +809,7 @@ bool install_smart_object_layer_preview(Document& document, Layer& layer,
           placed_uuid,
           smart_filter_canvas_bounds(document.width(), document.height(),
                                      preview.unfiltered.bounds),
-          preview.unfiltered.pixels, preview.unfiltered.bounds, stack->mask);
+          preview.unfiltered.pixels, preview.unfiltered.bounds, byte_cache_mask ? *byte_cache_mask : stack->mask);
       if (!record.has_value() ||
           !filter_effects.upsert_authored(std::move(*record))) {
         return false;
@@ -810,6 +825,11 @@ bool install_smart_object_layer_preview(Document& document, Layer& layer,
   document.metadata().smart_filter_effects = std::move(filter_effects);
   layer.set_pixels(convert_pixel_buffer_depth(preview.rendered.pixels, document_bit_depth(document), SampleKind::Color));
   layer.set_bounds(preview.rendered.bounds);
+  if (const auto* current = std::as_const(layer).smart_filter_stack()) {
+    auto stack = *current;
+    stack.layer_preview = smart_filter_layer_preview_for_save(preview, std::as_const(layer).pixels());
+    layer.set_smart_filter_stack(std::move(stack));
+  }
   layer.metadata()[kLayerMetadataSmartObjectRasterStatus] =
       kSmartObjectRasterStatusPatchy;
   return true;
@@ -820,15 +840,28 @@ bool refresh_smart_object_layer_preview(
     CanvasWidget::TransformInterpolation interpolation,
     bool refresh_native_cache, const QString& parent_document_dir,
     SmartObjectSourceRenderCache* cache) {
+  // Placement re-renders the Smart Object's byte preview. An 8-bit mask
+  // widened with its document can be projected back without changing a
+  // single coverage sample. Keep the document's own mask at its depth.
+  std::optional<SmartFilterStack> byte_stack;
+  const auto* stack = std::as_const(layer).smart_filter_stack();
+  if (stack && !stack->mask.pixels.empty() && stack->mask.pixels.format().bit_depth != BitDepth::UInt8) {
+    const auto& mask = stack->mask.pixels;
+    auto bytes = convert_pixel_buffer_depth(mask, BitDepth::UInt8, SampleKind::Coverage);
+    const auto restored = convert_pixel_buffer_depth(bytes, mask.format().bit_depth, SampleKind::Coverage);
+    if (!std::ranges::equal(mask.data(), restored.data())) return false;
+    byte_stack = *stack;
+    byte_stack->mask.pixels = std::move(bytes);
+  }
   auto rendered = render_smart_object_layer_preview(
-      std::as_const(document), std::as_const(layer), interpolation, nullptr,
+      std::as_const(document), std::as_const(layer), interpolation, byte_stack ? &*byte_stack : nullptr,
       parent_document_dir, cache);
   if (!rendered.has_value()) {
     return false;
   }
 
   return install_smart_object_layer_preview(
-      document, layer, std::move(*rendered), refresh_native_cache);
+      document, layer, std::move(*rendered), refresh_native_cache, byte_stack ? &byte_stack->mask : nullptr);
 }
 
 }  // namespace patchy::ui

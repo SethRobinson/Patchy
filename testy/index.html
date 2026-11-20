@@ -76,6 +76,7 @@
       <span id="photoshop-boxes" title="Photoshop versions that reopen every resave; a save any of them refuses is a bad save"></span>
       <label><input type="checkbox" id="opt-build" checked> rebuild Patchy first</label>
       <label><input type="checkbox" id="opt-fresh"> ignore caches</label>
+      <label title="Compare the original 32-bit RGB or grayscale document as opened in Patchy and Photoshop"><input type="checkbox" id="opt-float32"> compare 32-bit float pixels</label>
       <label title="keep images only for files that fail or differ from Photoshop by more than the threshold"><input type="checkbox" id="opt-scan"> scan: keep only flagged, over
         <input type="number" id="opt-scan-threshold" value="10" min="0" max="100" step="1"> % diff</label>
       <label title="which comparison drives flagging; the report always shows both numbers">compare
@@ -204,6 +205,7 @@ function saveRunForm() {
       editors: [...document.querySelectorAll(".editor-box:checked")].map(b => b.value),
       build: document.getElementById("opt-build").checked,
       fresh: document.getElementById("opt-fresh").checked,
+      float32: document.getElementById("opt-float32").checked,
       scan: document.getElementById("opt-scan").checked,
       scanThreshold: document.getElementById("opt-scan-threshold").value,
       compare: document.getElementById("opt-compare").value,
@@ -223,6 +225,7 @@ function restoreRunForm() {
     });
   document.getElementById("opt-build").checked = !!saved.build;
   document.getElementById("opt-fresh").checked = !!saved.fresh;
+  document.getElementById("opt-float32").checked = !!saved.float32;
   document.getElementById("opt-scan").checked = !!saved.scan;
   if (saved.scanThreshold) document.getElementById("opt-scan-threshold").value = saved.scanThreshold;
   if (saved.compare === "strict" || saved.compare === "perceptual")
@@ -422,6 +425,7 @@ function startRun() {
       files, editors,
       skipBuild: !document.getElementById("opt-build").checked,
       fresh: document.getElementById("opt-fresh").checked,
+      float32: document.getElementById("opt-float32").checked,
       scan: document.getElementById("opt-scan").checked,
       scanThreshold: parseFloat(document.getElementById("opt-scan-threshold").value),
       compare: document.getElementById("opt-compare").value,

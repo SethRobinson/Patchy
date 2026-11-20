@@ -11,6 +11,8 @@ from pathlib import Path
 import shutil
 import tempfile
 
+from render_check import source_exclusion
+
 
 STATE_FILE = "rerun-state.json"
 
@@ -104,6 +106,9 @@ def apply(runs_root: Path, child_dir: Path, request: dict, *, summarize, scan_re
         raise ValueError("source contents changed during the rerun")
     if fresh.get("groundTruth", {}).get("state") != "done":
         raise ValueError("Photoshop ground truth failed; previous results kept")
+    excluded = source_exclusion(fresh["groundTruth"])
+    if excluded:
+        raise ValueError(f"{excluded}; previous results kept")
     for editor in request["editors"]:
         cell = fresh["cells"].get(editor, {})
         if cell.get("state") != "done" and not (cell.get("state") == "failed" and cell.get("fileRejected")):

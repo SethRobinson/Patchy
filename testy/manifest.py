@@ -32,9 +32,10 @@ ADJUSTMENT_KINDS = {
 
 FILL_KINDS = {"SOLIDFILL", "GRADIENTFILL", "PATTERNFILL"}
 
-# Bumped when the pairing rules change, so cells cached under older rules are compared
-# again from their stored manifests (2: renamed layers are paired by stack order).
-MATCHING_VERSION = 2
+# Bumped when preservation rules change, so cells cached under older rules are compared
+# again from their stored manifests. Version 3 distinguishes artboards from groups
+# and compares each layer's own visibility when both probes measured it.
+MATCHING_VERSION = 3
 
 
 def _category(layer: dict) -> str:
@@ -54,7 +55,13 @@ def _category(layer: dict) -> str:
 
 def _kind_preserved(original: dict, resaved: dict) -> bool:
     category = _category(original)
-    if category in ("group", "text", "smartObject"):
+    if category == "group":
+        if not resaved.get("group"):
+            return False
+        if original.get("artboard") is None or resaved.get("artboard") is None:
+            return True
+        return original["artboard"] == resaved["artboard"]
+    if category in ("text", "smartObject"):
         return _category(resaved) == category
     if category in ("adjustment", "fill"):
         # Same specific kind: a Curves that came back as Levels is not preserved.
@@ -109,6 +116,7 @@ def compare_manifests(original_layers: list[dict], resaved_layers: list[dict]) -
         "fx": {"kept": 0, "total": 0},
         "clipped": {"kept": 0, "total": 0},
         "blend": {"kept": 0, "total": 0},
+        "layerVisible": {"kept": 0, "total": 0},
     }
     native_kept = 0
     changed: list[dict] = []
@@ -142,6 +150,10 @@ def compare_manifests(original_layers: list[dict], resaved_layers: list[dict]) -
                 attributes["blend"]["total"] += 1
                 if resaved.get("blend") == original.get("blend"):
                     attributes["blend"]["kept"] += 1
+            if original.get("layerVisible") is not None and resaved.get("layerVisible") is not None:
+                attributes["layerVisible"]["total"] += 1
+                if original["layerVisible"] == resaved["layerVisible"]:
+                    attributes["layerVisible"]["kept"] += 1
 
     total = len(original_layers)
     native = {

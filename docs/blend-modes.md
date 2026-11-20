@@ -196,10 +196,14 @@ the Paint.NET and GIMP modes above. OpenRaster writes them under Krita's names
 
 ## Layered saves
 
+Imported Aseprite cels can use a different byte arithmetic for the same named mode. A single cel over transparency and a Normal cel with binary coverage need no conversion. In PSD, PSB and layered TIFF, **Keep the Look** compares the native result on its current backdrop to the standard mode and bakes a differing layer. **Keep layers** preserves its original pixels, opacity and supported mode. Scripts select these options with `unsupportedBlendModes` set to `"bake"` or `"normal"`. [Aseprite import](animation.md).
+
+When saving to Aseprite, baking an unsupported mode can leave supported modes above it. On an opaque backdrop, the writer can adjust the colors of those retained 8-bit cels slightly to account for Aseprite's integer rounding. This affects only the save snapshot. The layers keep their blend modes, coverage and opacity.
+
 `src/formats/layered_blend_support.{hpp,cpp}` (Qt-free) knows which modes each layered save format stores (`layered_format_stores_blend_mode`):
 
 - Photoshop records (PSD, PSB, layered TIFF): everything but Paint.NET's four and GIMP's seventeen, Pass Through on folders only, and at 32 bits only what `blend_mode_supported_at_depth` allows.
-- Aseprite: what `aseprite::stores_blend_mode` maps (no Linear Burn, Pin/Vivid/Linear Light, Hard Mix, Darker/Lighter Color, Dissolve, Paint.NET's four, GIMP's seventeen). Aseprite folders always isolate, so a Pass Through folder counts only when it holds a visible layer in another mode than Normal.
+- Aseprite stores the modes mapped by `aseprite::stores_blend_mode`. Linear Burn, Pin Light, Vivid Light, Linear Light, Hard Mix, Darker Color, Lighter Color, Dissolve, Paint.NET's four modes and GIMP's seventeen modes require a fallback. The file-wide group flag controls whether children blend against the existing backdrop or composite in isolation. When every folder is a plain, full-opacity Pass Through group, the writer preserves that behavior and its editable children. Mixed groups use isolated rendering. A Pass Through folder then counts as affected if a visible child uses another mode than Normal.
 
 `find_unsupported_blend_modes` lists the modes and the layers (hidden ones too). When it finds any, an interactive save to one of those formats asks first (`unsupportedBlendModesMessageBox`, MainWindow::save_document_to_path): Keep the Look (default) bakes, Save as Normal writes the layers as Normal, Cancel writes nothing. Scripts never see the prompt: saveAs option `unsupportedBlendModes` is `"normal"` (default) or `"bake"`. The answer travels as `ImageSaveOptions::bake_unsupported_blend_modes`, never persisted; `DocumentSaveCoordinator::write_prepared` applies it to the save snapshot only and adds a notice either way. OpenRaster keeps its own baking ([ora.md](ora.md)).
 

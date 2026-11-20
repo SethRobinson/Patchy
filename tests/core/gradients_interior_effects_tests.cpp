@@ -1151,19 +1151,49 @@ void compositor_inner_glow_center_complements_edge_field() {
   }
 }
 
-void compositor_inner_glow_precise_keeps_historical_falloff() {
-  // Technique Precise stays on the historical (uncalibrated) box-blur path, so
-  // pre-change renders of Precise files are unchanged: the size-18 falloff
-  // still reaches past the tent's ~size support.
-  auto glow = probe_inner_glow(18.0F, 0.0F, 100.0F, patchy::LayerInnerGlowSource::Edge);
-  glow.technique = patchy::LayerGlowTechnique::Precise;
-  const auto document = inner_glow_probe_document(glow);
-  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
-  CHECK(flattened.pixel(58, 100)[0] > 3);   // depth 18: the triple box still paints here
-  CHECK(flattened.pixel(60, 100)[0] > 0);   // depth 20: past the tent's support
-  CHECK(flattened.pixel(70, 100)[0] == 0);  // depth 30: past even the historical support
-  CHECK(flattened.pixel(40, 100)[0] > 115);
-  CHECK(flattened.pixel(40, 100)[0] < 130);
+void compositor_outer_glow_gradient_uses_edge_position_and_independent_opacity() {
+  patchy::Document document(100, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(100, 64, 0, 0, 0));
+  auto& layer = document.add_layer(patchy::Layer(document.allocate_layer_id(), "Square",
+                                                solid_rgba(40, 48, 0, 0, 0, 255)));
+  layer.set_bounds(patchy::Rect{40, 8, 40, 48});
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.opacity = 1.0F;
+  glow.size = 20.0F;
+  auto& gradient = glow.gradient.emplace();
+  gradient.color_stops = {{0.0F, {255, 0, 0}}, {0.5F, {255, 255, 0}}, {1.0F, {0, 0, 255}}};
+  gradient.alpha_stops = {{0.0F, 1.0F}, {1.0F, 1.0F}};
+  layer.layer_style().outer_glows.push_back(glow);
+  const auto full = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* near = full.pixel(39, 32);
+  const auto* middle = full.pixel(34, 32);
+  const auto* far = full.pixel(25, 32);
+  CHECK(near[0] >= 245 && near[1] < 45 && near[2] == 0);
+  CHECK(middle[0] >= 245 && middle[1] >= 240 && middle[2] < 10);
+  CHECK(far[2] > 50 && far[2] > far[0] * 3);
+  CHECK(full.pixel(20, 32)[2] == 0 && full.pixel(40, 32)[0] == 0);
+  layer.layer_style().outer_glows[0].gradient->alpha_stops = {{0.0F, 0.5F}, {1.0F, 0.5F}};
+  const auto half = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(std::abs(static_cast<int>(half.pixel(39, 32)[0]) - 128) <= 1);
+  CHECK(half.pixel(25, 32)[2] == far[2]);
+}
+
+void compositor_inner_glow_precise_matches_photoshop_distance_and_range() {
+  // The pixels at x=40,45,51,57,58 sit 1,6,12,18,19 pixels inside this square.
+  // Photoshop's size-18, choke-30 Edge and Center probes are complementary.
+  for (const bool center : {false, true}) {
+    auto glow = probe_inner_glow(18.0F, 30.0F, 50.0F,
+                                 center ? patchy::LayerInnerGlowSource::Center : patchy::LayerInnerGlowSource::Edge);
+    glow.technique = patchy::LayerGlowTechnique::Precise;
+    const auto pixels = patchy::Compositor{}.flatten_rgb8(inner_glow_probe_document(glow));
+    for (const auto& [x, center_byte] : {std::pair{40, 0}, {45, 18}, {51, 128}, {57, 237}, {58, 255}}) {
+      CHECK(std::abs(static_cast<int>(pixels.pixel(x, 100)[0]) - (center ? center_byte : 255 - center_byte)) <= 1);
+    }
+    glow.range = 100.0F;
+    const auto full_range = patchy::Compositor{}.flatten_rgb8(inner_glow_probe_document(glow));
+    CHECK(std::abs(static_cast<int>(full_range.pixel(51, 100)[0]) - (center ? 191 : 64)) <= 1);
+  }
 }
 
 }  // namespace
@@ -1205,7 +1235,9 @@ std::vector<patchy::test::TestCase> gradients_interior_effects_tests() {
       {"compositor_inner_glow_range_gain_saturates", compositor_inner_glow_range_gain_saturates},
       {"compositor_inner_glow_center_complements_edge_field",
        compositor_inner_glow_center_complements_edge_field},
-      {"compositor_inner_glow_precise_keeps_historical_falloff",
-       compositor_inner_glow_precise_keeps_historical_falloff},
+      {"compositor_inner_glow_precise_matches_photoshop_distance_and_range",
+       compositor_inner_glow_precise_matches_photoshop_distance_and_range},
+      {"compositor_outer_glow_gradient_uses_edge_position_and_independent_opacity",
+       compositor_outer_glow_gradient_uses_edge_position_and_independent_opacity},
   };
 }

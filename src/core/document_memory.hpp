@@ -18,7 +18,8 @@ using PixelStorageSet = std::unordered_set<const void*>;
 
 // Invokes `visit` for every pixel-bearing buffer reachable from the document:
 // layers (recursive through group children), layer masks, smart filter stack
-// masks, alpha/spot channels, and metadata().psd_flat_composite. Const access
+// masks, their unmasked/displayed layer previews and decoded native mask
+// samples, alpha/spot channels, and metadata().psd_flat_composite. Const access
 // only; never bumps a revision. Deliberately excluded: smart object store
 // payloads, smart filter effect caches, pattern tiles, vector shapes/masks,
 // and raw PSD blocks - all shared_ptr-held and shared across undo snapshots

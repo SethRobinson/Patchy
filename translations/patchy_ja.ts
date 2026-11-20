@@ -16383,6 +16383,34 @@ Do you want to replace it?</source>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · 最新です</translation>
     </message>
+    <message>
+        <source>Aseprite tilemaps were rendered as pixel layers.</source>
+        <translation>Aseprite のタイルマップをピクセルレイヤーとして描画しました。</translation>
+    </message>
+    <message>
+        <source>Aseprite tilemaps with unavailable tilesets were skipped.</source>
+        <translation>タイルセットが見つからない Aseprite のタイルマップをスキップしました。</translation>
+    </message>
+    <message>
+        <source>This format uses different blend rules for Aseprite layers.</source>
+        <translation>この形式では Aseprite のレイヤーに異なる合成規則が適用されます。</translation>
+    </message>
+    <message>
+        <source>Timeline audio file %1 is on network server %2, which Patchy has not been allowed to access</source>
+        <translation>タイムラインの音声ファイル %1 はネットワークサーバー %2 上にあります。Patchy にはこのサーバーへのアクセスが許可されていません。</translation>
+    </message>
+    <message>
+        <source>Some linked files are unavailable. You can continue opening the document.</source>
+        <translation>一部のリンクファイルを利用できません。ドキュメントを開く操作は続行できます。</translation>
+    </message>
+    <message>
+        <source>Used by timeline audio. To relink this file, use a timeline editor.</source>
+        <translation>タイムラインの音声で使用しています。このファイルを再リンクするには、タイムラインエディターを使用してください。</translation>
+    </message>
+    <message>
+        <source>File not found on %1</source>
+        <translation>%1 にファイルが見つかりません</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -37007,6 +37035,14 @@ Locked: %1</source>
     <message>
         <source>Load Selection from Alpha Channel</source>
         <translation>アルファチャンネルから選択範囲を読み込み</translation>
+    </message>
+    <message>
+        <source>Keep the look by baking the affected layers, or keep their editable pixels and use the blend modes this format supports.
+
+%1</source>
+        <translation>対象レイヤーに合成結果を焼き込むと、見た目を維持できます。ピクセルを編集可能なまま残し、この形式でサポートされている描画モードを使うこともできます。
+
+%1</translation>
     </message>
 </context>
 <context>

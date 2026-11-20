@@ -16,6 +16,8 @@
 #include "core/text_area.hpp"
 #include "core/text_path.hpp"
 #include "formats/acv_curves_io.hpp"
+#include "formats/layered_blend_support.hpp"
+#include "filters/smart_filter_renderer.hpp"
 #include "psd/psd_artboard.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
@@ -25,6 +27,7 @@
 #include "psd/psd_smart_objects.hpp"
 #include "render/compositor.hpp"
 #include "render/native_duotone.hpp"
+#include "render/native_adjustment_stack.hpp"
 #include "support/decode_budget.hpp"
 #include "support/string_utils.hpp"
 #include "support/translate_noop.hpp"
@@ -434,11 +437,28 @@ struct SmartObjectImportCounts {
   std::size_t dangling{0};
 };
 
-void finalize_smart_filter_layers(std::vector<Layer>& layers,
-                                  const SmartFilterEffectsStore& store) {
+void apply_imported_smart_filter_mask(Layer& layer, SmartFilterStack& stack, const SmartFilterEffectsRecord& record) {
+  const auto& source = std::as_const(layer);
+  if (!stack.enabled || !stack.valid_at_position || !record.mask_decoded || !smart_filter_mask_modulates(stack.mask) ||
+      static_cast<std::uint32_t>(source.pixels().format().bit_depth) != record.cache_depth ||
+      source.bounds().width != source.pixels().width() ||
+      source.bounds().height != source.pixels().height()) return;
+  const auto base = decode_rgb_filter_effects_cache(record);
+  if (!base) return;
+  const FilterRenderResult filtered{source.pixels(), source.bounds()};
+  const auto displayed = apply_saved_smart_filter_mask({*base, record.cache_bounds}, filtered, stack.mask,
+                                                      kMaximumEditableSmartFilterMaskPixels);
+  if (!displayed) return;
+  stack.layer_preview = std::make_shared<SmartFilterLayerPreview>(
+      SmartFilterLayerPreview{filtered.pixels, filtered.bounds, displayed->pixels, displayed->bounds});
+  layer.set_pixels(displayed->pixels);
+  layer.set_bounds(displayed->bounds);
+}
+
+void finalize_smart_filter_layers(std::vector<Layer>& layers, const SmartFilterEffectsStore& store, bool rgb_integer) {
   for (auto& layer : layers) {
     if (!std::as_const(layer).children().empty()) {
-      finalize_smart_filter_layers(layer.children(), store);
+      finalize_smart_filter_layers(layer.children(), store, rgb_integer);
     }
     const auto* imported = std::as_const(layer).smart_filter_stack();
     if (imported == nullptr) {
@@ -465,6 +485,10 @@ void finalize_smart_filter_layers(std::vector<Layer>& layers,
                               static_cast<std::size_t>(native_mask.bounds.height);
         if (native_mask.bounds.empty() || native_mask.samples->size() != expected) {
           stack.native_shape_supported = false;
+        } else if (!native_mask.native_pixels.empty() &&
+                   std::as_const(layer).pixels().format().bit_depth == BitDepth::UInt16) {
+          stack.mask.bounds = native_mask.bounds;
+          stack.mask.pixels = native_mask.native_pixels;
         } else {
           PixelBuffer mask_pixels(native_mask.bounds.width, native_mask.bounds.height,
                                   PixelFormat::gray8());
@@ -476,6 +500,7 @@ void finalize_smart_filter_layers(std::vector<Layer>& layers,
       }
     }
     stack.support = smart_filter_stack_support(stack);
+    if (rgb_integer) apply_imported_smart_filter_mask(layer, stack, *record);
     const bool executable =
         stack.support == SmartFilterStackSupport::Supported;
     layer.set_smart_filter_stack(std::move(stack));
@@ -1059,7 +1084,8 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     std::optional<AdjustmentSettings> native_curves_settings;
     std::optional<AdjustmentSettings> patchy_adjustment_settings;
     std::optional<AdjustmentSettings> brit_adjustment_settings;
-    std::optional<AdjustmentSettings> cged_adjustment_settings;
+    bool brit_lightness_only = false;
+    std::optional<BrightnessContrastDescriptorParse> cged_adjustment;
     bool has_native_curves = false;
     std::optional<ParsedVectorMaskBlock> vector_mask_block;
     std::optional<VectorFill> vector_fill;
@@ -1143,7 +1169,7 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
           native_adjustment_settings = parsed;
         }
       } else if (block.key == "mixr") {
-        if (auto parsed = parse_photoshop_channel_mixer_adjustment(block.payload); parsed.has_value()) {
+        if (auto parsed = parse_photoshop_channel_mixer_adjustment(block.payload, source_is_cmyk); parsed.has_value()) {
           native_adjustment_settings = parsed;
         }
       } else if (block.key == "phfl") {
@@ -1167,14 +1193,15 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
           native_adjustment_settings = parsed;
         }
       } else if (block.key == "grdm") {
-        if (auto parsed = parse_photoshop_gradient_map_adjustment(block.payload); parsed.has_value()) {
+        if (auto parsed = parse_photoshop_gradient_map_adjustment(block.payload, source_colors, source_color_mode); parsed.has_value()) {
           native_adjustment_settings = parsed;
         }
       } else if (block.key == "brit") {
         brit_adjustment_settings = parse_photoshop_brightness_contrast_adjustment(block.payload);
+        brit_lightness_only = block.payload.size() >= 7U && block.payload[6] != 0;
       } else if (block.key == "CgEd") {
         if (auto parsed = parse_photoshop_brightness_contrast_descriptor(block.payload); parsed.has_value()) {
-          cged_adjustment_settings = parsed->settings;
+          cged_adjustment = std::move(parsed);
         }
       } else if (block.key == "plAD") {
         patchy_adjustment_settings = parse_patchy_adjustment(block.payload);
@@ -1183,8 +1210,8 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     // Brightness/Contrast resolution is order-independent: a parseable CgEd
     // descriptor (modern PS writes an all-zero compatibility 'brit' beside it)
     // is authoritative; legacy-mode files carry 'brit' only.
-    if (cged_adjustment_settings.has_value()) {
-      native_adjustment_settings = cged_adjustment_settings;
+    if (cged_adjustment.has_value()) {
+      native_adjustment_settings = cged_adjustment->settings;
     } else if (brit_adjustment_settings.has_value()) {
       native_adjustment_settings = brit_adjustment_settings;
     }
@@ -1544,6 +1571,9 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
       colors->width = width;
       colors->height = height;
       colors->planes = std::move(native_color_planes);
+      if (adjustment_settings) colors->gradient_map = adjustment_settings->native_gradient_map;
+      colors->brightness_contrast_lightness_only = cged_adjustment ? cged_adjustment->lab_lightness_only :
+                                                                     brit_lightness_only;
       layer.set_psd_native_colors(std::move(colors));
     }
     decoded_layers.push_back(DecodedLayer{std::move(layer), record.section_divider_type});
@@ -1759,15 +1789,16 @@ Document read_document(std::span<const std::uint8_t> bytes, ReadOptions options)
   }
   // Grayscale sources convert through their embedded gray profile the same way (Dot Gain
   // 20%, Photoshop's default gray working space, lifts a 128 to sRGB 149). An untagged
-  // Grayscale file reads through Patchy's model of that default, as Photoshop shows it
-  // (assumed_gray_profile); an unusable profile copies the gray values unchanged. As with
+  // 8/16-bit grayscale file reads through Patchy's model of that default. An untagged
+  // 32-bit file is linear grayscale in Photoshop, including negative and HDR samples.
+  // An unusable profile copies the gray values unchanged. As with
   // CMYK, the profile is not promoted into color_state(): it does not describe the
   // converted RGB pixels, and an untagged file stays untagged.
   std::optional<GrayToRgbTransform> gray_icc_transform;
   std::optional<std::vector<std::uint8_t>> gray_profile_bytes;
   if (header.color_mode == kColorModeGrayscale || header.color_mode == kColorModeDuotone) {
     gray_profile_bytes = find_image_resource_payload(image_resources, kImageResourceIccProfile);
-    if (!gray_profile_bytes.has_value() && header.color_mode == kColorModeGrayscale &&
+    if (!gray_profile_bytes.has_value() && header.depth != 32 && header.color_mode == kColorModeGrayscale &&
         !assumed_gray_profile().empty()) {
       gray_profile_bytes = assumed_gray_profile();
       gray_icc_transform = GrayToRgbTransform::from_icc_profile(*gray_profile_bytes);
@@ -2030,8 +2061,9 @@ Document read_document(std::span<const std::uint8_t> bytes, ReadOptions options)
         // variants verbatim.
         auto shared_payload =
             std::make_shared<const std::vector<std::uint8_t>>(std::move(payload));
-        document.metadata().smart_filter_effects.add_block(parse_filter_effects_block(
-            key, std::move(shared_payload), wide_length, global_block_index));
+        auto filter_block = parse_filter_effects_block(key, std::move(shared_payload), wide_length, global_block_index);
+        filter_block.source_document_depth = header.depth;
+        document.metadata().smart_filter_effects.add_block(std::move(filter_block));
       } else if (key == "Patt" || key == "Pat2" || key == "Pat3") {
         // Pattern pixel data: decode into the store so pattern overlays / bevel
         // textures can render, AND keep the raw block preserved verbatim (Patchy
@@ -2129,7 +2161,8 @@ Document read_document(std::span<const std::uint8_t> bytes, ReadOptions options)
   }
 
   append_damaged_row_notice(damaged_rows, options.notices);
-  finalize_smart_filter_layers(document.layers(), document.metadata().smart_filter_effects);
+  finalize_smart_filter_layers(document.layers(), document.metadata().smart_filter_effects,
+                               header.color_mode == kColorModeRgb && (header.depth == 8 || header.depth == 16));
   SmartObjectImportCounts smart_object_counts;
   // Layer links map onto the records as read, before compound vector folders collapse.
   if (const auto links = find_image_resource_payload(image_resources, kImageResourceLayerGroupInfo)) {
@@ -2327,6 +2360,40 @@ bool native_smart_preview_unchanged(const Layer& layer, const SmartObjectStore& 
       (before.data().data() == after.data().data() || std::ranges::equal(before.data(), after.data()));
 }
 
+// Only differences produced by editing this native adjustment's represented settings
+// are allowed. Rebuild those fields on the snapshot so unrelated metadata still matches.
+bool native_lab_adjustment_metadata(const Layer& layer, const Layer& imported,
+                                    const PsdNativeColorSpace& space) {
+  if (space.mode != kColorModeLab || layer.kind() != LayerKind::Adjustment) return false;
+  const auto value = adjustment_settings_from_layer(layer);
+  auto previous = adjustment_settings_from_layer(imported);
+  if (!value || !previous || value->kind != previous->kind) return false;
+  std::string_view key;
+  if (value->kind == AdjustmentKind::Posterize) {
+    key = "post";
+    previous->posterize = value->posterize;
+  } else if (value->kind == AdjustmentKind::Threshold) {
+    key = "thrs";
+    previous->threshold = value->threshold;
+  } else if (value->kind == AdjustmentKind::BrightnessContrast &&
+             value->brightness_contrast.use_legacy == previous->brightness_contrast.use_legacy) {
+    key = value->brightness_contrast.use_legacy ? "brit" : "CgEd";
+    previous->brightness_contrast = value->brightness_contrast;
+  } else if (value->kind == AdjustmentKind::Levels && value->levels.black_ink == previous->levels.black_ink) {
+    key = "levl";
+    previous->levels = value->levels;
+  } else if (value->kind == AdjustmentKind::Curves && value->curves.black_ink == CurvesAdjustment{}.black_ink &&
+             value->curves.black_ink == previous->curves.black_ink) {
+    key = "curv";
+    previous->curves = value->curves;
+  } else return false;
+  if (!std::any_of(imported.unknown_psd_blocks().begin(), imported.unknown_psd_blocks().end(),
+                   [key](const auto& block) { return block.key == key; })) return false;
+  auto expected = imported;
+  configure_adjustment_layer(expected, *previous);
+  return std::as_const(expected).metadata() == layer.metadata();
+}
+
 // One layer's own record (not its children) still matches its imported native content, so
 // its retained planes and native blocks are written unchanged.
 bool native_layer_unchanged(const Layer& layer, const std::shared_ptr<const PsdNativeColorSpace>& space,
@@ -2358,14 +2425,16 @@ bool native_layer_unchanged(const Layer& layer, const std::shared_ptr<const PsdN
   }
   if (layer.kind() != imported.kind() || layer.vector_shape() != imported.vector_shape() ||
       layer.vector_mask() != imported.vector_mask() ||
-      layer.metadata() != imported.metadata()) return false;
+      (layer.metadata() != imported.metadata() && !native_lab_adjustment_metadata(layer, imported, *space))) return false;
   const auto& blocks = layer.unknown_psd_blocks();
   const auto& original_blocks = imported.unknown_psd_blocks();
   if (layer.kind() == LayerKind::Adjustment &&
-      !std::any_of(blocks.begin(), blocks.end(), [](const auto& block) {
+      !std::any_of(blocks.begin(), blocks.end(), [&](const auto& block) {
         return block.key == "levl" || block.key == "curv" || block.key == "hue2" || block.key == "nvrt" ||
                block.key == "post" || block.key == "thrs" || block.key == "brit" || block.key == "blnc" ||
-               block.key == "expA";
+               block.key == "expA" || block.key == "grdm" ||
+               (block.key == "mixr" && space->mode == kColorModeCmyk &&
+                layer.metadata().contains(kLayerMetadataAdjustmentChannelMixerInks));
       })) return false;  // Legacy private adjustments need the RGB/native-block emitter.
   if (blocks.size() != original_blocks.size() ||
       !std::equal(blocks.begin(), blocks.end(), original_blocks.begin(), [](const auto& a, const auto& b) {
@@ -2414,6 +2483,10 @@ std::optional<PixelBuffer> native_color_composite(const Document& document, cons
                                                  const WriteOptions& options) {
   if (!native_color_save_eligible(document, options)) return std::nullopt;
   const auto& space = document.metadata().psd_native_color_space;
+  if (space->mode == kColorModeLab) {
+    if (auto plates = render_native_lab_adjustments(document, Rect::from_size(document.width(), document.height()),
+                                                    space->depth, nullptr, LabRenderOutput::NativeLab)) return plates;
+  }
   if (space->mode == kColorModeDuotone) {
     const auto gray = render_native_duotone8(document, Rect::from_size(document.width(), document.height()),
                                              nullptr, /*display_colors=*/false);
@@ -2805,6 +2878,42 @@ bool DocumentIo::layered_save_keeps_source_color_mode(const Document& document, 
 
 std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& document, WriteOptions options) {
   check_write_dimensions(document, options.large_document);
+  if (document_bit_depth(document) == BitDepth::Float32 && !document.metadata().smart_filter_effects.empty()) {
+    // Photoshop rasterizes integer Smart Filters when converting to 32 bits.
+    // Bake only those placed layers in the export copy. Original native-float
+    // records and the editable stack in the live document stay intact.
+    std::set<std::string> bake;
+    for (const auto& block : document.metadata().smart_filter_effects.blocks) {
+      for (const auto& record : block.records) {
+        if (record.cache_depth != 32U && !(block.source_document_depth == 32U && block.original_payload)) {
+          bake.insert(record.placed_uuid);
+        }
+      }
+    }
+    if (!bake.empty()) {
+      auto writable = document;
+      const auto rasterize = [&](auto&& self, std::vector<Layer>& layers) -> void {
+        for (auto& layer : layers) {
+          if (layer_is_smart_object(std::as_const(layer)) && bake.contains(smart_object_placed_uuid(std::as_const(layer)))) {
+            strip_layer_smart_object_data(writable, layer);
+          }
+          if (!std::as_const(layer).children().empty()) self(self, layer.children());
+        }
+      };
+      rasterize(rasterize, writable.layers());
+      // A duplicate or missing placed id cannot be safely removed by association.
+      for (const auto& block : std::as_const(writable).metadata().smart_filter_effects.blocks) {
+        for (const auto& record : block.records) {
+          if (bake.contains(record.placed_uuid))
+            throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD filter-effects block cannot be regenerated"));
+        }
+      }
+      return write_layered_rgb8(writable, options);
+    }
+  }
+  if (auto standard = standardize_aseprite_cels_for_photoshop(document)) {
+    return write_layered_rgb8(*standard, options);
+  }
   if (auto prepared = prepare_compound_vector_psd(document)) {
     return write_layered_rgb8(*prepared, options);
   }
@@ -3071,7 +3180,7 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     }
     std::vector<std::vector<std::uint8_t>> filter_payloads(filter_store.blocks.size());
     for (std::size_t i = 0; i < filter_store.blocks.size(); ++i) {
-      filter_payloads[i] = serialize_filter_effects_block(filter_store.blocks[i]);
+      filter_payloads[i] = serialize_filter_effects_block(filter_store.blocks[i], depth);
     }
     enum class GlobalEmissionKind { Unknown, Link, Filter };
     struct GlobalEmission {

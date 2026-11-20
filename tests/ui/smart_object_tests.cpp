@@ -3466,12 +3466,14 @@ void ui_script_smart_object_options_and_errors() {
 // preview, update refuses with the reason, saving keeps the link, and Relink to
 // File (which accepts SVG) repairs it.
 // Polls for the Missing Linked Files dialog and hands it to `act` (which must close it).
-void handle_missing_links_dialog(std::function<void(QDialog&)> act, std::shared_ptr<int> seen, int attempts = 100) {
-  QTimer::singleShot(20, [act = std::move(act), seen, attempts]() mutable {
+void handle_missing_links_dialog(QWidget& window, std::function<void(QDialog&)> act,
+                                 std::shared_ptr<int> seen, int attempts = 100) {
+  // A negative check may end while still polling. Cancel its callbacks when this test's window closes.
+  QTimer::singleShot(20, &window, [&window, act = std::move(act), seen, attempts]() mutable {
     auto* dialog = find_top_level_dialog(QStringLiteral("missingLinksDialog"));
     if (dialog == nullptr || !dialog->isVisible()) {
       if (attempts > 0) {
-        handle_missing_links_dialog(std::move(act), seen, attempts - 1);
+        handle_missing_links_dialog(window, std::move(act), seen, attempts - 1);
       }
       return;
     }
@@ -3507,7 +3509,7 @@ void ui_smart_object_missing_linked_files_dialog_lists_and_relinks() {
 
   auto seen = std::make_shared<int>(0);
   handle_missing_links_dialog(
-      [&art_path](QDialog& dialog) {
+      window, [&art_path](QDialog& dialog) {
         auto* name = dialog.findChild<QLabel*>(QStringLiteral("missingLinkName0"));
         auto* detail = dialog.findChild<QLabel*>(QStringLiteral("missingLinkDetail0"));
         auto* path = dialog.findChild<QLabel*>(QStringLiteral("missingLinkPath0"));
@@ -3615,7 +3617,7 @@ void ui_smart_object_missing_linked_files_dialog_lists_and_relinks() {
   // Turned off through the open-time dialog: the next open stays quiet.
   CHECK(QFile::remove(replacement_path));
   handle_missing_links_dialog(
-      [](QDialog& dialog) {
+      window, [](QDialog& dialog) {
         dialog.findChild<QCheckBox*>(QStringLiteral("missingLinksDontShowCheck"))->setChecked(true);
         dialog.findChild<QPushButton*>(QStringLiteral("missingLinksContinueButton"))->click();
       },
@@ -3625,7 +3627,7 @@ void ui_smart_object_missing_linked_files_dialog_lists_and_relinks() {
   process_events_for(100);
   CHECK(*seen == 2);
   CHECK(!patchy::ui::app_settings().value(QStringLiteral("imports/showMissingLinksDialog"), true).toBool());
-  handle_missing_links_dialog([](QDialog& dialog) { dialog.reject(); }, seen, 10);
+  handle_missing_links_dialog(window, [](QDialog& dialog) { dialog.reject(); }, seen, 10);
   patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
   process_events_for(400);
   CHECK(*seen == 2);
@@ -3772,7 +3774,7 @@ void ui_smart_object_open_reports_a_link_on_a_server_that_is_not_allowed() {
 
   auto seen = std::make_shared<int>(0);
   handle_missing_links_dialog(
-      [](QDialog& dialog) {
+      window, [](QDialog& dialog) {
         auto* allow = dialog.findChild<QPushButton*>(QStringLiteral("missingLinkAllowServerButton0"));
         auto* server = dialog.findChild<QLabel*>(QStringLiteral("missingLinkServer0"));
         CHECK(allow != nullptr && allow->isEnabled());
@@ -3856,7 +3858,7 @@ void ui_unattended_open_skips_the_missing_links_dialog() {
   CHECK(QFile::remove(art_path));
 
   auto seen = std::make_shared<int>(0);
-  handle_missing_links_dialog([](QDialog& dialog) { dialog.reject(); }, seen, 40);
+  handle_missing_links_dialog(window, [](QDialog& dialog) { dialog.reject(); }, seen, 40);
   window.set_cli_automation_mode(true);
   const auto tabs_before = patchy::ui::MainWindowTestAccess::document_tab_count(window);
   patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
@@ -3867,6 +3869,26 @@ void ui_unattended_open_skips_the_missing_links_dialog() {
   const auto layers = linked_layers(patchy::ui::MainWindowTestAccess::document(window));
   CHECK(layers.size() == 1U);
   CHECK(patchy::ui::app_settings().value(QStringLiteral("imports/showMissingLinksDialog"), true).toBool());
+}
+
+void ui_timeline_audio_resolves_unicode_siblings_and_checks_network_trust() {
+  const auto dir = linked_test_dir(QStringLiteral("timeline-audio-paths"));
+  const auto name = patchy::ui::to_qstring(patchy::test::unicode_path_piece(patchy::test::kUnicodeCombinedStem)) +
+                    QStringLiteral(".mp3");
+  patchy::psd::TimelineAudioLink link;
+  link.name = name.toStdString();
+  link.full_path = "file://patchy-timeline-audio.invalid/share/" + link.name;
+  link.relative_path = link.full_path;
+  CHECK(!patchy::ui::allowed_network_link_servers().contains(QStringLiteral("patchy-timeline-audio.invalid")));
+  QString blocked_server;
+  CHECK(!patchy::ui::timeline_audio_file_found(link, dir, &blocked_server));
+  CHECK(blocked_server == QStringLiteral("patchy-timeline-audio.invalid"));
+  QFile sibling(QDir(dir).filePath(name));
+  CHECK(sibling.open(QIODevice::WriteOnly));
+  sibling.close();
+  blocked_server.clear();
+  CHECK(patchy::ui::timeline_audio_file_found(link, dir, &blocked_server));
+  CHECK(blocked_server.isEmpty());
 }
 
 void ui_smart_object_ag_psd_animation_timeline_reports_missing_link_if_available() {
@@ -3882,13 +3904,14 @@ void ui_smart_object_ag_psd_animation_timeline_reports_missing_link_if_available
   show_window(window);
   auto seen = std::make_shared<int>(0);
   handle_missing_links_dialog(
-      [](QDialog& dialog) {
+      window, [](QDialog& dialog) {
         auto* name = dialog.findChild<QLabel*>(QStringLiteral("missingLinkName0"));
         auto* detail = dialog.findChild<QLabel*>(QStringLiteral("missingLinkDetail0"));
-        CHECK(name != nullptr && !name->text().isEmpty());
-        CHECK(detail != nullptr && detail->text().contains(QStringLiteral("Used by")));
-        std::cout << "[INFO] missing link: " << (name != nullptr ? name->text().toStdString() : std::string())
-                  << " / " << (detail != nullptr ? detail->text().toStdString() : std::string()) << "\n";
+        CHECK(name != nullptr && name->text() == QStringLiteral("output.mp3"));
+        CHECK(detail != nullptr && detail->text().contains(QStringLiteral("Used by timeline audio")));
+        CHECK(dialog.findChild<QLabel*>(QStringLiteral("missingLinkName1")) == nullptr);
+        const auto* relink = dialog.findChild<QPushButton*>(QStringLiteral("missingLinkRelinkButton0"));
+        CHECK(relink == nullptr || !relink->isVisible());
         save_widget_artifact("ui_smart_object_ag_psd_missing_links_dialog", dialog);
         dialog.findChild<QPushButton*>(QStringLiteral("missingLinksContinueButton"))->click();
       },
@@ -3897,6 +3920,21 @@ void ui_smart_object_ag_psd_animation_timeline_reports_missing_link_if_available
   process_events_for(200);
   CHECK(*seen == 1);
   CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("was not found")));
+  const auto& doc = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(doc.layers().size() == 2);
+  for (const auto& layer : doc.layers()) {
+    CHECK(patchy::layer_is_smart_object(layer));
+    const auto* source = doc.metadata().smart_objects.find(patchy::smart_object_source_uuid(layer));
+    CHECK(source != nullptr && source->kind == patchy::SmartObjectSourceKind::Embedded);
+    CHECK(source->filename == layer.name() + ".psb");
+    CHECK(source->file_bytes != nullptr && !source->file_bytes->empty());
+  }
+  // Photoshop finds the clip next to a relocated PSD. Presence is all the notice needs.
+  const auto dir = linked_test_dir(QStringLiteral("timeline-audio"));
+  QFile audio(dir + QStringLiteral("/output.mp3"));
+  CHECK(audio.open(QIODevice::WriteOnly));
+  audio.close();
+  CHECK(patchy::ui::missing_timeline_audio_files(doc, dir).empty());
 }
 
 void ui_smart_object_missing_linked_file_is_reported_and_relinks() {
@@ -4448,6 +4486,8 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
       {"ui_unattended_open_skips_the_missing_links_dialog", ui_unattended_open_skips_the_missing_links_dialog},
       {"ui_smart_object_relink_remembers_folder_for_the_session",
        ui_smart_object_relink_remembers_folder_for_the_session},
+      {"ui_timeline_audio_resolves_unicode_siblings_and_checks_network_trust",
+       ui_timeline_audio_resolves_unicode_siblings_and_checks_network_trust},
       {"ui_smart_object_ag_psd_animation_timeline_reports_missing_link_if_available",
        ui_smart_object_ag_psd_animation_timeline_reports_missing_link_if_available},
       {"ui_smart_object_place_linked_links_the_file", ui_smart_object_place_linked_links_the_file},

@@ -12,6 +12,8 @@ Nine 256-gray-ramp captures pin `brightness_contrast_channel_value` (core/adjust
 - c = 100: hard threshold `(v + b) >= 127 ? 255 : 0`.
 - c < 0: contrast compresses FIRST, brightness adds to the OUTPUT: `clamp(lround((v - 127.5) * (100+c)/100 + 127.5) + b)`.
 
+Photoshop’s 32-bit legacy adjustment uses the same order with a pivot of 127 and an unclamped result, except at maximum positive contrast. Captures at 32 bits include inputs from -0.5 to 4.
+
 The hybrid order (brightness inside for positive contrast, outside for negative) is required by the interaction captures; residual +/-1 (PS's own LUT has sub-LSB noise). Do not "unify" this with the destructive `patchy.filters.brightness_contrast` in either direction: the destructive output is byte-pinned, and the adjustment layer must render PS's math because it round-trips as a native legacy `brit` record.
 
 ## Modern Brightness/Contrast
@@ -38,6 +40,7 @@ The default (useLegacy=false) algorithm is fully modeled, recovered from 300 16-
 Fitted against Photoshop's renders of psd-tools' `adjustments/levels_rgb.psd` and `posterize_rgb.psd` (GitHub issue 65; fetch with `testy/fetch_psd_tools_corpus.py`).
 
 - **Levels:** the component channel record runs FIRST, then Composite RGB (the Curves order), and the channel result reaches the composite stage unrounded. Within 2/255 everywhere on the render; composite-first is off by up to 52, and a byte-rounded intermediate has ten times the 2/255 misses. `apply_levels` (core) and `build_levels_luts` (ui/filter_workflows.cpp, the destructive command) both follow it. A master-only adjustment is unchanged.
+- For Lab Curves, Levels, Invert, Posterize, Threshold and Brightness/Contrast, the native sample and opacity rules use [the retained Lab planes](psd-native-color.md#native-lab-adjustments).
 - **Posterize:** `floor(floor(value * levels / 256) * 255 / (levels - 1))`, byte-exact at 3, 7, 13 and 21 levels (3 levels give 0, 127, 255). Refuted: nearest-step rounding, and rounding the output step instead of truncating it. `posterize_channel_value` serves the adjustment layer and `patchy.filters.posterize` alike.
 - **Threshold:** white when `(30R + 59G + 11B + 50) / 100` (rounded half up) reaches the level. A Photoshop 2026 adjustment layer and Smart Filter over a 16-level cube at level 140 both match it exactly; the floored quotient missed 13 colors (October 2026, [smart-filters-adjustments.md](smart-filters-adjustments.md)). `threshold_luminance` serves the adjustment layer and `patchy.filters.threshold` alike; their 16/32-bit paths test `30R + 59G + 11B >= 100 * level - 50` on the deep scale (`threshold_reached`), identical on 8-bit-exact values.
 
@@ -59,6 +62,8 @@ Fitted on a Photoshop 2026 COM probe (#250): a 256-step gray ramp plus a 16-leve
 - Math (`exposure_channel_value`), per channel on 8-bit values: `linear = (v/255)^2.2`, `exposed = linear * 2^exposure + offset`, `corrected = max(0, exposed)^(1/gamma)`, `out = 255 * clamp(corrected)^(1/2.2)`. Within 1/255 on every pixel of Photoshop's render of psd-tools' `adjustments/exposure_rgb.psd` for all four of its setting triples.
 - Refuted: the piecewise sRGB curve in place of the plain 2.2 power (up to 7/255 off at +2 stops).
 - Grayscale documents run Exposure in the gray profile's linear light, not through the gray space below: on the profile-converted sRGB pixels that is the piecewise sRGB curve in place of gamma 2.2 (`exposure_gray_channel_value`, `exposure_gray_transfer`). Within 1/255 on every image pixel of Photoshop's composite of psd-tools' `adjustments/exposure_grayscale.psd` (Dot Gain 20%, the same four triples); gamma 2.2 on the stored gray value, the earlier path, was 21/255 off. `adjustment_depends_on_source_color_mode` still counts the layer for the RGB-save warnings. CMYK documents run the gamma 2.2 form on each ink; that output is unprobed against Photoshop. 16/32-bit documents use the continuous form (last section); 16-bit precision against Photoshop is not yet exact ([high-bit-depth-compositor.md](high-bit-depth-compositor.md#the-deep-fixture-corpus)).
+
+At 32 bits Exposure uses the sign-preserving gamma power on the exposed linear value. TIFF samples from Photoshop retain negative shadows after a negative offset.
 
 ## Adjustment layers of CMYK documents
 
@@ -88,8 +93,11 @@ inks they match on 99.9 percent (worst channel miss 7/255 at the 16 pinned probe
   ink and either full or zero K. The final profile conversion gives K-only black
   its correct display tone. Five levels over 4096 synthetic native colors match
   Photoshop exactly (`cmyk-render/threshold*`); masks, opacity and group coverage
-  blend the adjustment in ink space. Other adjustment kinds still use the
-  existing RGB/InkSpace path; Hue/Saturation and Color Balance use RGB math.
+  blend the adjustment in ink space. Imported CMYK Channel Mixer also works on the
+  retained plates, including supported 16-bit adjustment stacks, and uses profile
+  separation when that stack cannot supply the original plates. See
+  [Channel Mixer](adjustment-kinds.md#channel-mixer) for its native TIFF calibration.
+  Hue/Saturation and Color Balance use RGB math.
 - Grayscale documents get the one-channel form (`InkSpace::is_gray`, `build_gray_ink_space`):
   the 256 stored gray values through the gray profile and the nearest-value inverse.
   Their Levels record and curve sit in the slot RGB calls red (index 1; the composite
@@ -98,7 +106,7 @@ inks they match on 99.9 percent (worst channel miss 7/255 at the 16 pinned probe
   psd-tools' `levels_grayscale.psd` and `curves_grayscale.psd` is matched within 3/255 and
   1/255 (22/255 without the gray space, a visible tint before the copy). Pinned by
   `psd_tools_grayscale_adjustments_apply_to_the_gray_channel_if_available`.
-- An untagged Grayscale file gets the gray space of the assumed Dot Gain 20% profile ([file-formats-psd.md](file-formats-psd.md)), as Photoshop evaluates it in its working gray; `exposure_grayscale.psd` stripped of its profile renders within 2/255 of the tagged file (`psd_tools_untagged_grayscale_reads_like_dot_gain_20_if_available`).
+- An untagged 8/16-bit Grayscale file gets the gray space of the assumed Dot Gain 20% profile ([file-formats-psd.md](file-formats-psd.md)), as Photoshop evaluates it in its working gray; `exposure_grayscale.psd` stripped of its profile renders within 2/255 of the tagged file (`psd_tools_untagged_grayscale_reads_like_dot_gain_20_if_available`).
 - No profile on CMYK without an installed default, or one lcms2 cannot use: no ink space, RGB math as before.
 - On RGB saves the black ink's record is never written: Photoshop 2026 silently turns a Levels layer
   of an RGB document into a plain empty layer, mask gone, when the `levl` block's fifth
@@ -131,6 +139,8 @@ Calibrated with byte-patched `hue2` probes (patch the header triple, PS flatten 
 - hue2 header = version(=2) u16, colorize u8, pad u8, colorize h/s/l i16 x3, master h/s/l i16 x3; hue stored -180..180 (raw 203 also accepted); colorize-off files still carry (0, 25, 0). Fresh layers append six default hextant band records plus an undocumented 36-byte trailer of (k*60, 100, 50) triples (together `kPhotoshopHueSaturationDefaultTail`). Patchy writes the header and the band records from the model and keeps only the trailer as bytes: an imported layer's own, else the template's (Per-hue-range bands, below).
 - Pipeline (`apply_colorize`): `li = (max+min)>>1`; lightness blends toward white/black and ROUNDS; `delta = min(li, 255-li) * kColorizeSaturationScale[s]` (PS's percent conversion sits ~0.05-0.2% BELOW s/100, hence a per-percent table); `q = li + floor(delta + 0.5)` but `p = li - floor(delta)` (the round/truncate asymmetry reproduces PS's alternating 2l/2l+1 channel sums); `mid = p + floor((q-p) * kColorizeHueInterp[hue]/255 + 0.5)`. `kColorizeHueInterp` is a measured per-degree table (adjacent degrees quantize together, values pin near sector boundaries, sinusoidal deviation up to ~5/255, sectors NOT symmetric; no closed form, all 360 degrees probed).
 - Accuracy: 99.62% of 1.04M probed pixels byte-exact, residuals +/-1 (worst +/-2 on 0.16%). Master sliders are ignored by PS while colorize is on. The 'HStr' action path renders identically to the file path. Fixture `photoshop-hue-saturation-colorize.psd`.
+
+In 32-bit linear RGB, Colorize uses continuous HSL. Starting at the midpoint of the smallest and largest linear components, positive Lightness moves values below white toward white and negative Lightness moves values above black toward black. The adjusted half-chroma is the nearer signed distance to black or white times Saturation and `1 - abs(Lightness)`, with both sliders normalized. Photoshop reconstructs the chosen hue without clipping HDR or negative values. Float TIFFs from Photoshop 28 cover eight slider triples, signed inputs and highlights up to 4.
 
 ### Hue/Saturation master (colorize off)
 

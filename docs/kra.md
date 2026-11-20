@@ -107,7 +107,10 @@ Masks and selections are one byte per pixel.
   layers below it, composited and filtered, with the filter layer's opacity and selection.
   See "Filters".
 - Fill layers (`generatorlayer`): `color` becomes a fill layer with the selection as its
-  mask; pattern, gradient, screentone, multigrid, simplex noise and SeExpr open as empty
+  mask. Both `#RRGGBB` strings and KoColor RGB/Gray XML keep their editable colors.
+  A version-1 gradient generator with no parameters opens as an editable horizontal gradient
+  from black to white across the document, with its selection as a mask. Configured
+  gradients, pattern, screentone, multigrid, simplex noise and SeExpr open as empty
   layers with a notice (Krita stores no pixels for them).
 - Vector layers: `layerN.shapelayer/content.svg` (Krita 4 and later), in points with a matching
   viewBox. The root is resized to the canvas in pixels and the SVG importer makes shape and text
@@ -120,11 +123,13 @@ Masks and selections are one byte per pixel.
   else `clonefrom`). File layers: see [File layers](#file-layers).
 - Layer styles: `annotations/layerstyles.asl` is Photoshop's ASL; each style's id is the
   `layerstyle` uuid. Read with `psd::read_asl`, patterns adopted into the document; the
-  style's blending options give the layer's Fill and Blend If. Effects set to use global
-  light stay linked to the document and take the angle and altitude Krita keeps from an imported PSD
-  (`annotations/PSD Resource Block: 1037` and `: 1049`, big-endian degrees), else 120 and 30.
-  Krita renders effects with its own engine; Patchy renders Photoshop's look, so the
-  fixtures made from Patchy's PSDs are judged against Patchy's render of the PSD.
+  style's blending options give the layer's Fill and Blend If. Linked shadows and bevels keep
+  their Global Light link. When the enabled linked effects on assigned styles agree, their
+  saved angle sets the document light. Unused presets and unlinked effects have no vote.
+  With no common angle, Patchy takes the retained PSD global angle (resource 1037) or 120
+  degrees. The retained altitude (1049) defaults to 30 degrees. These resources are stored
+  under `annotations/PSD Resource Block: <id>`. Krita's own render can differ from the
+  Photoshop-style rendering of the same effects.
 
 ## File layers
 
@@ -180,7 +185,7 @@ Settings are `.filterconfig` XML: `<params version><param name>value</param>`.
 | Krita filter | Patchy |
 |---|---|
 | `invert` | Invert |
-| `levels` | Levels from `lightness` ("black;white;gamma;outblack;outwhite", 0..1) or the 0..255 keys of version 1. Krita's lightness mode keeps the colors: the adjustment layer gets Luminosity (approximate) |
+| `levels` | Editable Levels from `lightness` ("black;white;gamma;outblack;outwhite", 0..1) or the 0..255 keys of version 1. The imported lightness adjustment carries Luminosity for PSD interchange. Patchy's adjustment renderer applies RGB Levels. |
 | `perchannel` | Curves. Krita 5 stores 8 curves for RGB: composite, red, green, blue, alpha, hue, saturation, lightness (measured); the last four have no Curves twin. Older files' first curve goes to the composite |
 | `hsvadjustment` | Hue/Saturation (approximate) |
 | `desaturate` | type 0 (lightness) Hue/Saturation -100; types 1 to 3 (BT.709, BT.601, average) a monochrome Channel Mixer; 4 and 5 (min, max) approximate |
@@ -192,8 +197,15 @@ Drawn by Patchy (premultiplied, edges clamped, at the document depth in its own 
 measured on impulse renders: `sharpen` is the 3 x 3 kernel 1/3 [0 -2 0; -2 11 -2; 0 -2 0];
 `gaussian blur` uses sigma = 0.3 x radius + 0.3, truncated at the radius; `unsharp` adds
 `amount` x (pixel - that gaussian of `halfSize`) where the difference passes `threshold`, on
-lightness only when `lightnessOnly` (the default). Everything else (box blur, noise,
-pixelize, emboss, gradient map, ...) is left out with a notice.
+lightness only when `lightnessOnly` (the default).
+
+`pixelize` averages rectangular cells anchored at the document origin. The saved
+`pixelWidth` and `pixelHeight` set the cell dimensions. Each color contributes in
+proportion to its alpha. A filter mask applies to its layer's pixels and a filter layer
+opens as a filtered copy of the layers below. Both keep the saved selection. The
+10 by 10 cells in Krita's filter-layer and filter-mask fixtures match its exported
+pixels. Box blur, noise, emboss and gradient map remain unsupported.
+[Krita Pixelize](https://docs.krita.org/en/reference_manual/filters/artistic.html#pixelize).
 
 ## Fixtures and corpus
 
@@ -221,8 +233,10 @@ Against Krita's merged image unless noted.
   blend in gamma space (`gray-u16` mean 2.2, worst 22); the test reports those, unbounded.
 - CMYK: mean 4.1, worst 91. Krita blends in CMYK, Patchy in RGB after converting each layer.
 - Layer styles (`psd-*`, against Patchy's render of the source PSD): 0.00 for drop and inner
-  shadows, glows, bevels, satin, pattern overlay, strokes and global light; gradient overlay
+  shadows, glows, bevels, satin, pattern overlay and strokes; gradient overlay
   0.79, inner glow range 0.46, interior/exterior blending 0.90 (worst 155); Krita's own
+  linked-shadow fixture uses its saved 30-degree direction while its retained PSD resource
+  still says 90. Against Krita, mean 0.46 and worst 13. Separately, its
   re-save loses gradient midpoints (`4a-roundtrip`, 18.9) and changes a shape-burst stroke
   (5.0). Against Krita's render they differ by up to 16: Krita draws effects its own way.
 - Blend modes (`modes.kra`, one 24 x 24 tile per id): every mapped mode within 0.3 per tile
@@ -232,16 +246,19 @@ Against Krita's merged image unless noted.
 - Filters: invert, the four RGB curves and the BT.709, BT.601 and average desaturations
   exact or within 0.6; Hue/Saturation in HSL 1.7; Krita's other HSV models 16 to 67;
   color balance 16 to 18; posterize 13 (Krita rounds to `steps` intervals, Photoshop floors
-  to levels); lightness Levels 11 to 15 (Krita levels CIE L*: Patchy's Levels at Luminosity
-  is the nearest editable form).
+  to levels); lightness Levels 11 to 15 (Krita adjusts CIE `L*` while preserving `a*` and `b*`).
 - Vector layers: shapes match; in the app (text rendered) the vector fixture's mean is 5.6:
   glyphs rasterize differently and the SVG importer blends a linear gradient lighter than
   Krita.
 - Corpus (65 files, all open; 60 carry a merged image): 31 identical, 23 more within a mean of
   0.25 (the old OpenDocument vector pages 0.18 and 0.19 among them); GDQuest's kraken 1.04 (older curves and color balance); Pepper&Carrot's
   2025 painting 0.63 (Luminosity/Shine, color balance); three files whose text
-  renders only in the app (core sweep: 1.1 to 6.9); an OpenGameArt nest 9.4 (lightness
-  Levels on a group).
+  renders only in the app (core sweep: 1.1 to 6.9); the OpenGameArt ovenbird nest 9.4.
+  In the nest, the visible Levels mask on a group sets input white to 164/255. Patchy
+  differs perceptually on 21.90% of pixels. Applying the saved Levels settings to CIE L*
+  alone in D50 Lab, using Patchy's export with that mask disabled as input, reproduces
+  Krita's merged image with no pixels beyond Testy's 6/255 tolerance. The paint layers
+  and clipping already supply the colors the source adjustment needs.
 
 ## Tests
 

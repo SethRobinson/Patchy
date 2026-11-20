@@ -1,6 +1,6 @@
 # Native CMYK compositing
 
-Split from [blend-modes.md](blend-modes.md): how supported 8-bit CMYK stacks composite on their four ink channels, what still selects the RGB renderer, and the untagged working-profile fallback.
+Related to [blend-modes.md](blend-modes.md). This page covers four-channel rendering for imported CMYK documents, eligible layer stacks and the untagged working-profile fallback.
 
 ## Imported CMYK documents
 
@@ -32,12 +32,16 @@ This coupled selection applies to layer and group blends. Non-Normal vector
 strokes require a coupled ink bake and currently select the RGB renderer.
 
 Masks, layer Opacity/Fill, isolated groups, faded Pass Through groups and artboards (over
-their paper's inks) keep their native-channel composition. Normal-mode Threshold uses native inks too
+their paper's inks) keep their native-channel composition. Normal-mode Threshold, imported CMYK Channel
+Mixer and imported Classic Gradient Maps with CMYK stops operate on the four retained inks
 ([adjustment calibration](adjustments-calibration.md)). Other adjustments, layer effects, clipping
 runs, knockout and rendered Blend If/channel restrictions currently select the
 existing RGB renderer for the whole stack. Noise/pattern fills and compound
-vector paints also use that fallback. Deep CMYK and Dynamic Vector Preview
-remain on that renderer. Untagged CMYK editing pixels use the same installed
+vector paints also use that fallback. In 16-bit CMYK, an unchanged opaque full-canvas
+pixel layer beneath normal Channel Mixer or Gradient Map adjustments renders from the
+original four 16-bit ink plates. Masks and adjustment opacity mix the ink values before
+the final 16-bit ICC conversion. Other deep stacks and Dynamic Vector Preview use the
+ordinary renderer. Untagged CMYK editing pixels use the same installed
 working-profile fallback as the native composite.
 Flat imports without native layer records keep their already-converted RGB
 preview; sending it back through the CMYK gamut would introduce avoidable error.

@@ -113,6 +113,7 @@ inline constexpr const char* kLayerMetadataAdjustmentChannelMixerRed = "patchy.a
 inline constexpr const char* kLayerMetadataAdjustmentChannelMixerGreen = "patchy.adjustment.channel_mixer.green";
 inline constexpr const char* kLayerMetadataAdjustmentChannelMixerBlue = "patchy.adjustment.channel_mixer.blue";
 inline constexpr const char* kLayerMetadataAdjustmentChannelMixerGray = "patchy.adjustment.channel_mixer.gray";
+inline constexpr const char* kLayerMetadataAdjustmentChannelMixerInks = "patchy.adjustment.channel_mixer.inks";
 inline constexpr const char* kLayerMetadataAdjustmentChannelMixerMonochrome =
     "patchy.adjustment.channel_mixer.monochrome";
 // Photo Filter color as "L;a;b" in hundredths (CIELAB D50, as Photoshop stores it).
@@ -358,21 +359,35 @@ struct ChannelMixerRow {
   int constant{0};
   friend bool operator==(const ChannelMixerRow&, const ChannelMixerRow&) = default;
 };
+// The fourth input in each CMYK output row, plus the K output's CMY inputs and constant.
+struct ChannelMixerInkChannels {
+  std::array<int, 4> black_inputs{0, 0, 0, 100};
+  ChannelMixerRow black_output{};
+  friend bool operator==(const ChannelMixerInkChannels&, const ChannelMixerInkChannels&) = default;
+};
 struct ChannelMixerAdjustment {
   bool monochrome{false};
   ChannelMixerRow red{100, 0, 0, 0};
   ChannelMixerRow green{0, 100, 0, 0};
   ChannelMixerRow blue{0, 0, 100, 0};
   ChannelMixerRow gray{40, 40, 20, 0};
+  std::optional<ChannelMixerInkChannels> ink_channels;
   [[nodiscard]] bool has_effect() const noexcept;
   friend bool operator==(const ChannelMixerAdjustment&, const ChannelMixerAdjustment&) = default;
 };
 [[nodiscard]] ChannelMixerRow clamp_channel_mixer_row(ChannelMixerRow row) noexcept;
 // A mix percentage on Photoshop's 1/1024 weight scale, truncated toward zero.
 [[nodiscard]] int channel_mixer_weight(int percent) noexcept;
+using ChannelMixerInkWeights = std::array<std::array<int, 5>, 4>;
+[[nodiscard]] ChannelMixerInkWeights cmyk_channel_mixer_weights(const ChannelMixerAdjustment& settings);
+// Input and output use inverted ink samples. Full scale is 255 or 65535.
+[[nodiscard]] std::array<std::uint16_t, 4> mix_cmyk_inks(const ChannelMixerInkWeights& weights,
+    const std::array<std::uint16_t, 4>& inks, int full_scale) noexcept;
 // One output channel of the mix on the 0..255 scale, unrounded and unclamped: the
-// quantized weights times the inputs plus 255 times the quantized constant, over 1024.
-[[nodiscard]] double channel_mixer_transfer(const ChannelMixerRow& row, double red, double green, double blue);
+// quantized weights times the inputs plus the scaled constant, over 1024.
+// Photoshop uses 255 for integer color and 127.5 for linear 32-bit RGB.
+[[nodiscard]] double channel_mixer_transfer(const ChannelMixerRow& row, double red, double green, double blue,
+                                            double constant_scale = 255.0);
 
 // Photoshop's Photo Filter ('phfl'): the filter color as Photoshop stores it (CIELAB D50 in
 // hundredths: L 0..10000, a and b -12800..12700), a density of 1..100 % and Preserve
@@ -388,6 +403,7 @@ struct PhotoFilterAdjustment {
 [[nodiscard]] PhotoFilterAdjustment clamp_photo_filter(PhotoFilterAdjustment settings) noexcept;
 // The filter color in sRGB bytes, and the settings with the filter color set from sRGB.
 [[nodiscard]] RgbColor photo_filter_color(const PhotoFilterAdjustment& settings);
+[[nodiscard]] std::array<std::array<float, 3>, 3> linear_photo_filter_matrix(const PhotoFilterAdjustment& settings);
 [[nodiscard]] PhotoFilterAdjustment photo_filter_with_color(PhotoFilterAdjustment settings, RgbColor color);
 // One color through the filter on the 0..255 scale (docs/adjustment-kinds.md, "Photo
 // Filter"): each XYZ (D50) component is scaled toward the filter's by the density, and
@@ -405,6 +421,18 @@ struct GradientMapAdjustment {
   // Photoshop's new Gradient Map: black to white, Classic, 100 % smoothness.
   [[nodiscard]] static LayerStyleGradient default_gradient_map_gradient();
 };
+// An imported Classic gradient sampled in its original document space. Offsets and stops
+// remain editable in the ordinary gradient. Renderers use this ramp while they still match.
+struct NativeGradientMap {
+  enum class Space { Gray, Cmyk, Lab };
+  static constexpr std::size_t kIntervals = 1024;
+  Space space{Space::Gray};
+  LayerStyleGradient original;
+  std::array<std::array<std::uint16_t, 3>, kIntervals + 1> display{};
+  // Inverted native ink samples, only for CMYK (255/65535 is paper).
+  std::vector<std::array<std::uint16_t, 4>> inks;
+};
+[[nodiscard]] std::array<std::uint16_t, 4> native_gradient_inks(const NativeGradientMap& ramp, double position);
 // The mapped color for an 8-bit pixel, and the unrounded mapping (0..255 scale) for the deep path.
 [[nodiscard]] RgbColor gradient_map_color(const GradientMapAdjustment& settings, RgbColor color);
 [[nodiscard]] std::array<double, 3> gradient_map_transfer(const GradientMapAdjustment& settings, double red,
@@ -429,10 +457,10 @@ struct BlackWhiteAdjustment {
   friend bool operator==(const BlackWhiteAdjustment&, const BlackWhiteAdjustment&) = default;
 };
 [[nodiscard]] BlackWhiteAdjustment clamp_black_white(BlackWhiteAdjustment settings) noexcept;
-// One color on the 0..255 scale; byte_stages rounds the gray and the luma as Photoshop's
-// 8-bit path does, the deep path passes false. Unclamped final rounding.
+// One color on the 0..255 scale. Integer depths follow their gray/tint quantization.
+// The linear float path accepts signed channels and preserves values above white.
 [[nodiscard]] std::array<double, 3> black_white_transfer(const BlackWhiteAdjustment& settings, double red,
-                                                         double green, double blue, bool byte_stages);
+                                                         double green, double blue, BitDepth depth);
 
 // The Black & White dialog's built-in presets (#528): fixed settings the user picks from, in
 // dialog order, the neutral ones (Tint off) first, then the tinted ones (Tint on with their
@@ -598,7 +626,11 @@ struct AdjustmentSettings {
   // read: the channel-wise kinds (Levels, Curves, Invert, Posterize, Brightness/Contrast,
   // Exposure) then run on the four inks instead of on RGB. See core/ink_space.hpp.
   std::shared_ptr<const InkSpace> ink_space;
+  std::shared_ptr<const NativeGradientMap> native_gradient_map;
 };
+// Display RGB on the 0..255 scale, for the stored native gradient of these settings.
+[[nodiscard]] std::array<double, 3> apply_native_gradient_map(const AdjustmentSettings& settings,
+                                                             double red, double green, double blue);
 // True when `settings` runs in its ink space (it has one and its kind is channel-wise).
 [[nodiscard]] bool adjustment_runs_in_ink_space(const AdjustmentSettings& settings) noexcept;
 // True when Photoshop evaluates `settings` in the source CMYK or gray space, so an RGB save

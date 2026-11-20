@@ -14,6 +14,11 @@ namespace render_detail { struct LayerBoundsOverride; }
     const Document& document, Rect clip,
     const std::vector<render_detail::LayerBoundsOverride>* overrides = nullptr);
 
+// Retained 16-bit inks for a flat opaque base with Channel Mixer or Gradient Map layers.
+[[nodiscard]] std::optional<PixelBuffer> render_native_cmyk16_adjustments(
+    const Document& document, Rect clip,
+    const std::vector<render_detail::LayerBoundsOverride>* overrides = nullptr);
+
 // Process-wide work counters of render_native_cmyk8, for the tests that keep a brush
 // stroke's per-dab cost bounded (docs/cmyk.md): Little CMS transforms built, and RGB
 // pixels separated into inks.

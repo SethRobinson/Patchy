@@ -8,8 +8,11 @@
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
+#include "formats/miniz/miniz.h"
+#include "color/rgb_profiles.hpp"
 #include "formats/avif_document_io.hpp"
 #include "formats/document_flatten.hpp"
+#include "formats/layered_blend_support.hpp"
 #include "formats/format_registry.hpp"
 #include "formats/gif_document_io.hpp"
 #include "formats/ico_document_io.hpp"
@@ -1028,9 +1031,9 @@ void aseprite_imports_layers_groups_and_palette() {
   CHECK(group.kind() == patchy::LayerKind::Group);
   CHECK(group.name() == "Props");
   // Header flag bit 2 is unset, so the group chunk's opacity byte (0 in this file!) is
-  // meaningless and the group must render at full opacity with Normal blend.
+  // meaningless and its children must blend directly over the base outside the group.
   CHECK(group.opacity() == 1.0F);
-  CHECK(group.blend_mode() == patchy::BlendMode::Normal);
+  CHECK(group.blend_mode() == patchy::BlendMode::PassThrough);
   CHECK(group.children().size() == 1);
   const auto& star = group.children()[0];
   CHECK(star.name() == "Star");
@@ -1058,6 +1061,7 @@ void aseprite_imports_layers_groups_and_palette() {
   CHECK(base_px[1] == 20);
   CHECK(base_px[2] == 200);
   const auto* star_px = flattened.pixel(7, 8);
+  CHECK(star_px[0] <= 10);  // an isolated group's red child here would raise red above 100
   CHECK(star_px[2] < 160);  // multiplied down from 200
   CHECK(star_px[2] > 60);   // but not black: 50% layer opacity keeps half the base
   // The Exclusion layer renders for real: red over blue gives the magenta Aseprite shows.
@@ -1065,6 +1069,9 @@ void aseprite_imports_layers_groups_and_palette() {
   CHECK(weird_px[0] == 194);
   CHECK(weird_px[1] == 54);
   CHECK(weird_px[2] == 178);
+  const auto reopened = patchy::aseprite::DocumentIo::read(patchy::aseprite::DocumentIo::write(document));
+  CHECK(reopened.layers()[1].blend_mode() == patchy::BlendMode::PassThrough);
+  CHECK(std::ranges::equal(flattened.data(), patchy::flatten_document_rgba8(reopened).data()));
 }
 
 void aseprite_blend_modes_match_aseprite_render() {
@@ -1180,6 +1187,7 @@ class AseBytes {
     u16(static_cast<std::uint16_t>(value >> 16U));
   }
   void zeros(std::size_t count) { bytes_.insert(bytes_.end(), count, 0); }
+  void append(std::span<const std::uint8_t> data) { bytes_.insert(bytes_.end(), data.begin(), data.end()); }
   void patch_u32(std::size_t offset, std::uint32_t value) {
     for (int i = 0; i < 4; ++i) {
       bytes_[offset + static_cast<std::size_t>(i)] = static_cast<std::uint8_t>((value >> (8U * i)) & 0xFFU);
@@ -1194,7 +1202,7 @@ class AseBytes {
 
 // A layer chunk (0x2004) with the given child level.
 void append_ase_layer_chunk(AseBytes& out, std::uint16_t child_level, std::uint16_t layer_type,
-                            const std::string& name) {
+                            const std::string& name, std::uint32_t tileset = 0) {
   const auto start = out.size();
   out.u32(0);  // size, patched below
   out.u16(0x2004);
@@ -1210,6 +1218,7 @@ void append_ase_layer_chunk(AseBytes& out, std::uint16_t child_level, std::uint1
   for (const auto character : name) {
     out.u8(static_cast<std::uint8_t>(character));
   }
+  if (layer_type == 2) out.u32(tileset);
   out.patch_u32(start, static_cast<std::uint32_t>(out.size() - start));
 }
 
@@ -1282,7 +1291,178 @@ void append_ase_indexed_cel(AseBytes& out, std::uint16_t x, std::uint8_t opacity
   }
 }
 
+std::vector<std::uint8_t> compress_ase_bytes(std::span<const std::uint8_t> data) {
+  const auto size = static_cast<mz_ulong>(data.size());
+  auto bound = mz_compressBound(size);
+  std::vector<std::uint8_t> compressed(bound);
+  CHECK(mz_compress(compressed.data(), &bound, data.data(), size) == MZ_OK);
+  compressed.resize(bound);
+  return compressed;
+}
+
+void append_ase_test_tileset(AseBytes& out, std::uint32_t flags, bool indexed = false) {
+  const auto start = out.size();
+  out.u32(0);
+  out.u16(0x2023);
+  out.u32(11);
+  out.u32(flags);
+  out.u32(2);
+  out.u16(2);
+  out.u16(2);
+  out.u16(72);  // display base, independent of the tile IDs stored in the map
+  out.zeros(14);
+  out.u16(0);
+  if ((flags & 1U) != 0) { out.u32(9); out.u32(3); }
+  if ((flags & 2U) != 0) {
+    const std::array<std::uint8_t, 16> gray{1,255,2,255,3,255,4,255,10,255,20,255,30,255,40,255};
+    const std::array<std::uint8_t, 8> indices{0,0,0,0,1,0,0,1};
+    const auto compressed = indexed ? compress_ase_bytes(indices) : compress_ase_bytes(gray);
+    out.u32(static_cast<std::uint32_t>(compressed.size()));
+    out.append(compressed);
+  }
+  out.patch_u32(start, static_cast<std::uint32_t>(out.size() - start));
+}
+
+void append_ase_test_tilemap(AseBytes& out, std::span<const std::uint8_t> words) {
+  const auto start = out.size();
+  out.u32(0);
+  out.u16(0x2005);
+  out.u16(1);       // layer inside the group
+  out.u16(0xffff);  // x = -1
+  out.u16(2);
+  out.u8(128);
+  out.u16(3);
+  out.zeros(7);
+  out.u16(static_cast<std::uint16_t>(words.size()));
+  out.u16(1);
+  out.u16(8);
+  out.u32(0x1f);
+  out.u32(0x20);
+  out.u32(0x40);
+  out.u32(0x80);
+  out.zeros(10);
+  out.append(compress_ase_bytes(words));
+  out.patch_u32(start, static_cast<std::uint32_t>(out.size() - start));
+}
+
 }  // namespace
+
+void aseprite_tilemaps_render_flips_bounds_and_linked_cels() {
+  AseBytes out;
+  const auto first = begin_ase_file(out, 2, 16);
+  append_ase_layer_chunk(out, 0, 1, "Group");
+  append_ase_layer_chunk(out, 1, 2, "Map", 11);
+  const std::array<std::uint8_t, 6> map{1, 0x21, 0x41, 0x81, 0xa1, 0};
+  append_ase_test_tilemap(out, map);
+  append_ase_test_tileset(out, 6);  // embedded tiles follow their layer/cel in the file
+  finish_ase_frame(out, first, 4);
+  const auto second = begin_ase_frame(out, 64);
+  append_ase_indexed_cel(out, 3, 255, std::uint16_t{0});
+  std::vector<std::string> notes;
+  bool partial = false;
+  const auto doc = patchy::aseprite::DocumentIo::read(finish_ase_file(out, second, 1), &notes, &partial);
+  CHECK(partial && !notes.empty());
+  const auto& original = doc.layers().at(1).children().at(0).children().at(0);
+  const auto& linked = doc.layers().at(0).children().at(0).children().at(0);
+  CHECK(original.bounds().x == -1 && original.bounds().y == 2);
+  CHECK(linked.bounds().x == 3 && linked.bounds().y == 1);
+  CHECK(original.opacity() > 0.50F && original.opacity() < 0.51F && linked.opacity() == 1.0F);
+  const auto& pix = original.pixels();
+  CHECK(pix.width() == 12 && pix.height() == 2);
+  const std::array<std::uint8_t, 12> top{10,20,20,10,30,40,10,30,30,10,0,0};
+  const std::array<std::uint8_t, 12> bottom{30,40,40,30,10,20,20,40,40,20,0,0};
+  for (int x = 0; x < pix.width(); ++x) {
+    CHECK(pix.pixel(x, 0)[0] == top[x] && pix.pixel(x, 1)[0] == bottom[x]);
+    CHECK(pix.pixel(x, 1)[3] == (x < 10 ? 255 : 0));
+    CHECK(linked.pixels().pixel(x, 1)[0] == bottom[x]);
+  }
+}
+
+void aseprite_native_blends_keep_editable_cels_and_psd_save_choices() {
+  using namespace patchy;
+  Document authored(1, 1, PixelFormat::rgba8());
+  authored.add_pixel_layer("Base", solid_rgba(1, 1, 52, 30, 84, 106));
+  authored.add_pixel_layer("Paint", solid_rgba(1, 1, 12, 19, 195, 46)).set_blend_mode(BlendMode::Multiply);
+  const auto rgba = [](const Document& document) {
+    const auto pixels = flatten_document_rgba8(document);
+    std::array<std::uint8_t, 4> value{};
+    std::copy_n(pixels.pixel(0, 0), 4, value.begin());
+    return value;
+  };
+  const auto before = rgba(authored);
+  const auto standard = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(authored));
+  CHECK(rgba(standard) == before);
+  CHECK(standard.layers().back().blend_mode() == BlendMode::Multiply);
+  auto native = aseprite::DocumentIo::read(aseprite::DocumentIo::write(authored));
+  // Independent reference values from two original RGBA cels across the
+  // corresponding published Multiply and Normal frame PNGs.
+  const std::array<std::uint8_t, 4> multiply{37, 25, 102, 133};
+  const std::array<std::uint8_t, 4> normal{39, 27, 122, 133};
+  CHECK(rgba(native) == multiply);
+  CHECK(before != multiply);
+  native.layers().back().set_blend_mode(BlendMode::Normal);
+  CHECK(rgba(native) == normal);
+  native.layers().back().set_blend_mode(BlendMode::Multiply);
+  CHECK(rgba(aseprite::DocumentIo::read(aseprite::DocumentIo::write(native))) == multiply);
+  const auto candidates = find_unsupported_blend_modes(native, LayeredSaveFormat::Photoshop);
+  CHECK(candidates.layer_names.size() == 1 && candidates.layer_names[0] == "Paint");
+  const auto editable = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(native));
+  CHECK(editable.layers().size() == 2 && editable.layers().back().blend_mode() == BlendMode::Multiply);
+  CHECK(std::ranges::equal(editable.layers().back().pixels().data(), std::as_const(native).layers().back().pixels().data()));
+  auto preserved = native;
+  CHECK(bake_unsupported_blend_modes(preserved, LayeredSaveFormat::Photoshop).baked == 1);
+  const auto kept = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(preserved));
+  const auto result = rgba(kept);
+  for (std::size_t i = 0; i < 4; ++i) CHECK(std::abs(int(result[i]) - int(multiply[i])) <= 1);
+  CHECK(rgba(native) == multiply);
+  native.layers().back().set_blend_mode(BlendMode::Normal);
+  native.layers().back().set_pixels(solid_rgba(1, 1, 25, 50, 75, 255));
+  CHECK(find_unsupported_blend_modes(native, LayeredSaveFormat::Photoshop).empty());
+}
+
+void aseprite_tilemaps_handle_legacy_empty_and_external_tilesets() {
+  const auto fixture = [](std::uint32_t flags) {
+    AseBytes out;
+    const auto start = begin_ase_file(out, 1, 16);
+    append_ase_layer_chunk(out, 0, 1, "Group");
+    append_ase_layer_chunk(out, 1, 2, "Map", 11);
+    append_ase_test_tileset(out, flags);
+    const std::array<std::uint8_t, 2> map{0, 255};
+    append_ase_test_tilemap(out, map);
+    return finish_ase_file(out, start, 4);
+  };
+  bool partial = false;
+  const auto doc = patchy::aseprite::DocumentIo::read(fixture(2), nullptr, &partial);
+  CHECK(partial);  // ordinary Save must protect a single-frame tilemap too
+  const auto& pixels = doc.layers().at(0).children().at(0).pixels();
+  CHECK(pixels.pixel(0, 0)[0] == 1 && pixels.pixel(0, 0)[3] == 255);
+  CHECK(pixels.pixel(2, 0)[3] == 0);
+  std::vector<std::string> notes;
+  const auto external = patchy::aseprite::DocumentIo::read(fixture(1), &notes, &partial);
+  CHECK(partial && external.layers().at(0).children().empty());
+  CHECK(notes.size() == 1 && notes[0].find("unavailable tilesets") != std::string::npos);
+}
+
+void aseprite_tilemaps_apply_current_frame_palette_to_links() {
+  AseBytes out;
+  const auto first = begin_ase_file(out, 2, 8);
+  append_ase_layer_chunk(out, 0, 1, "Group");
+  append_ase_layer_chunk(out, 1, 2, "Map", 11);
+  append_ase_palette(out, {255, 0, 0});
+  append_ase_test_tileset(out, 6, true);
+  append_ase_test_tilemap(out, std::array<std::uint8_t, 1>{1});
+  finish_ase_frame(out, first, 5);
+  const auto second = begin_ase_frame(out, 42);
+  append_ase_palette(out, {0, 0, 255});
+  append_ase_indexed_cel(out, 2, 255, std::uint16_t{0});
+  const auto doc = patchy::aseprite::DocumentIo::read(finish_ase_file(out, second, 2));
+  CHECK(!doc.indexed_palette());
+  const auto& linked = doc.layers().at(0).children().at(0).children().at(0).pixels();
+  const auto& original = doc.layers().at(1).children().at(0).children().at(0).pixels();
+  CHECK(original.pixel(0, 0)[0] == 255 && original.pixel(0, 0)[2] == 0);
+  CHECK(linked.pixel(0, 0)[0] == 0 && linked.pixel(0, 0)[2] == 255);
+  CHECK(original.pixel(1, 0)[3] == 0 && linked.pixel(1, 0)[3] == 0);
+}
 
 void aseprite_animation_plays_linked_cels_with_frame_palette_and_timing() {
   AseBytes out;
@@ -1471,13 +1651,18 @@ void aseprite_rejects_cel_chunk_shorter_than_its_header() {
 
 void aseprite_write_read_round_trips_layers_and_palette() {
   patchy::Document document(20, 20, patchy::PixelFormat::rgba8());
+  const auto profile = patchy::create_rgb_matrix_profile({"Test RGB profile"});
+  CHECK(!profile.empty());
+  document.color_state().embedded_icc_profile = profile;
   document.add_pixel_layer("Backdrop", solid_rgba_square(20, 30, 60, 90, 255));
+  patchy::set_layer_locks_position(document.layers().front(), true);
   // add_pixel_layer requires full-canvas dimensions; shrink via a hand-built layer.
   {
     patchy::Layer sprite_layer(document.allocate_layer_id(), "Sprite", solid_rgba_square(6, 220, 50, 40, 255));
     sprite_layer.set_bounds(patchy::Rect{7, 3, 6, 6});
     sprite_layer.set_blend_mode(patchy::BlendMode::Multiply);
     sprite_layer.set_opacity(0.5F);
+    patchy::set_layer_locks_all(sprite_layer, true);
     document.add_layer(std::move(sprite_layer));
   }
   {
@@ -1496,6 +1681,10 @@ void aseprite_write_read_round_trips_layers_and_palette() {
   CHECK(read_back.height() == 20);
   CHECK(read_back.layers().size() == 3);
   CHECK(read_back.layers()[0].name() == "Backdrop");
+  CHECK(read_back.color_state().embedded_icc_profile == profile);
+  CHECK(patchy::layer_locks_position(read_back.layers()[0]));
+  CHECK(!patchy::layer_locks_all(read_back.layers()[0]));
+  CHECK(patchy::layer_locks_all(read_back.layers()[1]));
   CHECK(read_back.layers()[1].name() == "Sprite");
   CHECK(read_back.layers()[1].blend_mode() == patchy::BlendMode::Multiply);
   CHECK(read_back.layers()[1].bounds().x == 7);
@@ -2684,6 +2873,10 @@ std::vector<patchy::test::TestCase> flat_formats_misc_tests() {
       {"aseprite_out_of_range_child_level_lands_at_root", aseprite_out_of_range_child_level_lands_at_root},
       {"aseprite_rejects_cel_chunk_shorter_than_its_header", aseprite_rejects_cel_chunk_shorter_than_its_header},
       {"aseprite_blend_modes_match_aseprite_render", aseprite_blend_modes_match_aseprite_render},
+      {"aseprite_tilemaps_render_flips_bounds_and_linked_cels", aseprite_tilemaps_render_flips_bounds_and_linked_cels},
+      {"aseprite_native_blends_keep_editable_cels_and_psd_save_choices", aseprite_native_blends_keep_editable_cels_and_psd_save_choices},
+      {"aseprite_tilemaps_handle_legacy_empty_and_external_tilesets", aseprite_tilemaps_handle_legacy_empty_and_external_tilesets},
+      {"aseprite_tilemaps_apply_current_frame_palette_to_links", aseprite_tilemaps_apply_current_frame_palette_to_links},
       {"psd_round_trips_new_blend_modes", psd_round_trips_new_blend_modes},
       {"pcx_reads_8bit_indexed_and_24bit_rle", pcx_reads_8bit_indexed_and_24bit_rle},
       {"pcx_write_read_round_trips", pcx_write_read_round_trips},

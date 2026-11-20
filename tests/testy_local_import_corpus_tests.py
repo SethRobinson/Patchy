@@ -30,7 +30,7 @@ class TestLocalCorpus(unittest.TestCase):
                                      f'<layers>{layers}</layers></IMAGE></DOC>')
 
             write_kra("plain.kra", '<layer nodetype="grouplayer" name="Set"><layers>'
-                      '<layer nodetype="paintlayer" name="Top" visible="0"/>'
+                      '<layer nodetype="paintlayer" name="Top" visible="0" opacity="128" locked="1"/>'
                       '<layer nodetype="paintlayer" name="Bottom"/></layers></layer>'
                       '<layer nodetype="paintlayer" name="Ground"/>')
             write_kra("linked.kra", '<layer nodetype="filelayer" name="Sky" source="images/sky.png"/>'
@@ -52,6 +52,8 @@ class TestLocalCorpus(unittest.TestCase):
             self.assertEqual((group["kind"], group["name"]), ("group", "Set"))
             self.assertEqual([(n["name"], n["visible"]) for n in group["children"]],
                              [("Bottom", True), ("Top", False)])
+            self.assertEqual(group["children"][1]["opacity"], 128 / 255 * 100)
+            self.assertTrue(group["children"][1]["locked"])
             linked = expect["kra-corpus/linked.kra"]
             self.assertEqual(linked["assets"], ["../kra-corpus/images/sky.png"])
             self.assertNotIn("reference", linked)
@@ -117,6 +119,24 @@ class TestLocalCorpus(unittest.TestCase):
                 {"name": "Upper", "visible": False, "hasMask": True}])
             self.assertEqual(items["xcf-corpus/layers.xcf.gz"]["reference"],
                              "../xcf-corpus/gimp-renders/layers.xcf.gz.png")
+
+    def test_only_direct_independent_reopens_are_paired(self):
+        scratch = ROOT / "build/test-output"
+        scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="testy-ora-reopens-", dir=scratch) as tmp:
+            base = Path(tmp)
+            ora = base / "ora"
+            ora.mkdir()
+            for name in ("gimp-modes", "gimp-structure", "krita-modes", "krita-modes-from-psd", "gimp-other"):
+                with ZipFile(ora / (name + ".ora"), "w") as archive:
+                    archive.writestr("stack.xml", '<image w="4" h="3"><stack/></image>')
+            for name in ("krita-modes.png", "krita-modes-from-psd.png", "krita-other.png"):
+                (ora / name).touch()
+            data, _ = build_manifest(base, base / "corpus/local.json")
+            paired = [case for case in data["cases"] if "reopenReference" in case]
+            self.assertEqual([case["id"] for case in paired], ["ora/gimp-modes.ora"])
+            self.assertEqual(paired[0]["reference"], "@mergedimage")
+            self.assertEqual(paired[0]["reopenReference"]["png"], "../ora/krita-modes.png")
 
 
 if __name__ == "__main__":

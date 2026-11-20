@@ -48,9 +48,19 @@ Split from [xcf.md](xcf.md): GIMP 3 layer filters (GEGL and `gimp:` operations) 
   `gimp:levels` (value then color channels, in linear light or display values by its trc,
   values below the input black kept linear rather than raised to the gamma; worst 2);
   `gegl:exposure` (worst 2) and `gegl:mono-mixer` in linear light.
-- Every applied effect mixes with the original in linear light by the effect's opacity and,
-  when its region is the selection, by its mask (when that mask has the layer's size; an empty one, no selection at the time, means the whole layer). One
-  notice covers them. Text layers lose their text when an effect changes their pixels.
+- Curves reads the sampled tables GIMP saved with the effect. Each RGB channel passes
+  through its channel curve and then the value curve, in the configured linear or perceptual
+  space. Alpha has its own curve. An omitted channel keeps its incoming values.
+- Pixel graphs containing linear or perceptual Invert and source-over are evaluated
+  on the incoming layer pixels. A named intermediate can be referenced by another
+  branch. A graph containing an unknown operation is omitted with its import notice.
+- Normal filters composite their result over the original pixels. Replace filters
+  interpolate the two premultiplied images. Both use linear light, filter opacity and
+  the saved selection. An image-sized selection uses canvas coordinates. A selection matching only
+  the drawable uses the layer origin. A larger saved selection that covers the canvas
+  keeps its original pixel coordinates, as in the 4032 x 2268 blur selection in GIMP's
+  1920 x 1080 splash artwork. An empty channel applies the effect to the whole layer.
+  One import notice covers these effects. Text layers lose their text when an effect changes their pixels.
 - GEGL operations the reader has no code of its own for run through Patchy's own GEGL (#616;
   [gegl-filters.md](gegl-filters.md)) when the operation is in `kRunnerEffects`. The reader is
   Qt-free, so it calls an effect runner (`xcf::set_effect_runner`) that `MainWindow` installs
@@ -66,14 +76,21 @@ Split from [xcf.md](xcf.md): GIMP 3 layer filters (GEGL and `gimp:` operations) 
   Ripple get none: GIMP 3.2 draws what they move across the edge a few pixels away from
   GEGL's own result, and a margin moves their seeded noise (GEGL's random numbers follow the
   pixel position). An entry needs an operation Patchy offers as a GEGL filter (its legal
-  review) and a tile in `test-fixtures/xcf/gegl-effects.xcf`
+  review) and a GIMP-rendered reference. Most use `test-fixtures/xcf/gegl-effects.xcf`
   (`scripts/dev/xcf/make_gegl_effect_fixture.py`: one 48-pixel tile layer per effect over
   gray, GIMP 3.2's render beside it). Against that render (November 3, 2026): Cubism 0.84
   levels mean, Lens Distortion and Waves under 0.4 (edges), Color to Alpha 7.4 (the
   composite-space difference of its partly transparent pixels), the five edge cases above
   identical inside the tile, every other tile identical or within a level.
+- GIMP Help's `using__layer-effects.xcf` and its GIMP-rendered PNG in the local Testy
+  corpus cover Apply Canvas, Shift and Bloom together. The saved effects run from the
+  bottom upward in that order. The horizontal Shift uses the stored seed and the
+  drawable's original coordinate origin. All three use Adjust in this file. Rendering
+  at the original extent differs by at most 4/255 at the canvas edge and 2/255 in the
+  interior. Omitting either Apply Canvas or Shift changes over half the pixels under
+  Testy's perceptual comparison.
 - Everything else is left out with a notice naming the effects (GIMP's name for each):
-  GIMP's own `gimp:` operations without a fitted formula (curves, color balance, per-range
+  GIMP's own `gimp:` operations without a fitted formula or stored transfer table (color balance, per-range
   hue-saturation), operations Patchy's GEGL lacks (median blur) or that are not in the table,
   and every runner effect in a build without GEGL or when a run fails. Hidden effects are
   ignored.

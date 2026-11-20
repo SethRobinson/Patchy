@@ -1018,12 +1018,18 @@ void ui_partial_tiff_and_aseprite_imports_protect_source() {
   const auto sprite = temp.filePath(QStringLiteral("animation.aseprite"));
   CHECK(QFile::copy(patchy::ui::to_qstring(patchy::test::committed_format_fixture_path(
       "aseprite", "aseprite-indexed-frames.aseprite")), sprite));
-  for (const auto& mode : {QStringLiteral("first"), QStringLiteral("documents"), QStringLiteral("aseprite")}) {
+  // First-party 16x2 sprite: one four-color tile in all eight flipped orientations.
+  const auto tilemap = temp.filePath(QStringLiteral("tiles.aseprite"));
+  CHECK(QFile::copy(patchy::ui::to_qstring(patchy::test::committed_format_fixture_path(
+      "aseprite", "tile-transforms.aseprite")), tilemap));
+  for (const auto& mode : {QStringLiteral("first"), QStringLiteral("documents"), QStringLiteral("aseprite"),
+                           QStringLiteral("tilemap")}) {
     patchy::ui::MainWindow window;
     show_window(window);
-    if (mode != QStringLiteral("aseprite")) settings.setValue(QStringLiteral("imports/tiffPagesOpen"), mode);
+    const bool is_tiff = mode == QStringLiteral("first") || mode == QStringLiteral("documents");
+    if (is_tiff) settings.setValue(QStringLiteral("imports/tiffPagesOpen"), mode);
     const auto initial_count = Access::session_count(window);
-    const auto path = mode == QStringLiteral("aseprite") ? sprite : tiff;
+    const auto path = is_tiff ? tiff : (mode == QStringLiteral("aseprite") ? sprite : tilemap);
     Access::open_document_path(window, path);
     CHECK(Access::session_count(window) == initial_count + (mode == QStringLiteral("documents") ? 3U : 1U));
     CHECK(Access::active_session_path(window) == path);

@@ -13,6 +13,7 @@ from rerun import write_text
 
 _CHECKS = (("appearance", "Appearance"), ("document", "Document properties"), ("structure", "Editable structure"),
            ("timing", "Animation timing"))
+_OPTIONAL_CHECKS = (("reopenAppearance", "Appearance after reopen"), ("linearSamples", "Linear HDR samples"))
 _STATUS = {"pass": "Pass", "fail": "Fail", "unscored": "Unscored"}
 _FORMATS = {"xcf": "GIMP XCF", "kra": "Krita KRA", "ora": "OpenRaster",
             "aseprite": "Aseprite"}
@@ -68,7 +69,7 @@ def _render_href(outdir: Path, folder, name) -> str | None:
     return quote(name)
 
 
-def _format_summary(cases: list[dict]) -> str:
+def _format_summary(cases: list[dict], checks) -> str:
     attempted = sum(case["opened"] is not None for case in cases)
     opened = sum(case["opened"] is True for case in cases)
     exported = sum(bool(case["exported"]) for case in cases)
@@ -76,10 +77,14 @@ def _format_summary(cases: list[dict]) -> str:
     skipped = f"<small>{missing} not measured</small>" if missing else ""
     cells = [f"<td>{opened} / {attempted}{skipped}</td>", f"<td>{exported} / {opened}</td>"]
     cells.append(f'<td>{sum(bool(case.get("notes")) for case in cases)}</td>')
-    for key, _ in _CHECKS:
-        statuses = [_status(case.get(key, {})) for case in cases]
+    for check in checks:
+        key = check[0]
+        statuses = [_status(case.get(key, {})) for case in cases if check in _CHECKS or key in case]
+        if not statuses:
+            cells.append("<td>No reference</td>")
+            continue
         passed, failed = statuses.count("pass"), statuses.count("fail")
-        unscored = len(cases) - passed - failed
+        unscored = statuses.count("unscored")
         cells.append(f"<td>{passed} / {passed + failed}<small>{failed} failed"
                      f" &middot; {unscored} unscored</small></td>")
     return "".join(cells)
@@ -107,7 +112,8 @@ def _case_html(outdir: Path, case: dict) -> str:
         state, outcome = "", "Opened and exported"
     parts = [f'<details class="case"><summary><strong>{_text(case["id"])}</strong>',
              f'<span class="state {state}">{outcome}</span>']
-    for key, label in _CHECKS:
+    checks = _CHECKS + tuple(check for check in _OPTIONAL_CHECKS if check[0] in case)
+    for key, label in checks:
         status = _status(case.get(key, {}))
         parts.append(f'<span class="state {status}">{label} · {_STATUS[status]}</span>')
     notes = case.get("notes") or []
@@ -130,7 +136,7 @@ def _case_html(outdir: Path, case: dict) -> str:
             href = _render_href(outdir, folder, f"{folder}/{name}")
             if href:
                 parts.append(f'<p><a href="{href}">{label} from first appearance failure</a></p>')
-    for key, label in _CHECKS:
+    for key, label in checks:
         parts.append(_check_details(label, case.get(key, {})))
     if case.get("observed"):
         facts = json.dumps(case["observed"], ensure_ascii=False, indent=2)
@@ -184,12 +190,13 @@ def write_report(outdir: Path, run: dict) -> None:
     page.append("<p>Checks show passes out of files with a scored result. Expand a file to see its evidence.</p>")
     page.append('<div class="table-scroll"><table><thead><tr><th>Format</th>'
                 '<th>Opened / attempted</th><th>PNG exports / opened</th><th>Files with import notes</th>')
-    page.extend(f"<th>{label}</th>" for _, label in _CHECKS)
+    checks = _CHECKS + tuple(check for check in _OPTIONAL_CHECKS if any(check[0] in row for row in run["cases"]))
+    page.extend(f"<th>{label}</th>" for _, label in checks)
     page.append("</tr></thead><tbody>")
     for index, (fmt, cases) in enumerate(groups):
         label = _text(_FORMATS.get(fmt, fmt))
         page.append(f'<tr><th scope="row"><a href="#format-{index}">{label}</a></th>'
-                    f'{_format_summary(cases)}</tr>')
+                    f'{_format_summary(cases, checks)}</tr>')
     page.append("</tbody></table></div>")
     if not groups:
         page.append("<p>No files in this run.</p>")

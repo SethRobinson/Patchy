@@ -16421,6 +16421,34 @@ Do you want to replace it?</source>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Aseprite tilemaps were rendered as pixel layers.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Aseprite tilemaps with unavailable tilesets were skipped.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This format uses different blend rules for Aseprite layers.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timeline audio file %1 is on network server %2, which Patchy has not been allowed to access</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some linked files are unavailable. You can continue opening the document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Used by timeline audio. To relink this file, use a timeline editor.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File not found on %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -37039,6 +37067,12 @@ Locked: %1</source>
     </message>
     <message>
         <source>Load Selection from Alpha Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep the look by baking the affected layers, or keep their editable pixels and use the blend modes this format supports.
+
+%1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

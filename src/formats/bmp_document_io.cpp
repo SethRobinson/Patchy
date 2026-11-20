@@ -8,6 +8,7 @@
 #include "formats/palette_io.hpp"
 #include "render/composite_targets.hpp"
 #include "render/native_cmyk.hpp"
+#include "render/native_adjustment_stack.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -373,7 +374,10 @@ struct BmpHeader {
 }
 
 [[nodiscard]] PixelBuffer render_rgb8_on_white(const Document& document) {
-  if (const auto native = render_native_cmyk8(document, Rect::from_size(document.width(), document.height()))) {
+  const auto native_clip = Rect::from_size(document.width(), document.height());
+  auto native = render_native_cmyk8(document, native_clip);
+  if (!native) native = render_native_lab_adjustments(document, native_clip, BitDepth::UInt8);
+  if (native) {
     PixelBuffer output(native->width(), native->height(), PixelFormat::rgb8());
     for (int y = 0; y < native->height(); ++y) for (int x = 0; x < native->width(); ++x) {
       const auto* src = native->pixel(x, y);
@@ -423,6 +427,8 @@ struct BmpHeader {
   if (auto native = render_native_cmyk8(document, Rect::from_size(document.width(), document.height()))) {
     return std::move(*native);
   }
+  if (auto native = render_native_lab_adjustments(document, Rect::from_size(document.width(), document.height()), BitDepth::UInt8))
+    return std::move(*native);
   // A single masked layer is written non-destructively: the original colors stay intact
   // and the mask becomes the alpha channel, so reopening preserves both. Compositing here
   // would instead erase the colors wherever the mask is transparent.

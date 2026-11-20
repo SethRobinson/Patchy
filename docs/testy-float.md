@@ -1,0 +1,11 @@
+# 32-bit float comparisons in Testy
+
+Select **compare 32-bit float pixels** on the PSD dashboard or pass `--float32` to a run with the Patchy column. It compares the original document as opened in each application, including values below zero and above one. The usual visual, editable-data and Photoshop reopen checks keep their own scores.
+
+The reference Photoshop flattens a duplicate over white before any scripted text or Smart Object refresh and saves an uncompressed 32-bit RGB TIFF. A second independent open must produce identical linear RGB samples. Patchy exports the staged original as a float TIFF. Testy accounts for straight or premultiplied transparency by compositing over the same white. The resulting measurement covers visible color across the full canvas. Layer properties and resaves have separate checks in the PSD report.
+
+Testy reports the number and fraction of pixels with any absolute channel error greater than 0.001, plus mean and maximum absolute error across finite RGB samples. One unit spans reference black to white. A nonfinite Patchy value counts as a differing pixel and is reported separately. The file details include both observed RGB ranges and download links to the TIFFs while the local artifacts are retained. The static public export carries the numeric measurements and omits the TIFFs, which can contain source metadata.
+
+Only local 32-bit RGB and grayscale sources up to 64 megapixels qualify. Photoshop must open the source without a warning, render it consistently and embed an identifiable linear sRGB profile in the TIFF. A grayscale reference is converted to RGB in the duplicate. An unavailable TIFF, another color space, a nonfinite reference or a remote reference driver leaves the measurement unscored. The dashboard shows the reason and the number of measured files. Lower bit depths retain their existing checks.
+
+The option is saved with the run and carried through retests, image reruns and resume. Opted-in reference TIFFs use a separate cache. Patchy cells also depend on the confirmed reference sample digest. An opted-in scan retains a file when the fraction of differing float pixels exceeds the scan's percentage threshold. A passing file's TIFFs are removed with its other artifacts.

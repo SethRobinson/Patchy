@@ -11,6 +11,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/pattern_resource.hpp"
+#include "core/psd_source_colors.hpp"
 #include "core/smart_object.hpp"
 #include "core/style_contour.hpp"
 #include "core/text_warp.hpp"
@@ -76,6 +77,59 @@ std::uint32_t psd_protection_for_layer(const Layer& layer) {
 
 
 namespace {
+
+// Keep the original native record on untouched Lab saves. When a supported Lab
+// adjustment was edited, replace its modeled fields without canonicalizing its peers.
+std::optional<std::vector<std::uint8_t>> edited_lab_adjustment(const Layer& layer, const UnknownPsdBlock& block) {
+  if (block.key != "post" && block.key != "thrs" && block.key != "levl" && block.key != "curv" &&
+      block.key != "brit" && block.key != "CgEd") return std::nullopt;
+  const auto& native = layer.psd_native_colors();
+  if (!native || !native->space || native->space->mode != kColorModeLab || !native->imported ||
+      native->imported->metadata() == layer.metadata()) return std::nullopt;
+  const auto settings = adjustment_settings_from_layer(layer);
+  if (!settings) return std::nullopt;
+  if (settings->kind == AdjustmentKind::Curves && block.key == "curv")
+    return photoshop_curves_payload(settings->curves, &block);
+  if (settings->kind == AdjustmentKind::Levels && block.key == "levl" && block.payload.size() >= 42U) {
+    auto payload = block.payload;
+    const auto records = photoshop_levels_payload(settings->levels);
+    std::copy_n(records.begin() + 2, 40, payload.begin() + 2);  // master plus L*, a*, b*
+    return payload;
+  }
+  if (((settings->kind == AdjustmentKind::Posterize && block.key == "post") ||
+       (settings->kind == AdjustmentKind::Threshold && block.key == "thrs")) && block.payload.size() >= 2U) {
+    auto payload = block.payload;
+    payload[0] = 0;
+    payload[1] = static_cast<std::uint8_t>(block.key == "post" ? settings->posterize.levels :
+                                                                  settings->threshold.level);
+    return payload;
+  }
+  if (settings->kind == AdjustmentKind::BrightnessContrast) {
+    const auto& bc = settings->brightness_contrast;
+    if (block.key == "brit" && bc.use_legacy && block.payload.size() >= 4U) {
+      auto payload = block.payload;
+      const auto brightness = static_cast<std::uint16_t>(bc.brightness);
+      const auto contrast = static_cast<std::uint16_t>(bc.contrast);
+      payload[0] = static_cast<std::uint8_t>(brightness >> 8U);
+      payload[1] = static_cast<std::uint8_t>(brightness);
+      payload[2] = static_cast<std::uint8_t>(contrast >> 8U);
+      payload[3] = static_cast<std::uint8_t>(contrast);
+      return payload;  // Keep the Lab flag, means and trailing bytes.
+    }
+    if (block.key == "CgEd" && parse_photoshop_brightness_contrast_descriptor(block.payload)) {
+      BigEndianReader reader(block.payload);
+      BigEndianWriter writer;
+      writer.write_u32(reader.read_u32());
+      auto descriptor = read_descriptor(reader);
+      descriptor.values.at("Brgh").integer_value = bc.brightness;
+      descriptor.values.at("Cntr").integer_value = bc.contrast;
+      write_descriptor(writer, descriptor);
+      writer.write_bytes(reader.read_bytes(reader.remaining()));
+      return writer.bytes();
+    }
+  }
+  return std::nullopt;
+}
 
 // Layer and mask rectangles come straight from the file as four signed edges. Subtracting
 // them in 32 bits can overflow (undefined, and in practice a wrapped size that then sizes a
@@ -293,8 +347,7 @@ void append_deep_mask_channel(const Layer& layer, EncodedLayer& encoded, BitDept
 // samples at `depth`. Rasters an 8-bit generator produced (text, smart object previews)
 // convert on the way out.
 EncodedLayer encode_deep_layer(const Layer& layer, bool large_document, bool bottom_record, Rect canvas,
-                               BitDepth depth) {
-  const auto& source = layer.pixels();
+                               BitDepth depth, const PixelBuffer& source, Rect bounds) {
   if (source.format().channels < 3 || source.format().channels > 4) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Layered PSD export currently supports RGB/RGBA 8-bit layers only"));
   }
@@ -302,7 +355,7 @@ EncodedLayer encode_deep_layer(const Layer& layer, bool large_document, bool bot
   EncodedLayer encoded;
   encoded.layer = &layer;
   encoded.kind = EncodedLayerKind::Pixel;
-  encoded.bounds = layer.bounds().empty() ? Rect::from_size(pixels.width(), pixels.height()) : layer.bounds();
+  encoded.bounds = bounds.empty() ? Rect::from_size(pixels.width(), pixels.height()) : bounds;
   encoded.blending_ranges = &layer.raw_psd_blending_ranges();
   std::vector<std::uint16_t> channel_ids{kChannelRed, kChannelGreen, kChannelBlue};
   const bool photoshop_background = bottom_record && encoded.bounds.x == canvas.x && encoded.bounds.y == canvas.y &&
@@ -369,10 +422,17 @@ EncodedLayer encode_layer(const Layer& layer, bool large_document, bool bottom_r
     }
     return encoded;
   }
+  // The merged image uses the displayed raster, but the PSD layer channel data
+  // precedes the shared filter mask. An intervening pixel edit invalidates the pair.
+  const auto* stack = layer.smart_filter_stack();
+  const auto* preview = stack ? stack->layer_preview.get() : nullptr;
+  if (preview && !preview->matches(layer)) preview = nullptr;
+  const auto& source = preview ? preview->unmasked : layer.pixels();
+  const auto bounds = preview ? preview->unmasked_bounds : layer.bounds();
   if (depth != BitDepth::UInt8) {
-    return encode_deep_layer(layer, large_document, bottom_record, canvas, depth);
+    return encode_deep_layer(layer, large_document, bottom_record, canvas, depth, source, bounds);
   }
-  const auto& pixels = layer.pixels();
+  const auto pixels = convert_pixel_buffer_depth(source, depth, SampleKind::Color);
   if (pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3 || pixels.format().channels > 4) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Layered PSD export currently supports RGB/RGBA 8-bit layers only"));
   }
@@ -380,7 +440,8 @@ EncodedLayer encode_layer(const Layer& layer, bool large_document, bool bottom_r
   EncodedLayer encoded;
   encoded.layer = &layer;
   encoded.kind = EncodedLayerKind::Pixel;
-  encoded.bounds = layer.bounds().empty() ? Rect::from_size(pixels.width(), pixels.height()) : layer.bounds();
+  encoded.bounds = bounds;
+  if (encoded.bounds.empty()) encoded.bounds = Rect::from_size(pixels.width(), pixels.height());
   encoded.blending_ranges = &layer.raw_psd_blending_ranges();
   std::vector<std::uint16_t> channel_ids{kChannelRed, kChannelGreen, kChannelBlue};
   // Photoshop reads a pixel record with no transparency channel as its Background layer: opaque
@@ -1244,7 +1305,8 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
     if (settings.has_value() && settings->kind == AdjustmentKind::GradientMap) {
       write_additional_layer_block(
           extra, kPhotoshopGradientMapBlockKey,
-          photoshop_gradient_map_payload(settings->gradient_map, find_layer_block(*encoded.layer, "grdm")),
+          photoshop_gradient_map_payload(settings->gradient_map, find_layer_block(*encoded.layer, "grdm"),
+                                         encoded.layer->psd_native_colors() != nullptr),
           large_document);
     }
     // Every adjustment kind is native-block only (2026-07). The private plAD
@@ -1435,6 +1497,12 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
         continue;
       }
       if (auto key = block_key_from_string(block.key); key.has_value()) {
+        if (encoded.preserve_native_color_blocks && encoded.kind == EncodedLayerKind::Adjustment) {
+          if (auto edited = edited_lab_adjustment(*encoded.layer, block)) {
+            write_additional_layer_block(extra, *key, *edited, large_document, block.long_length);
+            continue;
+          }
+        }
         const auto original_light = encoded.layer->layer_style().source_global_light;
         if (original_light && *original_light != light &&
             (block.key == "lfx2" || block.key == "lmfx" || block.key == "lfxs")) {

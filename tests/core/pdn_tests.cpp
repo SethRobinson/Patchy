@@ -992,13 +992,18 @@ void layered_blend_support_lists_what_each_format_stores() {
   const auto psd = patchy::find_unsupported_blend_modes(document, LayeredSaveFormat::Photoshop);
   CHECK((psd.modes == std::vector<BlendMode>{BlendMode::Xor, BlendMode::Glow}));
   CHECK((psd.layer_names == std::vector<std::string>{"Xor one", "Hidden glow"}));
-  // A Pass Through folder of Normal layers isolates to the same pixels: Aseprite keeps it.
+  // Aseprite can store all the folders in this document with its file-wide pass-through setting.
   const auto ase = patchy::find_unsupported_blend_modes(document, LayeredSaveFormat::Aseprite);
   CHECK((ase.modes == std::vector<BlendMode>{BlendMode::Xor, BlendMode::Glow, BlendMode::LinearBurn}));
   CHECK(ase.layer_names.size() == 3);
   document.layers().back().children().front().set_blend_mode(BlendMode::Multiply);
   const auto ase_multiply = patchy::find_unsupported_blend_modes(document, LayeredSaveFormat::Aseprite);
-  CHECK(ase_multiply.layer_names.size() == 4 && ase_multiply.layer_names.back() == "Folder");
+  CHECK(ase_multiply.layer_names == ase.layer_names);
+  Layer isolated(document.allocate_layer_id(), "Isolated", patchy::LayerKind::Group);
+  isolated.set_blend_mode(BlendMode::Normal);
+  document.add_layer(std::move(isolated));
+  const auto mixed = patchy::find_unsupported_blend_modes(document, LayeredSaveFormat::Aseprite);
+  CHECK(mixed.layer_names.size() == 4 && mixed.layer_names.back() == "Folder");
   CHECK(patchy::find_unsupported_blend_modes(Document(2, 2, patchy::PixelFormat::rgba8()), LayeredSaveFormat::Photoshop)
             .empty());
 }
@@ -1239,7 +1244,7 @@ void layered_blend_bake_round_trips_through_aseprite() {
   CHECK(patchy::find_unsupported_blend_modes(baked, patchy::LayeredSaveFormat::Aseprite).empty());
   CHECK(baked.layers().back().blend_mode() == BlendMode::Screen);
   const auto reread = patchy::aseprite::DocumentIo::read(patchy::aseprite::DocumentIo::write(baked));
-  const int difference = composite_difference(document, reread);
+  const int difference = composite_difference(document, reread, true);
   if (difference > 1) {
     std::cout << "  baked Aseprite composite is " << difference << " levels off\n";
   }

@@ -86,6 +86,15 @@ class NativeCorpusTests(unittest.TestCase):
         self.assertNotIn("frames", case)
         self.assertIn("tag directions", case["referenceNote"])
 
+    def test_ase_full_and_movement_only_locks(self):
+        sprite = bytearray(128)
+        struct.pack_into("<3H", sprite, 6, 1, 1, 1)
+        chunks = [struct.pack("<IH3H10xH", 24, 0x2004, flags, 0, 0, 0) for flags in (3, 1, 7)]
+        sprite.extend(struct.pack("<I3H6x", 16 + sum(map(len, chunks)), 0xf1fa, len(chunks), 100))
+        sprite.extend(b"".join(chunks))
+        _, _, _, layers = corpus.ase_metadata(sprite)
+        self.assertEqual([layer["locked"] for layer in layers], [False, True, True])
+
 
 if __name__ == "__main__":
     unittest.main()

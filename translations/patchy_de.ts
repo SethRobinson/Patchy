@@ -16439,6 +16439,34 @@ Möchten Sie die Datei ersetzen?</translation>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · Auf dem neuesten Stand</translation>
     </message>
+    <message>
+        <source>Aseprite tilemaps were rendered as pixel layers.</source>
+        <translation>Aseprite-Tilemaps wurden als Pixelebenen gerendert.</translation>
+    </message>
+    <message>
+        <source>Aseprite tilemaps with unavailable tilesets were skipped.</source>
+        <translation>Aseprite-Tilemaps mit nicht verfügbaren Tilesets wurden übersprungen.</translation>
+    </message>
+    <message>
+        <source>This format uses different blend rules for Aseprite layers.</source>
+        <translation>Dieses Format verwendet andere Mischregeln für Aseprite-Ebenen.</translation>
+    </message>
+    <message>
+        <source>Timeline audio file %1 is on network server %2, which Patchy has not been allowed to access</source>
+        <translation>Die Audiodatei %1 der Zeitleiste liegt auf dem Netzwerkserver %2. Patchy hat keine Berechtigung, darauf zuzugreifen.</translation>
+    </message>
+    <message>
+        <source>Some linked files are unavailable. You can continue opening the document.</source>
+        <translation>Einige verknüpfte Dateien sind nicht verfügbar. Sie können das Dokument trotzdem öffnen.</translation>
+    </message>
+    <message>
+        <source>Used by timeline audio. To relink this file, use a timeline editor.</source>
+        <translation>Wird für den Ton der Zeitleiste verwendet. Verknüpfen Sie diese Datei mit einem Zeitleisteneditor erneut.</translation>
+    </message>
+    <message>
+        <source>File not found on %1</source>
+        <translation>Datei auf %1 nicht gefunden</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -37122,6 +37150,14 @@ Fixiert: %1</translation>
     <message>
         <source>Load Selection from Alpha Channel</source>
         <translation>Auswahl aus Alphakanal laden</translation>
+    </message>
+    <message>
+        <source>Keep the look by baking the affected layers, or keep their editable pixels and use the blend modes this format supports.
+
+%1</source>
+        <translation>Das Aussehen lässt sich erhalten, indem die betroffenen Ebenen gerastert werden. Alternativ können Sie die bearbeitbaren Pixel und die von diesem Format unterstützten Mischmodi beibehalten.
+
+%1</translation>
     </message>
 </context>
 <context>

@@ -58,12 +58,22 @@ unknown blocks, and documents without eligible layer records (flat CMYK files
 excepted, above) use the existing RGB path. The historical `write_layered_rgb8` name also handles
 these native saves, as it already handles deep RGB saves.
 
+## Native Lab adjustments
+
+An imported 8/16-bit Lab file with an unchanged, opaque, full-canvas raster and normal Invert, Posterize, Levels, Curves, Threshold or Brightness/Contrast adjustment layers can render directly from its L*, a* and b* planes. The compositor applies the adjustment in Lab before converting to sRGB. Opacity, fill and adjustment masks mix the native results by coverage. Edited base pixels, unsupported blends, effects, transparency in the base, and mixed adjustment stacks select the RGB renderer. A partial repaint visits only its rectangle.
+
+Photoshop 28 Lab TIFF exports verify all three native channels for Invert and Posterize at 2, 3, 4, 7 and 255 levels. Invert complements a stored sample. At 8 bits Posterize uses the ordinary byte buckets. At 16 bits it computes a bucket on Photoshop's 0..32768 scale and expands its output to the stored 16-bit range. The fresh exports agree exactly at 8 bits and within one stored level at 16 bits. For these stacks a Lab-mode PSD/PSB save writes the freshly calculated native merged planes. Editing the level count of an imported Lab Posterize adjustment updates the original record and preserves the remaining bytes and source planes.
+
+Lab Levels and point Curves use slots 1, 2 and 3 for L*, a* and b*. Photoshop ignores slot 0. Independent Photoshop 28 TIFF exports verify all four slot assignments at both depths, including a nonidentity master as the only edit. The component lookup tables and continuous deep transfer functions act on the original stored samples. On the measured Lightness curves, the maximum channel error was zero at 8 bits and 5/65535 at 16 bits. For Levels it was 1/255 and 11/65535. An unchanged Levels or Curves record survives byte for byte. Editing Levels replaces the four modeled records and retains the tail. Editing Curves writes native control points for the affected channels.
+
+Threshold compares L* to its saved level and supplies neutral a* and b*. Full Photoshop Lightness ramps at levels 1, 64, 128 and 254 place the first white sample at the corresponding byte. At 16 bits the first white samples are 257, 16447, 32895 and 65277. Legacy and modern Brightness/Contrast use the saved `brit` Lab byte or `CgEd` `Lab ` boolean. A true flag adjusts Lightness only. A cleared flag applies the same curve to all three components. Classic files can omit the entire descriptor. Photoshop warns if the modern descriptor omits its Lab field. Their native save keeps the flag and the original descriptor fields when editing the sliders in the imported algorithm. Switching between legacy and modern uses the RGB save path.
+
 ## Wire output and verification
 
 The normal writer rebuilds layer records, masks, names, hierarchy, resources
 and the PSD/PSB container. Native color planes replace only the encoded
 color channels. Unchanged adjustments keep their original blocks, including
-source channel records; fills keep their native descriptors. The merged
+source channel records and Gradient Map stop values. An RGB save projects native Gradient Map stops through their source profile. Fills keep their native descriptors. The merged
 preview is freshly composited by Patchy and converted back through a
 sRGB-to-source ICC transform at the document depth. It never uses the source merged image.
 Unchanged layer data does not pass through that inverse transform.

@@ -266,12 +266,14 @@ function groupRollup(files, groups, editors, badFraction, limit) {
     row.files++;
     editors.forEach(k => {
       const a = row.editors[k] = row.editors[k] ||
-        { total: 0, opened: 0, matched: 0, compared: 0, badSaves: 0, native: [] };
+        { total: 0, opened: 0, matched: 0, compared: 0, badSaves: 0, warnedSaves: 0, native: [] };
       const c = (f.cells || {})[k];
+      if (sourceExclusion((c || {}).groundTruth || f.groundTruth)) return;
       if (!c || c.state === "pending" || c.state === "running" || c.state === "skipped") return;
       a.total++;
       if (c.state === "done" && c.opens !== "fail") a.opened++;
       if (rejectedBy(c).length) a.badSaves++;
+      if (savedFileWarned(c)) a.warnedSaves++;
       const bad = badFraction(c);
       if (bad != null) { a.compared++; if (bad <= limit) a.matched++; }
       if (c.native && typeof c.native.nativeScore === "number") a.native.push(c.native.nativeScore);
@@ -345,8 +347,23 @@ function psdTextStanding(tally, editors, names, helpNotes) {
 // A harness failure (timeout, dead app, skipped cell) is not the editor's verdict on
 // the file and stays out, as does a file with no reference render at all.
 function refusedWithReference(f, c) {
-  const gt = f.groundTruth || {};
-  return !!c && c.opens === "fail" && gt.state === "done" && !!(gt.artifacts || {}).render;
+  const gt = (c || {}).groundTruth || f.groundTruth || {};
+  return !!c && c.opens === "fail" && !sourceExclusion(gt) && gt.state === "done" && !!(gt.artifacts || {}).render;
+}
+
+function sourceExclusion(gt) {
+  if (!gt) return "";
+  if ((gt.dialogs || []).length) return "Photoshop displayed a warning while opening the source";
+  if (gt.state === "failed") return gt.fileRejected ? "Photoshop refused the source" : "Photoshop reference unavailable";
+  if (String(gt.render || "").startsWith("render-error")) return "Photoshop could not render the source";
+  const outcome = (gt.renderCheck || {}).outcome;
+  return ["unstable", "unconfirmed"].includes(outcome) ? "Photoshop reference render " + outcome : "";
+}
+
+function savedFileWarned(cell) {
+  const textSave = cell.textSave || {};
+  return (cell.resaveDialogs || []).length > 0 || [cell.roundtripCheck, textSave, textSave.renderCheck,
+    ...Object.values(cell.resaveChecks || {})].some(c => c && (c.dialogs || []).length);
 }
 
 // The two text rules that zero a score outright, each with the sentence that says why:
@@ -462,6 +479,7 @@ function renderGroups(groups, editors) {
     if (failed) parts.push('<span class="bad-text">' + failed + " not opened</span>");
     if (a.native.length) parts.push("kept " + pct(a.native.reduce((p, c) => p + c, 0) / a.native.length, 0));
     if (a.badSaves) parts.push('<span class="bad-text">' + a.badSaves + " bad save" + (a.badSaves > 1 ? "s" : "") + "</span>");
+    if (a.warnedSaves) parts.push('<span class="bad-text">Photoshop warned on ' + a.warnedSaves + " saved file" + (a.warnedSaves > 1 ? "s" : "") + "</span>");
     return "<td>" + (parts.join(" · ") || "-") + "</td>";
   };
   box.innerHTML = "<h2>By folder" + (groupFilter == null ? "" :
@@ -489,6 +507,7 @@ const LOSS_LABELS = [
   ["attr", "vectorMask", "vector masks"],
   ["attr", "clipped", "clipping masks"],
   ["attr", "blend", "blend modes"],
+  ["attr", "layerVisible", "layer visibility settings"],
 ];
 
 // Everything the resave failed to keep, as [{lost, total, label}] - categories where
@@ -533,6 +552,8 @@ function cellSummary(cell, psCell) {
   if (cell.renderMetrics) bits.push("byte match " + pct(cell.renderMetrics.accuracy));
   if (cell.renderMetrics && cell.renderMetrics.perceptual)
     bits.push("perceptual " + pct(cell.renderMetrics.perceptual.accuracy));
+  if (cell.float32) bits.push(cell.float32.state === "done"
+    ? "float RGB outside tolerance " + pct(cell.float32.fractionOverTolerance) : "float RGB unscored");
   if (cell.native && cell.native.perCategory)
     bits.push("kept in .psd save " + cell.native.nativeKept + "/" + cell.native.nativeTotal +
               (cell.native.textNotSaved ? " = 0% (text lost)" : ""));
@@ -887,10 +908,12 @@ function render() {
   renderControls();
   const compareWord = S.run.compare === "perceptual" ? "perceptual" : "byte";
   const corpusBytes = totalSize(S.files);
+  const excludedSources = S.files.filter(f => sourceExclusion(f.groundTruth)).length;
   renderCorpusCredit();
   document.getElementById("run-meta").textContent =
     S.run.startedAt + "  -  " + S.files.length + " file(s)" +
     (corpusBytes ? ", " + fmtSize(corpusBytes) : "") + "  -  Patchy " + (S.run.patchyVersion || "?") +
+    (excludedSources ? "  -  " + excludedSources + " excluded Photoshop source reference(s)" : "") +
     (S.run.compare === "perceptual" ? "  -  compare: perceptual" : "") +
     (S.run.photoshop ? "  -  Photoshop " + S.run.photoshop.reference + " (reference)" +
       (S.run.photoshop.checks || []).map(label => ", " + label).join("") +
@@ -915,9 +938,10 @@ function render() {
   document.getElementById("matrix-body").innerHTML = S.files.map((f, fi) => {
     if (groupFilter != null && groups[fi] !== groupFilter) return "";
     const gt = f.groundTruth || {};
-    const gtNote = gt.state === "failed" ? '<div class="flag">ground truth failed</div>'
+    const excluded = sourceExclusion(gt);
+    const gtNote = excluded ? '<div class="nums">Unscored: ' + esc(excluded) + '</div>'
       : (gt.state === "running" ? '<div class="nums">ground truth: ' + esc(gt.stage || "...") + "</div>" : "");
-    const scanNote = !f.scan ? "" : (f.scan.flagged
+    const scanNote = !f.scan || excluded ? "" : (f.scan.flagged
       ? '<div class="flag">FLAGGED: ' + esc(f.scan.reasons[0] || "") +
         (f.scan.reasons.length > 1 ? " (+" + (f.scan.reasons.length - 1) + " more)" : "") + "</div>"
       : '<div class="nums ok-text">scan: passed' + (f.scan.artifactsKept ? "" : " (images discarded)") + '</div>');
@@ -938,17 +962,19 @@ function render() {
   }).join("");
 
   const agg = {};
-  editors.forEach(k => agg[k] = { opened: 0, total: 0, badSaves: 0, rejectedBy: {}, acc: [], vis: [], native: [], text: [0, 0], adj: [0, 0], smart: [0, 0], fx: [0, 0], textFiles: [],
+  editors.forEach(k => agg[k] = { opened: 0, total: 0, badSaves: 0, warnedSaves: 0, rejectedBy: {}, acc: [], vis: [], native: [], text: [0, 0], adj: [0, 0], smart: [0, 0], fx: [0, 0], textFiles: [],
                                    depth: [0, 0], deepRoundtrip: [], textSave: [0, 0], textSaveRejected: 0,
                                    textTally: { scores: [], files: 0, noRender: 0, noSave: 0 } });
   S.files.forEach(f => editors.forEach(k => {
     const c = (f.cells || {})[k];
+    if (sourceExclusion((c || {}).groundTruth || f.groundTruth)) return;
     if (!c || c.state === "pending" || c.state === "running" || c.state === "skipped") return;
     const a = agg[k];
     a.total++;
     if (c.state === "done" && c.opens !== "fail") a.opened++;
     const rejecting = rejectedBy(c);
     if (rejecting.length) a.badSaves++;
+    if (savedFileWarned(c)) a.warnedSaves++;
     rejecting.forEach(label => { a.rejectedBy[label] = (a.rejectedBy[label] || 0) + 1; });
     if (c.saveDepth && c.saveDepth.original > 8) { a.depth[1]++; if (c.saveDepth.kept) a.depth[0]++; }
     if (c.deepRoundtrip && c.deepRoundtrip.state === "done") a.deepRoundtrip.push(c.deepRoundtrip.accuracy);
@@ -999,7 +1025,8 @@ function render() {
   if (S.run.scan) {
     const done = S.files.filter(f => f.scan);
     const decided = done.length;
-    const flagged = S.files.filter(f => f.scan && f.scan.flagged).length;
+    const excluded = done.filter(f => sourceExclusion(f.groundTruth)).length;
+    const flagged = done.filter(f => !sourceExclusion(f.groundTruth) && f.scan.flagged).length;
     // Bytes get through at nothing like a steady files-per-hour rate, so the size
     // done/total is the honest read on how far a big scan actually is.
     const sizeRow = corpusBytes
@@ -1011,7 +1038,8 @@ function render() {
       '<div class="row"><span>scanned</span><b>' + decided + "/" + S.files.length + "</b></div>" +
       '<div class="row"><span>flagged</span><b class="' + (flagged ? "bad-text" : "ok-text") + '">' +
       flagged + "</b></div>" +
-      '<div class="row"><span>passed</span><b>' + (decided - flagged) + "</b></div>" +
+      '<div class="row"><span>passed</span><b>' + (decided - flagged - excluded) + "</b></div>" +
+      (excluded ? '<div class="row"><span>excluded references</span><b>' + excluded + "</b></div>" : "") +
       sizeRow + "</div>";
   }
   document.getElementById("summary").innerHTML = scanCard + editors.map(k => {
@@ -1025,6 +1053,7 @@ function render() {
     // cells, rolled up. Red the moment it is not 0.
     rows.push(["bad .psd saves", !a.total ? "-"
       : a.badSaves ? '<span class="bad-text">' + a.badSaves + "</span>" : "0"]);
+    if (a.warnedSaves) rows.push(["files with warnings on save reopen", '<span class="bad-text">' + a.warnedSaves + "</span>"]);
     // Which Photoshop refused them, when the run reopened resaves in several.
     if (multiPhotoshop() && a.total)
       [S.run.photoshop.reference, ...S.run.photoshop.checks].forEach(label => {
@@ -1039,6 +1068,15 @@ function render() {
     });
     const deepRt = mean(a.deepRoundtrip);
     if (deepRt != null) rows.push(["16-bit precision after save", pct(deepRt)]);
+    if (k === "patchy" && S.run.float32) {
+      const raw = S.files.filter(f => (f.traits || {}).depth === 32 && (f.cells || {}).patchy &&
+        !["pending", "running"].includes(f.cells.patchy.state));
+      const measured = raw.filter(f => !sourceExclusion(f.cells.patchy.groundTruth || f.groundTruth))
+        .map(f => f.cells.patchy.float32).filter(c => c && c.state === "done");
+      rows.push(["32-bit float files measured", measured.length + "/" + raw.length]);
+      if (measured.length)
+        rows.push(["within 0.001 on every pixel", measured.filter(c => !c.pixelsOverTolerance).length + "/" + measured.length]);
+    }
     // The text-save leg: text layers that come back the same from the .psd saved after
     // the editor's own text update (only editors that keep text as opened until an edit).
     if (a.textSave[1])
@@ -1061,7 +1099,7 @@ function render() {
     // psd text handling, ranked on its own and strict (see psdTextStanding): an editor
     // that cannot render Photoshop text objects, or cannot save them back as text,
     // scores 0 on that file, and the reason is spelled out under the list.
-    const textFiles = S.files.filter(f => f.textLayers &&
+    const textFiles = S.files.filter(f => f.textLayers && !sourceExclusion(f.groundTruth) &&
       !((f.groundTruth || {}).textFontsMissing || (f.groundTruth || {}).mutateSkipped)).length;
     const tally = {}, names = {};
     editors.forEach(k => { tally[k] = agg[k].textTally; names[k] = (S.editors[k] || {}).displayName || k; });
@@ -1170,6 +1208,9 @@ function openDetail(fi, ek, keep) {
   // that editor wrote it.
   (gt.dialogs || []).forEach(d => {
     html += '<div class="nums">Photoshop warned while opening this file: ' + esc(d) + "</div>";
+  });
+  (gt.operationDialogs || []).forEach(d => {
+    html += '<div class="nums">Photoshop reported a warning after opening this file: ' + esc(d) + "</div>";
   });
   html += renderCheckNotes(gt, cell);
   (cell.dialogs || []).forEach(d => {
@@ -1305,6 +1346,22 @@ function openDetail(fi, ek, keep) {
       "</td><td>" + pct(cell.roundtripRender.badFraction) + "</td></tr></table>";
   }
   html += textSaveDetail(cell, editorName);
+  if (cell.float32) {
+    const raw = cell.float32, num = n => Number.isFinite(n) ? String(Number(n.toPrecision(5))) : "unavailable";
+    html += "<h3>32-bit float RGB as opened</h3>";
+    if (raw.state === "done") {
+      html += "<table><tr><th>Pixels outside tolerance</th><th>Mean absolute error</th><th>Worst error</th></tr>" +
+        "<tr><td>" + raw.pixelsOverTolerance + " / " + raw.pixels + " (" + pct(raw.fractionOverTolerance) +
+        ")</td><td>" + num(raw.meanAbsoluteError) + "</td><td>" + num(raw.maxAbsoluteError) + "</td></tr></table>" +
+        '<div class="nums">Linear RGB over white. A pixel differs when any channel exceeds ' + num(raw.threshold) +
+        " absolute error. Photoshop range " + raw.referenceRange.map(num).join(" to ") +
+        ". Patchy range " + (raw.patchyRange ? raw.patchyRange.map(num).join(" to ") : "unavailable") + "." +
+        (raw.nonfinitePixels ? " Nonfinite values on " + raw.nonfinitePixels + " pixels." : "") + "</div>";
+    } else html += '<div class="nums">Unscored: ' + esc(raw.reason || "Comparison unavailable") + "</div>";
+    [[gart.render32, "Photoshop TIFF"], [art.render32, "Patchy TIFF"]].forEach(([file, label]) => {
+      if (file) html += '<a href="' + esc(artUrl(file)) + '" download>' + label + "</a> ";
+    });
+  }
   // 16-bit files: precision at 16 bits against Photoshop's 16-bit render, which the
   // 8-bit metrics above cannot see (analyze.compare_deep_renders).
   const deepRows = [["render", cell.deepRender], ["resave reopened in Photoshop", cell.deepRoundtrip]]

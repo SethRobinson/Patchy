@@ -16,7 +16,7 @@ import uuid
 import config
 from console_output import log
 from native_import_report import write_report
-from native_import_score import score_case
+from native_import_score import score_case, validate_linear_samples
 from report import write_json_atomic
 
 _FORMATS = {
@@ -78,6 +78,8 @@ def load_manifest(path: Path) -> dict:
             ids.add(key)
             if "expect" in case and not isinstance(case["expect"], dict):
                 raise ValueError("expect must be an object")
+            if "linearSamples" in case:
+                validate_linear_samples(case["linearSamples"])
             if "assets" in case and not isinstance(case["assets"], list):
                 raise ValueError("assets must be an array")
             for asset in case.get("assets", []):
@@ -92,6 +94,14 @@ def load_manifest(path: Path) -> dict:
                         local_path(frame, path.parent)
             if "reference" in case and case["reference"] != "@mergedimage":
                 local_path(case["reference"], path.parent)
+            if "reopenReference" in case:
+                reopen = case["reopenReference"]
+                if not isinstance(reopen, dict) or not isinstance(reopen.get("credit"), str) or not reopen["credit"].strip():
+                    raise ValueError("reopenReference needs a PNG path and the name of the editor that reopened the file")
+                if "frames" in case or "durationsMs" in case:
+                    raise ValueError("reopenReference is a single still-image comparison")
+                if local_path(reopen.get("png"), path.parent).suffix.lower() != ".png":
+                    raise ValueError("reopenReference needs a PNG file")
             if case.get("reference") == "@mergedimage" and format_of(source.name) not in ("kra", "ora"):
                 raise ValueError("@mergedimage requires a Krita or OpenRaster document")
             if "durationsMs" in case:
@@ -122,7 +132,9 @@ def _probe(case: dict, source: Path, cell: Path, exe: Path, settings: Path, time
             "--script-arg", "checkpoint=" + checkpoint.as_posix(),
             "--script-arg", "animated=" + ("yes" if animated else "no"),
             "--script-arg", "masks=" + ("yes" if _needs_masks(case.get("expect")) else "no")]
-    env = dict(os.environ, PATCHY_SETTINGS_DIR=str(settings))
+    if "linearSamples" in case:
+        args += ["--script-arg", "floatOutput=" + (cell / "render32.tif").as_posix()]
+    env = dict(os.environ, PATCHY_SETTINGS_DIR=str(settings), PATCHY_NO_SINGLE_INSTANCE="1")
     try:
         proc = subprocess.run(args, env=env, cwd=exe.parent, stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL, timeout=timeout)
@@ -138,7 +150,7 @@ def _probe(case: dict, source: Path, cell: Path, exe: Path, settings: Path, time
                                     + observed.get("error", ""))
                 return observed
     observed = json.loads(checkpoint.read_text(encoding="utf-8-sig")) if checkpoint.is_file() else {"opened": None}
-    return {**observed, "exported": False, "error": error}
+    return {**observed, "exported": observed.get("exported", False), "error": error}
 
 
 def measure(case: dict, cell: Path, manifest_dir: Path, exe: Path, settings: Path, timeout: int) -> dict:
@@ -148,6 +160,11 @@ def measure(case: dict, cell: Path, manifest_dir: Path, exe: Path, settings: Pat
            "folder": "cells/" + cell.name, "opened": None, "exported": False, "notes": []}
     if case.get("referenceNote"):
         row["referenceNote"] = case["referenceNote"]
+    if "linearSamples" in case:
+        row["linearSamples"] = {"status": "unscored", "reason": "No float render to compare"}
+    if "reopenReference" in case:
+        row["reopenAppearance"] = {"status": "unscored", "reason": "No render to compare",
+                                   "credit": case["reopenReference"]["credit"]}
     observed = {}
     try:
         with tempfile.TemporaryDirectory(prefix="patchy-native-input-", dir=cell) as temp:
@@ -219,8 +236,9 @@ def run(manifest_path: Path, exe: Path, out: Path, timeout: int = 180, case_ids:
                 row = measure(case, out / "cells" / cell_name, manifest_path.parent, exe, settings, timeout)
                 result["cases"].append(row)
                 result["patchyVersion"] = row["observed"].get("version") or result["patchyVersion"]
+                checks = ("document", "appearance", "structure", "timing", "reopenAppearance", "linearSamples")
                 log(f"{index}/{result['total']} {row['id']}: " + ", ".join(
-                    f"{k} {row[k]['status']}" for k in ("document", "appearance", "structure", "timing")))
+                    f"{k} {row[k]['status']}" for k in checks if k in row))
                 progress()
             else:
                 result["state"] = "complete"

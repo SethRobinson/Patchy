@@ -1,4 +1,5 @@
 #include "render/native_cmyk.hpp"
+#include "render/native_adjustment_stack.hpp"
 #include "core/artboard.hpp"
 
 #include "color/color_management.hpp"
@@ -7,6 +8,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstring>
 #include <list>
 #include <mutex>
 #include <unordered_map>
@@ -26,6 +28,32 @@ struct ChannelPixels {
   Rect bounds;
 };
 
+bool supports_ink_adjustment(const AdjustmentSettings& settings) {
+  return settings.kind == AdjustmentKind::Threshold ||
+      (settings.kind == AdjustmentKind::ChannelMixer && settings.channel_mixer.ink_channels) ||
+      (settings.kind == AdjustmentKind::GradientMap &&
+      settings.native_gradient_map && !settings.native_gradient_map->inks.empty());
+}
+
+using InkSample = std::array<std::uint16_t, 4>;
+
+InkSample adjusted_inks(const AdjustmentSettings& settings, const ChannelMixerInkWeights& mixer,
+                        const InkSample& input, int full_scale) {
+  if (settings.kind == AdjustmentKind::ChannelMixer) return mix_cmyk_inks(mixer, input, full_scale);
+  const auto weighted = 30 * input[0] + 59 * input[1] + 11 * input[2];
+  if (settings.kind == AdjustmentKind::GradientMap) {
+    const auto position = static_cast<double>(weighted) * input[3] / (100.0 * full_scale * full_scale);
+    auto native = native_gradient_inks(*settings.native_gradient_map, position);
+    if (full_scale == 255) for (auto& ink : native) ink = static_cast<std::uint16_t>((ink + 128U) / 257U);
+    return native;
+  }
+  // Photoshop thresholds a rounded CMY luminance, multiplied by inverted K and rounded again.
+  // Black output is K-only. Five levels over 4096 native colors pin both rounding stages.
+  const auto gray = (weighted + 50) / 100;
+  const auto value = (gray * input[3] + 127) / 255 >= settings.threshold.level ? 255 : 0;
+  return {255, 255, 255, static_cast<std::uint16_t>(value)};
+}
+
 bool supported_layers(const std::vector<Layer>& layers) {
   const auto supported_fill = [](const VectorFill& fill) {
     return fill.kind != VectorFillKind::Pattern &&
@@ -34,7 +62,7 @@ bool supported_layers(const std::vector<Layer>& layers) {
   for (const auto& layer : layers) {
     if (layer.kind() == LayerKind::Adjustment) {
       const auto settings = adjustment_settings_from_layer(layer);
-      if (!settings || settings->kind != AdjustmentKind::Threshold ||
+      if (!settings || !supports_ink_adjustment(*settings) ||
           layer.blend_mode() != BlendMode::Normal) return false;
     }
     if (layer.clipped() ||
@@ -130,23 +158,21 @@ void composite_native_layers(NativeTarget& target, const std::vector<Layer>& cmy
     if (layer.kind() == LayerKind::Adjustment) {
       const auto settings = adjustment_settings_from_layer(layer);
       auto rect = clip;
+      const auto mixer = cmyk_channel_mixer_weights(settings->channel_mixer);
       if (!layer.bounds().empty()) rect = intersect_rect(rect, layer.bounds());
       for (int y = rect.y; y < rect.y + rect.height; ++y) for (int x = rect.x; x < rect.x + rect.width; ++x) {
         const auto color = target.cmy.sample_color(x, y);
         const auto key = target.black.sample_color(x, y);
-        // Photoshop thresholds a rounded CMY luminance, multiplied by inverted
-        // K and rounded again. Black output is K-only, never four full inks.
-        // Five levels over 4096 native colors pin both rounding stages.
-        const auto gray = (30 * color.color.red + 59 * color.color.green + 11 * color.color.blue + 50) / 100;
-        const auto value = (gray * key.color.red + 127) / 255 >= settings->threshold.level ? 255 : 0;
+        const auto adjusted = adjusted_inks(*settings, mixer,
+            {color.color.red, color.color.green, color.color.blue, key.color.red}, 255);
         const auto amount = layer_mask_alpha_at(layer, x, y) * layer.opacity() *
             render_detail::layer_fill_opacity_for_render(layer) * target.group_coverage(x, y);
         const auto mix = [amount](std::uint8_t before, int after) {
           return clamp_byte(before + (after - before) * amount);
         };
-        target.cmy.store_color(x, y, {mix(color.color.red, 255), mix(color.color.green, 255),
-                                     mix(color.color.blue, 255)}, color.alpha);
-        const auto k = mix(key.color.red, value);
+        target.cmy.store_color(x, y, {mix(color.color.red, adjusted[0]), mix(color.color.green, adjusted[1]),
+                                     mix(color.color.blue, adjusted[2])}, color.alpha);
+        const auto k = mix(key.color.red, adjusted[3]);
         target.black.store_color(x, y, {k, k, k}, key.alpha);
       }
     } else if (layer.kind() != LayerKind::Group) {
@@ -523,6 +549,77 @@ std::optional<PixelBuffer> render_native_cmyk8(
             : static_cast<std::uint8_t>((static_cast<int>(inks[i + c]) * inks[i + 3] + 127) / 255);
       }
       dst[i + 3] = source[i + 3];
+    }
+  }
+  return output;
+}
+
+std::optional<PixelBuffer> render_native_cmyk16_adjustments(
+    const Document& document, Rect clip, const std::vector<render_detail::LayerBoundsOverride>* overrides) {
+  const auto& space = document.metadata().psd_native_color_space;
+  const auto& layers = document.layers();
+  if (!space || space->mode != 4 || space->depth != BitDepth::UInt16 || layers.size() < 2 ||
+      document.color_state().bit_depth != BitDepth::UInt16 || !document.color_state().embedded_icc_profile.empty() ||
+      render_detail::raster_view_context || (overrides && !overrides->empty()) || !supported_layers(layers))
+    return std::nullopt;
+
+  const auto canvas = Rect::from_size(document.width(), document.height());
+  const auto* colors = render_detail::retained_adjustment_base(document, 4);
+  if (!colors) return std::nullopt;
+
+  struct Adjustment {
+    const Layer& layer;
+    AdjustmentSettings settings;
+    ChannelMixerInkWeights mixer;
+    Rect bounds;
+    float opacity;
+  };
+  std::vector<Adjustment> adjustments;
+  for (std::size_t i = 1; i < layers.size(); ++i) {
+    const auto& layer = layers[i];
+    if (!layer.visible() || layer.opacity() <= 0.0F) continue;
+    if (layer.kind() != LayerKind::Adjustment) return std::nullopt;
+    auto settings = adjustment_settings_from_layer(layer);
+    if (!settings || settings->kind == AdjustmentKind::Threshold) return std::nullopt;
+    const auto mixer = cmyk_channel_mixer_weights(settings->channel_mixer);
+    adjustments.push_back({layer, std::move(*settings), mixer, layer.bounds().empty() ? canvas : layer.bounds(),
+                           layer.opacity() * render_detail::layer_fill_opacity_for_render(layer)});
+  }
+  if (adjustments.empty()) return std::nullopt;
+  clip = intersect_rect(clip, canvas);
+  if (clip.empty()) return PixelBuffer{};
+  const auto& profile = space->profile.empty() ? default_cmyk_profile() : space->profile;
+  const auto transforms = ink_transforms(space, profile);
+  const auto width = static_cast<std::size_t>(clip.width);
+  std::vector<std::uint16_t> ink_row(width * 4U), rgb_row(width * 3U);
+  PixelBuffer output(clip.width, clip.height, {ColorMode::RGB, BitDepth::UInt16, 4});
+  for (int y = 0; y < clip.height; ++y) {
+    for (int x = 0; x < clip.width; ++x) {
+      const int dx = clip.x + x, dy = clip.y + y;
+      const auto offset = (static_cast<std::size_t>(dy) * canvas.width + dx) * 2U;
+      InkSample inks{};
+      for (std::size_t c = 0; c < inks.size(); ++c) {
+        const auto& plane = colors->planes[c];
+        inks[c] = static_cast<std::uint16_t>((plane[offset] << 8U) | plane[offset + 1]);
+      }
+      for (const auto& adjustment : adjustments) {
+        if (!adjustment.bounds.contains(dx, dy)) continue;
+        const auto amount = adjustment.opacity * layer_mask_alpha_at(adjustment.layer, dx, dy);
+        if (amount <= 0.0F) continue;
+        const auto adjusted = adjusted_inks(adjustment.settings, adjustment.mixer, inks, 65535);
+        for (std::size_t c = 0; c < inks.size(); ++c)
+          inks[c] = static_cast<std::uint16_t>(std::lround(inks[c] + (adjusted[c] - inks[c]) * amount));
+      }
+      std::copy(inks.begin(), inks.end(), ink_row.begin() + static_cast<std::size_t>(x) * 4U);
+    }
+    if (transforms->to_rgb) transforms->to_rgb->convert16(ink_row.data(), rgb_row.data(), width);
+    auto* destination = output.row(y).data();
+    for (std::size_t x = 0; x < width; ++x) {
+      InkSample rgba{0, 0, 0, 65535};
+      for (std::size_t c = 0; c < 3; ++c)
+        rgba[c] = transforms->to_rgb ? rgb_row[x * 3U + c] : static_cast<std::uint16_t>(
+            (static_cast<std::uint32_t>(ink_row[x * 4U + c]) * ink_row[x * 4U + 3] + 32767U) / 65535U);
+      std::memcpy(destination + x * sizeof(rgba), rgba.data(), sizeof(rgba));
     }
   }
   return output;

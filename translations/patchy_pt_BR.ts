@@ -16439,6 +16439,34 @@ Deseja substituí-lo?</translation>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · Atualizado</translation>
     </message>
+    <message>
+        <source>Aseprite tilemaps were rendered as pixel layers.</source>
+        <translation>Os mapas de blocos do Aseprite foram renderizados como camadas de pixels.</translation>
+    </message>
+    <message>
+        <source>Aseprite tilemaps with unavailable tilesets were skipped.</source>
+        <translation>Os mapas de blocos do Aseprite com conjuntos de blocos indisponíveis foram ignorados.</translation>
+    </message>
+    <message>
+        <source>This format uses different blend rules for Aseprite layers.</source>
+        <translation>Este formato usa regras de mesclagem diferentes para as camadas do Aseprite.</translation>
+    </message>
+    <message>
+        <source>Timeline audio file %1 is on network server %2, which Patchy has not been allowed to access</source>
+        <translation>O arquivo de áudio %1 da linha do tempo está no servidor de rede %2. O Patchy não tem permissão para acessar esse servidor.</translation>
+    </message>
+    <message>
+        <source>Some linked files are unavailable. You can continue opening the document.</source>
+        <translation>Alguns arquivos vinculados estão indisponíveis. Você pode continuar abrindo o documento.</translation>
+    </message>
+    <message>
+        <source>Used by timeline audio. To relink this file, use a timeline editor.</source>
+        <translation>A faixa de áudio da linha do tempo usa este arquivo. Para vinculá-lo novamente, use um editor de linha do tempo.</translation>
+    </message>
+    <message>
+        <source>File not found on %1</source>
+        <translation>Arquivo não encontrado em %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -37122,6 +37150,14 @@ Bloqueado: %1</translation>
     <message>
         <source>Load Selection from Alpha Channel</source>
         <translation>Carregar seleção de um canal alfa</translation>
+    </message>
+    <message>
+        <source>Keep the look by baking the affected layers, or keep their editable pixels and use the blend modes this format supports.
+
+%1</source>
+        <translation>Para preservar a aparência, incorpore o resultado da mesclagem às camadas afetadas. Outra opção é manter os pixels editáveis e usar os modos de mesclagem compatíveis com este formato.
+
+%1</translation>
     </message>
 </context>
 <context>

@@ -73,7 +73,9 @@ def public_status(status: dict) -> tuple[dict, list[str]]:
             return
         for key in list(links):
             target = links[key]
-            if not isinstance(target, str) or target.lower().endswith(DOCUMENT_SUFFIXES):
+            # Local float TIFFs can carry the original document's metadata.
+            # Their numeric measurements travel with the public report.
+            if key == "render32" or not isinstance(target, str) or target.lower().endswith(DOCUMENT_SUFFIXES):
                 del links[key]
             else:
                 artifacts.append(target)
@@ -82,6 +84,7 @@ def public_status(status: dict) -> tuple[dict, list[str]]:
         scrub(entry.get("groundTruth"))
         for cell in (entry.get("cells") or {}).values():
             scrub(cell)
+            scrub(cell.get("groundTruth"))
     return public, artifacts
 
 

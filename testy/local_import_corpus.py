@@ -16,7 +16,7 @@ from rerun import write_text
 
 ROOT = Path(__file__).resolve().parents[1]
 _XCF = (".xcf", ".xcf.gz", ".xcf.bz2", ".xcf.xz", ".xcfgz", ".xcfbz2", ".xcfxz")
-_COLLECTIONS = {"xcf-corpus": _XCF, "kra-corpus": (".kra", ".krz"),
+_COLLECTIONS = {"xcf-corpus": _XCF, "xcf": _XCF, "kra-corpus": (".kra", ".krz"), "kra": (".kra", ".krz"),
                 "ora": (".ora",), "ora-corpus": (".ora",)}
 _MAX_XML = 1 << 20
 
@@ -106,6 +106,18 @@ def _native_tree(stack, ora, depth=0):
                 raise ValueError("a layer has an unknown visibility value")
             shown = visible == "1"
         layer = {"kind": "group" if group else "layer", "visible": shown}
+        if "opacity" in element.attrib:
+            if ora:
+                opacity = float(element.attrib["opacity"])
+            else:
+                opacity = int(element.attrib["opacity"]) / 255
+            if not 0 <= opacity <= 1:
+                raise ValueError("a layer has an invalid opacity")
+            layer["opacity"] = opacity * 100
+        # The scripting property is true for any editing lock. A source edit
+        # lock is sufficient; a separate alpha lock can also make it true.
+        if (ora and element.get("edit-locked") in ("true", "1")) or (not ora and element.get("locked") == "1"):
+            layer["locked"] = True
         if element.get("name"):
             layer["name"] = element.get("name")
         if group:
@@ -225,12 +237,23 @@ def build_manifest(fixtures: Path, output: Path) -> tuple[dict, list[str]]:
                 continue
             within = source.relative_to(directory).as_posix()
             case = {"id": f"{collection}/{within}", "source": relative(source)}
-            if collection != "xcf-corpus":
+            if collection not in ("xcf-corpus", "xcf"):
                 case["reference"] = "@mergedimage"
                 _archive_expectations(case, source, relative)
+                # make_ora_fixtures.py exported these exact GIMP ORAs through Krita.
+                # Its other Krita PNGs were exported from PSDs, not from the sibling ORAs.
+                if collection == "ora" and within in ("gimp-modes.ora", "gimp-structure.ora", "gimp-structure-16.ora"):
+                    png = directory / (source.stem.replace("gimp-", "krita-", 1) + ".png")
+                    if png.is_file():
+                        case["reopenReference"] = {"png": relative(png),
+                                                   "credit": "Krita 5.3 reopening the GIMP 3.2 OpenRaster file"}
             else:
                 base = within.replace("/", "__")
                 png = directory / "gimp-renders" / (base + ".png")
+                if collection == "xcf":
+                    # make_xcf_fixtures.py saves the visible GIMP merge beside
+                    # each source; the three compressed files share a reference.
+                    png = source.with_name(source.name.split(".xcf", 1)[0] + ".png")
                 tree = directory / "gimp-trees" / (base + ".tree.txt")
                 if within in refusals and not (tree.is_file() or png.is_file()):
                     messages.append(f"Omitted {case['id']} because GIMP refused to open it")

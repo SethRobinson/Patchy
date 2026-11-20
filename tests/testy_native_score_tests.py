@@ -35,6 +35,24 @@ class NativeScores(unittest.TestCase):
     def score(self, **case):
         return scorer.score_case({"source": "sample.kra", **case}, self.observed, self.folder, self.folder)
 
+    def test_linear_samples_check_hdr_and_alpha_independently_of_png(self):
+        import tifffile
+        rgba = np.zeros((3, 4, 4), dtype=np.float32)
+        rgba[0, 0] = (-.125, .5, 3.75, .25)
+        tifffile.imwrite(self.folder / "render32.tif", rgba, photometric="rgb", extrasamples=["unassalpha"])
+        self.observed.update(inspected=True, depth=32, floatExported=True)
+        wanted = [{"x": 0, "y": 0, "rgba": [-.125, .5, 3.75, .25]},
+                  {"x": 3, "y": 2, "rgba": [9, 9, 9, 0]}]
+        self.assertEqual(self.score(linearSamples=wanted)["linearSamples"]["status"], "pass")
+        wanted[0]["rgba"][2] = 1
+        result = self.score(linearSamples=wanted)
+        self.assertEqual(result["linearSamples"]["status"], "fail")
+        self.assertEqual(result["appearance"]["status"], "unscored")
+        self.observed["depth"] = 16
+        self.assertEqual(self.score(linearSamples=wanted)["linearSamples"]["status"], "fail")
+        self.observed.update(depth=32, floatExported=False)
+        self.assertEqual(self.score(linearSamples=wanted)["linearSamples"]["status"], "unscored")
+
     def test_structure_is_partial_ordered_and_independent_of_export(self):
         self.observed["exported"] = False
         expectation = {"width": 4, "layers": [{"name": "paint"}, {"visible": False}]}
@@ -59,6 +77,22 @@ class NativeScores(unittest.TestCase):
         self.assertEqual(result["status"], "fail")
         self.assertEqual(result["counts"], {"pass": 0, "fail": 1, "unscored": 1})
         self.assertEqual(result["actualFrames"], 1)
+
+    def test_authoring_and_reopen_references_score_independently(self):
+        self.png("render.png", "white")
+        self.png("authored.png", "black")
+        self.png("reopened.png", "white")
+        spec = {"png": "reopened.png", "credit": "Independent editor"}
+        result = self.score(reference="authored.png", reopenReference=spec)
+        self.assertEqual(result["appearance"]["status"], "fail")
+        self.assertEqual((result["reopenAppearance"]["status"], result["reopenAppearance"]["credit"]),
+                         ("pass", "Independent editor"))
+        with Image.open(self.folder / "reference.png") as image:
+            self.assertEqual(image.convert("RGB").getpixel((0, 0)), (0, 0, 0))
+        result = self.score(reference="authored.png", reopenReference={**spec, "png": "missing.png"})
+        self.assertEqual(result["appearance"]["status"], "fail")
+        self.assertEqual(result["reopenAppearance"]["status"], "unscored")
+        self.assertEqual(self.score(reopenReference=spec)["reopenAppearance"]["status"], "pass")
 
     def test_unreadable_png_and_missing_mergedimage_are_unscored(self):
         self.png("render.png", "green")
@@ -141,6 +175,31 @@ class NativeScores(unittest.TestCase):
         result = self.score(source="sprite.ase", reference="ref.png")["appearance"]
         self.assertEqual(result["frames"][0]["differentPixels"], 1)
         self.assertEqual(result["status"], "fail")
+
+    def test_sprite_severity_weights_color_by_alpha_and_keeps_exact_status(self):
+        ref = self.png("ref.png", (255, 0, 0, 0))
+        actual = self.png("render.png", (0, 0, 0, 0))
+        # Raw 255 with alpha 1 has a visible impact of one byte level.
+        ref.putpixel((0, 0), (255, 0, 0, 1))
+        actual.putpixel((0, 0), (0, 0, 0, 1))
+        # A difference of exactly six passes the diagnostic tolerance, but still fails exact comparison.
+        ref.putpixel((1, 0), (6, 0, 0, 255))
+        actual.putpixel((1, 0), (0, 0, 0, 255))
+        ref.save(self.folder / "ref.png")
+        actual.save(self.render)
+        row = self.score(source="sprite.ase", reference="ref.png")["appearance"]["frames"][0]
+        self.assertEqual((row["status"], row["differentPixels"], row["maxVisibleDelta"],
+                          row["visiblePixelsOverTolerance"]), ("fail", 2, 255, 1))
+        self.assertEqual((row["maxPremultipliedDelta"], row["premultipliedPixelsOverTolerance"]), (6, 0))
+        # The third pixel differs by alpha alone, the fourth by 1540/255 in premultiplied red.
+        ref.putpixel((2, 0), (0, 0, 0, 7))
+        ref.putpixel((3, 0), (140, 0, 0, 11))
+        actual.putpixel((3, 0), (0, 0, 0, 11))
+        ref.save(self.folder / "ref.png")
+        actual.save(self.render)
+        row = self.score(source="sprite.ase", reference="ref.png")["appearance"]["frames"][0]
+        self.assertEqual((row["differentPixels"], row["maxPremultipliedDelta"],
+                          row["premultipliedPixelsOverTolerance"], row["visiblePixelsOverTolerance"]), (4, 7, 2, 3))
 
     def test_animated_frames_and_timing_include_order_and_partial_coverage(self):
         first = self.png("one.png", "red")

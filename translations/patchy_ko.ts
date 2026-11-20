@@ -16383,6 +16383,34 @@ Do you want to replace it?</source>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · 최신 상태</translation>
     </message>
+    <message>
+        <source>Aseprite tilemaps were rendered as pixel layers.</source>
+        <translation>Aseprite 타일맵을 픽셀 레이어로 렌더링했습니다.</translation>
+    </message>
+    <message>
+        <source>Aseprite tilemaps with unavailable tilesets were skipped.</source>
+        <translation>타일셋을 사용할 수 없는 Aseprite 타일맵은 건너뛰었습니다.</translation>
+    </message>
+    <message>
+        <source>This format uses different blend rules for Aseprite layers.</source>
+        <translation>이 형식은 Aseprite 레이어에 다른 혼합 규칙을 적용합니다.</translation>
+    </message>
+    <message>
+        <source>Timeline audio file %1 is on network server %2, which Patchy has not been allowed to access</source>
+        <translation>타임라인 오디오 파일 %1이 네트워크 서버 %2에 있습니다. Patchy에 이 서버에 액세스할 권한이 없습니다.</translation>
+    </message>
+    <message>
+        <source>Some linked files are unavailable. You can continue opening the document.</source>
+        <translation>일부 연결된 파일을 사용할 수 없습니다. 문서 열기를 계속할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Used by timeline audio. To relink this file, use a timeline editor.</source>
+        <translation>타임라인 오디오에서 사용하는 파일입니다. 파일을 다시 연결하려면 타임라인 편집기를 사용하세요.</translation>
+    </message>
+    <message>
+        <source>File not found on %1</source>
+        <translation>%1에서 파일을 찾을 수 없습니다</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -37007,6 +37035,14 @@ Locked: %1</source>
     <message>
         <source>Load Selection from Alpha Channel</source>
         <translation>알파 채널에서 선택 영역 불러오기</translation>
+    </message>
+    <message>
+        <source>Keep the look by baking the affected layers, or keep their editable pixels and use the blend modes this format supports.
+
+%1</source>
+        <translation>모양을 유지하려면 혼합 결과를 해당 레이어의 픽셀에 적용하세요. 또는 픽셀을 편집 가능한 상태로 유지하고 이 형식에서 지원하는 혼합 모드를 사용하세요.
+
+%1</translation>
     </message>
 </context>
 <context>

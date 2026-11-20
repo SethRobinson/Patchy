@@ -7,6 +7,7 @@
 #include "core/document.hpp"
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -15,7 +16,14 @@ namespace patchy {
 enum class LayeredSaveFormat : std::uint8_t {
   Photoshop,  // PSD, PSB and layered TIFF (the same layer records)
   Aseprite,
+  AsepritePassThroughGroups,  // file-wide group mode selected by the Aseprite writer
 };
+
+[[nodiscard]] bool aseprite_uses_pass_through_groups(const Document& document);
+
+// The editable fallback retains the source pixels and supported mode. The PSD
+// merged preview and layer records must describe the same standard rendering.
+[[nodiscard]] std::optional<Document> standardize_aseprite_cels_for_photoshop(const Document& document);
 
 // True when `format` stores `mode` on a layer (or, for `is_group`, a folder) of a document
 // of `depth` as itself. Photoshop lacks Paint.NET's four modes and, at 32 bits, the modes
@@ -25,6 +33,7 @@ enum class LayeredSaveFormat : std::uint8_t {
                                                     BitDepth depth) noexcept;
 
 struct UnsupportedBlendModes {
+  bool includes_aseprite_cels{false};
   std::vector<BlendMode> modes;          // each once, in first-found order (bottom up)
   std::vector<std::string> layer_names;  // every affected layer or folder, bottom up
   [[nodiscard]] bool empty() const noexcept { return layer_names.empty(); }

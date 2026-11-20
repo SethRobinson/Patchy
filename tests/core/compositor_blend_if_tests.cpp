@@ -1532,6 +1532,79 @@ void compositor_cmyk_matches_photoshop_and_partial_bounds() {
   }
 }
 
+void compositor_cmyk_channel_mixer_uses_four_native_inks_at_both_depths() {
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::ChannelMixer;
+  auto& mix = settings.channel_mixer;
+  mix.red = {80, 30, -10, 0};
+  mix.green = {10, 90, 0, 5};
+  mix.blue = {0, 20, 70, 0};
+  mix.ink_channels.emplace();
+  mix.ink_channels->black_inputs = {0, 0, 0, 0};
+  using Inks = std::array<std::uint16_t, 4>;
+  const auto weights = patchy::cmyk_channel_mixer_weights(mix);
+  // Captured native ink values before ICC conversion in Photoshop at both depths.
+  CHECK((patchy::mix_cmyk_inks(weights, {57, 56, 255, 255}, 255) == Inks{37, 44, 215, 255}));
+  const Inks source{14650, 14392, 65535, 65535};
+  const Inks adjusted{9504, 11204, 55347, 65535};
+  CHECK(patchy::mix_cmyk_inks(weights, source, 65535) == adjusted);
+
+  patchy::Document document(2, 1, patchy::PixelFormat::rgb16());
+  auto& base = document.add_pixel_layer("Base", patchy::PixelBuffer(2, 1, patchy::PixelFormat::rgb16()));
+  auto space = std::make_shared<patchy::PsdNativeColorSpace>();
+  space->mode = 4;
+  space->depth = patchy::BitDepth::UInt16;
+  space->profile = {1, 2, 3}; // Exercise the deterministic unprofiled ink-to-RGB conversion.
+  document.metadata().psd_native_color_space = space;
+  auto colors = std::make_shared<patchy::PsdNativeLayerColors>();
+  colors->width = 2;
+  colors->height = 1;
+  colors->space = space;
+  colors->imported = std::make_shared<patchy::Layer>(base);
+  for (std::size_t c = 0; c < source.size(); ++c) {
+    const auto high = static_cast<std::uint8_t>(source[c] >> 8);
+    const auto low = static_cast<std::uint8_t>(source[c] & 255U);
+    colors->planes[c] = {high, low, high, low};
+  }
+  base.set_psd_native_colors(colors);
+  patchy::Layer adjustment(document.allocate_layer_id(), "Channel Mixer", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(adjustment, settings);
+  CHECK(patchy::adjustment_settings_from_layer(adjustment)->channel_mixer == mix);
+  patchy::PixelBuffer mask(2, 1, patchy::PixelFormat::gray8());
+  mask.data()[0] = 255;
+  adjustment.set_mask({{0, 0, 2, 1}, std::move(mask), 0, false});
+  adjustment.set_opacity(0.5F);
+  document.add_layer(std::move(adjustment));
+  const auto full = patchy::Compositor{}.flatten_rgba_deep(document);
+  const auto partial = patchy::render_native_cmyk16_adjustments(document, {0, 0, 1, 1});
+  CHECK(partial.has_value());
+  for (int x = 0; x < 2; ++x) {
+    Inks rendered{};
+    std::memcpy(rendered.data(), full.pixel(x, 0), sizeof(rendered));
+    for (std::size_t c = 0; c < source.size(); ++c)
+      CHECK(rendered[c] == (x == 0 ? (source[c] + adjusted[c] + 1) / 2 : source[c]));
+  }
+  CHECK(std::memcmp(full.pixel(0, 0), partial->pixel(0, 0), sizeof(Inks)) == 0);
+  document.layers().front().pixels().data()[0] = 1;
+  CHECK(!patchy::render_native_cmyk16_adjustments(document, {0, 0, 1, 1}));
+
+  const Inks cross_channel_input{73, 88, 91, 69};
+  mix.red = {30, -10, 18, -3};
+  mix.green = {20, 30, 60, 0};
+  mix.blue = {0, 30, 5, 3};
+  mix.ink_channels->black_inputs = {80, -20, 50, 70};
+  mix.ink_channels->black_output = {-20, 30, 15, -3};
+  CHECK((patchy::mix_cmyk_inks(patchy::cmyk_channel_mixer_weights(mix), cross_channel_input, 255) ==
+         Inks{46, 107, 96, 94}));
+  mix.monochrome = true;
+  mix.gray = {20, 30, 12, 5};
+  mix.ink_channels->black_inputs[0] = 40;
+  CHECK((patchy::mix_cmyk_inks(patchy::cmyk_channel_mixer_weights(mix), {57, 56, 255, 255}, 255) ==
+         Inks{255, 255, 255, 143}));
+  CHECK((patchy::mix_cmyk_inks(patchy::cmyk_channel_mixer_weights(mix), cross_channel_input, 255) ==
+         Inks{255, 255, 255, 62}));
+}
+
 void compositor_cmyk_threshold_matches_photoshop() {
   auto document = patchy::psd::DocumentIo::read_file(
       patchy::test::committed_psd_fixture_path("cmyk-render/threshold.psd"));
@@ -2085,6 +2158,7 @@ void compositor_channel_restriction_keeps_backdrop_channel() {
 std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
   return {
       {"compositor_cmyk_matches_photoshop_and_partial_bounds", compositor_cmyk_matches_photoshop_and_partial_bounds},
+      {"compositor_cmyk_channel_mixer_uses_four_native_inks_at_both_depths", compositor_cmyk_channel_mixer_uses_four_native_inks_at_both_depths},
       {"compositor_cmyk_threshold_matches_photoshop", compositor_cmyk_threshold_matches_photoshop},
       {"compositor_cmyk_cache_tracks_edits_and_undo", compositor_cmyk_cache_tracks_edits_and_undo},
       {"compositor_cmyk_dab_renders_reuse_transforms_and_separate_only_their_rect",

@@ -1005,6 +1005,9 @@ void MainWindow::show_missing_linked_files_dialog(bool on_open) {
       entries.push_back(std::move(entry));
     }
   }
+  for (auto& entry : missing_timeline_audio_files(doc, document_dir)) {
+    entries.push_back(std::move(entry));
+  }
   if (entries.empty()) {
     if (!on_open) {
       statusBar()->showMessage(tr("This document has no missing linked files"));
@@ -1024,6 +1027,7 @@ void MainWindow::show_missing_linked_files_dialog(bool on_open) {
       },
       [](const QString& server) { allow_network_link_server(server); },
       [this, document_dir](const MissingLinkEntry& entry) {
+        if (entry.timeline_audio) return timeline_audio_file_found(*entry.timeline_audio, document_dir);
         const auto* source = std::as_const(document()).metadata().smart_objects.find(entry.source_uuid);
         return source != nullptr && resolve_smart_object_external_path(*source, document_dir).has_value();
       });

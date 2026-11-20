@@ -16383,6 +16383,34 @@ Do you want to replace it?</source>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · 已是最新版本</translation>
     </message>
+    <message>
+        <source>Aseprite tilemaps were rendered as pixel layers.</source>
+        <translation>已將 Aseprite 圖塊地圖算繪為像素圖層。</translation>
+    </message>
+    <message>
+        <source>Aseprite tilemaps with unavailable tilesets were skipped.</source>
+        <translation>已略過無法取得圖塊集的 Aseprite 圖塊地圖。</translation>
+    </message>
+    <message>
+        <source>This format uses different blend rules for Aseprite layers.</source>
+        <translation>此格式對 Aseprite 圖層採用不同的混合規則。</translation>
+    </message>
+    <message>
+        <source>Timeline audio file %1 is on network server %2, which Patchy has not been allowed to access</source>
+        <translation>時間軸音訊檔案 %1 位於網路伺服器 %2 上。Patchy 沒有存取該伺服器的權限。</translation>
+    </message>
+    <message>
+        <source>Some linked files are unavailable. You can continue opening the document.</source>
+        <translation>部分連結檔案無法使用。您仍可繼續開啟文件。</translation>
+    </message>
+    <message>
+        <source>Used by timeline audio. To relink this file, use a timeline editor.</source>
+        <translation>時間軸音訊會使用此檔案。若要重新連結此檔案，請使用時間軸編輯器。</translation>
+    </message>
+    <message>
+        <source>File not found on %1</source>
+        <translation>在 %1 上找不到檔案</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -37007,6 +37035,14 @@ Locked: %1</source>
     <message>
         <source>Load Selection from Alpha Channel</source>
         <translation>從 Alpha 色版載入選取範圍</translation>
+    </message>
+    <message>
+        <source>Keep the look by baking the affected layers, or keep their editable pixels and use the blend modes this format supports.
+
+%1</source>
+        <translation>若要保留外觀，可將混合結果烘焙到受影響的圖層中。也可以保留可編輯的像素，並使用此格式支援的混合模式。
+
+%1</translation>
     </message>
 </context>
 <context>

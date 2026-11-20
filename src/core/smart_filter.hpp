@@ -306,6 +306,20 @@ struct SmartFilterMask {
   bool extend_with_white{true};
 };
 
+// Photoshop stores the filtered layer before the shared mask. The Layer itself
+// displays the masked result. Both rasters share copy-on-write storage with their owners.
+struct SmartFilterLayerPreview {
+  PixelBuffer unmasked;
+  Rect unmasked_bounds;
+  PixelBuffer displayed;
+  Rect displayed_bounds;
+
+  [[nodiscard]] bool matches(const Layer& layer) const noexcept {
+    return displayed_bounds == layer.bounds() &&
+           displayed.data().data() == layer.pixels().data().data();
+  }
+};
+
 enum class SmartFilterStackSupport {
   Supported,
   Unsupported,
@@ -318,6 +332,7 @@ struct SmartFilterStack {
   // same entries in reverse, with the final/topmost effect visually first.
   std::vector<SmartFilterEntry> entries;
   SmartFilterMask mask;
+  std::shared_ptr<const SmartFilterLayerPreview> layer_preview;
   // The native stack around the entries: root flags, entry records with a readable
   // enable flag, the shared mask, and the FEid render cache. Import clears it when any
   // of them is outside the verified subset; entries may still be filters Patchy does not

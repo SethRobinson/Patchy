@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <future>
 #include <limits>
 #include <numeric>
@@ -2262,20 +2263,24 @@ blend_entry_result(const FilterRenderResult &before,
   return FilterRenderResult{std::move(output), bounds};
 }
 
-[[nodiscard]] std::uint8_t sample_filter_mask(const SmartFilterMask &mask,
-                                              std::int32_t document_x,
-                                              std::int32_t document_y) {
+template <typename Coverage>
+[[nodiscard]] Coverage sample_filter_mask(const SmartFilterMask &mask,
+                                          std::int32_t document_x,
+                                          std::int32_t document_y) {
+  constexpr auto full = std::numeric_limits<Coverage>::max();
   if (!mask.enabled) {
-    return 255;
+    return full;
   }
   const auto local_x = static_cast<std::int64_t>(document_x) - mask.bounds.x;
   const auto local_y = static_cast<std::int64_t>(document_y) - mask.bounds.y;
   if (!mask.pixels.empty() && local_x >= 0 && local_y >= 0 &&
       local_x < mask.bounds.width && local_y < mask.bounds.height) {
-    return mask.pixels.pixel(static_cast<std::int32_t>(local_x),
-                             static_cast<std::int32_t>(local_y))[0];
+    Coverage value{};
+    std::memcpy(&value, mask.pixels.pixel(static_cast<std::int32_t>(local_x),
+                                          static_cast<std::int32_t>(local_y)), sizeof(value));
+    return value;
   }
-  return mask.extend_with_white ? 255 : mask.default_color;
+  return mask.extend_with_white ? full : static_cast<Coverage>(mask.default_color * (full / 255U));
 }
 
 [[nodiscard]] PixelBuffer crop_buffer(const PixelBuffer &source,
@@ -2283,7 +2288,7 @@ blend_entry_result(const FilterRenderResult &before,
   PixelBuffer cropped(crop_bounds.width, crop_bounds.height, source.format());
   const auto source_x = crop_bounds.x - source_bounds.x;
   const auto source_y = crop_bounds.y - source_bounds.y;
-  const auto row_bytes = static_cast<std::size_t>(crop_bounds.width) * 4U;
+  const auto row_bytes = cropped.stride_bytes();
   for (std::int32_t y = 0; y < crop_bounds.height; ++y) {
     const auto *source_row = source.pixel(source_x, source_y + y);
     auto *destination_row = cropped.pixel(0, y);
@@ -2327,14 +2332,15 @@ trim_transparent_result(FilterRenderResult result) {
       cropped_bounds};
 }
 
+template <typename Sample = std::uint8_t, typename Coverage = std::uint8_t>
 [[nodiscard]] FilterRenderResult
 apply_stack_mask(const FilterRenderResult &base,
                  const FilterRenderResult &filtered,
                  const SmartFilterMask &mask, const FilterProgress *progress) {
-  constexpr std::uint64_t kMaskScale = 255U;
+  constexpr std::uint64_t kMaskScale = std::numeric_limits<Coverage>::max();
   const auto bounds = checked_union_bounds(base.bounds, filtered.bounds,
                                            "Smart Filter result bounds overflow");
-  PixelBuffer output(bounds.width, bounds.height, PixelFormat::rgba8());
+  PixelBuffer output(bounds.width, bounds.height, filtered.pixels.format());
   output.clear(0);
   std::int32_t minimum_x = bounds.width;
   std::int32_t minimum_y = bounds.height;
@@ -2346,36 +2352,34 @@ apply_stack_mask(const FilterRenderResult &base,
     const auto document_y = bounds.y + y;
     for (std::int32_t x = 0; x < bounds.width; ++x) {
       const auto document_x = bounds.x + x;
-      const auto *destination = sample_result(base, document_x, document_y);
-      const auto *source = sample_result(filtered, document_x, document_y);
+      std::array<Sample, 4> destination{}, source{};
+      if (const auto *p = sample_result(base, document_x, document_y)) {
+        std::memcpy(destination.data(), p, sizeof(destination));
+      }
+      if (const auto *p = sample_result(filtered, document_x, document_y)) {
+        std::memcpy(source.data(), p, sizeof(source));
+      }
       const auto effect_weight = static_cast<std::uint64_t>(
-          sample_filter_mask(mask, document_x, document_y));
+          sample_filter_mask<Coverage>(mask, document_x, document_y));
       const auto before_weight = kMaskScale - effect_weight;
-      const auto destination_alpha = static_cast<std::uint64_t>(
-          destination != nullptr ? destination[3] : 0U);
-      const auto source_alpha =
-          static_cast<std::uint64_t>(source != nullptr ? source[3] : 0U);
+      const auto destination_alpha = static_cast<std::uint64_t>(destination[3]);
+      const auto source_alpha = static_cast<std::uint64_t>(source[3]);
       const auto output_alpha_numerator =
           destination_alpha * before_weight + source_alpha * effect_weight;
-      auto *pixel = output.pixel(x, y);
+      std::array<Sample, 4> pixel{};
       for (std::size_t channel = 0; channel < 3U; ++channel) {
         if (output_alpha_numerator == 0U) {
           pixel[channel] = 0;
           continue;
         }
-        const auto destination_color = static_cast<std::uint64_t>(
-            destination != nullptr ? destination[channel] : 0U);
-        const auto source_color = static_cast<std::uint64_t>(
-            source != nullptr ? source[channel] : 0U);
         const auto premultiplied_numerator =
-            destination_color * destination_alpha * before_weight +
-            source_color * source_alpha * effect_weight;
-        pixel[channel] = static_cast<std::uint8_t>(std::min<std::uint64_t>(
-            255U, (premultiplied_numerator + output_alpha_numerator / 2U) /
-                      output_alpha_numerator));
+            destination[channel] * destination_alpha * before_weight +
+            source[channel] * source_alpha * effect_weight;
+        pixel[channel] = static_cast<Sample>((premultiplied_numerator + output_alpha_numerator / 2U) /
+                                              output_alpha_numerator);
       }
-      pixel[3] = static_cast<std::uint8_t>(std::min<std::uint64_t>(
-          255U, (output_alpha_numerator + kMaskScale / 2U) / kMaskScale));
+      pixel[3] = static_cast<Sample>((output_alpha_numerator + kMaskScale / 2U) / kMaskScale);
+      std::memcpy(output.pixel(x, y), pixel.data(), sizeof(pixel));
       if (pixel[3] != 0U) {
         minimum_x = std::min(minimum_x, x);
         minimum_y = std::min(minimum_y, y);
@@ -3465,12 +3469,51 @@ FilterRenderResult render_emboss(const PixelBuffer &pixels, Rect bounds,
                               progress);
 }
 
+bool smart_filter_mask_modulates(const SmartFilterMask &mask) {
+  return mask.enabled && ((!mask.extend_with_white && mask.default_color != 255U) ||
+         std::any_of(mask.pixels.data().begin(), mask.pixels.data().end(),
+                     [](std::uint8_t value) { return value != 255U; }));
+}
+
+std::optional<FilterRenderResult> apply_saved_smart_filter_mask(const FilterRenderResult &base,
+    const FilterRenderResult &filtered, const SmartFilterMask &mask, std::uint64_t maximum_pixels) {
+  const auto matches_bounds = [](const PixelBuffer &pixels, Rect bounds, PixelFormat format) {
+    return pixels.format() == format && pixels.width() == bounds.width && pixels.height() == bounds.height;
+  };
+  const auto format = filtered.pixels.format();
+  const PixelFormat gray16{ColorMode::Grayscale, BitDepth::UInt16, 1};
+  const bool deep_mask = !mask.pixels.empty() && mask.pixels.format() == gray16;
+  if (format.color_mode != ColorMode::RGB || format.channels != 4 ||
+      (format.bit_depth != BitDepth::UInt8 && format.bit_depth != BitDepth::UInt16) ||
+      !matches_bounds(base.pixels, base.bounds, format) || !matches_bounds(filtered.pixels, filtered.bounds, format) ||
+      (deep_mask && format.bit_depth != BitDepth::UInt16) ||
+      (!mask.pixels.empty() && !matches_bounds(mask.pixels, mask.bounds, deep_mask ? gray16 : PixelFormat::gray8()))) {
+    return std::nullopt;
+  }
+  // Widely separated imported rectangles must not allocate a raster spanning the gap.
+  try {
+    const auto region = checked_union_bounds(base.bounds, filtered.bounds, "Smart Filter result bounds overflow");
+    if (static_cast<std::uint64_t>(region.width) * region.height > maximum_pixels) return std::nullopt;
+  } catch (const std::overflow_error &) {
+    return std::nullopt;
+  }
+  if (deep_mask) {
+    return apply_stack_mask<std::uint16_t, std::uint16_t>(base, filtered, mask, nullptr);
+  }
+  if (format.bit_depth == BitDepth::UInt16) {
+    return apply_stack_mask<std::uint16_t>(base, filtered, mask, nullptr);
+  }
+  return apply_stack_mask(base, filtered, mask, nullptr);
+}
+
 FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
                                              Rect placed_bounds,
                                              Rect filter_canvas_bounds,
                                              const SmartFilterStack &stack,
-                                             const FilterProgress *progress) {
+                                             const FilterProgress *progress,
+                                             FilterRenderResult *before_mask) {
   validate_stack(placed_pixels, placed_bounds, stack);
+  if (before_mask) *before_mask = {};
   FilterRenderResult placed{placed_pixels, placed_bounds};
   if (!stack.enabled || placed_pixels.empty()) {
     report_progress(progress, 1, 1, FilterProgressStage::Filtering);
@@ -3663,6 +3706,7 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
   }
 
   auto mask_progress = phase_progress(progress, phase, phase_count);
+  if (before_mask && smart_filter_mask_modulates(stack.mask)) *before_mask = current;
   return apply_stack_mask(base, current, stack.mask, &mask_progress);
 }
 

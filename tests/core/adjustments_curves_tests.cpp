@@ -3,7 +3,9 @@
 #include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
 #include "core/document.hpp"
+#include "core/layer_render_utils.hpp"
 #include "core/pixel_depth.hpp"
+#include "core/psd_source_colors.hpp"
 #include "filters/filter_registry.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -19,6 +21,7 @@
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_io_internal.hpp"
 #include "render/compositor.hpp"
+#include "render/native_adjustment_stack.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 #include <algorithm>
@@ -95,7 +98,8 @@ std::vector<std::uint8_t> test_photoshop_levels_payload(const std::array<patchy:
 }
 
 std::vector<std::uint8_t> single_adjustment_layer_psd(
-    const std::vector<std::pair<std::array<char, 4>, std::vector<std::uint8_t>>>& blocks) {
+    const std::vector<std::pair<std::array<char, 4>, std::vector<std::uint8_t>>>& blocks,
+    std::uint16_t mode = patchy::psd::kColorModeRgb) {
   patchy::psd::BigEndianWriter layer_extra;
   layer_extra.write_u32(0);
   layer_extra.write_u32(0);
@@ -130,15 +134,16 @@ std::vector<std::uint8_t> single_adjustment_layer_psd(
   layer_mask.write_u32(0);
 
   patchy::psd::BigEndianWriter writer;
-  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 1, 1, 8, 3});
+  const auto channels = static_cast<std::uint16_t>(mode == patchy::psd::kColorModeCmyk ? 4 :
+      mode == patchy::psd::kColorModeGrayscale ? 1 : 3);
+  patchy::psd::write_header(writer, patchy::psd::Header{false, channels, 1, 1, 8, mode});
   writer.write_u32(0);
   writer.write_u32(0);
   writer.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
   writer.write_bytes(layer_mask.bytes());
   writer.write_u16(0);
-  writer.write_u8(0);
-  writer.write_u8(200);
-  writer.write_u8(0);
+  const std::array<std::uint8_t, 4> components{0, 200, 0, 255};
+  writer.write_bytes(std::span(components).first(channels));
   return writer.bytes();
 }
 
@@ -1213,6 +1218,77 @@ std::vector<std::uint8_t> test_hue2_payload(bool colorize, int colorize_hue, int
     }
   }
   return writer.bytes();
+}
+
+void adjustment_float_photo_filter_matches_linear_photoshop_controls() {
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::PhotoFilter;
+  const auto check = [&](const patchy::DeepChannels& input, const patchy::DeepChannels& expected) {
+    auto color = input;
+    for (auto& v : color) v *= 255.0F;
+    const auto out = patchy::DeepAdjuster(settings, patchy::DeepDomain::Linear).apply(color);
+    for (std::size_t c = 0; c < color.size(); ++c) CHECK(std::abs(out[c] / 255.0F - expected[c]) < 0.0004F);
+  };
+  // Independent RGB float TIFFs from Photoshop, including negative source and filtered channels.
+  settings.photo_filter = {8150, 941, 8219, 40, true};
+  check({1, 0, 0}, {1.028375F, -0.007975F, -0.004575F});
+  check({1, 1, 1}, {1.193376F, 0.970955F, 0.718160F});
+  settings.photo_filter = {6310, -2420, -3630, 65, false};
+  check({-0.2F, -0.7F, 0.6F}, {-0.132649F, -0.393882F, 0.442525F});
+  settings.photo_filter = {0, 0, 0, 100, true};
+  check({1, 2, 3}, {0, 0, 0});
+}
+
+void adjustment_float_mixer_colorize_and_black_white_match_photoshop() {
+  patchy::AdjustmentSettings settings;
+  const auto check = [&](patchy::DeepChannels input, patchy::DeepChannels expected) {
+    for (float& value : input) value *= 255.0F;
+    const auto out = patchy::DeepAdjuster(settings, patchy::DeepDomain::Linear).apply(input);
+    for (std::size_t c = 0; c < out.size(); ++c) CHECK(std::abs(out[c] / 255.0F - expected[c]) < 0.00001F);
+  };
+  // Photoshop 28 float TIFFs for linear samples, including values outside [0,1].
+  settings.kind = patchy::AdjustmentKind::ChannelMixer;
+  settings.channel_mixer.red = {80, 30, -10, 0};
+  settings.channel_mixer.green = {10, 90, 0, 5};
+  settings.channel_mixer.blue = {0, 20, 70, 0};
+  check({2.0F, -0.4F, 0.1F}, {1.46972656F, -0.13564453F, -0.009765625F});
+  settings.channel_mixer.monochrome = true;
+  settings.channel_mixer.gray = {37, 69, -19, 17};
+  check({-0.5F, -0.5F, -0.5F}, {-0.349609375F, -0.349609375F, -0.349609375F});
+  settings.kind = patchy::AdjustmentKind::HueSaturation;
+  settings.hue_saturation.colorize = true;
+  settings.hue_saturation.colorize_hue = 44;
+  settings.hue_saturation.colorize_saturation = 80;
+  settings.hue_saturation.colorize_lightness = -45;
+  check({-0.5F, -0.5F, -0.5F}, {-0.72F, -0.6026667F, -0.28F});
+  check({4.0F, 4.0F, 4.0F}, {1.672F, 1.9536F, 2.728F});
+  settings.kind = patchy::AdjustmentKind::BlackWhite;
+  settings.black_white.tint = true;
+  settings.black_white.tint_color = {225, 211, 179};
+  check({-0.5F, -0.5F, -0.5F}, {0.0019607844F, 0.0019607844F, 0.0019607844F});
+  check({2.0F, -0.4F, 0.1F}, {0.8122352F, 0.7573332F, 0.6318430F});
+  check({2.0F, 2.0F, 2.0F}, {2.0522351F, 1.9973333F, 1.8718431F});
+}
+
+void adjustment_float_legacy_contrast_and_exposure_keep_hdr() {
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::BrightnessContrast;
+  settings.brightness_contrast = {20, 30, true};
+  const auto check = [&](const patchy::DeepChannels& expected) {
+    const auto rgb = patchy::DeepAdjuster(settings, patchy::DeepDomain::Linear).apply({-127.5F, 0.0F, 510.0F});
+    for (std::size_t c = 0; c < rgb.size(); ++c) CHECK(std::abs(rgb[c] / 255.0F - expected[c]) < 0.0001F);
+  };
+  // Photoshop's flattened float TIFF for the linear inputs -0.5, 0 and 2.
+  check({-0.815686F, -0.101401F, 2.755742F});
+  settings.brightness_contrast = {-20, -30, true};
+  check({-0.279020F, 0.070980F, 1.470980F});
+  settings.brightness_contrast.contrast = 100;
+  check({0.0F, 0.0F, 1.0F});
+  settings.kind = patchy::AdjustmentKind::Exposure;
+  settings.exposure.exposure_hundredths = 60;
+  settings.exposure.offset_ten_thousandths = -200;
+  settings.exposure.gamma_hundredths = 120;
+  check({-0.8111F, -0.038388F, 2.5060F});
 }
 
 void adjustment_levels_gamma_matches_photoshop_toe() {
@@ -3486,6 +3562,77 @@ void psd_gradient_map_reads_and_writes_grdm() {
   CHECK(v1->gradient_map.gradient.interpolation == patchy::GradientInterpolationMethod::Classic);
   CHECK(v1->gradient_map.gradient.color_stops == bw_gradient.color_stops);
 
+  // Each stop has its own color space. These are wire values (big-endian), including
+  // the signed a*/b* of a Photoshop dark-blue stop, and 75% black expressed as gray.
+  struct StopCase {
+    std::array<std::uint16_t, 5> values;
+    patchy::RgbColor expected;
+  };
+  const std::array stop_cases{
+      StopCase{{2, 0, 65535, 65535, 65535}, {0, 255, 255}},
+      StopCase{{7, 0x0308, 0x097e, 0xefd2, 0}, {20, 10, 80}},
+      StopCase{{8, 7500, 0, 0, 0}, {64, 64, 64}},
+  };
+  for (const auto& sample : stop_cases) {
+    auto block = bw_classic;
+    for (std::size_t i = 0; i < sample.values.size(); ++i) {
+      block[56 + i * 2] = static_cast<std::uint8_t>(sample.values[i] >> 8U);
+      block[57 + i * 2] = static_cast<std::uint8_t>(sample.values[i]);
+    }
+    const auto imported =
+        patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'g', 'r', 'd', 'm'}, block}}));
+    const auto decoded = patchy::adjustment_settings_from_layer(imported.layers().front());
+    CHECK(decoded.has_value() && decoded->kind == patchy::AdjustmentKind::GradientMap);
+    const auto actual = decoded->gradient_map.gradient.color_stops.front().color;
+    CHECK(std::abs(int(actual.red) - sample.expected.red) <= 1);
+    CHECK(std::abs(int(actual.green) - sample.expected.green) <= 1);
+    CHECK(std::abs(int(actual.blue) - sample.expected.blue) <= 1);
+    CHECK(psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(imported), 0),
+                                  "grdm") == block);
+  }
+
+  // Photoshop writes solid stops in the document space. Keep those component values
+  // on a native-mode save and encode display RGB stops when the save changes mode.
+  for (const auto& sample : stop_cases) {
+    const auto stop_space = sample.values.front();
+    const auto mode = stop_space == 2 ? patchy::psd::kColorModeCmyk :
+        stop_space == 7 ? patchy::psd::kColorModeLab : patchy::psd::kColorModeGrayscale;
+    auto block = bw_classic;
+    for (std::size_t i = 0; i < 5; ++i) {
+      const auto first = sample.values[i];
+      const auto last = i == 0 ? stop_space : std::uint16_t{0};
+      block[56 + i * 2] = static_cast<std::uint8_t>(first >> 8U);
+      block[57 + i * 2] = static_cast<std::uint8_t>(first);
+      block[76 + i * 2] = static_cast<std::uint8_t>(last >> 8U);
+      block[77 + i * 2] = static_cast<std::uint8_t>(last);
+    }
+    auto native = patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'g','r','d','m'}, block}}, mode));
+    const auto& original = std::as_const(native).layers().front();
+    const auto settings = patchy::adjustment_settings_from_layer(original);
+    CHECK(settings && settings->native_gradient_map);
+    if (stop_space == 2) {
+      const auto midpoint = patchy::native_gradient_inks(*settings->native_gradient_map, 0.5);
+      CHECK((midpoint == std::array<std::uint16_t, 4>{0, 32768, 32768, 32768}));
+    }
+    const auto native_bytes = patchy::psd::DocumentIo::write_layered_rgb8(native);
+    CHECK(native_bytes[25] == mode);
+    CHECK(psd_layer_block_payload(psd_layer_extra_data(native_bytes, 0), "grdm") == block);
+    patchy::psd::WriteOptions rgb;
+    rgb.preserve_source_color_mode = false;
+    const auto converted = patchy::psd::DocumentIo::write_layered_rgb8(native, rgb);
+    CHECK(converted[25] == patchy::psd::kColorModeRgb);
+    const auto rgb_block = psd_layer_block_payload(psd_layer_extra_data(converted, 0), "grdm");
+    CHECK(rgb_block.has_value() && (*rgb_block)[57] == 0 && (*rgb_block)[77] == 0);
+    const auto projected = read_settings(*rgb_block);
+    CHECK(projected && projected->gradient_map == settings->gradient_map);
+    auto edited_map = *settings;
+    edited_map.gradient_map.gradient.color_stops.front().color = {12, 34, 56};
+    patchy::configure_adjustment_layer(native.layers().front(), edited_map);
+    CHECK(!patchy::adjustment_settings_from_layer(original)->native_gradient_map);
+    patchy::configure_adjustment_layer(native.layers().front(), *settings);
+    CHECK(patchy::adjustment_settings_from_layer(original)->native_gradient_map != nullptr);
+  }
+
   // An HSB stop is not read: the layer stays a Gradient Map placeholder with its block kept.
   auto hsb = bw_classic;
   hsb[57] = 0x01;
@@ -3506,6 +3653,227 @@ void psd_gradient_map_reads_and_writes_grdm() {
   const auto from_metadata = patchy::adjustment_settings_from_layer(layer);
   CHECK(from_metadata.has_value());
   CHECK(from_metadata->gradient_map == fresh.gradient_map);
+}
+
+void psd_lab_adjustment_channels_masks_and_native_edits() {
+  using patchy::BitDepth;
+  using patchy::LayerKind;
+  using Sample = std::array<std::uint16_t, 3>;
+  for (const bool deep : {false, true}) {
+    const auto depth = deep ? BitDepth::UInt16 : BitDepth::UInt8;
+    const auto format = deep ? patchy::PixelFormat::rgb16() : patchy::PixelFormat::rgb8();
+    const Sample input = deep ? Sample{16383, 32767, 49151} : Sample{31, 127, 192};
+    const Sample four_levels = deep ? Sample{21844, 43689, 65535} : Sample{0, 85, 255};
+    patchy::Document document(2, 1, format);
+    auto space = std::make_shared<patchy::PsdNativeColorSpace>();
+    space->mode = patchy::psd::kColorModeLab;
+    space->depth = depth;
+    document.metadata().psd_native_color_space = space;
+    auto& base = document.add_pixel_layer("Original", patchy::PixelBuffer(2, 1, format));
+    auto color = std::make_shared<patchy::PsdNativeLayerColors>();
+    color->width = 2;
+    color->height = 1;
+    color->space = space;
+    color->imported = std::make_shared<patchy::Layer>(base);
+    for (std::size_t c = 0; c < 3; ++c) {
+      for (int x = 0; x < 2; ++x) {
+        if (deep) color->planes[c].push_back(static_cast<std::uint8_t>(input[c] >> 8U));
+        color->planes[c].push_back(static_cast<std::uint8_t>(input[c]));
+      }
+    }
+    base.set_psd_native_colors(color);
+    patchy::Layer layer(document.allocate_layer_id(), "Posterize", LayerKind::Adjustment);
+    patchy::AdjustmentSettings settings;
+    settings.kind = patchy::AdjustmentKind::Posterize;
+    settings.posterize.levels = 4;
+    patchy::configure_adjustment_layer(layer, settings);
+    layer.unknown_psd_blocks().push_back({"post", {0, 4, 0, 0}, false});
+    patchy::PixelBuffer mask(2, 1, patchy::PixelFormat::gray8());
+    mask.data()[0] = 255;
+    layer.set_mask({{0, 0, 2, 1}, std::move(mask), 0, false});
+    auto adj_source = std::make_shared<patchy::PsdNativeLayerColors>();
+    adj_source->space = space;
+    adj_source->imported = std::make_shared<patchy::Layer>(layer);
+    layer.set_psd_native_colors(adj_source);
+    document.add_layer(std::move(layer));
+    const auto read_sample = [deep](const patchy::PixelBuffer& plates, int x) {
+      Sample value{};
+      if (deep) std::memcpy(value.data(), plates.pixel(x, 0), sizeof(value));
+      else std::copy_n(plates.pixel(x, 0), 3, value.begin());
+      return value;
+    };
+    const auto plates = patchy::render_native_lab_adjustments(document, {0, 0, 2, 1}, depth, nullptr,
+                                                               patchy::LabRenderOutput::NativeLab);
+    CHECK(plates && read_sample(*plates, 0) == four_levels && read_sample(*plates, 1) == input);
+    const auto display = patchy::render_native_lab_adjustments(document, {0, 0, 1, 1}, depth);
+    CHECK(display && display->format().channels == 4 && display->format().bit_depth == depth);
+    if (deep) CHECK(display->pixel(0, 0)[6] == 255 && display->pixel(0, 0)[7] == 255);
+    else CHECK(display->pixel(0, 0)[3] == 255);
+
+    auto& adjustment = document.layers().back();
+    adjustment.set_opacity(0.5F);
+    const auto half = patchy::render_native_lab_adjustments(document, {0, 0, 1, 1}, depth, nullptr,
+                                                            patchy::LabRenderOutput::NativeLab);
+    CHECK(half.has_value());
+    for (std::size_t c = 0; c < 3; ++c) {
+      CHECK(read_sample(*half, 0)[c] == std::lround((input[c] + four_levels[c]) * 0.5));
+    }
+    adjustment.set_opacity(1.0F);
+    settings.posterize.levels = 7;
+    patchy::configure_adjustment_layer(adjustment, settings);
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    CHECK(bytes[23] == static_cast<std::uint8_t>(depth) && bytes[25] == patchy::psd::kColorModeLab);
+    patchy::psd::ReadOptions read_options;
+    read_options.keep_bit_depth = true;
+    const auto saved = patchy::psd::DocumentIo::read(bytes, read_options);
+    CHECK(patchy::adjustment_settings_from_layer(saved.layers().back())->posterize.levels == 7);
+    CHECK(saved.layers().back().mask().has_value());
+    CHECK(patchy::layer_mask_alpha_at(saved.layers().back(), 0, 0) == 1.0F);
+    CHECK(patchy::layer_mask_alpha_at(saved.layers().back(), 1, 0) == 0.0F);
+    CHECK(saved.layers().front().psd_native_colors() != nullptr);
+    CHECK(saved.layers().front().psd_native_colors()->planes == color->planes);
+    std::filesystem::create_directories("test-artifacts");
+    const auto artifact = std::filesystem::path("test-artifacts") /
+        (deep ? "lab-posterize-edited16.psd" : "lab-posterize-edited8.psd");
+    patchy::psd::DocumentIo::write_layered_rgb8_file(document, artifact);
+
+    // Photoshop's native Lab TIFFs change a* alone for slot 2 and ignore a
+    // nonidentity master. The same routing applies to point curves and Levels.
+    for (const auto kind : {patchy::AdjustmentKind::Curves, patchy::AdjustmentKind::Levels}) {
+      auto probe = document;
+      auto& current = probe.layers().back();
+      patchy::AdjustmentSettings tone;
+      tone.kind = kind;
+      const bool curves = kind == patchy::AdjustmentKind::Curves;
+      const auto payload = curves ? patchy::psd::photoshop_curves_payload(tone.curves, nullptr) :
+                                    patchy::psd::photoshop_levels_payload(tone.levels);
+      current.unknown_psd_blocks() = {{curves ? "curv" : "levl", payload, false}};
+      patchy::configure_adjustment_layer(current, tone);
+      current.set_psd_native_colors(nullptr);
+      auto tone_source = std::make_shared<patchy::PsdNativeLayerColors>();
+      tone_source->space = space;
+      tone_source->imported = std::make_shared<patchy::Layer>(current);
+      current.set_psd_native_colors(tone_source);
+      if (curves) {
+        tone.curves.rgb = {{0, 13}, {255, 13}};
+        tone.curves.green = {{0, 85}, {255, 85}};
+      } else {
+        tone.levels.black_output = tone.levels.white_output = 13;
+        tone.levels.green.black_output = tone.levels.green.white_output = 85;
+      }
+      patchy::configure_adjustment_layer(current, tone);
+      const auto toned = patchy::render_native_lab_adjustments(probe, {0, 0, 2, 1}, depth, nullptr,
+                                                               patchy::LabRenderOutput::NativeLab);
+      CHECK(toned.has_value());
+      CHECK((read_sample(*toned, 0) == Sample{input[0], static_cast<std::uint16_t>(deep ? 85 * 257 : 85), input[2]}));
+      CHECK(read_sample(*toned, 1) == input);
+      const auto tone_bytes = patchy::psd::DocumentIo::write_layered_rgb8(probe);
+      CHECK(tone_bytes[25] == patchy::psd::kColorModeLab);
+      const auto tone_saved = patchy::psd::DocumentIo::read(tone_bytes, read_options);
+      const auto restored = patchy::adjustment_settings_from_layer(tone_saved.layers().back());
+      CHECK(restored && restored->kind == kind);
+      if (curves) CHECK(restored->curves == tone.curves);
+      else CHECK(restored->levels == tone.levels);
+      const auto name = std::string(curves ? "lab-curves-edited" : "lab-levels-edited") + (deep ? "16.psd" : "8.psd");
+      patchy::psd::DocumentIo::write_layered_rgb8_file(probe, std::filesystem::path("test-artifacts") / name);
+    }
+
+    // Photoshop's full L* ramps put the first white sample at 64/255 or
+    // 16447/65535 for Threshold 64. Both output chroma planes are neutral.
+    for (const auto light_kind : {patchy::AdjustmentKind::Threshold, patchy::AdjustmentKind::BrightnessContrast}) {
+      const bool threshold = light_kind == patchy::AdjustmentKind::Threshold;
+      for (const bool legacy : {false, true}) {
+        if (threshold && legacy) continue;
+        auto probe = document;
+        auto& current = probe.layers().back();
+        patchy::AdjustmentSettings tone;
+        tone.kind = light_kind;
+        tone.brightness_contrast.use_legacy = legacy;
+        patchy::configure_adjustment_layer(current, tone);
+        current.set_psd_native_colors(nullptr);
+        auto& blocks = current.unknown_psd_blocks();
+        blocks.clear();
+        if (threshold) {
+          blocks.push_back({"thrs", {0, 128, 0, 0}, false});
+        } else {
+          blocks.push_back({"brit", {0, 0, 0, 0, 0, static_cast<std::uint8_t>(legacy ? 127 : 0),
+                                     static_cast<std::uint8_t>(legacy), 0}, false});
+          if (!legacy) {
+            // Modern Photoshop requires the Lab descriptor field even when false.
+            // Classic files carry the flag in brit and need no descriptor.
+            patchy::Layer empty(0, "Original", LayerKind::Adjustment);
+            const auto data = patchy::psd::photoshop_brightness_contrast_descriptor_payload(tone.brightness_contrast, empty);
+            CHECK(data.has_value());
+            blocks.push_back({"CgEd", *data, false});
+          }
+        }
+        auto source = std::make_shared<patchy::PsdNativeLayerColors>();
+        source->space = space;
+        source->brightness_contrast_lightness_only = legacy;
+        source->imported = std::make_shared<patchy::Layer>(current);
+        current.set_psd_native_colors(source);
+        if (threshold) tone.threshold.level = 64;
+        else tone.brightness_contrast.brightness = 25;
+        patchy::configure_adjustment_layer(current, tone);
+        const auto bytes_after_edit = patchy::psd::DocumentIo::write_layered_rgb8(probe);
+        CHECK(bytes_after_edit[25] == patchy::psd::kColorModeLab);
+        const auto roundtrip = patchy::psd::DocumentIo::read(bytes_after_edit, read_options);
+        const auto& reopened = roundtrip.layers().back();
+        const auto imported_settings = patchy::adjustment_settings_from_layer(reopened);
+        CHECK(imported_settings && imported_settings->kind == light_kind && reopened.psd_native_colors());
+        CHECK(reopened.psd_native_colors()->brightness_contrast_lightness_only == legacy);
+        const auto rendered = patchy::render_native_lab_adjustments(roundtrip, {0, 0, 2, 1}, depth, nullptr,
+                                                                   patchy::LabRenderOutput::NativeLab);
+        CHECK(rendered.has_value() && read_sample(*rendered, 1) == input);
+        const auto first = read_sample(*rendered, 0);
+        if (threshold) {
+          CHECK(imported_settings->threshold.level == 64);
+          const auto neutral = static_cast<std::uint16_t>(deep ? 32768 : 128);
+          CHECK((first == Sample{0, neutral, neutral}));
+          auto edges = std::make_shared<patchy::PsdNativeLayerColors>(*color);
+          edges->planes[0] = deep ? std::vector<std::uint8_t>{0x40, 0x3e, 0x40, 0x3f} :
+                                    std::vector<std::uint8_t>{63, 64};
+          probe.layers().front().set_psd_native_colors(edges);
+          current.clear_mask();
+          const auto boundary = patchy::render_native_lab_adjustments(probe, {0, 0, 2, 1}, depth, nullptr,
+                                                                      patchy::LabRenderOutput::NativeLab);
+          CHECK(boundary.has_value() && read_sample(*boundary, 0)[0] == 0 &&
+                read_sample(*boundary, 1)[0] == (deep ? 65535 : 255));
+        } else {
+          CHECK(imported_settings->brightness_contrast.brightness == 25);
+          CHECK(first[0] > input[0]);
+          CHECK((first[1] == input[1]) == legacy && (first[2] == input[2]) == legacy);
+          const auto raw = std::find_if(reopened.unknown_psd_blocks().begin(), reopened.unknown_psd_blocks().end(),
+                                        [](const auto& block) { return block.key == "CgEd"; });
+          if (legacy) {
+            CHECK(raw == reopened.unknown_psd_blocks().end());
+          } else {
+            CHECK(raw != reopened.unknown_psd_blocks().end());
+            patchy::psd::BigEndianReader reader(raw->payload);
+            CHECK(reader.read_u32() == 16);
+            CHECK(!patchy::psd::read_descriptor(reader).values.at("Lab ").bool_value);
+          }
+        }
+        const std::string kind = threshold ? "threshold" : legacy ? "bc-legacy" : "bc-modern";
+        const auto path = std::filesystem::path("test-artifacts") / ("lab-" + kind + "-edited" +
+                                                                    (deep ? "16.psd" : "8.psd"));
+        patchy::psd::write_file_bytes(path, bytes_after_edit);
+      }
+    }
+
+    settings.kind = patchy::AdjustmentKind::Invert;
+    patchy::configure_adjustment_layer(adjustment, settings);
+    const auto inverted = patchy::render_native_lab_adjustments(document, {0, 0, 1, 1}, depth, nullptr,
+                                                                patchy::LabRenderOutput::NativeLab);
+    CHECK(inverted.has_value());
+    for (std::size_t c = 0; c < 3; ++c) CHECK(read_sample(*inverted, 0)[c] == (deep ? 65535 : 255) - input[c]);
+    adjustment.set_blend_mode(patchy::BlendMode::Multiply);
+    CHECK(!patchy::render_native_lab_adjustments(document, {0, 0, 1, 1}, depth));
+    adjustment.set_blend_mode(patchy::BlendMode::Normal);
+    document.layers().front().pixels().data()[0] = 17;
+    CHECK(!patchy::render_native_lab_adjustments(document, {0, 0, 1, 1}, depth));
+    CHECK(!patchy::psd::DocumentIo::layered_save_keeps_source_color_mode(document));
+  }
 }
 
 // Gradient Map output pinned to Photoshop 2026 (#250): luma round((30R + 59G + 11B) / 100)
@@ -4464,6 +4832,26 @@ void psd_channel_mixer_reads_and_writes_mixr() {
   }
   CHECK(payload.size() == 44U);
   const std::vector<std::uint8_t> descriptor{0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x01};
+  auto native_payload = payload;
+  native_payload[11] = 60; // K input in the cyan row
+  native_payload[35] = 25; // C input in the black row
+  native_payload[41] = 70; // K input in the black row
+  auto native = patchy::psd::DocumentIo::read(single_adjustment_layer_psd(
+      {{{'m', 'i', 'x', 'r'}, native_payload}}, patchy::psd::kColorModeCmyk));
+  auto native_settings = patchy::adjustment_settings_from_layer(std::as_const(native).layers().front());
+  CHECK(native_settings && native_settings->channel_mixer.ink_channels);
+  const auto& inks = *native_settings->channel_mixer.ink_channels;
+  CHECK((inks.black_inputs == std::array<int, 4>{60, 0, 0, 70}));
+  CHECK(inks.black_output.red == 25);
+  const auto retained = patchy::psd::DocumentIo::write_layered_rgb8(native);
+  CHECK(retained[25] == patchy::psd::kColorModeCmyk);
+  CHECK(psd_layer_block_payload(psd_layer_extra_data(retained, 0), "mixr") == native_payload);
+  const auto reread_native = patchy::psd::DocumentIo::read(retained);
+  CHECK(patchy::adjustment_settings_from_layer(reread_native.layers().front())->channel_mixer ==
+        native_settings->channel_mixer);
+  native_settings->channel_mixer.red.constant = 20;
+  patchy::configure_adjustment_layer(native.layers().front(), *native_settings);
+  CHECK(patchy::psd::DocumentIo::write_layered_rgb8(native)[25] == patchy::psd::kColorModeRgb);
   auto document = patchy::psd::DocumentIo::read(
       single_adjustment_layer_psd({{{'m', 'i', 'x', 'r'}, payload}, {{'C', 'g', 'E', 'd'}, descriptor}}));
   CHECK(document.layers().size() == 1);
@@ -4576,6 +4964,10 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
       {"psd_native_levels_overrides_stale_patchy_fallback",
        psd_native_levels_overrides_stale_patchy_fallback},
       {"adjustment_levels_gamma_matches_photoshop_toe", adjustment_levels_gamma_matches_photoshop_toe},
+      {"adjustment_float_legacy_contrast_and_exposure_keep_hdr", adjustment_float_legacy_contrast_and_exposure_keep_hdr},
+      {"adjustment_float_mixer_colorize_and_black_white_match_photoshop", adjustment_float_mixer_colorize_and_black_white_match_photoshop},
+      {"adjustment_float_photo_filter_matches_linear_photoshop_controls",
+       adjustment_float_photo_filter_matches_linear_photoshop_controls},
       {"adjustment_hue_saturation_colorize_matches_photoshop_reference",
        adjustment_hue_saturation_colorize_matches_photoshop_reference},
       {"adjustment_hue_saturation_master_matches_photoshop_reference",
@@ -4648,6 +5040,7 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
       {"psd_photo_filter_reads_and_writes_phfl", psd_photo_filter_reads_and_writes_phfl},
       {"photo_filter_matches_photoshop_2026_calibration", photo_filter_matches_photoshop_2026_calibration},
       {"psd_gradient_map_reads_and_writes_grdm", psd_gradient_map_reads_and_writes_grdm},
+      {"psd_lab_adjustment_channels_masks_and_native_edits", psd_lab_adjustment_channels_masks_and_native_edits},
       {"gradient_map_matches_photoshop_2026_calibration", gradient_map_matches_photoshop_2026_calibration},
       {"psd_black_white_reads_and_writes_blwh", psd_black_white_reads_and_writes_blwh},
       {"black_white_presets_and_weight_influence", black_white_presets_and_weight_influence},

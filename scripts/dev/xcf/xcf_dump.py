@@ -62,6 +62,8 @@ class Reader:
             # Properties whose stored length is known to be wrong.
             if kind == 1 and self.u32(payload_at) * 3 + 4 != length:
                 length = self.u32(payload_at) * 3 + 4
+            elif kind == 48 and self.version >= 25 and length >= 12 and length == 12 + self.u32(payload_at + 4):
+                length += 4  # GIMP 3.2 can omit the path's string-length word in the count.
             payload = self.data[payload_at:payload_at + length]
             text = ""
             if length == 4 and kind not in (33,):

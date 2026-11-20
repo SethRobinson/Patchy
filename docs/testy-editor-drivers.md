@@ -35,8 +35,9 @@ Split from [testy.md](testy.md): how Testy drives each editor (Photoshop over CO
   renders of each resave and each save after a text update are drawn again only when
   they disagree with the reference: an open that draws the same picture again means the
   difference is the file's, one that matches the reference replaces the first, and a
-  third open settles the rest. Three different pictures keep the first; so does a render
-  Photoshop cannot draw again, and such a reference is checked again on its next use.
+  third open settles the rest. If three source renders differ or Photoshop cannot
+  repeat a source render, Testy keeps the first picture for inspection, excludes
+  the source from compatibility scores and checks it again on its next use.
   Extra opens render to `againN-<name>.png`, deleted once settled. The detail panel names
   every render that needed more than one open to settle (`groundTruth.renderCheck`,
   `renderCheck`, `roundtripCheck`, `textSave.renderCheck`).
@@ -115,7 +116,7 @@ Split from [testy.md](testy.md): how Testy drives each editor (Photoshop over CO
   ArrayBuffer back to the server's `/testy-upload` endpoint (uploads path-confined
   to `runs/`; CORS headers sent). Needs internet; selenium manager fetches
   chromedriver on first use.
-- The text-save leg ([testy-scoring.md](testy-scoring.md#the-save-after-a-text-update))
+- The text-save leg ([text scoring](testy-scoring-text.md#the-save-after-a-text-update))
   asks three editors for a .psd saved after their text update, from the original staged
   file. Patchy: `drivers/patchy_text_afresh.js` again (`save_text_afresh`), with
   `smart=0` so smart objects stay as they are and an `out` ending in .psd, which makes

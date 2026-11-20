@@ -1582,6 +1582,45 @@ void lens_and_iris_blur_are_deterministic_geometric_and_premultiplied() {
   }
 }
 
+void smart_filter_saved_mask_keeps_native_uint16_samples() {
+  const patchy::Rect bounds{-3, 4, 5, 1};
+  const patchy::PixelFormat format{patchy::ColorMode::RGB, patchy::BitDepth::UInt16, 4};
+  patchy::FilterRenderResult base{patchy::PixelBuffer(5, 1, format), bounds};
+  patchy::FilterRenderResult filtered{patchy::PixelBuffer(5, 1, format), bounds};
+  const std::array<std::uint16_t, 4> before{1234, 22222, 61000, 60534};
+  const std::array<std::uint16_t, 4> after{54321, 40001, 335, 18761};
+  for (int x = 1; x <= 3; ++x) {
+    std::memcpy(base.pixels.pixel(x, 0), before.data(), sizeof(before));
+    std::memcpy(filtered.pixels.pixel(x, 0), after.data(), sizeof(after));
+  }
+  patchy::SmartFilterMask mask;
+  mask.bounds = bounds;
+  mask.pixels = patchy::PixelBuffer(5, 1, patchy::PixelFormat::gray8());
+  mask.pixels.pixel(2, 0)[0] = 93;
+  mask.pixels.pixel(3, 0)[0] = 255;
+  const auto result = patchy::apply_saved_smart_filter_mask(base, filtered, mask, 5);
+  CHECK(result.has_value());
+  CHECK(result->pixels.format() == format);
+  CHECK(result->bounds.x == -2 && result->bounds.y == 4 && result->bounds.width == 3 && result->bounds.height == 1);
+  const std::array<std::uint16_t, 4> mixed{9253, 24907, 51837, 45299};
+  CHECK(std::memcmp(result->pixels.pixel(0, 0), before.data(), sizeof(before)) == 0);
+  CHECK(std::memcmp(result->pixels.pixel(1, 0), mixed.data(), sizeof(mixed)) == 0);
+  CHECK(std::memcmp(result->pixels.pixel(2, 0), after.data(), sizeof(after)) == 0);
+  CHECK(!patchy::apply_saved_smart_filter_mask(base, filtered, mask, 4));
+  // This native coverage falls between adjacent byte levels.
+  mask.bounds = {-1, 4, 1, 1};
+  mask.pixels = patchy::PixelBuffer(1, 1, {patchy::ColorMode::Grayscale, patchy::BitDepth::UInt16, 1});
+  const std::uint16_t coverage = 24001;
+  std::memcpy(mask.pixels.pixel(0, 0), &coverage, sizeof(coverage));
+  const auto native = patchy::apply_saved_smart_filter_mask(base, filtered, mask, 5);
+  CHECK(native.has_value());
+  const std::array<std::uint16_t, 4> precise{9297, 24922, 51785, 45235};
+  CHECK(std::memcmp(native->pixels.pixel(1, 0), precise.data(), sizeof(precise)) == 0);
+  CHECK(std::memcmp(native->pixels.pixel(0, 0), after.data(), sizeof(after)) == 0);
+  base.pixels = patchy::PixelBuffer(5, 1, patchy::PixelFormat::rgba8());
+  CHECK(!patchy::apply_saved_smart_filter_mask(base, filtered, mask, 5));
+}
+
 void smart_filter_shared_mask_and_disable_states_are_applied_once() {
   auto source = solid_rgba(5, 5, 0, 0, 0, 255);
   for (std::int32_t y = 0; y < source.height(); ++y) {
@@ -1618,7 +1657,13 @@ void smart_filter_shared_mask_and_disable_states_are_applied_once() {
 
   auto gray = black;
   gray.mask.pixels.pixel(2, 2)[0] = 128;
-  const auto gray_result = patchy::render_smart_filter_stack(source, bounds, gray);
+  patchy::FilterRenderResult for_psd;
+  const auto gray_result = patchy::render_smart_filter_stack(source, bounds, bounds, gray, nullptr, &for_psd);
+  check_filter_result_equal(unmasked, for_psd);
+  const auto displayed = patchy::apply_saved_smart_filter_mask({source, bounds}, for_psd, gray.mask, 25);
+  CHECK(displayed.has_value());
+  check_filter_result_equal(gray_result, *displayed);
+  CHECK(!patchy::apply_saved_smart_filter_mask({source, bounds}, for_psd, gray.mask, 24));
   CHECK(filter_result_pixel(gray_result, 12, 22)[0] == 175);
   CHECK(filter_result_pixel(gray_result, 12, 22)[3] == 255);
   CHECK(filter_result_pixel(gray_result, 12, 21)[0] == 255);
@@ -2903,6 +2948,7 @@ std::vector<patchy::test::TestCase> smart_filter_pixels_tests() {
        tilt_shift_blur_is_deterministic_respects_focus_geometry_and_bounds},
       {"lens_and_iris_blur_are_deterministic_geometric_and_premultiplied",
        lens_and_iris_blur_are_deterministic_geometric_and_premultiplied},
+      {"smart_filter_saved_mask_keeps_native_uint16_samples", smart_filter_saved_mask_keeps_native_uint16_samples},
       {"smart_filter_shared_mask_and_disable_states_are_applied_once",
        smart_filter_shared_mask_and_disable_states_are_applied_once},
       {"smart_filter_entry_blending_matches_photoshop_baked_pixels",

@@ -46,6 +46,7 @@ enum Prop : std::uint32_t {
   kColorTag = 34,
   kCompositeMode = 35,
   kFloatColor = 38,
+  kFilterRegion = 44,
   kFilterArgument = 45,
 };
 
@@ -157,6 +158,7 @@ struct Effect {
   std::string name;
   std::string operation;
   std::vector<Property> properties;
+  std::optional<Channel> mask{};
 };
 
 struct Layer {
@@ -403,7 +405,11 @@ private:
       b.string(effect.operation);
       if (image_.version >= 22) b.string("0:0");
       write_properties(effect.properties);
-      write_pointer(0);
+      const auto mask_pointer = pointer_slot();
+      if (effect.mask.has_value()) {
+        patch_pointer(mask_pointer, b.data.size());
+        write_channel(*effect.mask);
+      }
     }
     return floating_slot;
   }

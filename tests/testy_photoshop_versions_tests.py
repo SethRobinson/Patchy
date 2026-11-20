@@ -147,6 +147,36 @@ class VersionChecks(unittest.TestCase):
         self.assertEqual(verdict['state'], 'ok')
         self.assertEqual((verdict['nativeKept'], verdict['nativeTotal']), (1, 2))
 
+    def test_artboard_and_hidden_child_visibility_survive_independently(self):
+        artboard = dict(path='0', name='Frame', kind='ARTBOARD', group=True, artboard=True,
+                        visible=False, layerVisible=False)
+        child = dict(path='0/0', name='Paint', kind='NORMAL', group=False,
+                     visible=False, layerVisible=True)
+        plain_group = dict(artboard, kind='GROUP', artboard=False)
+        invisible_child = dict(child, layerVisible=False)
+        native = testy.manifest_mod.compare_manifests([artboard, child], [plain_group, invisible_child])
+        self.assertEqual((native['nativeKept'], native['nativeTotal']), (1, 2))
+        self.assertEqual(native['changedLayers'][0]['kind'], 'ARTBOARD')
+        self.assertEqual(native['attributes']['layerVisible'], {'kept': 1, 'total': 2})
+        legacy_group = dict(path='0', name='Frame', group=True, kind='GROUP', visible=False)
+        legacy = testy.manifest_mod.compare_manifests([legacy_group], [artboard])
+        self.assertEqual(legacy['nativeKept'], 1)
+        self.assertEqual(legacy['attributes']['layerVisible']['total'], 0)
+
+    def test_layer_probe_schema_separates_new_and_historical_reopen_caches(self):
+        answers = {'original.psd': dict(ok=True, layers=LAYERS), 'resave.psd': dict(ok=True, layers=LAYERS)}
+        old = self.runner(answers)
+        self.check(old)
+        new = self.runner(answers)
+        new.status['run']['photoshopLayerProperties'] = 1
+        self.assertNotEqual(old._cache_suffix(), new._cache_suffix())
+        self.check(new)
+        self.assertEqual(new._check_drivers['2025'].probes, ['original.psd', 'resave.psd'])
+        repeated = self.runner(answers)
+        repeated.status['run']['photoshopLayerProperties'] = 1
+        self.check(repeated)
+        self.assertEqual(repeated._check_drivers['2025'].probes, [])
+
     def test_verdicts_are_cached_by_file_and_version_but_a_version_that_never_ran_is_not(self):
         answers = {'original.psd': dict(ok=True, layers=LAYERS), 'resave.psd': dict(ok=True, layers=LAYERS)}
         self.check(self.runner(answers))

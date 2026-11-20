@@ -96,6 +96,10 @@ enum class DissolveField : std::uint32_t {
 [[nodiscard]] std::array<double, 3> gradient_color_precise(const LayerStyleGradient& gradient, float position,
                                                            bool endpoint_smoothing, bool linear_light,
                                                            bool ease_every_method = false);
+// One Classic gradient channel in native units. Photoshop bounds a CMYK, gray or Lab
+// segment to its adjacent stop values even where its smooth cubic would overshoot.
+[[nodiscard]] double native_gradient_segment(double previous, double left, double right, double next,
+                                             float t, float midpoint, std::uint16_t smoothness);
 [[nodiscard]] RgbColor
 gradient_color_dithered(const LayerStyleGradient &gradient, float position,
                         std::int32_t x, std::int32_t y, bool endpoint_smoothing = false);

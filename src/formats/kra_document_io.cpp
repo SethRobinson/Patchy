@@ -43,6 +43,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
@@ -1172,13 +1173,14 @@ struct BuildState {
   return id;
 }
 
-void index_nodes(const std::vector<Node>& nodes, BuildState& state) {
+void index_nodes(const std::vector<Node>& nodes, BuildState& state, std::set<std::string>& used_styles) {
   for (const auto& node : nodes) {
     if (!node.uuid.empty()) {
       state.by_uuid[normalized_uuid(node.uuid)] = &node;
     }
     state.by_name.emplace(node.name, &node);
-    index_nodes(node.children, state);
+    if (!node.layer_style.empty()) used_styles.insert(normalized_uuid(node.layer_style));
+    index_nodes(node.children, state, used_styles);
   }
 }
 
@@ -1346,7 +1348,7 @@ void apply_transparency_masks(Layer& layer, const Node& node, BuildState& state)
   }
   PixelBuffer pixels = state.depth == BitDepth::UInt8 ? flatten_document_rgba8(content)
                                                       : Compositor().flatten_rgba_deep(content);
-  (void)apply_krita_filter(*node.config, pixels);
+  (void)apply_krita_filter(*node.config, pixels, Rect::from_size(pixels.width(), pixels.height()));
   Layer layer(state.document.allocate_layer_id(), node.name, std::move(pixels));
   layer.set_bounds(Rect::from_size(state.document.width(), state.document.height()));
   layer.set_opacity(node.opacity);
@@ -1511,7 +1513,7 @@ void apply_transparency_masks(Layer& layer, const Node& node, BuildState& state)
         if (it->type == MaskType::Filter && it->visible && it->config.has_value() && !maps_to_adjustment(*it->config) &&
             krita_filter_is_applied(*it->config)) {
           auto filtered = *pixels;
-          (void)apply_krita_filter(*it->config, filtered);
+          (void)apply_krita_filter(*it->config, filtered, bounds);
           *pixels = it->selection.has_value() ? blend_by_selection(*pixels, filtered, bounds, *it->selection)
                                               : std::move(filtered);
           add_unique(state.read.applied_filters, node.name + " / " + it->name + " (" + it->config->name + ")");
@@ -1708,7 +1710,7 @@ std::vector<Layer> build_list(const std::vector<Node>& nodes, BuildState& state)
 
 // Layer styles: Krita keeps them in one ASL file, each style named by the uuid a layer's
 // "layerstyle" attribute refers to.
-void read_styles(ReadState& read, BuildState& build) {
+void read_styles(ReadState& read, BuildState& build, const std::set<std::string>& used_styles) {
   auto bytes = read.zip.extract(read.prefix + "annotations/layerstyles.asl", kMaxEntryBytes);
   if (!bytes.has_value()) {
     return;
@@ -1722,10 +1724,8 @@ void read_styles(ReadState& read, BuildState& build) {
   for (const auto& pattern : parsed->patterns) {
     build.document.metadata().patterns.adopt(pattern);
   }
-  // Effects set to "use global light" take the document's light: Krita keeps Photoshop's
-  // global angle and altitude resources (1037, 1049) as "PSD Resource Block: <id>"
-  // annotations when it opened a PSD;
-  // otherwise Photoshop's defaults apply (120 and 30 degrees).
+  // An imported PSD's image resources are kept as annotations. They can still
+  // contain the old global angle after Krita has saved a new effect direction.
   const auto resource_degrees = [&](const char* id, std::int32_t fallback) {
     auto bytes = read.zip.extract(read.prefix + "annotations/PSD Resource Block: " + id, 64);
     if (!bytes.has_value() || bytes->size() < 4) {
@@ -1736,8 +1736,29 @@ void read_styles(ReadState& read, BuildState& build) {
                                                  (static_cast<std::uint32_t>((*bytes)[2]) << 8U) | (*bytes)[3]);
     return value >= -360 && value <= 360 ? value : fallback;
   };
-  const GlobalLight light{resource_degrees("1037", GlobalLight{}.angle),
-                          resource_degrees("1049", GlobalLight{}.altitude)};
+  GlobalLight light{resource_degrees("1037", GlobalLight{}.angle),
+                    resource_degrees("1049", GlobalLight{}.altitude)};
+  std::set<int> linked_angles;
+  const auto collect_angles = [&](const auto& effects) {
+    for (const auto& effect : effects) {
+      if (effect.enabled && effect.use_global_light && std::isfinite(effect.angle_degrees) &&
+          std::abs(effect.angle_degrees) <= 360.0F) {
+        // A turn or a sign change at 180 degrees describes the same lighting.
+        int degrees = static_cast<int>(std::lround(effect.angle_degrees));
+        if (degrees <= -180) degrees += 360;
+        if (degrees > 180) degrees -= 360;
+        linked_angles.insert(degrees);
+      }
+    }
+  };
+  for (const auto& style : parsed->styles) {
+    if (style.style.effects_visible && used_styles.contains(normalized_uuid(style.id))) {
+      collect_angles(style.style.drop_shadows);
+      collect_angles(style.style.inner_shadows);
+      collect_angles(style.style.bevels);
+    }
+  }
+  if (linked_angles.size() == 1) light.angle = *linked_angles.begin();
   build.document.set_global_light(light);
   for (const auto& style : parsed->styles) {
     auto stored = style;
@@ -1937,8 +1958,9 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
 
   BuildState build{document,        depth, state, source_directory, allow_network_server, blocked_network_servers,
                    {},              {},    {},    std::nullopt};
-  read_styles(state, build);
-  index_nodes(nodes, build);
+  std::set<std::string> used_styles;
+  index_nodes(nodes, build, used_styles);
+  read_styles(state, build, used_styles);
   for (auto& layer : build_list(nodes, build)) {
     document.add_layer(std::move(layer));
   }

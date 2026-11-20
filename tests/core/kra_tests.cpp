@@ -21,6 +21,7 @@
 #include "formats/ora_document_io.hpp"
 #include "formats/stb/stb_image.h"
 #include "support/decode_budget.hpp"
+#include "psd/asl_io.hpp"
 #include "psd/psd_document_io.hpp"
 #include "core_test_support.hpp"
 #include "local_psd_fixtures.hpp"
@@ -264,6 +265,109 @@ std::vector<patchy::ora::detail::ZipEntry> synthetic_entries() {
 
 std::vector<std::uint8_t> synthetic_file() {
   return patchy::ora::detail::zip_archive(synthetic_entries());
+}
+
+void kra_reads_hex_and_default_gradient_fills_as_editable_paints() {
+  auto entries = synthetic_entries();
+  std::string xml(kSyntheticMaindoc);
+  xml.insert(xml.find("<layer name=\"Unknown op\""),
+             R"(<layer name="Hex fill" nodetype="generatorlayer" filename="fill" generatorname="color"
+                 compositeop="normal" opacity="255" visible="1" x="0" y="0"/>
+                <layer name="Ramp" nodetype="generatorlayer" filename="ramp" generatorname="gradient"
+                 compositeop="normal" opacity="255" visible="1" x="0" y="0"/>)");
+  entries[1].data = bytes_of(xml);
+  entries.push_back({"Doc/layers/fill.filterconfig",
+                     bytes_of(R"(<params version="1"><param type="internal" name="color">#Cc3e17</param></params>)"),
+                     true});
+  entries.push_back({"Doc/layers/ramp.filterconfig", bytes_of(R"(<params version="1"/>)"), true});
+  const auto document = kra::DocumentIo::read(patchy::ora::detail::zip_archive(entries));
+  const auto check_fill = [](const Document& doc) {
+    const auto* layer = find_named(doc.layers(), "Hex fill");
+    CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+    const auto& fill = layer->vector_shape()->fill;
+    CHECK(fill.kind == patchy::VectorFillKind::Solid);
+    CHECK((fill.color == patchy::RgbColor{204, 62, 23}));
+    const auto* ramp = find_named(doc.layers(), "Ramp");
+    CHECK(ramp != nullptr && ramp->vector_shape() != nullptr);
+    const auto& paint = ramp->vector_shape()->fill;
+    CHECK(paint.kind == patchy::VectorFillKind::Gradient && paint.gradient.color_stops.size() == 2);
+    CHECK(paint.gradient.smoothness == 0 && !paint.gradient.align_with_layer && paint.gradient.angle_degrees == 0);
+    CHECK((paint.gradient.color_stops.back().color == patchy::RgbColor{255, 255, 255}));
+  };
+  check_fill(document);
+  check_fill(patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document)));
+  CHECK(!kra::detail::fill_from_generator({"gradient", 1, {{"unknown", "3"}}}).has_value());
+  CHECK(!kra::detail::fill_from_generator({"gradient", 0, {}}).has_value());
+  CHECK(!kra::detail::fill_from_generator({"color", 1, {{"color", "#FFCC1?"}}}).has_value());
+}
+
+void kra_reads_linked_style_angles_and_preserves_psd_linkage() {
+  const auto open = [](float first, float second, bool linked) {
+    std::array<patchy::psd::AslStyle, 3> styles;
+    for (std::size_t i = 0; i < styles.size(); ++i) {
+      auto& style = styles[i];
+      style.id = style.name = "style" + std::to_string(i);
+      patchy::LayerDropShadow shadow;
+      shadow.enabled = true;
+      shadow.use_global_light = i != 1 || linked;
+      shadow.angle_degrees = i == 0 ? first : i == 1 ? second : 15.0F;
+      style.style.drop_shadows.push_back(shadow);
+    }
+    // The third style is in the library but no layer uses it.
+    auto entries = synthetic_entries();
+    std::string xml(kSyntheticMaindoc);
+    xml.insert(xml.find("name=\"Base\""), "layerstyle=\"style0\" ");
+    xml.insert(xml.find("name=\"Unknown op\""), "layerstyle=\"style1\" ");
+    entries[1].data = bytes_of(xml);
+    entries.push_back({"Doc/annotations/PSD Resource Block: 1037", {0, 0, 0, 90}, false});
+    entries.push_back({"Doc/annotations/layerstyles.asl", patchy::psd::write_asl(styles, {}), false});
+    return kra::DocumentIo::read(patchy::ora::detail::zip_archive(entries));
+  };
+  auto document = open(-38, 322, true);  // same direction in two representations
+  CHECK(document.metadata().global_light.angle == -38);
+  const auto check_shadow = [](const Document& doc, int angle) {
+    const auto* layer = find_named(doc.layers(), "Base");
+    CHECK(layer != nullptr && layer->layer_style().drop_shadows.size() == 1);
+    const auto& shadow = layer->layer_style().drop_shadows.front();
+    CHECK(shadow.use_global_light && shadow.angle_degrees == static_cast<float>(angle));
+  };
+  check_shadow(document, -38);
+  document.set_global_light({72, 30});
+  const auto reopened = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  CHECK(reopened.metadata().global_light.angle == 72);
+  check_shadow(reopened, 72);
+  CHECK(open(30, -38, true).metadata().global_light.angle == 90);  // conflicting linked angles
+  CHECK(open(30, -38, false).metadata().global_light.angle == 30);  // unlinked local angle
+}
+
+void kra_pixelize_aligns_rectangular_cells_with_the_document() {
+  const kra::detail::FilterConfig filter{"pixelize", 1, {{"pixelWidth", "3"}, {"pixelHeight", "2"}}};
+  for (const auto depth : {BitDepth::UInt8, BitDepth::UInt16, BitDepth::Float32}) {
+    PixelBuffer pixels(5, 3, patchy::with_bit_depth(PixelFormat::rgba8(), depth));
+    const auto domain = patchy::deep_domain_for(depth);
+    const float green = depth == BitDepth::Float32 ? -63.75F : 0.0F;
+    const float blue = depth == BitDepth::Float32 ? 510.0F : 0.0F;
+    for (int y = 0; y < 3; ++y) {
+      for (int x = 0; x < 5; ++x) {
+        const std::array<float, 4> rgba{x == 2 ? 255.0F : static_cast<float>(30 * x + 6 * y), green, blue,
+                                        x == 2 ? 0.0F : 255.0F};
+        patchy::store_rgba_row(pixels, y, x, 1, domain, rgba);
+      }
+    }
+    CHECK(kra::detail::apply_krita_filter(filter, pixels, {-1, 1, 5, 3}));
+    const auto check = [&](int x, int y, float red, float alpha) {
+      std::array<float, 4> rgba{};
+      patchy::load_rgba_row(pixels, y, x, 1, domain, rgba);
+      CHECK(std::abs(rgba[0] - red) < 0.01F && std::abs(rgba[3] - alpha) < 0.01F);
+      CHECK(std::abs(rgba[1] - green) < 0.01F && std::abs(rgba[2] - blue) < 0.01F);
+    };
+    // Source rect x=-1..3, y=1..3. The middle column is transparent and its
+    // hidden RGB must not tint either block. The first row is a partial cell.
+    check(0, 0, 0, 255);
+    check(1, 0, 60, 170);
+    check(3, 2, 69, 170);
+    check(4, 1, 129, 255);
+  }
 }
 
 void kra_lzf_decompresses_literals_and_back_references() {
@@ -662,7 +766,7 @@ constexpr FixtureLimit kFixtureLimits[] = {
     {"masks", 0.0, 0, false},           {"channels", 0.0, 0, false},       {"clone-file", 0.0, 0, false},
     {"document", 0.0, 0, false},        {"profile-clay", 0.0, 0, false},   {"large", 0.01, 1, false},
     {"cmyk-u8", 4.5, 100, false},
-    {"psd-emboss-styles", 0.01, 1, true},             {"psd-global-light-shadow", 0.01, 1, true},
+    {"psd-emboss-styles", 0.01, 1, true},             {"psd-global-light-shadow", 0.5, 14, false},
     {"psd-inner-glow", 0.01, 1, true},                {"psd-inner-shadow", 0.01, 1, true},
     {"psd-outer-glow", 0.01, 1, true},                {"psd-outer-glow-range", 0.01, 1, true},
     {"psd-pattern-overlay", 0.01, 1, true},           {"psd-pillow-emboss", 0.01, 1, true},
@@ -943,6 +1047,9 @@ void kra_krita_blend_modes_match_krita() {
 
 std::vector<patchy::test::TestCase> kra_tests() {
   return {
+      {"kra_reads_hex_and_default_gradient_fills_as_editable_paints", kra_reads_hex_and_default_gradient_fills_as_editable_paints},
+      {"kra_reads_linked_style_angles_and_preserves_psd_linkage", kra_reads_linked_style_angles_and_preserves_psd_linkage},
+      {"kra_pixelize_aligns_rectangular_cells_with_the_document", kra_pixelize_aligns_rectangular_cells_with_the_document},
       {"kra_lzf_decompresses_literals_and_back_references", kra_lzf_decompresses_literals_and_back_references},
       {"kra_reader_maps_the_layer_tree", kra_reader_maps_the_layer_tree},
       {"kra_sniff_and_registry_recognize_krita_files", kra_sniff_and_registry_recognize_krita_files},

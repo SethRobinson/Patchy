@@ -286,6 +286,31 @@ std::vector<std::uint8_t> color_mode_ramp16(std::uint16_t mode, std::span<const 
   return file.bytes();
 }
 
+void psd_deep_untagged_float_gray_keeps_linear_hdr_samples() {
+  const std::array<float, 5> gray{-0.125F, 0.0F, 0.22126412F, 0.222F, 1.75F};
+  psd::BigEndianWriter file;
+  psd::write_header(file, psd::Header{false, 1, 1, static_cast<std::uint32_t>(gray.size()), 32, 1});
+  file.write_u32(0);  // color mode data
+  file.write_u32(0);  // image resources, including the absent ICC profile
+  file.write_u32(0);  // layer and mask section
+  file.write_u16(0);  // uncompressed composite
+  for (const float sample : gray) file.write_u32(std::bit_cast<std::uint32_t>(sample));
+
+  psd::ReadOptions options;
+  options.keep_bit_depth = true;
+  const auto document = psd::DocumentIo::read(file.bytes(), options);
+  CHECK(document_bit_depth(document) == BitDepth::Float32);
+  const auto& pixels = document.layers().at(0).pixels();
+  for (std::size_t x = 0; x < gray.size(); ++x) {
+    const auto* pixel = pixels.pixel(static_cast<int>(x), 0);
+    for (std::size_t c = 0; c < 3; ++c) {
+      float sample;
+      std::memcpy(&sample, pixel + c * sizeof(float), sizeof(float));
+      CHECK(sample == gray[x]);
+    }
+  }
+}
+
 void psd_deep_color_conversions_keep_sub_byte_samples_and_alpha() {
   const auto cmyk_source = psd::DocumentIo::read_file(
       patchy::test::committed_psd_fixture_path("photoshop-cmyk-style-colors.psd"));
@@ -606,8 +631,16 @@ void psd_cmyk_smart_filter_saves_preserve_native_and_convert_authored_caches() {
             psd::serialize_filter_effects_block(original_store.blocks.front()));
       auto edited = original;
       const auto rgb = convert_pixel_buffer_depth(placed->pixels(), BitDepth::UInt8, SampleKind::Color);
+      // The Smart Filter renderer authors a byte preview. Match the deep
+      // placement path, which projects coverage only when every sample survives.
+      const auto& native_mask = placed->smart_filter_stack()->mask;
+      auto author_mask = native_mask;
+      author_mask.pixels = convert_pixel_buffer_depth(native_mask.pixels, BitDepth::UInt8, SampleKind::Coverage);
+      const auto restored_mask = convert_pixel_buffer_depth(author_mask.pixels, native_mask.pixels.format().bit_depth,
+                                                            SampleKind::Coverage);
+      CHECK(std::ranges::equal(restored_mask.data(), native_mask.pixels.data()));
       const auto authored = psd::author_filter_effects_record(uuid, Rect::from_size(original.width(), original.height()),
-          rgb, placed->bounds(), placed->smart_filter_stack()->mask);
+          rgb, placed->bounds(), author_mask);
       CHECK(authored.has_value());
       CHECK(edited.metadata().smart_filter_effects.upsert_authored(*authored));
       mark_layer_smart_object_block_dirty(*edited.find_layer(placed->id()));
@@ -616,6 +649,11 @@ void psd_cmyk_smart_filter_saves_preserve_native_and_convert_authored_caches() {
       const auto after = psd::DocumentIo::read(edited_bytes, read);
       const auto* cache = after.metadata().smart_filter_effects.find_unique(uuid);
       CHECK(cache != nullptr && cache->semantic_supported() && cache->native_color_space != nullptr);
+      CHECK(cache->cache_depth == static_cast<std::uint32_t>(bits));
+      if (bits == 16) {
+        CHECK(native_mask.pixels.format().bit_depth == BitDepth::UInt16);
+        CHECK(cache->mask && std::ranges::equal(cache->mask->native_pixels.data(), native_mask.pixels.data()));
+      }
       CHECK(cache->mask->bounds.x == authored->mask->bounds.x && cache->mask->bounds.y == authored->mask->bounds.y);
       CHECK(cache->mask->bounds.width == authored->mask->bounds.width && cache->mask->bounds.height == authored->mask->bounds.height);
       CHECK(*cache->mask->samples == *authored->mask->samples);
@@ -806,6 +844,7 @@ std::vector<patchy::test::TestCase> psd_deep_io_tests() {
       {"psd_deep_16_bit_document_round_trips_exactly", psd_deep_16_bit_document_round_trips_exactly},
       {"psd_deep_32_bit_document_round_trips_exactly", psd_deep_32_bit_document_round_trips_exactly},
       {"psd_deep_gate_off_reads_8_bit_as_before", psd_deep_gate_off_reads_8_bit_as_before},
+      {"psd_deep_untagged_float_gray_keeps_linear_hdr_samples", psd_deep_untagged_float_gray_keeps_linear_hdr_samples},
       {"psd_deep_color_conversions_keep_sub_byte_samples_and_alpha",
        psd_deep_color_conversions_keep_sub_byte_samples_and_alpha},
       {"psd_deep_native_colors_survive_saves_but_never_shadow_edits",

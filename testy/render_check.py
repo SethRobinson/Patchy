@@ -18,6 +18,22 @@ from typing import Callable
 MAX_RENDERS = 3
 
 
+def source_exclusion(truth: dict | None) -> str | None:
+    """Why this source cannot supply a Photoshop compatibility verdict."""
+    if not truth:
+        return None
+    if truth.get("dialogs"):
+        return "Photoshop displayed a warning while opening the source"
+    if truth.get("state") == "failed":
+        return "Photoshop refused the source" if truth.get("fileRejected") else "Photoshop reference unavailable"
+    if str(truth.get("render", "")).startswith("render-error"):
+        return "Photoshop could not render the source"
+    outcome = (truth.get("renderCheck") or {}).get("outcome")
+    if outcome in ("unstable", "unconfirmed"):
+        return "Photoshop reference render " + outcome
+    return None
+
+
 def deep_companion(render_png: Path) -> Path:
     """The 16-bit render a probe writes beside an 8-bit one (drivers.photoshop's
     deep_render_path): render.png -> render16.png."""
@@ -29,7 +45,7 @@ def again_path(render_png: Path, number: int) -> Path:
     return render_png.with_name(f"again{number}-{render_png.name}")
 
 
-def scratch_names(*stems: str) -> tuple[str, ...]:
+def scratch_names(*stems: str, float32: bool = False) -> tuple[str, ...]:
     """Every file name settle_render can leave behind if a run dies mid-check, for
     the run-deletion and scan-scrub lists (exact names only, never a wildcard)."""
     names = []
@@ -37,6 +53,8 @@ def scratch_names(*stems: str) -> tuple[str, ...]:
         for number in range(2, MAX_RENDERS + 1):
             again = again_path(Path(stem + ".png"), number)
             names += [again.name, deep_companion(again).name]
+            if float32:
+                names.append(again.stem + "32.tif")
     return tuple(names)
 
 
@@ -98,7 +116,7 @@ def note(verdict: dict, what: str) -> str | None:
 
 def settle_render(probe: Callable[[Path, Path], dict], source: Path, render_png: Path,
                   reference: Path | None, agree: Callable[[Path, Path], bool],
-                  what: str) -> dict | None:
+                  what: str, *, float_size: tuple[int, int] | None = None) -> dict | None:
     """settle() for a render a Photoshop probe of `source` wrote to `render_png`.
 
     `probe(source, out_png)` is PhotoshopDriver.probe (it also writes the 16-bit
@@ -107,30 +125,53 @@ def settle_render(probe: Callable[[Path, Path], dict], source: Path, render_png:
     ({"renders", "outcome", "note"?}), or None when the first render matched the
     reference and nothing more was drawn."""
     made: list[Path] = []
+    successful = [render_png]
+    dialogs = []
+    float_check = None
+
+    def artifacts(path: Path) -> list[Path]:
+        files = [path, deep_companion(path)]
+        if float_size is not None:
+            files.append(path.with_name(path.stem + "32.tif"))
+        return files
 
     def render_again(number: int) -> Path | None:
         out = again_path(render_png, number)
-        for stale in (out, deep_companion(out)):
+        for stale in artifacts(out):
             stale.unlink(missing_ok=True)
         made.append(out)
         result = probe(source, out)
-        return out if result.get("ok") and out.exists() else None
+        for warning in result.get("dialogs") or []:
+            if warning not in dialogs:
+                dialogs.append(warning)
+        if result.get("ok") and out.exists():
+            successful.append(out)
+            return out
+        return None
 
     try:
         verdict = settle(render_png, render_again, agree, reference)
         kept = verdict["kept"]
+        if float_size is not None:
+            import float32_check
+            float_check = float32_check.confirm_reference(kept, successful, float_size)
         if kept != render_png:
-            kept.replace(render_png)
-            companion = deep_companion(kept)
-            if companion.exists():
-                companion.replace(deep_companion(render_png))
+            for source_art, dest_art in zip(artifacts(kept), artifacts(render_png)):
+                if source_art.exists():
+                    source_art.replace(dest_art)
+                elif float_size is not None and dest_art.suffix == ".tif":
+                    dest_art.unlink(missing_ok=True)
     finally:
         for path in made:
-            for leftover in (path, deep_companion(path)):
+            for leftover in artifacts(path):
                 leftover.unlink(missing_ok=True)
     if verdict["outcome"] == "agrees":
         return None
     record = {"renders": verdict["renders"], "outcome": verdict["outcome"]}
+    if float_check:
+        record["float32"] = float_check
+    if dialogs:
+        record["dialogs"] = dialogs
     line = note(verdict, what)
     if line:
         record["note"] = line

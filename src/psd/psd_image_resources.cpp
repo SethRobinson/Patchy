@@ -22,6 +22,7 @@
 #include "psd/psd_filter_effects.hpp"
 #include "psd/psd_patterns.hpp"
 #include "psd/psd_smart_objects.hpp"
+#include "psd/psd_timeline_audio.hpp"
 #include "render/compositor.hpp"
 #include "support/string_utils.hpp"
 #include "support/translate_noop.hpp"
@@ -603,6 +604,41 @@ std::optional<std::vector<std::uint8_t>> find_image_resource_payload(std::span<c
     }
   }
   return std::nullopt;
+}
+
+std::vector<TimelineAudioLink> timeline_audio_links(std::span<const std::uint8_t> image_resources) {
+  std::vector<TimelineAudioLink> links;
+  try {
+    const auto payload = find_image_resource_payload(image_resources, 1075);
+    if (!payload) return links;
+    BigEndianReader reader(*payload);
+    if (reader.read_u32() != 16) return links;
+    const auto timeline = read_descriptor(reader);
+    const auto* audio = descriptor_object(timeline, "audioClipGroupList");
+    const auto* groups = audio ? descriptor_value(*audio, "audioClipGroupList") : nullptr;
+    if (!groups || groups->type != DescriptorValue::Type::List) return links;
+    std::set<TimelineAudioLink> seen;
+    for (const auto& group : groups->list_value) {
+      const auto* clips = group.object_value ? descriptor_value(*group.object_value, "audioClipList") : nullptr;
+      if (!clips || clips->type != DescriptorValue::Type::List) continue;
+      for (const auto& clip : clips->list_value) {
+        const auto* frame = clip.object_value ? descriptor_object(*clip.object_value, "frameReader") : nullptr;
+        const auto* file = frame ? descriptor_object(*frame, "Lnk ") : nullptr;
+        if (!file || file->class_id != "ExternalFileLink") continue;
+        const auto text = [file](const char* key) -> std::string {
+          const auto* value = descriptor_value(*file, key);
+          return value && value->type == DescriptorValue::Type::String ? value->string_value : std::string{};
+        };
+        TimelineAudioLink link{text("Nm  "), text("relPath"), text("fullPath"), text("originalPath")};
+        if (!link.name.empty() && seen.insert(link).second) {
+          links.push_back(std::move(link));
+        }
+      }
+    }
+  } catch (const std::runtime_error&) {
+    // Optional metadata may use descriptor types Patchy cannot inspect. Keep its original bytes.
+  }
+  return links;
 }
 
 ParsedCompositeChannelResources parse_composite_channel_resources(

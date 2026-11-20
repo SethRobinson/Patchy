@@ -16495,6 +16495,34 @@ Czy chcesz go zastąpić?</translation>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · Wersja aktualna</translation>
     </message>
+    <message>
+        <source>Aseprite tilemaps were rendered as pixel layers.</source>
+        <translation>Mapy kafelków Aseprite wyrenderowano jako warstwy pikselowe.</translation>
+    </message>
+    <message>
+        <source>Aseprite tilemaps with unavailable tilesets were skipped.</source>
+        <translation>Pominięto mapy kafelków Aseprite z niedostępnymi zestawami kafelków.</translation>
+    </message>
+    <message>
+        <source>This format uses different blend rules for Aseprite layers.</source>
+        <translation>Ten format stosuje inne reguły mieszania warstw Aseprite.</translation>
+    </message>
+    <message>
+        <source>Timeline audio file %1 is on network server %2, which Patchy has not been allowed to access</source>
+        <translation>Plik dźwiękowy %1 używany na osi czasu znajduje się na serwerze sieciowym %2. Patchy nie ma uprawnień dostępu do tego serwera.</translation>
+    </message>
+    <message>
+        <source>Some linked files are unavailable. You can continue opening the document.</source>
+        <translation>Niektóre połączone pliki są niedostępne. Możesz kontynuować otwieranie dokumentu.</translation>
+    </message>
+    <message>
+        <source>Used by timeline audio. To relink this file, use a timeline editor.</source>
+        <translation>Ten plik jest używany przez ścieżkę dźwiękową na osi czasu. Aby połączyć go ponownie, użyj edytora osi czasu.</translation>
+    </message>
+    <message>
+        <source>File not found on %1</source>
+        <translation>Nie znaleziono pliku na %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -37237,6 +37265,14 @@ Zablokowano: %1</translation>
     <message>
         <source>Load Selection from Alpha Channel</source>
         <translation>Wczytaj zaznaczenie z kanału alfa</translation>
+    </message>
+    <message>
+        <source>Keep the look by baking the affected layers, or keep their editable pixels and use the blend modes this format supports.
+
+%1</source>
+        <translation>Aby zachować wygląd, zapisz wynik mieszania w pikselach odpowiednich warstw. Możesz też zachować edytowalne piksele i użyć trybów mieszania obsługiwanych przez ten format.
+
+%1</translation>
     </message>
 </context>
 <context>

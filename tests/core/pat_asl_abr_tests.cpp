@@ -613,7 +613,15 @@ void psd_photoshop_lmfx_multi_effects_fixture_round_trips() {
 }
 
 void asl_write_then_read_round_trips_styles_patterns_and_blend_options() {
-  const auto styles = asl_test_styles();
+  auto styles = asl_test_styles();
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  auto& gradient = glow.gradient.emplace();
+  gradient.name = "Copper glow";
+  gradient.interpolation = patchy::GradientInterpolationMethod::Linear;
+  gradient.color_stops = {{0.0F, {240, 90, 5}}, {0.5F, {255, 245, 20}}, {1.0F, {80, 0, 120}}};
+  gradient.alpha_stops = {{0.0F, 1.0F}, {1.0F, 0.5F}};
+  styles[1].style.outer_glows.push_back(std::move(glow));
   const auto patterns = asl_test_patterns();
   const auto bytes = patchy::psd::write_asl(styles, patterns);
   CHECK(!bytes.empty());
@@ -642,6 +650,8 @@ void asl_write_then_read_round_trips_styles_patterns_and_blend_options() {
         patchy::psd::photoshop_lfx2_layer_style_payload(styles[0].style));
 
   const auto& rich = parsed->styles[1];
+  CHECK(rich.style.outer_glows.size() == 1);
+  CHECK(rich.style.outer_glows.front().gradient == styles[1].style.outer_glows.front().gradient);
   CHECK(rich.id == styles[1].id);
   CHECK(rich.name == styles[1].name);
   CHECK(rich.blend_settings.has_value());

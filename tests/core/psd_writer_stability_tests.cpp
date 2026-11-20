@@ -511,6 +511,39 @@ void psd_arrows_load_save_stays_compressed_if_available() {
   CHECK(bytes.size() < source_size * 5U);
 }
 
+void psd_gradient_outer_glow_survives_copy_and_unrelated_edits() {
+  patchy::Document doc(24, 24, patchy::PixelFormat::rgb8());
+  doc.add_pixel_layer("Base", solid_rgb(24, 24, 12, 20, 30));
+  auto& layer = doc.add_layer(patchy::Layer(doc.allocate_layer_id(), "Glow", solid_rgba(12, 12, 100, 120, 140, 255)));
+  layer.set_bounds({6, 6, 12, 12});
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  auto& gradient = glow.gradient.emplace();
+  gradient.name = "Warm to cool";
+  gradient.color_stops = {{0.0F, {255, 0, 0}}, {0.5F, {255, 255, 0}}, {1.0F, {0, 0, 255}}};
+  gradient.alpha_stops = {{0.0F, 1.0F}, {1.0F, 0.5F}};
+  gradient.interpolation = patchy::GradientInterpolationMethod::Perceptual;
+  layer.layer_style().outer_glows.push_back(glow);
+  for (const bool large : {false, true}) {
+    patchy::psd::WriteOptions options;
+    options.large_document = large;
+    auto loaded = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(doc, options));
+    const auto& style = std::as_const(loaded).layers()[1].layer_style();
+    CHECK(style.outer_glows.size() == 1 && style.outer_glows[0].gradient == glow.gradient);
+    loaded.layers()[0].set_name("Renamed base");
+    auto copied_style = style;
+    auto& copy = loaded.add_layer(patchy::Layer(loaded.allocate_layer_id(), "Pasted style",
+                                               solid_rgba(2, 2, 90, 30, 80, 255)));
+    copy.layer_style() = std::move(copied_style);
+    copy.layer_style().outer_glows[0].size = 3.0F;
+    const auto written = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(loaded, options));
+    CHECK(written.layers()[0].name() == "Renamed base");
+    CHECK(written.layers()[1].layer_style().outer_glows[0].gradient == glow.gradient);
+    CHECK(written.layers()[2].layer_style().outer_glows[0].gradient == glow.gradient);
+    CHECK(written.layers()[2].layer_style().outer_glows[0].size == 3.0F);
+  }
+}
+
 void psd_layer_styles_round_trip_patchy_effects() {
   patchy::Document document(14, 14, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(14, 14, 255, 255, 255));
@@ -1816,6 +1849,8 @@ std::vector<patchy::test::TestCase> psd_writer_stability_tests() {
       {"psd_arrows_load_save_stays_compressed_if_available",
        psd_arrows_load_save_stays_compressed_if_available},
       {"psd_layer_styles_round_trip_patchy_effects", psd_layer_styles_round_trip_patchy_effects},
+      {"psd_gradient_outer_glow_survives_copy_and_unrelated_edits",
+       psd_gradient_outer_glow_survives_copy_and_unrelated_edits},
       {"psd_generated_stroke_descriptors_match_photoshop_shape",
        psd_generated_stroke_descriptors_match_photoshop_shape},
       {"psd_gradient_midpoints_write_mdpn_and_round_trip",

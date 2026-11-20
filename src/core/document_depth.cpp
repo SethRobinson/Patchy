@@ -28,7 +28,15 @@ void convert_layer(Layer& layer, BitDepth depth) {
     layer.set_blend_mode(BlendMode::Normal);
   }
   const auto& pixels = std::as_const(layer).pixels();
-  if (!pixels.empty() && pixels.format().bit_depth != depth) {
+  const auto* stack = std::as_const(layer).smart_filter_stack();
+  const bool convert_pixels = !pixels.empty() && pixels.format().bit_depth != depth;
+  const bool convert_filter_mask = stack && !stack->mask.pixels.empty() &&
+                                   stack->mask.pixels.format().bit_depth != depth;
+  // Validate against the old display storage before replacing it. A paint or
+  // geometry edit must never regain an earlier unmasked preview on conversion.
+  const bool rebind_preview = convert_pixels && stack && stack->layer_preview;
+  const bool preview_matches = rebind_preview && stack->layer_preview->matches(layer);
+  if (convert_pixels) {
     const auto kind = pixels.format().channels >= 3 ? SampleKind::Color : SampleKind::Coverage;
     auto converted = convert_pixel_buffer_depth(pixels, depth, kind);
     // Assigned through the mutable accessor (which bumps every revision): set_pixels
@@ -41,10 +49,20 @@ void convert_layer(Layer& layer, BitDepth depth) {
     converted.pixels = convert_pixel_buffer_depth(mask->pixels, depth, SampleKind::Coverage);
     layer.set_mask(std::move(converted));
   }
-  if (const auto* stack = layer.smart_filter_stack();
-      stack != nullptr && !stack->mask.pixels.empty() && stack->mask.pixels.format().bit_depth != depth) {
+  if (convert_filter_mask || rebind_preview) {
     auto converted = *stack;
-    converted.mask.pixels = convert_pixel_buffer_depth(stack->mask.pixels, depth, SampleKind::Coverage);
+    if (convert_filter_mask) {
+      converted.mask.pixels = convert_pixel_buffer_depth(stack->mask.pixels, depth, SampleKind::Coverage);
+    }
+    if (rebind_preview) {
+      if (preview_matches) {
+        auto retained = std::make_shared<SmartFilterLayerPreview>(*stack->layer_preview);
+        retained->displayed = std::as_const(layer).pixels();
+        converted.layer_preview = std::move(retained);
+      } else {
+        converted.layer_preview.reset();
+      }
+    }
     layer.set_smart_filter_stack(std::move(converted));
   }
   for (auto& child : layer.children()) {

@@ -1,6 +1,8 @@
 #include <string_view>
 #include "core/smart_filter.hpp"
 #include "core/document.hpp"
+#include "core/document_depth.hpp"
+#include "core/pixel_depth.hpp"
 #include "filters/filter_registry.hpp"
 #include "filters/smart_filter_renderer.hpp"
 #include "formats/acv_curves_io.hpp"
@@ -2082,10 +2084,80 @@ void smart_filter_canonical_box_blur_descriptor_authors_and_patches() {
         1e-9);
 }
 
+void psd_smart_filter_integer_depth_preserves_cache_planes_and_fractional_mask() {
+  using namespace patchy;
+  const Rect bounds{4, -2, 3, 1};
+  auto source = solid_rgba(3, 1, 29, 101, 192, 47);
+  source.pixel(2, 0)[3] = 239;
+  SmartFilterMask mask;
+  mask.bounds = bounds;
+  mask.pixels = PixelBuffer(3, 1, PixelFormat::gray8());
+  mask.pixels.data()[1] = 129;
+  mask.pixels.data()[2] = 255;
+  const auto authored = psd::author_filter_effects_record("instance", bounds, source, bounds, mask);
+  CHECK(authored.has_value());
+  SmartFilterEffectsStore store;
+  CHECK(store.upsert_authored(*authored));
+  const auto wire = psd::serialize_filter_effects_block(store.blocks.front(), BitDepth::UInt16);
+  auto deep = psd::parse_filter_effects_block("FEid", wire);
+  const auto& record = deep.records.at(0);
+  CHECK(record.cache_depth == 16 && record.semantic_supported());
+  const auto rgb = psd::decode_rgb_filter_effects_cache(record);
+  CHECK(rgb.has_value());
+  CHECK(std::ranges::equal(rgb->data(), convert_pixel_buffer_depth(source, BitDepth::UInt16, SampleKind::Color).data()));
+  auto exact = convert_pixel_buffer_depth(mask.pixels, BitDepth::UInt16, SampleKind::Coverage);
+  CHECK(record.mask && std::ranges::equal(record.mask->native_pixels.data(), exact.data()));
+  CHECK(psd::serialize_filter_effects_block(deep, BitDepth::UInt16) == wire);
+  // A 16-bit coat of paint can change the low byte without moving the nearest byte mask.
+  const std::uint16_t value = 129U * 257U + 37U;
+  std::memcpy(exact.pixel(1, 0), &value, sizeof(value));
+  mask.pixels = exact;
+  store.blocks.clear();
+  store.add_block(std::move(deep));
+  CHECK(psd::replace_filter_effects_mask(store, "instance", mask));
+  const auto changed_wire = psd::serialize_filter_effects_block(store.blocks.front(), BitDepth::UInt16);
+  CHECK(changed_wire != wire);
+  const auto changed = psd::parse_filter_effects_block("FEid", changed_wire);
+  CHECK(std::ranges::equal(changed.records.at(0).mask->native_pixels.data(), exact.data()));
+  const auto bytes = psd::parse_filter_effects_block("FEid", psd::serialize_filter_effects_block(changed, BitDepth::UInt8));
+  CHECK(*bytes.records.at(0).mask->samples == std::vector<std::uint8_t>({0, 129, 255}));
+  CHECK(std::ranges::equal(psd::decode_rgb_filter_effects_cache(bytes.records.at(0))->data(), source.data()));
+}
+
+void psd_smart_filter_deep_export_keeps_integer_masks_and_rasterizes_converted_float_layers() {
+  using namespace patchy;
+  auto doc = psd::DocumentIo::read_file(test::committed_psd_fixture_path("photoshop-smart-filter-model.psd"));
+  const std::string name = "Five-tone filter mask 0 64 128 192 255";
+  doc.add_layer(Layer(doc.allocate_layer_id(), "Unrelated", solid_rgba(2, 1, 20, 30, 42, 200)));
+  const auto count = std::as_const(doc).layers().size();
+  psd::ReadOptions options;
+  options.keep_bit_depth = true;
+  convert_document_depth(doc, BitDepth::UInt16);
+  const auto integer = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(doc), options);
+  const auto& imported = require_smart_filter_stack(integer, name);
+  CHECK(imported.mask.pixels.format() == with_bit_depth(PixelFormat::gray8(), BitDepth::UInt16));
+  CHECK(imported.layer_preview != nullptr);
+  CHECK(imported.layer_preview->unmasked.format().bit_depth == BitDepth::UInt16);
+  CHECK(imported.layer_preview->matches(require_layer_named(integer, name)));
+  CHECK(integer.layers().size() == count);
+  convert_document_depth(doc, BitDepth::Float32);
+  const auto exported = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(doc), options);
+  CHECK(require_layer_named(exported, name).smart_filter_stack() == nullptr);
+  CHECK(!layer_is_smart_object(require_layer_named(exported, name)));
+  CHECK(exported.metadata().smart_filter_effects.empty());
+  CHECK(exported.layers().size() == count);
+  CHECK(require_layer_named(exported, "Unrelated").pixels().format().bit_depth == BitDepth::Float32);
+  CHECK(require_layer_named(doc, name).smart_filter_stack() != nullptr);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> smart_filter_descriptors_tests_part1() {
   return {
+      {"psd_smart_filter_integer_depth_preserves_cache_planes_and_fractional_mask",
+       psd_smart_filter_integer_depth_preserves_cache_planes_and_fractional_mask},
+      {"psd_smart_filter_deep_export_keeps_integer_masks_and_rasterizes_converted_float_layers",
+       psd_smart_filter_deep_export_keeps_integer_masks_and_rasterizes_converted_float_layers},
       {"smart_filter_authored_effects_record_round_trips_and_mutates",
        smart_filter_authored_effects_record_round_trips_and_mutates},
       {"smart_filter_effects_author_rejects_oversized_bounds",

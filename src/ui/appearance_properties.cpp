@@ -371,6 +371,7 @@ void add_effect_fields(const EffectFields<LayerOuterGlow>& fields) {
   EFFECT_FIELD(contour);
   EFFECT_FIELD(anti_aliased);
   EFFECT_FIELD(jitter);
+  EFFECT_FIELD(gradient);
 }
 
 void add_effect_fields(const EffectFields<LayerInnerGlow>& fields) {

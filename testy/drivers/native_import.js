@@ -41,6 +41,10 @@ try {
         ? doc.exportAnimatedPng(patchy.args.output)
         : doc.exportAs(patchy.args.output);
     if (!result.exported) result.error = "Patchy could not export a PNG.";
+    if (patchy.args.floatOutput && doc.bitDepth === 32) {
+        checkpoint();
+        result.floatExported = doc.exportAs(patchy.args.floatOutput);
+    }
 } catch (error) {
     result.error = String(error);
 }

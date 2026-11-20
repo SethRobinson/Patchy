@@ -2,10 +2,11 @@
 
 Testy (`testy/`) measures PSD compatibility against the Photoshop installation selected as the reference for the run: whether each editor opens a file, how closely its render matches Photoshop's, whether it composites layers itself, what native data and bit depth survive its PSD save, whether text survives a save made after the editor re-lays it out, and for 16-bit files how precise its render is. What each measurement means is in [testy-scoring.md](testy-scoring.md); the public write-up of the latest published run is [psd-compatibility-benchmark.md](psd-compatibility-benchmark.md).
 
-The dashboard also runs Patchy's native import benchmark for GIMP XCF, Aseprite, Krita and OpenRaster documents. It compares the imported canvas, editable structure, rendered pixels and animation timing with the references provided for each file.
+The dashboard also runs Patchy's native import benchmark for GIMP XCF, Aseprite, Krita and OpenRaster documents. It compares the imported canvas, editable structure, rendered pixels, selected HDR values and animation timing with the references provided for each file. PSD compatibility scores include only sources the reference Photoshop opens cleanly and renders consistently.
 
 Related documents:
 
+- [32-bit float comparisons](testy-float.md) covers the optional full-canvas linear RGB measurement for original PSDs and PSBs.
 - [testy-native-import.md](testy-native-import.md): pinned corpora, local artwork, manifests, native import reports and per-format scoring.
 - [testy-scoring.md](testy-scoring.md): what each cell measures (opens, render accuracy, the trap, data kept in the .psd save, the round-trip render, text kept in a save made after the editor's text update, bit depth and 16-bit precision, and the cache-free leg that scores an editor on what it draws itself), with the reference-render rules and the "never mark an editor down for the harness's mistake" safeguards.
 - [testy-editor-drivers.md](testy-editor-drivers.md): how each editor is driven (Photoshop over COM, Krita, the patched PhotoDemon build, GIMP, PhotoCraft, Photopea, Affinity) and the defenses against modal dialogs, wedged or crashed editors, failing columns (the circuit breaker) and a Photoshop that draws a file differently from one open to the next.
@@ -15,7 +16,7 @@ Related documents:
 
 Machine-specific settings live in `testy/config.local.json` (gitignored): copy
 `testy/config.example.json` and fill in the python path (3.11+ with
-`testy/requirements.txt` installed: pywin32, Pillow, numpy, selenium, fonttools, pywinauto), the
+`testy/requirements.txt` installed: pywin32, Pillow, numpy, tifffile, selenium, fonttools, pywinauto), the
 dashboard port, the default corpus (a `corpus_file` list or a `corpus_dir` to scan;
 keep personal file lists out of the repo), optional explicit editor paths (standard
 install locations are discovered automatically), and the optional `build_command` that
@@ -95,7 +96,7 @@ Existing batches get current controls when served by an updated Testy server;
 restart the server after updating Testy. Frozen reports have no rerun controls.
 Editor-free regressions (via `scripts\run-throttled.bat python`): `tests\testy_rerun_tests.py`,
 `testy_shutdown_tests.py`, `testy_driver_failure_tests.py`, `testy_text_save_tests.py`,
-`testy_text_sheets_tests.py`, `testy_render_check_tests.py`.
+`testy_text_sheets_tests.py`, `testy_render_check_tests.py` and `testy_float32_tests.py`.
 
 **Retest file** in the detail panel creates a separate one-file run, reusing
 caches and refreshing Patchy's build. Both controls require an idle Testy server.

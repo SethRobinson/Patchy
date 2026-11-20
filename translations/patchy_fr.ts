@@ -16439,6 +16439,34 @@ Voulez-vous le remplacer ?</translation>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · À jour</translation>
     </message>
+    <message>
+        <source>Aseprite tilemaps were rendered as pixel layers.</source>
+        <translation>Les cartes de tuiles Aseprite ont été rendues sous forme de calques de pixels.</translation>
+    </message>
+    <message>
+        <source>Aseprite tilemaps with unavailable tilesets were skipped.</source>
+        <translation>Les cartes de tuiles Aseprite dont le jeu de tuiles était indisponible ont été ignorées.</translation>
+    </message>
+    <message>
+        <source>This format uses different blend rules for Aseprite layers.</source>
+        <translation>Ce format utilise des règles de fusion différentes pour les calques Aseprite.</translation>
+    </message>
+    <message>
+        <source>Timeline audio file %1 is on network server %2, which Patchy has not been allowed to access</source>
+        <translation>Le fichier audio %1 du montage se trouve sur le serveur réseau %2. Patchy n’a pas l’autorisation d’accéder à ce serveur.</translation>
+    </message>
+    <message>
+        <source>Some linked files are unavailable. You can continue opening the document.</source>
+        <translation>Certains fichiers liés sont indisponibles. Vous pouvez poursuivre l’ouverture du document.</translation>
+    </message>
+    <message>
+        <source>Used by timeline audio. To relink this file, use a timeline editor.</source>
+        <translation>La piste audio du montage utilise ce fichier. Pour le réassocier, utilisez un éditeur de montage.</translation>
+    </message>
+    <message>
+        <source>File not found on %1</source>
+        <translation>Fichier introuvable sur %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -37122,6 +37150,14 @@ Verrouillé : %1</translation>
     <message>
         <source>Load Selection from Alpha Channel</source>
         <translation>Charger une sélection depuis une couche alpha</translation>
+    </message>
+    <message>
+        <source>Keep the look by baking the affected layers, or keep their editable pixels and use the blend modes this format supports.
+
+%1</source>
+        <translation>Pour conserver l’apparence, intégrez le résultat de la fusion aux calques concernés. Vous pouvez aussi garder leurs pixels modifiables et utiliser les modes de fusion pris en charge par ce format.
+
+%1</translation>
     </message>
 </context>
 <context>

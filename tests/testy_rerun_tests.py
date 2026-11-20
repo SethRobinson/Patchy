@@ -185,6 +185,20 @@ class RerunTests(unittest.TestCase):
         self.assertAlmostEqual(summary['visual'], 0.45)
         self.assertEqual((summary['opened'], summary['total']), (1, 3))
 
+    def test_psd_compatibility_requires_a_clean_photoshop_source(self):
+        valid = dict(state='done', artifacts=dict(render='truth.png'))
+        rejected = dict(state='failed', fileRejected=True)
+        truths = [valid, rejected, dict(valid, dialogs=['Unreadable file info']),
+                  dict(valid, renderCheck=dict(outcome='unstable')), dict(valid, render='render-error: no picture')]
+        files = [dict(groundTruth=t, cells=dict(patchy=cell(.8))) for t in truths]
+        files[0]['cells']['patchy']['resaveDialogs'] = ['Unknown data in the saved PSD']
+        status = dict(run=dict(editorOrder=['patchy'], name='r', patchyGit='x'), files=files)
+        a = testy.Runner.summarize_status(status)['editors']['patchy']
+        self.assertEqual((a['opened'], a['total'], a['render']), (1, 1, .8))
+        self.assertEqual((a['warnedSaves'], a['badSaves']), (1, 0))
+        self.assertFalse(testy.refused_with_reference(files[2], dict(opens='fail')))
+        self.assertFalse(testy.refused_with_reference(files[0], dict(opens='fail', groundTruth=rejected)))
+
     def test_long_cache_keys_keep_their_trailing_qualifiers(self):
         short = "5.3.2-settled1-freshtext2-nocache11"
         self.assertEqual(testy._version_slug(short), short)
@@ -1013,9 +1027,9 @@ const groupNames = fileGroups(groupFiles);
 assert.deepEqual(groupNames, [TOP_GROUP,'fx','fx','fx']);
 assert.deepEqual(fileGroups([{source:'D:\\c\\one.psd'},{source:'D:\\c\\two.psd'}]), [TOP_GROUP,TOP_GROUP]);
 const rolled = groupRollup(groupFiles, groupNames, ['patchy'], c => c.bad == null ? null : c.bad, 0.10);
-assert.deepEqual(rolled[TOP_GROUP].editors.patchy, {total:1,opened:1,matched:1,compared:1,badSaves:0,native:[1]});
+assert.deepEqual(rolled[TOP_GROUP].editors.patchy, {total:1,opened:1,matched:1,compared:1,badSaves:0,warnedSaves:0,native:[1]});
 assert.equal(rolled.fx.files, 3);
-assert.deepEqual(rolled.fx.editors.patchy, {total:2,opened:1,matched:0,compared:1,badSaves:1,native:[0.5]});
+assert.deepEqual(rolled.fx.editors.patchy, {total:2,opened:1,matched:0,compared:1,badSaves:1,warnedSaves:0,native:[0.5]});
 """
         scoring = script.split('function refusedWithReference', 1)[1].split('let groupFilter', 1)[0]
         test_js += 'function refusedWithReference' + scoring + """

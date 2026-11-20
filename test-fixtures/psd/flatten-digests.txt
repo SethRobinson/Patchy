@@ -108,13 +108,13 @@ a00cc59a421ed652 photoshop-smart-filter-fibers.psd
 5d86cd81909a7667 photoshop-smart-filter-find-edges.psd
 6810a6b0900f07a2 photoshop-smart-filter-gallery.psd
 58b52438a77e88b5 photoshop-smart-filter-high-pass.psd
-6a93c278433e8c77 photoshop-smart-filter-instances-base.psd
-615e5853026e2647 photoshop-smart-filter-instances-edit-contents.psd
+95cd051abd0a491a photoshop-smart-filter-instances-base.psd
+4aff593a72454f79 photoshop-smart-filter-instances-edit-contents.psd
 2ad58224d8a27c7b photoshop-smart-filter-instances-rasterized.psd
-c6596eafe117aad2 photoshop-smart-filter-instances-replace-contents.psd
+399cae8e8809897c photoshop-smart-filter-instances-replace-contents.psd
 342fee3d522929d1 photoshop-smart-filter-invert.psd
 42f4c9c09dda2a19 photoshop-smart-filter-median.psd
-3184a48c2d26184d photoshop-smart-filter-model.psd
+c3f8c49922b500d6 photoshop-smart-filter-model.psd
 56d6a83a8e5b4ec9 photoshop-smart-filter-mosaic.psd
 bf5fa6de87028ba8 photoshop-smart-filter-other.psd
 bdbe0a5b0f11a602 photoshop-smart-filter-past-edge.psd

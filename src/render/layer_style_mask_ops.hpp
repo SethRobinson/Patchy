@@ -8,6 +8,7 @@
 #include "core/style_contour.hpp"
 #include "render/layer_render_types.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -165,10 +166,8 @@ void prepare_photoshop_interior_soft_mask(std::vector<float>& mask, int width, i
 void prepare_inner_glow_softer_mask(std::vector<float>& mask, int width, int height, float size,
                                     float choke, float range, bool center_source);
 
-int interior_style_blur_radius(float size) noexcept;
-
-void prepare_layer_style_interior_falloff_mask(std::vector<float>& mask, int width, int height, float size,
-                                               float choke);
+void prepare_inner_glow_precise_mask(std::vector<float>& mask, int width, int height, float size,
+                                     float choke, float range, bool center_source);
 
 float smoothstep_unit(float value) noexcept;
 
@@ -203,6 +202,12 @@ std::vector<float> blur_bevel_shading_plane(const std::vector<float>& plane, int
 int satin_tent_peak(float size) noexcept;
 
 void blur_satin_tent_mask_in_place(std::vector<float>& mask, int width, int height, float size);
+
+// Photoshop's white contour and constant-opacity gradient controls both reach
+// their requested opacity at 12% coverage of the unscaled exterior matte.
+inline float exterior_glow_opacity(float requested, float coverage) {
+  return std::min(requested, coverage / 0.12F);
+}
 
 void apply_effect_contour(std::vector<float>& mask, int width, const StyleContour& contour, bool anti_aliased,
                           float gain = 1.0F, bool exterior_glow = false);

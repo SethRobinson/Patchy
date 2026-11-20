@@ -10,6 +10,7 @@
 
 #include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
+#include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/smart_object.hpp"
@@ -507,8 +508,9 @@ std::vector<std::uint8_t> photoshop_color_balance_payload(const ColorBalanceAdju
 constexpr std::size_t kChannelMixerRowBytes = 10;
 constexpr std::size_t kChannelMixerPayloadBytes = 4 + 4 * kChannelMixerRowBytes;
 
-std::optional<AdjustmentSettings> parse_photoshop_channel_mixer_adjustment(std::span<const std::uint8_t> payload) {
-  if (payload.size() < 4 + 3 * kChannelMixerRowBytes) {
+std::optional<AdjustmentSettings> parse_photoshop_channel_mixer_adjustment(std::span<const std::uint8_t> payload,
+                                                                         bool cmyk) {
+  if (payload.size() < (cmyk ? kChannelMixerPayloadBytes : 4 + 3 * kChannelMixerRowBytes)) {
     return std::nullopt;
   }
   BigEndianReader reader(payload);
@@ -519,23 +521,28 @@ std::optional<AdjustmentSettings> parse_photoshop_channel_mixer_adjustment(std::
   settings.kind = AdjustmentKind::ChannelMixer;
   auto& mixer = settings.channel_mixer;
   mixer.monochrome = reader.read_u16() != 0U;
-  const auto read_row = [&reader] {
+  if (cmyk) mixer.ink_channels.emplace();
+  const auto read_row = [&](std::size_t index) {
     ChannelMixerRow row;
     row.red = static_cast<std::int16_t>(reader.read_u16());
     row.green = static_cast<std::int16_t>(reader.read_u16());
     row.blue = static_cast<std::int16_t>(reader.read_u16());
-    reader.skip(2);
+    const auto black = static_cast<std::int16_t>(reader.read_u16());
+    if (cmyk) mixer.ink_channels->black_inputs[index] = std::clamp<int>(black, -200, 200);
     row.constant = static_cast<std::int16_t>(reader.read_u16());
     return clamp_channel_mixer_row(row);
   };
-  const auto first = read_row();
+  const auto first = read_row(0);
   if (mixer.monochrome) {
     mixer.gray = first;
   } else {
     mixer.red = first;
-    mixer.green = read_row();
-    mixer.blue = read_row();
   }
+  if (!mixer.monochrome || cmyk) {
+    mixer.green = read_row(1);
+    mixer.blue = read_row(2);
+  }
+  if (cmyk) mixer.ink_channels->black_output = read_row(3);
   return settings;
 }
 
@@ -630,9 +637,9 @@ std::vector<std::uint8_t> photoshop_photo_filter_payload(const PhotoFilterAdjust
 // 'grdm' (docs/adjustment-kinds.md, "Gradient Map"): u16 version (1, or 3 with a 4-byte
 // method key after the flags), u8 reverse, u8 dither, Unicode name (u32 count with the
 // trailing null), u16 color stop count and per stop u32 location (0..4096), u32 midpoint
-// (0..100), u16 color space (0 = RGB), four u16 components, u16 pad; u16 opacity stop count
+// (0..100), u16 color space, four u16 components, u16 pad; u16 opacity stop count
 // and per stop u32 location, u32 midpoint, u16 opacity (0..255); then u16 2, u16 smoothness
-// (0..4096) and the noise fields, padded to four bytes. Only RGB solid stops are read.
+// (0..4096) and the noise fields, padded to four bytes.
 constexpr std::array<std::pair<GradientInterpolationMethod, std::array<char, 4>>, 3> kGradientMapMethodKeys{{
     {GradientInterpolationMethod::Classic, {'G', 'c', 'l', 's'}},
     {GradientInterpolationMethod::Linear, {'L', 'n', 'r', ' '}},
@@ -642,9 +649,70 @@ constexpr std::array<std::pair<GradientInterpolationMethod, std::array<char, 4>>
 struct ParsedGradientMap {
   AdjustmentSettings settings;
   std::size_t tail_offset{0};  // where the u16 2 before the smoothness starts
+  bool has_native_stops{false};
 };
 
-std::optional<ParsedGradientMap> parse_gradient_map_block(std::span<const std::uint8_t> payload) {
+// Classic gradients interpolate the document channels first and convert each result
+// through the document profile. Converting just the editable stops loses the ink
+// trajectory, particularly between Lab colors outside the sRGB gamut.
+std::shared_ptr<const NativeGradientMap> native_gradient_ramp(
+    const LayerStyleGradient& gradient, NativeGradientMap::Space space,
+    const std::vector<std::array<double, 4>>& stops, const CmykColorConverter& colors) {
+  const auto& positions = gradient.color_stops;
+  if (gradient.interpolation != GradientInterpolationMethod::Classic || stops.size() != positions.size() ||
+      !std::is_sorted(positions.begin(), positions.end(), [](const auto& a, const auto& b) {
+        return a.location < b.location;
+      })) return {};
+  const auto lab = space == NativeGradientMap::Space::Lab ? LabToRgbTransform::create() : std::nullopt;
+  if (space == NativeGradientMap::Space::Lab && !lab) return {};
+  auto ramp = std::make_shared<NativeGradientMap>();
+  ramp->original = gradient;
+  ramp->space = space;
+  const bool cmyk = space == NativeGradientMap::Space::Cmyk;
+  if (cmyk) ramp->inks.resize(ramp->display.size());
+  for (std::size_t i = 0; i < ramp->display.size(); ++i) {
+    const auto fraction = static_cast<float>(i) / NativeGradientMap::kIntervals;
+    const auto position = gradient.reverse ? 1.0F - fraction : fraction;
+    auto right = static_cast<std::size_t>(std::lower_bound(positions.begin(), positions.end(), position,
+        [](const auto& stop, float value) { return stop.location < value; }) - positions.begin());
+    right = std::min(right, stops.size() - 1U);
+    if (position > positions.front().location && position >= positions.back().location) right = stops.size() - 1U;
+    const auto left = position <= positions.front().location || position >= positions.back().location
+        ? right : right - 1U;
+    const auto length = positions[right].location - positions[left].location;
+    const auto t = length > 0 ? std::clamp((position - positions[left].location) / length, 0.0F, 1.0F) : 0.0F;
+    const auto previous = left > 0 ? left - 1U : 0U;
+    const auto next = std::min(right + 1U, stops.size() - 1U);
+    std::array<std::uint16_t, 4> native{};
+    for (std::size_t channel = 0; channel < native.size(); ++channel) {
+      const auto value = native_gradient_segment(stops[previous][channel], stops[left][channel],
+          stops[right][channel], stops[next][channel], t, positions[right].midpoint, gradient.smoothness);
+      native[channel] = static_cast<std::uint16_t>(std::lround(std::clamp(value, 0.0, 1.0) * 65535.0));
+    }
+    auto& rgb = ramp->display[i];
+    if (cmyk) {
+      ramp->inks[i] = native;
+      if (colors.icc) {
+        colors.icc->convert16(native.data(), rgb.data(), 1);
+      } else {
+        for (std::size_t channel = 0; channel < rgb.size(); ++channel) {
+          rgb[channel] = static_cast<std::uint16_t>((static_cast<std::uint32_t>(native[channel]) * native[3] + 32767U) / 65535U);
+        }
+      }
+    } else if (lab) {
+      lab->convert16(native.data(), rgb.data(), 1);
+    } else if (colors.gray_icc) {
+      colors.gray_icc->convert16(native.data(), rgb.data(), 1);
+    } else {
+      rgb.fill(native[0]);
+    }
+  }
+  return ramp;
+}
+
+std::optional<ParsedGradientMap> parse_gradient_map_block(std::span<const std::uint8_t> payload,
+                                                          const CmykColorConverter& source_colors,
+                                                          std::uint16_t source_mode = kColorModeRgb) {
   try {
     BigEndianReader reader(payload);
     const auto version = reader.read_u16();
@@ -689,20 +757,49 @@ std::optional<ParsedGradientMap> parse_gradient_map_block(std::span<const std::u
       return std::nullopt;
     }
     gradient.color_stops.clear();
+    std::vector<std::array<double, 4>> native_stops;
+    const auto native_space = is_cmyk_color_mode(source_mode) ? NativeGradientMap::Space::Cmyk :
+        is_lab_color_mode(source_mode) ? NativeGradientMap::Space::Lab : NativeGradientMap::Space::Gray;
     for (std::uint16_t index = 0; index < color_count; ++index) {
       GradientColorStop stop;
       stop.location = static_cast<float>(std::min<std::uint32_t>(reader.read_u32(), 4096U)) / 4096.0F;
       stop.midpoint = static_cast<float>(std::min<std::uint32_t>(reader.read_u32(), 100U)) / 100.0F;
-      if (reader.read_u16() != 0U) {
-        return std::nullopt;  // HSB, CMYK, Lab or gray stops are not read
+      const auto space = reader.read_u16();
+      const std::array<std::uint16_t, 4> values{
+          reader.read_u16(), reader.read_u16(), reader.read_u16(), reader.read_u16()};
+      reader.skip(2);
+      switch (space) {
+        case 0: {
+          const auto byte = [](std::uint16_t v) { return static_cast<std::uint8_t>((v + 128U) / 257U); };
+          stop.color = {byte(values[0]), byte(values[1]), byte(values[2])};
+          break;
+        }
+        case 2: {
+          const auto ink = [&](std::size_t i) { return 1.0 - static_cast<double>(values[i]) / 65535.0; };
+          stop.color = source_colors.rgb_from_ink(ink(0), ink(1), ink(2), ink(3));
+          if (is_cmyk_color_mode(source_mode)) {
+            native_stops.push_back({values[0] / 65535.0, values[1] / 65535.0, values[2] / 65535.0, values[3] / 65535.0});
+          }
+          break;
+        }
+        case 7: {
+          const auto light = std::min(values[0] / 100.0, 100.0);
+          const auto a = std::bit_cast<std::int16_t>(values[1]) / 100.0;
+          const auto b = std::bit_cast<std::int16_t>(values[2]) / 100.0;
+          const auto rgb = srgb8_from_lab(light, a, b);
+          stop.color = {rgb[0], rgb[1], rgb[2]};
+          if (is_lab_color_mode(source_mode)) native_stops.push_back({light / 100.0, (a + 128.0) / 255.0, (b + 128.0) / 255.0, 0});
+          break;
+        }
+        case 8:
+          // A 'grdm' gray stop is hundredths of percent black, like a 'Grsc' descriptor.
+          stop.color = source_colors.rgb_from_gray(1.0 - values[0] / 10000.0);
+          if (source_mode == kColorModeGrayscale) native_stops.push_back({1.0 - values[0] / 10000.0, 0, 0, 0});
+          break;
+        default:
+          return std::nullopt;
       }
-      const auto component = [&reader] {
-        return static_cast<std::uint8_t>((static_cast<std::uint32_t>(reader.read_u16()) + 128U) / 257U);
-      };
-      stop.color.red = component();
-      stop.color.green = component();
-      stop.color.blue = component();
-      reader.skip(4);
+      parsed.has_native_stops = parsed.has_native_stops || space != 0;
       gradient.color_stops.push_back(stop);
     }
     const auto alpha_count = reader.read_u16();
@@ -717,14 +814,18 @@ std::optional<ParsedGradientMap> parse_gradient_map_block(std::span<const std::u
     parsed.tail_offset = reader.position();
     reader.skip(2);
     gradient.smoothness = static_cast<std::uint16_t>(std::min<std::uint16_t>(reader.read_u16(), 4096U));
+    if (!native_stops.empty()) {
+      parsed.settings.native_gradient_map = native_gradient_ramp(gradient, native_space, native_stops, source_colors);
+    }
     return parsed;
   } catch (const std::exception&) {
     return std::nullopt;
   }
 }
 
-std::optional<AdjustmentSettings> parse_photoshop_gradient_map_adjustment(std::span<const std::uint8_t> payload) {
-  auto parsed = parse_gradient_map_block(payload);
+std::optional<AdjustmentSettings> parse_photoshop_gradient_map_adjustment(std::span<const std::uint8_t> payload,
+    const CmykColorConverter& source_colors, std::uint16_t source_mode) {
+  auto parsed = parse_gradient_map_block(payload, source_colors, source_mode);
   if (!parsed.has_value()) {
     return std::nullopt;
   }
@@ -732,11 +833,12 @@ std::optional<AdjustmentSettings> parse_photoshop_gradient_map_adjustment(std::s
 }
 
 std::vector<std::uint8_t> photoshop_gradient_map_payload(const GradientMapAdjustment& settings,
-                                                         const UnknownPsdBlock* original) {
+                                                         const UnknownPsdBlock* original, bool converting_to_rgb) {
   std::optional<ParsedGradientMap> parsed_original;
   if (original != nullptr) {
-    parsed_original = parse_gradient_map_block(original->payload);
-    if (parsed_original.has_value() && parsed_original->settings.gradient_map == settings) {
+    parsed_original = parse_gradient_map_block(original->payload, {});
+    if (parsed_original.has_value() && !(converting_to_rgb && parsed_original->has_native_stops) &&
+        parsed_original->settings.gradient_map == settings) {
       return original->payload;
     }
   }
@@ -1423,6 +1525,7 @@ std::optional<BrightnessContrastDescriptorParse> parse_photoshop_brightness_cont
     }
     BrightnessContrastDescriptorParse parsed;
     parsed.settings.kind = AdjustmentKind::BrightnessContrast;
+    parsed.lab_lightness_only = descriptor_bool(descriptor, "Lab ", false);
     if (const auto* legacy = descriptor_value(descriptor, "useLegacy");
         legacy != nullptr && legacy->type == DescriptorValue::Type::Bool) {
       parsed.use_legacy = legacy->bool_value;

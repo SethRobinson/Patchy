@@ -10,6 +10,7 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <span>
 #include <stdexcept>
@@ -62,6 +63,17 @@ inline constexpr std::uint64_t kMaxUnwrappedBytes = 16ULL << 30U;
 // The top-level (key value) forms of a serialized GimpConfig, in order: ("range", "all"),
 // ("hue", "0.25"), ... A value that is itself a list comes back empty.
 [[nodiscard]] std::vector<std::pair<std::string, std::string>> parse_config_forms(std::string_view text);
+
+// GIMP stores the sampled transfer functions alongside the editable Curves anchors.
+struct CurvesConfig {
+  std::array<std::vector<float>, 5> samples;  // value, red, green, blue, alpha
+  bool linear{false};
+};
+[[nodiscard]] std::optional<CurvesConfig> parse_curves_config(std::string_view text);
+
+// A pure per-pixel filter from a saved graph. An unsupported graph is left out as a whole.
+using PointOperation = std::function<void(float*)>;
+[[nodiscard]] std::optional<PointOperation> parse_point_graph(std::string_view text);
 
 // A GeglColor (its babl format name and its little-endian sample bytes) as sRGB-encoded
 // RGBA in 0..1: RGB and gray in any curve (premultiplied forms too), HSV, HSL, CIE Lab and

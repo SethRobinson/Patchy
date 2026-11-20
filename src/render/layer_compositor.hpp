@@ -2,6 +2,7 @@
 
 #include "core/adjustment_deep.hpp"
 #include "core/adjustment_layer.hpp"
+#include "core/aseprite_blend.hpp"
 #include "core/artboard.hpp"
 #include "core/blend_math.hpp"
 #include "core/layer_render_utils.hpp"
@@ -676,14 +677,21 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
         auto base = layer_alpha_mask(source, layer, bounds, domain, 0, 0, layer_mask_bounds);
         const bool shaped = !style_contour_is_linear(glow.contour);
         if (softer) {
-          prepare_outer_glow_softer_mask(base, domain.width, domain.height, glow.size, glow.spread, shaped ? 100.0F : glow.range);
+          const auto blur_range = shaped || glow.gradient ? 100.0F : glow.range;
+          prepare_outer_glow_softer_mask(base, domain.width, domain.height, glow.size, glow.spread, blur_range);
           computed.primary = std::move(base);
         } else {
           computed.primary = distance_falloff_mask(base, domain.width, domain.height, glow.size, glow.spread);
         }
+        // A gradient runs from the strong edge towards its far stop. Range and
+        // the contour set the stop position, while the raw matte limits opacity.
+        const auto gain = 100.0F / std::clamp(glow.range, 1.0F, 100.0F);
+        if (glow.gradient) computed.secondary = computed.primary;
         if (shaped) {
           apply_effect_contour(computed.primary, domain.width, glow.contour, glow.anti_aliased,
-                               100.0F / std::clamp(glow.range, 1.0F, 100.0F), true);
+                               gain, !glow.gradient);
+        } else if (glow.gradient) {
+          for (auto& value : computed.primary) value = clamp_unit(value * gain);
         }
         return computed;
       });
@@ -701,13 +709,21 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
       const auto source_alpha =
           source_mask[static_cast<std::size_t>((y - draw_rect.y) * source_mask_width + (x - draw_rect.x))];
-      auto glow_alpha = mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))] *
-                        exterior_effect_knockout(source_alpha, source_alpha * paint_scale, true) *
+      const auto index = static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x));
+      auto strength = mask[index];
+      auto color = glow.color;
+      if (glow.gradient) {
+        if (entry->secondary[index] <= 0.0F || source_alpha >= 1.0F) continue;
+        const auto position = 1.0F - strength;
+        strength = exterior_glow_opacity(gradient_stop_opacity(*glow.gradient, position, true), entry->secondary[index]);
+        color = gradient_color(*glow.gradient, position, true);
+      }
+      auto glow_alpha = strength * exterior_effect_knockout(source_alpha, source_alpha * paint_scale, true) *
                         glow.opacity * layer.opacity();
       if (clip_to_mask) {
         glow_alpha *= effect_output_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
       }
-      composite_effect_color(destination, x, y, glow.color, glow_alpha, glow.blend_mode,
+      composite_effect_color(destination, x, y, color, glow_alpha, glow.blend_mode,
                              DissolveField::OuterGlow);
     }
   }
@@ -791,8 +807,7 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
                        const StrokeKnockoutPlane* knockout = nullptr) {
   // Size 0: an Edge glow has no reach and renders nothing; a Center glow is the
   // complement of that empty edge field, so it fills the whole shape
-  // (photoshop-size-zero-effects.psd, September 2026). The Softer and the
-  // historical Center paths both produce that from the unblurred matte.
+  // (photoshop-size-zero-effects.psd, September 2026).
   if (!glow.enabled || glow.opacity <= 0.0F ||
       (glow.size <= 0.0F && glow.source != LayerInnerGlowSource::Center)) {
     return;
@@ -802,26 +817,8 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
     return;
   }
 
-  // Softer (Photoshop's default technique) is the COM-calibrated interior
-  // pipeline: inverse matte -> integer choke dilation -> tent blur -> Range
-  // gain, with Center as the complement (see prepare_inner_glow_softer_mask).
-  // Precise keeps the historical box-blur falloff verbatim (uncalibrated, like
-  // the outer glow's Precise; Range is not applied there).
-  const auto softer = glow.technique == LayerGlowTechnique::Softer;
-  const auto choke_unit = clamp_unit(glow.choke / 100.0F);
-  const auto blur_radius = interior_style_blur_radius(glow.size * (1.0F - choke_unit));
-  int sample_padding = 0;
-  if (softer) {
-    // Covers the choke dilation reach plus the tent reach for every choke split.
-    sample_padding = static_cast<int>(std::lround(std::max(0.0F, glow.size))) + 2;
-  } else {
-    // The choke = 0 padding must stay exactly the historical one: a wider window
-    // shifts the box blur's running-sum rounding, and choke 0 is pinned bit for bit.
-    sample_padding = blur_radius * 3 + 1;
-    if (choke_unit > 0.0F) {
-      sample_padding += static_cast<int>(std::ceil(std::max(0.0F, glow.size) * choke_unit)) + 1;
-    }
-  }
+  // Both techniques reach at most one pixel beyond the rounded Size.
+  const auto sample_padding = static_cast<int>(std::lround(std::max(0.0F, glow.size))) + 2;
   const auto full_domain = outset_rect(bounds, sample_padding);
   const auto legacy_mask_bounds = clipped_mask_bounds(full_domain, draw_rect, sample_padding);
   const auto [entry, mask_bounds] = style_mask_for_render(
@@ -829,31 +826,13 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
       layer_mask_bounds, [&](Rect domain) {
         StyleMaskEntry computed;
         computed.primary = layer_alpha_mask(source, layer, bounds, domain, 0, 0, layer_mask_bounds);
-        if (softer) {
+        const bool center = glow.source == LayerInnerGlowSource::Center;
+        if (glow.technique == LayerGlowTechnique::Softer) {
           prepare_inner_glow_softer_mask(computed.primary, domain.width, domain.height, glow.size,
-                                         glow.choke, glow.range,
-                                         glow.source == LayerInnerGlowSource::Center);
-        } else if (glow.source == LayerInnerGlowSource::Center && choke_unit <= 0.0F) {
-          // The historical Center-source path: the blurred matte itself is the glow field.
-          blur_mask_in_place(computed.primary, domain.width, domain.height, blur_radius, 3);
+                                         glow.choke, glow.range, center);
         } else {
-          prepare_layer_style_interior_falloff_mask(computed.primary, domain.width, domain.height, glow.size,
-                                                    glow.choke);
-          if (glow.source == LayerInnerGlowSource::Center) {
-            // Center source with choke: the glow retreats to the choked core (choke 100
-            // leaves a hard Euclidean erosion by the full size).
-            for (auto& value : computed.primary) {
-              value = clamp_unit(1.0F - value);
-            }
-          }
-        }
-        if (!softer && !style_contour_is_linear(glow.contour)) {
-          const auto gain = 100.0F / std::clamp(glow.range, 1.0F, 100.0F);
-          for (auto& value : computed.primary) {
-            value = glow.source == LayerInnerGlowSource::Center
-                        ? 1.0F - clamp_unit((1.0F - value) * gain)
-                        : clamp_unit(value * gain);
-          }
+          prepare_inner_glow_precise_mask(computed.primary, domain.width, domain.height, glow.size,
+                                          glow.choke, glow.range, center);
         }
         apply_effect_contour(computed.primary, domain.width, glow.contour, glow.anti_aliased);
         return computed;
@@ -2479,7 +2458,27 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
         const auto mask_plane =
             has_enabled_mask ? build_mask_coverage_plane(layer, draw_rect, layer_mask_bounds) : std::vector<float>{};
         bool composited_by_target = false;
-        if (!has_blend_if && !has_enabled_mask && prepared_satins.empty() && folded_overlays.empty() &&
+        // A marked native cel blends against the actual current backdrop. Clip,
+        // channel and mask adapters keep their normal compositing semantics.
+        if constexpr (requires { destination.permits_aseprite_cel_blend(); }) {
+          if (destination.permits_aseprite_cel_blend() && format == PixelFormat::rgba8() && knockout == nullptr && !has_underlay &&
+              !blend_against_backdrop && uses_aseprite_cel_blend(layer)) {
+            for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+              const auto* pixel = source_bytes + static_cast<std::size_t>(y - content_origin.y) * source_stride +
+                                  static_cast<std::size_t>(draw_rect.x - content_origin.x) * channels;
+              for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x, pixel += channels) {
+                const auto coverage = clamp_byte(static_cast<float>(pixel[3]) * layer.opacity());
+                if (coverage == 0U) continue;
+                const auto backdrop = destination.sample_color(x, y);
+                const auto composed = composite_aseprite_cel({pixel[0], pixel[1], pixel[2]}, backdrop.color,
+                    coverage, clamp_byte(backdrop.alpha * 255.0F), layer.blend_mode());
+                destination.store_color(x, y, composed.color, static_cast<float>(composed.alpha) / 255.0F);
+              }
+            }
+            composited_by_target = true;
+          }
+        }
+        if (!composited_by_target && !has_blend_if && !has_enabled_mask && prepared_satins.empty() && folded_overlays.empty() &&
             knockout == nullptr && !has_underlay && fill_opacity == 1.0F && layer.blend_mode() == BlendMode::Normal) {
           if constexpr (requires(Target& target, std::int32_t x, std::int32_t y, const std::uint8_t* row,
                                   std::int32_t width, std::uint16_t channel_count, float opacity) {
@@ -3021,6 +3020,10 @@ public:
   using color_type = Color;
   using channel_type = color_channel_t<Color>;
   static constexpr bool kDeep = std::is_same_v<Color, DeepRgb>;
+
+  [[nodiscard]] bool permits_aseprite_cel_blend() const noexcept requires (!kDeep) {
+    return !frozen_ && !records_clip_coverage_;
+  }
 
   explicit IsolatedClipGroupTargetT(Rect rect, bool records_clip_coverage = false,
                                     DeepDomain domain = DeepDomain::Encoded)

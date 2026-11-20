@@ -177,6 +177,43 @@ def xcf_layers(stem):
     return XCF_LAYERS.get(base)
 
 
+def xcf_linear_samples(stem):
+    """Canvas samples from the pinned producer's literal inputs, in linear light.
+
+    Coordinates refer to the visible composite. The precision layers begin at (-2, 1).
+    GIMP's nonlinear transfer has a linear segment below zero and a power segment above one.
+    """
+    if stem == "float-linear":
+        samples = []
+        for x, y in ((0, 0), (39, 29), (12, 7), (20, 17), (27, 22)):
+            rgb = [(3 * x + 5 * y + 7 * c) / 64 for c in range(3)]
+            if 12 <= x < 28 and 7 <= y < 23:
+                u, v = x - 12, y - 7
+                alpha = (u + v) / 30
+                top = [(2 * u + 3 * v + 5 * c) / 64 for c in range(3)]
+                rgb = [a * alpha + b * (1 - alpha) for a, b in zip(top, rgb)]
+            samples.append({"x": x, "y": y, "rgba": [*rgb, 1]})
+        return samples
+    ramps = {
+        "precision-half-hdr": [0, 0, 2**-24, 2**-14, -.25, .5, 1, 1.5, 65504],
+        "precision-float-hdr": [0, 0, 2**-149, 2**-126, -.125, .25, 1, 2, 4],
+        "precision-double-gray-boundaries": [0, 0, 0, 2**-150, 2**-149, 1+2**-24, 1+3*2**-24, 1.5, -.25, 2],
+    }
+    ramp = ramps.get(stem)
+    if ramp is None:
+        return []
+    def linear(v):
+        return v / 12.92 if v <= .04045 else ((v + .055) / 1.055)**2.4
+    samples = []
+    for x, y in ((0, 1), (1, 1), (3, 1), (4, 1), (5, 1), (3, 2), (6, 2), (1, 3)):
+        u, v = x + 2, y - 1
+        channels = (0, 0, 0) if stem == "precision-double-gray-boundaries" else (0, 1, 2)
+        rgb = [linear(ramp[(u + 3*v + c) % len(ramp)]) for c in channels]
+        alpha = (0, .25, .5, 1)[(u + v) % 4]
+        samples.append({"x": x, "y": y, "rgba": [*rgb, alpha]})
+    return samples
+
+
 def xcf_cases():
     root = PHOTO_DIR / "gimp"
     for path in sorted(root.glob("*.xcf*")):
@@ -216,6 +253,11 @@ def xcf_cases():
             expect["depth"] = 32
         if stem.startswith("historical-") and "u16-asymmetric" in stem:
             expect["depth"] = 16
+        samples = xcf_linear_samples(stem)
+        if samples:
+            case["linearSamples"] = samples
+            case["referenceNote"] = ("The PNG measures display appearance. Linear HDR sample expectations come "
+                                     "from the pinned fixture generator's pixel values and layer offsets.")
         yield case
 
 
@@ -248,7 +290,9 @@ def ase_metadata(data):
                     flags, layer_type, level = struct.unpack_from("<3H", data, off + 6)
                     name_len = struct.unpack_from("<H", data, off + 22)[0]
                     name = data[off + 24:off + 24 + name_len].decode("utf-8")
-                    layer = {"name": name, "visible": bool(flags & 1)}
+                    # The scripting property includes a movement-only editing lock.
+                    layer = {"name": name, "visible": bool(flags & 1),
+                             "locked": not bool(flags & 2) or bool(flags & 4)}
                     del parents[level + 1:]
                     parents[level].append(layer)
                     if layer_type == 1:
@@ -283,8 +327,19 @@ def ase_cases():
             case["durationsMs"] = durations
         if stem == "layers_and_tags":
             case["referenceNote"] = "Four frame renders, timings and the layer tree are measured. Animation tag names and playback directions are outside these checks."
+        if stem in ("blend_hue", "blend_saturation", "blend_saturation_bug"):
+            case["referenceNote"] = ("This March 2021 asefile PNG records historical Hue or Saturation results for "
+                                     "colors with equal channels. Aseprite corrected this behavior in 1.3.13. "
+                                     "The original PNG remains the reference for this case.")
         case.update(frames=refs, expect=expect)
         yield case
+
+    # The swatches exercise solid-color ties in Hue alongside the asefile sweeps.
+    swatches = config.REPO_ROOT / "test-fixtures/aseprite/aseprite-blend-modes.aseprite"
+    expect, _ = ase_expectations(swatches)
+    yield {"id": "aseprite/aseprite-1.3.17-blend-swatches", "source": rel(swatches), "expect": expect,
+           "reference": rel(swatches.with_name("aseprite-blend-modes-reference.png")),
+           "referenceNote": "Aseprite 1.3.17 exported the six opaque blend-mode swatches."}
 
 
 def aseprite_upstream_cases():

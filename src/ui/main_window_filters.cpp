@@ -1574,6 +1574,7 @@ bool MainWindow::commit_smart_filter_stack_edit(
       // A filter added to a closed list opens it, so the new row shows (issue 361).
       target_session.collapsed_smart_filters.erase(layer_id);
     }
+    candidate->layer_preview = smart_filter_layer_preview_for_save(*preview, preview->rendered.pixels);
     layer->set_smart_filter_stack(std::move(*candidate));
     layer->set_pixels(std::move(preview->rendered.pixels));
     layer->set_bounds(preview->rendered.bounds);

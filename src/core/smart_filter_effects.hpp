@@ -21,6 +21,7 @@ struct PsdNativeColorSpace;
 struct SmartFilterEffectsMask {
   Rect bounds{};
   std::shared_ptr<const std::vector<std::uint8_t>> samples;
+  PixelBuffer native_pixels;  // Exact coverage when a Photoshop mask has 16-bit samples.
 };
 
 struct SmartFilterEffectsRecord {
@@ -80,6 +81,7 @@ struct SmartFilterEffectsBlock {
   // A broken outer version/record-length walk is opaque. No record is edited or
   // adopted into it and serialization always returns original_payload.
   bool opaque{false};
+  std::uint16_t source_document_depth{0};  // Retain unknown layouts only at their original depth.
 };
 
 struct SmartFilterEffectsStore {

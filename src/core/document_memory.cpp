@@ -17,6 +17,10 @@ void visit_layer_buffers(const Layer& layer,
   }
   if (const auto* stack = layer.smart_filter_stack(); stack != nullptr) {
     visit(stack->mask.pixels);
+    if (const auto& preview = stack->layer_preview) {
+      visit(preview->unmasked);
+      visit(preview->displayed);
+    }
   }
   for (const auto& child : layer.children()) {
     visit_layer_buffers(child, visit);
@@ -41,6 +45,11 @@ void visit_pixel_buffers(const Document& document,
   }
   if (document.metadata().psd_flat_composite.has_value()) {
     visit(*document.metadata().psd_flat_composite);
+  }
+  for (const auto& block : document.metadata().smart_filter_effects.blocks) {
+    for (const auto& record : block.records) {
+      if (record.mask && !record.mask->native_pixels.empty()) visit(record.mask->native_pixels);
+    }
   }
 }
 

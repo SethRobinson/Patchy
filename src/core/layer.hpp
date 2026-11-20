@@ -484,6 +484,7 @@ struct LayerOuterGlow {
   StyleContour contour;
   bool anti_aliased{false};
   float jitter{0.0F};  // Gradient color jitter (ShdN); solid glows have one color.
+  std::optional<LayerStyleGradient> gradient;
 };
 
 enum class LayerInnerGlowSource {

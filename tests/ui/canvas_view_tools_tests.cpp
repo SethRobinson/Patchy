@@ -6930,15 +6930,14 @@ void ui_view_extras_menu_options_dialog_and_settings() {
     CHECK(show_menu->actions().contains(require_action(window, "viewExtrasOptionsAction")));
     auto* view_menu = qobject_cast<QMenu*>(show_menu->parent());
     CHECK(view_menu != nullptr && view_menu->actions().contains(extras));
-    // The per-item toggles Extras covers live in View > Show, in this order, with Show
-    // Extras Options after a separator; Extras and Show sit between separators in View
-    // (GitHub issue 420 follow-up).
+    // View > Show groups the display toggles above Show Extras Options.
     const auto show_actions = show_menu->actions();
     const QList<QAction*> expected_show{show_edges,
                                         require_action(window, "viewToggleTargetPathAction"),
                                         require_action(window, "viewToggleGuidesAction"),
                                         require_action(window, "viewToggleGridAction"),
-                                        require_action(window, "viewTogglePixelGridAction")};
+                                        require_action(window, "viewTogglePixelGridAction"),
+                                        require_action(window, "viewContentOutsideCanvasAction")};
     CHECK(show_actions.size() == expected_show.size() + 2);
     if (show_actions.size() == expected_show.size() + 2) {
       CHECK(show_actions.mid(0, expected_show.size()) == expected_show);
