@@ -36987,6 +36987,54 @@ Locked: %1</source>
         <source>Adjust the density and feather of the vector mask</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Save Selection...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save the selection as an alpha channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Load Selection...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Load a selection from an alpha channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content Outside Canvas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show layer content beyond the canvas edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Load Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Channel:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add to selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Subtract from selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Intersect with selection</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

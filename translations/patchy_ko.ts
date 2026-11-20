@@ -36954,6 +36954,54 @@ Locked: %1</source>
         <source>Adjust the density and feather of the vector mask</source>
         <translation>벡터 마스크의 밀도와 페더를 조정합니다</translation>
     </message>
+    <message>
+        <source>Save Selection...</source>
+        <translation>선택 영역 저장...</translation>
+    </message>
+    <message>
+        <source>Save the selection as an alpha channel</source>
+        <translation>선택 영역을 알파 채널로 저장</translation>
+    </message>
+    <message>
+        <source>Load Selection...</source>
+        <translation>선택 영역 불러오기...</translation>
+    </message>
+    <message>
+        <source>Load a selection from an alpha channel</source>
+        <translation>알파 채널에서 선택 영역 불러오기</translation>
+    </message>
+    <message>
+        <source>Content Outside Canvas</source>
+        <translation>캔버스 밖의 내용</translation>
+    </message>
+    <message>
+        <source>Show layer content beyond the canvas edges</source>
+        <translation>캔버스 경계 밖에 있는 레이어 내용 표시</translation>
+    </message>
+    <message>
+        <source>Load Selection</source>
+        <translation>선택 영역 불러오기</translation>
+    </message>
+    <message>
+        <source>Channel:</source>
+        <translation>채널:</translation>
+    </message>
+    <message>
+        <source>New selection</source>
+        <translation>새 선택 영역</translation>
+    </message>
+    <message>
+        <source>Add to selection</source>
+        <translation>선택 영역에 추가</translation>
+    </message>
+    <message>
+        <source>Subtract from selection</source>
+        <translation>선택 영역에서 빼기</translation>
+    </message>
+    <message>
+        <source>Intersect with selection</source>
+        <translation>선택 영역과 교차</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

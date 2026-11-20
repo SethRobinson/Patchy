@@ -36954,6 +36954,54 @@ Locked: %1</source>
         <source>Adjust the density and feather of the vector mask</source>
         <translation>調整向量圖遮色片的濃度與羽化程度</translation>
     </message>
+    <message>
+        <source>Save Selection...</source>
+        <translation>儲存選取範圍...</translation>
+    </message>
+    <message>
+        <source>Save the selection as an alpha channel</source>
+        <translation>將選取範圍儲存為 Alpha 色版</translation>
+    </message>
+    <message>
+        <source>Load Selection...</source>
+        <translation>載入選取範圍...</translation>
+    </message>
+    <message>
+        <source>Load a selection from an alpha channel</source>
+        <translation>從 Alpha 色版載入選取範圍</translation>
+    </message>
+    <message>
+        <source>Content Outside Canvas</source>
+        <translation>畫布外的內容</translation>
+    </message>
+    <message>
+        <source>Show layer content beyond the canvas edges</source>
+        <translation>顯示畫布邊界外的圖層內容</translation>
+    </message>
+    <message>
+        <source>Load Selection</source>
+        <translation>載入選取範圍</translation>
+    </message>
+    <message>
+        <source>Channel:</source>
+        <translation>色版：</translation>
+    </message>
+    <message>
+        <source>New selection</source>
+        <translation>新增選取範圍</translation>
+    </message>
+    <message>
+        <source>Add to selection</source>
+        <translation>加入選取範圍</translation>
+    </message>
+    <message>
+        <source>Subtract from selection</source>
+        <translation>從選取範圍中減去</translation>
+    </message>
+    <message>
+        <source>Intersect with selection</source>
+        <translation>與選取範圍交集</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

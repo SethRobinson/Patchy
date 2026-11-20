@@ -3257,6 +3257,10 @@ private:
   [[nodiscard]] QPixmap cached_path_thumbnail(const patchy::DocumentPath& path, int document_width,
                                               int document_height);
   void create_alpha_channel();
+  QAction* save_selection_action_{nullptr};
+  QAction* load_selection_action_{nullptr};
+  void refresh_saved_selection_actions();
+  void load_saved_selection_dialog();
   void save_selection_as_channel();
   void load_channel_as_selection();
   // `operation`: 0 replaces the selection, 1 adds, 2 subtracts, 3 intersects (a Ctrl-click with
@@ -4491,6 +4495,7 @@ private:
   bool document_proof_gamut_{false};
   QAction* view_grid_action_{nullptr};
   QAction* view_guides_action_{nullptr};
+  QAction* outside_canvas_action_{nullptr};
   QAction* view_pixel_grid_action_{nullptr};
   QAction* view_extras_action_{nullptr};
   QAction* view_snap_action_{nullptr};
@@ -5034,6 +5039,7 @@ private:
   bool view_rulers_visible_{false};
   MeasurementUnit ruler_unit_{MeasurementUnit::Pixels};
   std::vector<QPointer<UnitSpinBox>> ruler_unit_fields_;
+  bool show_outside_canvas_{false};
   bool view_grid_visible_{false};
   bool view_guides_visible_{true};
   bool view_pixel_grid_visible_{true};

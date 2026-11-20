@@ -268,6 +268,7 @@ public:
   // copies of the committed composite around the document so tile seams are visible
   // and update live while painting. Overlays/gizmos and session previews stay on the
   // center tile by design. Per-canvas (per-document) state, default off.
+  void set_show_outside_canvas(bool enabled);
   void set_tiling_preview_enabled(bool enabled);
   [[nodiscard]] bool tiling_preview_enabled() const noexcept;
   void zoom_at_widget_point(QPointF widget_position, double factor);
@@ -4061,6 +4062,25 @@ private:
   bool syncing_scroll_bars_{false};
   QImage render_cache_{};
   bool render_cache_dirty_{true};
+  struct OutsideCanvasPatch {
+    QRectF bounds;
+    QImage image;
+    bool moving;
+  };
+  void invalidate_outside_canvas();
+  void draw_outside_canvas(QPainter& painter, QRect exposed);
+  void request_outside_canvas_refresh();
+  static std::vector<OutsideCanvasPatch> build_outside_canvas_patches(const Document& document,
+                                                                      const std::vector<LayerId>& moving,
+                                                                      const RenderedDocumentPatch& floating);
+  bool show_outside_canvas_{false};
+  bool outside_canvas_pending_{false};
+  bool outside_canvas_mixed_runs_{false};
+  qint64 outside_canvas_float_key_{0};
+  std::uint64_t outside_canvas_revision_{1};
+  std::uint64_t outside_canvas_built_revision_{0};
+  std::vector<LayerId> outside_canvas_moving_;
+  std::vector<OutsideCanvasPatch> outside_canvas_patches_;
   bool tiling_preview_enabled_{false};
   // Cached scaled tile for the textured-fill ghost path; cleared alongside the display
   // mips (invalidate_display_mip_cache), which run at every render_cache_ content change.

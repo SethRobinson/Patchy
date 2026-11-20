@@ -37069,6 +37069,54 @@ Bloccato: %1</translation>
         <source>Adjust the density and feather of the vector mask</source>
         <translation>Regola la densità e la sfumatura della maschera vettoriale</translation>
     </message>
+    <message>
+        <source>Save Selection...</source>
+        <translation>Salva selezione...</translation>
+    </message>
+    <message>
+        <source>Save the selection as an alpha channel</source>
+        <translation>Salva la selezione come canale alfa</translation>
+    </message>
+    <message>
+        <source>Load Selection...</source>
+        <translation>Carica selezione...</translation>
+    </message>
+    <message>
+        <source>Load a selection from an alpha channel</source>
+        <translation>Carica una selezione da un canale alfa</translation>
+    </message>
+    <message>
+        <source>Content Outside Canvas</source>
+        <translation>Contenuto fuori dalla tela</translation>
+    </message>
+    <message>
+        <source>Show layer content beyond the canvas edges</source>
+        <translation>Mostra il contenuto dei livelli oltre i bordi della tela</translation>
+    </message>
+    <message>
+        <source>Load Selection</source>
+        <translation>Carica selezione</translation>
+    </message>
+    <message>
+        <source>Channel:</source>
+        <translation>Canale:</translation>
+    </message>
+    <message>
+        <source>New selection</source>
+        <translation>Nuova selezione</translation>
+    </message>
+    <message>
+        <source>Add to selection</source>
+        <translation>Aggiungi alla selezione</translation>
+    </message>
+    <message>
+        <source>Subtract from selection</source>
+        <translation>Sottrai dalla selezione</translation>
+    </message>
+    <message>
+        <source>Intersect with selection</source>
+        <translation>Interseca con la selezione</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

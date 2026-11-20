@@ -3294,6 +3294,7 @@ void MainWindow::apply_canvas_aid_settings(CanvasWidget* canvas) const {
   }
   canvas->set_rulers_visible(view_rulers_visible_);
   canvas->set_ruler_unit(ruler_unit_);
+  canvas->set_show_outside_canvas(show_outside_canvas_);
   canvas->set_grid_visible(view_grid_visible_);
   canvas->set_pixel_grid_visible(view_pixel_grid_visible_);
   canvas->set_pixel_grid_min_zoom_percent(view_pixel_grid_min_zoom_percent_);
@@ -3562,6 +3563,8 @@ void MainWindow::load_view_settings() {
       settings.value(QStringLiteral("view/rulerUnits"), QStringLiteral("px")).toString(),
       MeasurementUnit::Pixels);
   apply_ruler_unit_to_fields();  // the options-bar fields exist by now; the docks enroll themselves
+  show_outside_canvas_ = settings.value(QStringLiteral("view/contentOutsideCanvas"), false).toBool();
+  if (outside_canvas_action_) outside_canvas_action_->setChecked(show_outside_canvas_);
   view_grid_visible_ = settings.value(QStringLiteral("view/gridVisible"), view_grid_visible_).toBool();
   view_pixel_grid_visible_ = settings.value(QStringLiteral("view/pixelGrid"), view_pixel_grid_visible_).toBool();
   view_pixel_grid_min_zoom_percent_ = valid_pixel_grid_min_zoom_percent(
@@ -3652,6 +3655,7 @@ void MainWindow::save_view_settings() const {
   settings.setValue(QStringLiteral("view/vectorPreview"), view_vector_preview_enabled_);
   settings.setValue(QStringLiteral("view/rulersVisible"), view_rulers_visible_);
   settings.setValue(QStringLiteral("view/rulerUnits"), measurement_unit_settings_token(ruler_unit_));
+  settings.setValue(QStringLiteral("view/contentOutsideCanvas"), show_outside_canvas_);
   settings.setValue(QStringLiteral("view/gridVisible"), view_grid_visible_);
   settings.setValue(QStringLiteral("view/pixelGrid"), view_pixel_grid_visible_);
   settings.setValue(QStringLiteral("view/pixelGridMinZoom"), view_pixel_grid_min_zoom_percent_);

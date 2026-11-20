@@ -37184,6 +37184,54 @@ Zablokowano: %1</translation>
         <source>Adjust the density and feather of the vector mask</source>
         <translation>Dostosuj gęstość i wtapianie maski wektorowej</translation>
     </message>
+    <message>
+        <source>Save Selection...</source>
+        <translation>Zapisz zaznaczenie...</translation>
+    </message>
+    <message>
+        <source>Save the selection as an alpha channel</source>
+        <translation>Zapisz zaznaczenie jako kanał alfa</translation>
+    </message>
+    <message>
+        <source>Load Selection...</source>
+        <translation>Wczytaj zaznaczenie...</translation>
+    </message>
+    <message>
+        <source>Load a selection from an alpha channel</source>
+        <translation>Wczytaj zaznaczenie z kanału alfa</translation>
+    </message>
+    <message>
+        <source>Content Outside Canvas</source>
+        <translation>Zawartość poza płótnem</translation>
+    </message>
+    <message>
+        <source>Show layer content beyond the canvas edges</source>
+        <translation>Pokaż zawartość warstw poza krawędziami płótna</translation>
+    </message>
+    <message>
+        <source>Load Selection</source>
+        <translation>Wczytaj zaznaczenie</translation>
+    </message>
+    <message>
+        <source>Channel:</source>
+        <translation>Kanał:</translation>
+    </message>
+    <message>
+        <source>New selection</source>
+        <translation>Nowe zaznaczenie</translation>
+    </message>
+    <message>
+        <source>Add to selection</source>
+        <translation>Dodaj do zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Subtract from selection</source>
+        <translation>Odejmij od zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Intersect with selection</source>
+        <translation>Część wspólna z zaznaczeniem</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

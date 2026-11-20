@@ -1781,6 +1781,25 @@ std::vector<render_detail::LayerBoundsOverride> hidden_layer_overrides(const Doc
 
 }  // namespace
 
+QImage render_pasteboard_patch(const Document& document, QRect rect, const std::vector<LayerId>& hidden) {
+  const Rect clip{rect.x(), rect.y(), rect.width(), rect.height()};
+  const auto overrides = hidden_layer_overrides(document, hidden);
+  const auto* picks = overrides.empty() ? nullptr : &overrides;
+  if (document.color_state().bit_depth != BitDepth::UInt8) {
+    return render_document_rect_deep(document, clip, true, picks);
+  }
+  QImage image(rect.size(), QImage::Format_RGBA8888);
+  if (image.isNull()) return {};
+  image.fill(Qt::transparent);
+  QImageCompositeTarget target(image, true, clip.x, clip.y);
+  const auto* patterns = &document.metadata().patterns;
+  render_detail::composite_sibling_layers(target, document.layers(), clip, picks, false, nullptr,
+      [&](QImageCompositeTarget& dest, const Layer& layer) {
+        composite_document_layer(dest, layer, clip, picks, nullptr, nullptr, {}, patterns);
+      }, patterns);
+  return image;
+}
+
 QImage qimage_from_document_rect_with_hidden_layers(const Document& document, QRect document_rect,
                                                     bool preserve_alpha,
                                                     const std::vector<LayerId>& hidden_layer_ids) {

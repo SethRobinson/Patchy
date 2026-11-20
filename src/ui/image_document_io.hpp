@@ -80,6 +80,9 @@ private:
 // a transparent canvas the document's size: the animation frames' renderer.
 [[nodiscard]] QImage render_layers_isolated(const Document& document, std::vector<Layer> stack);
 [[nodiscard]] QImage qimage_from_document_rect(const Document& document, QRect document_rect, bool preserve_alpha);
+// View-only composite in document coordinates, including negative coordinates outside the canvas.
+[[nodiscard]] QImage render_pasteboard_patch(const Document& document, QRect rect,
+                                             const std::vector<LayerId>& hidden);
 // Native child coverage used to anchor paints in a clipped viewport render.
 // The caller budgets the native silhouette and compositor workspace first.
 [[nodiscard]] Rect group_visible_alpha_bounds(const Layer& group, Rect bounds, const PatternStore& patterns);
