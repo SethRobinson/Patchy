@@ -59,7 +59,7 @@ public:
   // May the renderer swap its legacy draw-clipped mask window for `domain`
   // (document space)? Must be false whenever that could change full-render
   // output bytes.
-  [[nodiscard]] virtual bool full_domain_allowed(Rect domain) const = 0;
+  [[nodiscard]] virtual bool full_domain_allowed(const Layer& layer, Rect domain) const = 0;
   [[nodiscard]] virtual std::shared_ptr<const StyleMaskEntry> fetch(const Layer& layer, StyleMaskKind kind,
                                                                     std::uint32_t effect_index, Rect domain,
                                                                     Rect bounds,

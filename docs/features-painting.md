@@ -4,6 +4,8 @@ For text, vectors and other editing features, see the [full feature list](featur
 
 ## Painting and retouching
 
+- Brush strokes preview layer effects live around the painted area.
+
 - Raster editing tools: Brush with Flow and timed Airbrush buildup (while Airbrush is on, number keys set Flow and the options bar briefly highlights Flow and Airbrush), Healing Brush, Spot Healing, Patch, Content-Aware Move (Object Selection, new layer), Red Eye, Clone Stamp, Remove Object, Dodge, Burn, Sponge, Blur, Sharpen (Alt swaps Dodge and Burn, Blur and Sharpen for a stroke; Dodge and Burn Ranges calibrated against Photoshop), Smudge with its own Strength (default 50%; how far the color travels is calibrated against Photoshop, 100% drags the starting color the whole stroke), Eraser, gradients (5 styles, pixel or fill; on-canvas handles edit a Gradient Fill's ends, stops and midpoints; click the line to add a stop, Delete or right-click to remove one, set a stop's opacity in a popup beside it; the tool's own gradient keeps a preset's color and opacity stops and is edited in the same two-track editor), shapes, and Edit > Fill (color, mode, opacity, Content-Aware)
 - Retouch sampling from Current Layer, Current & Below, or All Layers, with Ignore Adjustment Layers. Healing Brush heals the stroke on release and offers Replace and blend modes; Red Eye takes a click or a box
 - Clone source settings on the Clone Stamp gear: four saved sources (each clearable), offset, scale, rotation, flips and a source overlay

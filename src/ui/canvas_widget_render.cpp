@@ -213,6 +213,85 @@ QRegion outset_region(const QRegion& region, int amount) {
   return expanded;
 }
 
+// Exterior bounds say where a layer can draw. A change to its matte can also
+// shade existing pixels on the inside, or shift either input of a Satin blur.
+int brush_style_reach(const LayerStyle& style) {
+  int reach = layer_style_effect_padding(style);
+  for (const auto& shadow : style.inner_shadows) {
+    if (shadow.enabled && shadow.opacity > 0.0F) {
+      reach = std::max(reach, static_cast<int>(std::ceil(shadow.distance + shadow.size)) + 2);
+    }
+  }
+  for (const auto& glow : style.inner_glows) {
+    if (glow.enabled && glow.opacity > 0.0F) {
+      reach = std::max(reach, static_cast<int>(std::ceil(glow.size)) + 2);
+    }
+  }
+  for (const auto& satin : style.satins) {
+    if (satin.enabled && satin.opacity > 0.0F) {
+      reach = std::max(reach, static_cast<int>(std::ceil(std::max(1.0F, satin.distance) + satin.size)) + 2);
+    }
+  }
+  int stroke_reach = 0;
+  for (const auto& stroke : style.strokes) {
+    if (stroke.enabled && stroke.size > 0.0F) {
+      stroke_reach = std::max(stroke_reach, static_cast<int>(std::ceil(stroke.size)) + 1);
+    }
+  }
+  reach = std::max(reach, stroke_reach);
+  for (const auto& bevel : style.bevels) {
+    if (bevel.enabled && bevel.size > 0.0F) {
+      const auto emboss_reach = bevel.style == BevelEmbossStyleKind::StrokeEmboss ? stroke_reach : 0;
+      reach = std::max(reach, static_cast<int>(std::ceil(bevel.size + bevel.soften)) + emboss_reach + 3);
+    }
+  }
+  return reach;
+}
+
+bool uses_alpha_aligned_gradient(const LayerStyle& style) {
+  return style.effects_visible &&
+         (std::ranges::any_of(style.gradient_fills, [](const auto& fill) {
+            return fill.enabled && fill.opacity > 0.0F && fill.gradient.align_with_layer;
+          }) || std::ranges::any_of(style.strokes, [](const auto& stroke) {
+            return stroke.enabled && stroke.uses_gradient && stroke.gradient.align_with_layer;
+          }));
+}
+
+QRect brush_gradient_bounds(const Layer& layer) {
+  const auto alpha = layer_visible_alpha_bounds(layer, layer_pixel_bounds(layer));
+  return alpha ? to_qrect(*alpha) : QRect{};
+}
+
+const Layer* expand_brush_damage(const std::vector<Layer>& layers, LayerId painted_id, QRegion& region,
+                                 std::optional<QRect>& previous_gradient_bounds) {
+  for (const auto& layer : layers) {
+    const auto* painted = layer.id() == painted_id
+                              ? &layer
+                              : expand_brush_damage(layer.children(), painted_id, region, previous_gradient_bounds);
+    if (painted == nullptr) continue;
+    const auto& style = layer.layer_style();
+    if (style.effects_visible && !style.empty()) {
+      if (uses_alpha_aligned_gradient(style)) {
+        if (&layer != painted) {
+          region += to_qrect(layer_render_bounds(layer));
+        } else {
+          // Painting over an existing extremum can leave the gradient anchor
+          // unchanged. Redraw distant ink only when the anchor actually moves.
+          const auto bounds = brush_gradient_bounds(layer);
+          if (previous_gradient_bounds != bounds) {
+            region += bounds;
+            if (previous_gradient_bounds) region += *previous_gradient_bounds;
+            previous_gradient_bounds = bounds;
+          }
+        }
+      }
+      region = outset_region(region, brush_style_reach(style));
+    }
+    return painted;
+  }
+  return nullptr;
+}
+
 // The Move tool's layer outline (hover, selection-rectangle preview, drag):
 // light-blue dashes over a solid dark line on the first widget pixels outside
 // the content box [top_left, end) (end exclusive), so it never covers the art
@@ -590,6 +669,15 @@ void CanvasWidget::grayscale_target_changed(QRect document_rect, DocumentChangeR
   active_edit_target_changed_impl(QRegion(document_rect), reason);
 }
 
+void CanvasWidget::capture_brush_gradient_bounds() {
+  brush_gradient_bounds_.reset();
+  if (quick_mask_active_ || layer_edit_target_ != LayerEditTarget::Content) return;
+  const auto* layer = active_pixel_layer();
+  if (layer && uses_alpha_aligned_gradient(layer->layer_style())) {
+    brush_gradient_bounds_ = brush_gradient_bounds(*layer);
+  }
+}
+
 void CanvasWidget::active_edit_target_changed_impl(QRegion document_region, DocumentChangeReason reason) {
   if (paint_stroke_history_armed_) {
     // Every write the stroke reports (dabs, wet edges, airbrush ticks) lands
@@ -771,10 +859,18 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
     return;
   }
 
+  std::optional<LayerId> windowed_layer;
   if (document_ != nullptr) {
-    const auto style_padding = includes_effect_bounds ? 0 : document_effect_padding(*document_);
-    if (style_padding > 0) {
-      document_region = outset_region(document_region, style_padding);
+    const Layer* painted = nullptr;
+    const bool paint_update = reason == DocumentChangeReason::BrushStrokePreview ||
+                              reason == DocumentChangeReason::BrushStrokeFinished;
+    if (!includes_effect_bounds && paint_update && layer_edit_target_ == LayerEditTarget::Content &&
+        document_->active_layer_id()) {
+      painted = expand_brush_damage(std::as_const(*document_).layers(), *document_->active_layer_id(), document_region,
+                                    brush_gradient_bounds_);
+    }
+    if (!includes_effect_bounds && !painted) {
+      document_region = outset_region(document_region, document_effect_padding(*document_));
     }
     document_region = document_region.intersected(QRect(0, 0, document_->width(), document_->height()));
     if (document_region.isEmpty()) {
@@ -783,6 +879,13 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
     }
     const auto area = region_area(document_region);
     const auto canvas_area = static_cast<std::int64_t>(document_->width()) * static_cast<std::int64_t>(document_->height());
+    if (painted && painted->layer_style().effects_visible && !painted->layer_style().empty()) {
+      const auto bounds = layer_pixel_bounds(*painted);
+      const auto layer_area = static_cast<std::int64_t>(bounds.width) * bounds.height;
+      if (area < kProcessingOverlayDirtyAreaThreshold && area < layer_area / 4) {
+        windowed_layer = painted->id();
+      }
+    }
     if (canvas_area > 0 && area * 2 > canvas_area && !region_refresh_any_area_) {
       mark_full_dirty();
       return;
@@ -797,7 +900,7 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
   if (started_render_operation) {
     begin_processing_operation();
   }
-  refresh_render_cache_region(document_region);
+  refresh_render_cache_region(document_region, windowed_layer);
   if (started_render_operation) {
     end_processing_operation();
   }
@@ -1946,7 +2049,7 @@ void CanvasWidget::cancel_async_render_cache_refresh() noexcept {
 
 std::vector<RenderedDocumentPatch> CanvasWidget::render_document_patches_with_processing(
     const QRegion& document_region, const std::vector<std::pair<LayerId, Rect>>& layer_bounds,
-    bool force_processing_wait) {
+    bool force_processing_wait, std::optional<LayerId> windowed_layer) {
   if (document_ == nullptr) {
     return {};
   }
@@ -1954,7 +2057,7 @@ std::vector<RenderedDocumentPatch> CanvasWidget::render_document_patches_with_pr
                                    dirty_region_should_use_processing_wait(document_region);
   if (!use_processing_wait) {
     return layer_bounds.empty()
-               ? qimage_patches_from_document_region(*document_, document_region, true)
+               ? qimage_patches_from_document_region(*document_, document_region, true, windowed_layer)
                : qimage_patches_from_document_region_with_layer_bounds(*document_, document_region, true, layer_bounds);
   }
 
@@ -1966,7 +2069,7 @@ std::vector<RenderedDocumentPatch> CanvasWidget::render_document_patches_with_pr
   const auto idle_pool = patchy::idle_prespawned_pool_workers();
   if (paintingActive() || idle_pool < 1) {
     return layer_bounds.empty()
-               ? qimage_patches_from_document_region(*document_, document_region, true)
+               ? qimage_patches_from_document_region(*document_, document_region, true, windowed_layer)
                : qimage_patches_from_document_region_with_layer_bounds(*document_, document_region, true, layer_bounds);
   }
   const patchy::BlockingFanoutBudgetScope fanout_budget(std::max(0, idle_pool - 3));
@@ -1975,12 +2078,12 @@ std::vector<RenderedDocumentPatch> CanvasWidget::render_document_patches_with_pr
   auto* document = document_;
   auto region = document_region;
   auto bounds = layer_bounds;
-  auto future = launch_async([document, region = std::move(region), bounds = std::move(bounds)] {
+  auto future = launch_async([document, region = std::move(region), bounds = std::move(bounds), windowed_layer] {
     if (const auto delay = processing_render_test_delay_ms(); delay > 0) {
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     }
     return bounds.empty()
-               ? qimage_patches_from_document_region(*document, region, true)
+               ? qimage_patches_from_document_region(*document, region, true, windowed_layer)
                : qimage_patches_from_document_region_with_layer_bounds(*document, region, true, bounds);
   });
   const auto overlay_shown = wait_for_processing_operation(
@@ -2096,7 +2199,7 @@ void CanvasWidget::refresh_render_cache_rect(QRect document_rect) {
   refresh_render_cache_region(QRegion(document_rect));
 }
 
-void CanvasWidget::refresh_render_cache_region(const QRegion& document_region) {
+void CanvasWidget::refresh_render_cache_region(const QRegion& document_region, std::optional<LayerId> windowed_layer) {
   if (document_ == nullptr || render_cache_.isNull()) {
     return;
   }
@@ -2106,7 +2209,7 @@ void CanvasWidget::refresh_render_cache_region(const QRegion& document_region) {
     return;
   }
 
-  auto patches = render_document_patches_with_processing(clipped, {}, false);
+  auto patches = render_document_patches_with_processing(clipped, {}, false, windowed_layer);
   for (auto& patch : patches) {
     patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
   }

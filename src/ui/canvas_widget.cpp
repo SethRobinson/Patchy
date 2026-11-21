@@ -1697,6 +1697,7 @@ void CanvasWidget::close_stroke_growth_reserve() {
 }
 
 void CanvasWidget::arm_paint_stroke_history() {
+  capture_brush_gradient_bounds();
   open_stroke_growth_reserve();
   paint_stroke_history_armed_ = false;
   if (theme_stroke_tool_.isEmpty()) {
@@ -1719,6 +1720,7 @@ void CanvasWidget::arm_paint_stroke_history() {
 }
 
 void CanvasWidget::finish_paint_stroke_history() {
+  brush_gradient_bounds_.reset();
   close_stroke_growth_reserve();
   if (!theme_stroke_tool_.isEmpty()) {
     const auto tool = std::exchange(theme_stroke_tool_, QString());

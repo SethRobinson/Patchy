@@ -13,6 +13,8 @@
 #include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
 #include "ui_test_groups.hpp"
+#include "ui_test_support.hpp"
+#include <QApplication>
 #include "core/document.hpp"
 #include "core/document_depth.hpp"
 #include "core/adjustment_layer.hpp"
@@ -253,6 +255,79 @@ void group_clipped_adjustment_preview_keeps_backdrop_and_tracks_child_move() {
   }
 }
 
+void ui_styled_brush_damage_matches_full_render() {
+  patchy::Document document(480, 320, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer paint(480, 320, patchy::PixelFormat::rgba8());
+  paint.clear(0);
+  // Transparent space within the gradient anchor and opaque pixels that can
+  // pick up shading from a dab on the other side of the edge.
+  for (int y = 70; y < 250; ++y) {
+    for (int x = 60; x < 380; ++x) {
+      if (x < 85 || x > 215) {
+        auto* pixel = paint.pixel(x, y);
+        pixel[0] = 180;
+        pixel[3] = 255;
+      }
+    }
+  }
+  auto& layer = document.add_pixel_layer("Paint", std::move(paint));
+  auto& style = layer.layer_style();
+  auto& satin = style.satins.emplace_back();
+  satin.enabled = true;
+  satin.distance = 28;
+  satin.size = 11;
+  auto& bevel = style.bevels.emplace_back();
+  bevel.enabled = true;
+  bevel.size = 27;
+  bevel.soften = 3;
+  auto& glow = style.outer_glows.emplace_back();
+  glow.enabled = true;
+  glow.size = 9;
+  auto& gradient = style.gradient_fills.emplace_back();
+  gradient.enabled = true;
+  gradient.gradient.angle_degrees = 0;
+  gradient.gradient.color_stops = {{0.0F, {20, 30, 40}}, {1.0F, {240, 200, 150}}};
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 360);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_brush_size(31);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.show();
+  QApplication::processEvents();
+  canvas.repaint();
+  const auto compare = [&] {
+    const auto actual = canvas.current_composite();
+    CHECK(!actual.isNull());
+    CHECK(actual == patchy::ui::qimage_from_document(document, true).convertToFormat(actual.format()));
+  };
+  compare();
+  const auto before = canvas.render_cache_diagnostics().partial_patches;
+  const auto send = [&](QEvent::Type type, QPoint point, Qt::MouseButton button, Qt::MouseButtons held) {
+    patchy::test::ui::send_mouse(canvas, type, canvas.widget_position_for_document_point(point), button, held);
+    canvas.repaint();
+    compare();
+  };
+  send(QEvent::MouseButtonPress, {198, 160}, Qt::LeftButton, Qt::LeftButton);
+  send(QEvent::MouseMove, {212, 162}, Qt::NoButton, Qt::LeftButton);
+  CHECK(canvas.render_cache_diagnostics().partial_patches > before);
+  // Growing the visible matte moves the gradient across previously painted pixels.
+  send(QEvent::MouseMove, {400, 170}, Qt::NoButton, Qt::LeftButton);
+  send(QEvent::MouseButtonRelease, {400, 170}, Qt::LeftButton, Qt::NoButton);
+
+  // Painting over the same extremum with another color keeps the anchor.
+  // Even the first dab of the new gesture should only patch the brush area.
+  canvas.set_primary_color(Qt::green);
+  const auto before_repaint = canvas.render_cache_diagnostics();
+  send(QEvent::MouseButtonPress, {400, 170}, Qt::LeftButton, Qt::LeftButton);
+  const auto after_repaint = canvas.render_cache_diagnostics();
+  CHECK(after_repaint.partial_patches > before_repaint.partial_patches);
+  CHECK(after_repaint.dirty_region_pixels - before_repaint.dirty_region_pixels < 480U * 320U / 4U);
+  send(QEvent::MouseButtonRelease, {400, 170}, Qt::LeftButton, Qt::NoButton);
+}
+
 void backglass_group_clipped_invert_preview_matches_photoshop_if_available() {
   const auto path = patchy::test::local_format_fixture_path("backglass-invert", "Backglass_homebrew.psd");
   patchy::test::skip_unless_exists(path);
@@ -487,6 +562,7 @@ std::vector<patchy::test::TestCase> composite_render_tests() {
       {"composite_corpus_render_digests_are_stable", composite_corpus_render_digests_are_stable},
       {"group_isolation_override_bounds_match_actual_layer_move",
        group_isolation_override_bounds_match_actual_layer_move},
+      {"ui_styled_brush_damage_matches_full_render", ui_styled_brush_damage_matches_full_render},
       {"styled_group_partial_render_and_child_edit_match_full_render", styled_group_partial_render_and_child_edit_match_full_render},
       {"styled_group_parallel_strips_match_single_threaded", styled_group_parallel_strips_match_single_threaded},
       {"knockout_preview_preserves_alpha_depth_and_partial_bounds", knockout_preview_preserves_alpha_depth_and_partial_bounds},

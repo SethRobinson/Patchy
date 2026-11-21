@@ -549,9 +549,13 @@ StyleMaskLruCache& style_mask_lru_cache() {
 
 class DocumentStyleMaskProvider final : public render_detail::StyleMaskProvider {
 public:
-  explicit DocumentStyleMaskProvider(Rect canvas) noexcept : canvas_(canvas) {}
+  DocumentStyleMaskProvider(Rect canvas, std::optional<LayerId> windowed_layer) noexcept
+      : canvas_(canvas), windowed_layer_(windowed_layer) {}
 
-  [[nodiscard]] bool full_domain_allowed(Rect gate) const override {
+  [[nodiscard]] bool full_domain_allowed(const Layer& layer, Rect gate) const override {
+    // A brush patch consumes this mask once before the next pixel edit.
+    // Keep the other layers' reusable masks available to the same render.
+    if (layer.id() == windowed_layer_) return false;
     // Byte-stability gate: with the gate rect inside the canvas, the legacy
     // full-render mask window already equals the full domain, so cached masks
     // reproduce full-render bytes exactly (see style_mask_for_render).
@@ -631,6 +635,7 @@ private:
   }
 
   Rect canvas_;
+  std::optional<LayerId> windowed_layer_;
 };
 
 bool layer_can_affect_clip(const Layer& layer, Rect clip,
@@ -964,8 +969,9 @@ QImage deep_target_to_image(const render_detail::DeepCompositeTarget& target, bo
 }
 
 QImage render_document_rect_deep(const Document& document, Rect clip, bool preserve_alpha,
-                                 const std::vector<render_detail::LayerBoundsOverride>* overrides) {
-  DocumentStyleMaskProvider mask_provider(Rect::from_size(document.width(), document.height()));
+                                 const std::vector<render_detail::LayerBoundsOverride>* overrides,
+                                 std::optional<LayerId> windowed_layer = std::nullopt) {
+  DocumentStyleMaskProvider mask_provider(Rect::from_size(document.width(), document.height()), windowed_layer);
   auto* masks = render_detail::raster_view_context == nullptr && DocumentStyleMaskProvider::enabled()
                     ? &mask_provider
                     : nullptr;
@@ -1045,7 +1051,8 @@ bool layer_has_visible_knockout(const Layer& layer,
 }
 
 QImage render_document_rect(const Document& document, QRect document_rect, bool preserve_alpha,
-                            const std::vector<render_detail::LayerBoundsOverride>* overrides) {
+                            const std::vector<render_detail::LayerBoundsOverride>* overrides,
+                            std::optional<LayerId> windowed_layer = std::nullopt) {
   const auto native_rect = document_rect.normalized();
   const Rect native_clip{native_rect.x(), native_rect.y(), native_rect.width(), native_rect.height()};
   auto native = render_native_cmyk8(document, native_clip, overrides);
@@ -1073,7 +1080,7 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
     if (clip.empty()) {
       return {};
     }
-    return render_document_rect_deep(document, clip, preserve_alpha, overrides);
+    return render_document_rect_deep(document, clip, preserve_alpha, overrides, windowed_layer);
   }
   const auto tracing = render_trace_enabled();
   const auto profiling = render_profile_enabled();
@@ -1127,7 +1134,7 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
       std::clamp(std::min(clip.height / 128, hardware_threads), 1, 16));
   const bool parallel_render = render_detail::raster_view_context == nullptr && !timed_render && parallel_strips >= 2 && clip_area >= 4'000'000 &&
                                !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED");
-  DocumentStyleMaskProvider mask_provider(Rect::from_size(document.width(), document.height()));
+  DocumentStyleMaskProvider mask_provider(Rect::from_size(document.width(), document.height()), windowed_layer);
   auto* masks = render_detail::raster_view_context == nullptr && DocumentStyleMaskProvider::enabled() ? &mask_provider : nullptr;
   if (parallel_render) {
     struct StripJob {
@@ -1223,7 +1230,7 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
 std::vector<QImage> render_document_rects_parallel(const Document& document, const std::vector<QRect>& rects,
                                                    bool preserve_alpha,
                                                    const std::vector<render_detail::LayerBoundsOverride>* overrides,
-                                                   int worker_budget) {
+                                                   int worker_budget, std::optional<LayerId> windowed_layer = std::nullopt) {
   std::vector<QImage> images(rects.size());
   std::atomic<std::size_t> next_rect{0};
   const auto worker_count = std::min<std::size_t>(static_cast<std::size_t>(std::max(1, worker_budget)), rects.size());
@@ -1231,14 +1238,14 @@ std::vector<QImage> render_document_rects_parallel(const Document& document, con
   jobs.reserve(worker_count);
   for (std::size_t worker = 0; worker < worker_count; ++worker) {
     jobs.push_back(
-        std::async(std::launch::async, [&document, &rects, &images, &next_rect, preserve_alpha, overrides] {
+        std::async(std::launch::async, [&document, &rects, &images, &next_rect, preserve_alpha, overrides, windowed_layer] {
           const ThreadFanoutBudgetScope no_nested_fanout(0);
           while (true) {
             const auto index = next_rect.fetch_add(1, std::memory_order_relaxed);
             if (index >= rects.size()) {
               return;
             }
-            images[index] = render_document_rect(document, rects[index], preserve_alpha, overrides);
+            images[index] = render_document_rect(document, rects[index], preserve_alpha, overrides, windowed_layer);
           }
         }));
   }
@@ -1250,7 +1257,8 @@ std::vector<QImage> render_document_rects_parallel(const Document& document, con
 
 std::vector<RenderedDocumentPatch> render_document_region(
     const Document& document, const QRegion& document_region, bool preserve_alpha,
-    const std::vector<render_detail::LayerBoundsOverride>* overrides) {
+    const std::vector<render_detail::LayerBoundsOverride>* overrides,
+    std::optional<LayerId> windowed_layer = std::nullopt) {
   std::vector<RenderedDocumentPatch> patches;
   if (document_region.isEmpty()) {
     return patches;
@@ -1282,7 +1290,7 @@ std::vector<RenderedDocumentPatch> render_document_region(
                         !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED") && !render_trace_enabled() &&
                         !render_profile_enabled();
   if (parallel) {
-    auto images = render_document_rects_parallel(document, rects, preserve_alpha, overrides, worker_budget);
+    auto images = render_document_rects_parallel(document, rects, preserve_alpha, overrides, worker_budget, windowed_layer);
     patches.reserve(rects.size());
     for (std::size_t index = 0; index < rects.size(); ++index) {
       if (!images[index].isNull()) {
@@ -1293,7 +1301,7 @@ std::vector<RenderedDocumentPatch> render_document_region(
   }
 
   for (const auto& rect : rects) {
-    auto image = render_document_rect(document, rect, preserve_alpha, overrides);
+    auto image = render_document_rect(document, rect, preserve_alpha, overrides, windowed_layer);
     if (image.isNull()) {
       continue;
     }
@@ -1656,8 +1664,9 @@ QImage render_layers_isolated(const Document& document, std::vector<Layer> stack
 
 std::vector<RenderedDocumentPatch> qimage_patches_from_document_region(const Document& document,
                                                                        const QRegion& document_region,
-                                                                       bool preserve_alpha) {
-  return render_document_region(document, document_region, preserve_alpha, nullptr);
+                                                                       bool preserve_alpha,
+                                                                       std::optional<LayerId> windowed_layer) {
+  return render_document_region(document, document_region, preserve_alpha, nullptr, windowed_layer);
 }
 
 std::vector<RenderedDocumentPatch> qimage_patches_from_document_region_banded(const Document& document,

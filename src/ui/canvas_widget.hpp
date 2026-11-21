@@ -2337,10 +2337,10 @@ private:
   [[nodiscard]] bool first_render_spinner_active() const noexcept;
   [[nodiscard]] std::vector<RenderedDocumentPatch> render_document_patches_with_processing(
       const QRegion& document_region, const std::vector<std::pair<LayerId, Rect>>& layer_bounds,
-      bool force_processing_wait);
+      bool force_processing_wait, std::optional<LayerId> windowed_layer = std::nullopt);
   [[nodiscard]] bool dirty_region_should_use_processing_wait(const QRegion& document_region) const noexcept;
   void refresh_render_cache_rect(QRect document_rect);
-  void refresh_render_cache_region(const QRegion& document_region);
+  void refresh_render_cache_region(const QRegion& document_region, std::optional<LayerId> windowed_layer = std::nullopt);
   bool patch_render_cache_rect(QRect document_rect, const QImage& partial);
   bool patch_render_cache_patches(const std::vector<RenderedDocumentPatch>& patches);
   void invalidate_display_mip_cache() noexcept;
@@ -2700,6 +2700,7 @@ private:
   // Called right after a successful begin_edit by the painting_ gestures: emits the
   // Begin history event and starts collecting the stroke's dirty rectangles. Also fires
   // the theme's "stroke-start" event (docs/theme-files-scripts.md).
+  void capture_brush_gradient_bounds();
   void arm_paint_stroke_history();
   // Emits the Finish event with the collected bounds (no-op when not armed), and
   // "stroke-end" for a stroke that fired "stroke-start".
@@ -5672,6 +5673,7 @@ private:
   // active_edit_target_changed_impl unions every reported region into the rect.
   bool paint_stroke_history_armed_{false};
   PaintStrokeHistoryEvent paint_stroke_history_event_{};
+  std::optional<QRect> brush_gradient_bounds_;
   // The painting tool's theme id while a stroke's "stroke-start" awaits its "stroke-end".
   QString theme_stroke_tool_;
   std::optional<patchy::LayerGrowthReserve> stroke_growth_reserve_{};

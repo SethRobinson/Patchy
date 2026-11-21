@@ -88,7 +88,8 @@ private:
 [[nodiscard]] Rect group_visible_alpha_bounds(const Layer& group, Rect bounds, const PatternStore& patterns);
 [[nodiscard]] std::vector<RenderedDocumentPatch> qimage_patches_from_document_region(const Document& document,
                                                                                      const QRegion& document_region,
-                                                                                     bool preserve_alpha);
+                                                                                     bool preserve_alpha,
+                                                                                     std::optional<LayerId> windowed_layer = std::nullopt);
 // The region split into row bands rendered across workers. PREVIEW-ONLY (the
 // canvas's region preview refreshes under a dialog, GitHub #601 follow-up): a
 // band's windowed style masks can differ slightly from the unbanded render, so
