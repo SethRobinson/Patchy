@@ -1,13 +1,18 @@
 #pragma once
 
+#include "ui/preset_library.hpp"
+
+#include <QElapsedTimer>
 #include <QString>
 #include <QStringList>
 
 #include <functional>
 #include <initializer_list>
+#include <memory>
 
 class QDialog;
 class QHBoxLayout;
+class QProgressDialog;
 class QPushButton;
 class QWidget;
 class QVBoxLayout;
@@ -65,6 +70,40 @@ private:
   QHBoxLayout* main_layout_{nullptr};
   QVBoxLayout* right_{nullptr};
   QWidget* tree_{nullptr};
+};
+
+// The progress dialog a manager shows while it imports one preset file (GitHub issue
+// 741): a large .asl or .pat takes seconds to read, decode and store, all on the GUI
+// thread. It shows at once for a file of kShowAtOnceBytes or more, because reading and
+// decoding that blocks before the first item; otherwise only once the import has run
+// for kShowAfterMs, so a small import never flashes it. Cancel stops between two items
+// and keeps what was stored. The texts come from the calling dialog, like the
+// scaffold's.
+class PresetImportProgressDialog {
+public:
+  static constexpr qint64 kShowAtOnceBytes = 8LL * 1024LL * 1024LL;
+  static constexpr qint64 kShowAfterMs = 400;
+
+  // `step_label(item, total)` names the item about to be stored, counted from 1.
+  PresetImportProgressDialog(QWidget* parent, const QString& object_name, const QString& title,
+                             const QString& reading_label, const QString& cancel_label,
+                             std::function<QString(int item, int total)> step_label,
+                             qint64 file_bytes);
+  ~PresetImportProgressDialog();
+  PresetImportProgressDialog(const PresetImportProgressDialog&) = delete;
+  PresetImportProgressDialog& operator=(const PresetImportProgressDialog&) = delete;
+
+  // The callback for the library's import; valid while this object lives.
+  [[nodiscard]] PresetImportStep step();
+  [[nodiscard]] bool cancelled() const;
+
+private:
+  void show_now();
+
+  std::unique_ptr<QProgressDialog> dialog_;
+  std::function<QString(int, int)> step_label_;
+  QElapsedTimer running_;
+  qint64 file_bytes_{0};
 };
 
 }  // namespace patchy::ui

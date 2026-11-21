@@ -16523,6 +16523,22 @@ Czy chcesz go zastąpić?</translation>
         <source>File not found on %1</source>
         <translation>Nie znaleziono pliku na %1</translation>
     </message>
+    <message>
+        <source>Some patterns were left out because the file holds more pattern pixels than one import allows</source>
+        <translation>Niektóre wzorki pominięto, ponieważ plik zawiera więcej pikseli wzorków, niż pozwala jeden import</translation>
+    </message>
+    <message>
+        <source>Reading &quot;%1&quot;...</source>
+        <translation>Odczytywanie „%1”...</translation>
+    </message>
+    <message>
+        <source>Importing pattern %1 of %2...</source>
+        <translation>Importowanie wzorka %1 z %2...</translation>
+    </message>
+    <message>
+        <source>Importing style %1 of %2...</source>
+        <translation>Importowanie stylu %1 z %2...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

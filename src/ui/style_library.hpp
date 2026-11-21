@@ -72,8 +72,12 @@ public:
   // payloads under an existing id deduplicate; a conflicting style under the
   // same id receives a fresh id and keeps its source id so re-importing
   // deduplicates the remapped entry. Returns the first imported/deduplicated
-  // entry's storage id, or empty on failure.
-  QString import_asl(const QString& path, QString& error, QStringList& warnings);
+  // entry's storage id, or empty on failure. Files over psd::kMaxAslFileBytes
+  // are refused before they are read. `step` reports progress and may stop the
+  // import: stopped before any style was stored, the result is empty and so is
+  // `error`.
+  QString import_asl(const QString& path, QString& error, QStringList& warnings,
+                     const PresetImportStep& step = {});
 
   // Exports the listed entries (tree order) plus the union of their embedded
   // pattern tiles into one .asl file. Returns false and sets `error` on failure.
@@ -126,6 +130,8 @@ private:
   bool write_entry_asl(const StyleLibraryEntry& entry,
                        std::span<const PatternResource> patterns) const;
   [[nodiscard]] std::optional<psd::AslReadResult> read_entry_asl(const QString& storage_id) const;
+  // The entry's style without its pattern tiles, which stay on disk unread.
+  [[nodiscard]] std::optional<psd::AslReadResult> read_entry_styles(const QString& storage_id) const;
   void refresh_thumbnail(StyleLibraryEntry& entry, std::span<const PatternResource> patterns,
                          bool save_cache);
   void invalidate_cached_patterns(const QString& storage_id) const;

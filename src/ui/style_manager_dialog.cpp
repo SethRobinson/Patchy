@@ -229,9 +229,19 @@ QString request_style_manager(QWidget* parent, StyleLibrary& library,
     const auto before = library.entries().size();
     QString error;
     QStringList warnings;
-    const auto first = library.import_asl(path, error, warnings);
+    QString first;
+    {
+      PresetImportProgressDialog progress(
+          &dialog, QStringLiteral("styleManagerImportProgress"), QObject::tr("Import Styles"),
+          QObject::tr("Reading \"%1\"...").arg(QFileInfo(path).fileName()), QObject::tr("Cancel"),
+          [](int item, int total) { return QObject::tr("Importing style %1 of %2...").arg(item).arg(total); },
+          QFileInfo(path).size());
+      first = library.import_asl(path, error, warnings, progress.step());
+    }
     if (first.isEmpty()) {
-      QMessageBox::warning(&dialog, QObject::tr("Import Styles"), error);
+      if (!error.isEmpty()) {  // empty: stopped from the progress dialog before any style
+        QMessageBox::warning(&dialog, QObject::tr("Import Styles"), error);
+      }
       return;
     }
     tree->reload(first);

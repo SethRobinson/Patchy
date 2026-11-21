@@ -27,6 +27,7 @@
 #include "ui/recognize_text_dialog.hpp"
 #include "ui/style_browser.hpp"
 #include "ui/preset_grid_widget.hpp"
+#include "ui/preset_manager_scaffold.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/style_library.hpp"
 #include "ui/style_manager_dialog.hpp"
@@ -51,7 +52,10 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QDir>
 #include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QFrame>
 #include <QImage>
 #include <QLabel>
@@ -61,6 +65,7 @@
 #include <QMetaObject>
 #include <QIODevice>
 #include <QPainter>
+#include <QProgressDialog>
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QSpinBox>
@@ -1282,6 +1287,312 @@ void ui_style_library_defaults_restore_export_import_round_trip() {
   CHECK(changed_signals == 1);
 }
 
+void ui_style_library_rejects_oversized_asl_before_read() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  // 512 MiB since GitHub issue 741 (32 MiB before), shared with the core reader.
+  const auto limit = static_cast<qint64>(patchy::psd::kMaxAslFileBytes);
+  CHECK(limit == 512LL * 1024LL * 1024LL);
+  const auto oversized_path = directory.filePath(QStringLiteral("oversized.asl"));
+  QFile oversized(oversized_path);
+  CHECK(oversized.open(QIODevice::WriteOnly));
+  CHECK(oversized.resize(limit + 1LL));
+  oversized.close();
+
+  patchy::ui::StyleLibrary library(directory.filePath(QStringLiteral("library")));
+  QString error;
+  QStringList warnings;
+  int steps = 0;
+  CHECK(library
+            .import_asl(oversized_path, error, warnings,
+                        [&steps](int, int) {
+                          ++steps;
+                          return true;
+                        })
+            .isEmpty());
+  CHECK(error == QStringLiteral("\"oversized.asl\" is too large to import safely."));
+  CHECK(steps == 0);  // refused from its size alone, before the read
+  CHECK(warnings.isEmpty());
+  CHECK(library.entries().empty());
+
+  // The library rereads each stored style under the same limit: a stored file past it is
+  // passed over without being read.
+  const auto stored_dir = directory.filePath(QStringLiteral("stored"));
+  CHECK(QDir().mkpath(stored_dir));
+  CHECK(QFile::copy(oversized_path, QDir(stored_dir).filePath(QStringLiteral("too-big.asl"))));
+  CHECK(patchy::ui::StyleLibrary(stored_dir).entries().empty());
+
+  // The limit is inclusive: a file of exactly that size passes the size check and is read
+  // (then turned down as not an ASL file, since it is all zeros).
+  CHECK(QFile::resize(oversized_path, limit));
+  CHECK(library.import_asl(oversized_path, error, warnings).isEmpty());
+  CHECK(error.contains(QStringLiteral("is not a supported Photoshop ASL")));
+  CHECK(library.entries().empty());
+}
+
+// `count` styles for the import tests, each a Pattern Overlay on its own `extent` pixel
+// tile of one flat color, so a rendered thumbnail shows which pattern a style kept.
+struct Issue741Styles {
+  std::vector<patchy::psd::AslStyle> styles;
+  std::vector<patchy::PatternResource> patterns;
+};
+
+[[nodiscard]] Issue741Styles issue_741_styles(int count, int extent) {
+  Issue741Styles result;
+  for (int index = 0; index < count; ++index) {
+    patchy::PatternResource pattern;
+    pattern.id = "74100000-0000-4000-8000-00000000030" + std::to_string(index + 1);
+    pattern.name = "Texture " + std::to_string(index + 1);
+    pattern.tile = solid_pixels(extent, extent, patchy::PixelFormat::rgba8(),
+                                QColor(230 - 90 * index, 40 + 90 * index, 60));
+    patchy::psd::AslStyle style;
+    style.id = "74100000-0000-4000-8000-00000000040" + std::to_string(index + 1);
+    style.name = "Textured " + std::to_string(index + 1);
+    patchy::LayerPatternOverlay overlay;
+    overlay.enabled = true;
+    overlay.pattern_id = pattern.id;
+    overlay.pattern_name = pattern.name;
+    style.style.pattern_overlays.push_back(std::move(overlay));
+    result.styles.push_back(std::move(style));
+    result.patterns.push_back(std::move(pattern));
+  }
+  return result;
+}
+
+[[nodiscard]] QString issue_741_write_asl(const QTemporaryDir& directory, const QString& name,
+                                          const Issue741Styles& content) {
+  const auto bytes = patchy::psd::write_asl(content.styles, content.patterns);
+  const auto path = directory.filePath(name);
+  QFile file(path);
+  CHECK(file.open(QIODevice::WriteOnly));
+  CHECK(file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size())) ==
+        static_cast<qint64>(bytes.size()));
+  file.close();
+  return path;
+}
+
+// GitHub issue 741: a style library past the old 32 MiB limit imports, and every style
+// reopens with its embedded pattern and renders with it.
+void ui_style_library_imports_asl_past_the_old_limit() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  constexpr int kExtent = 2048;
+  const auto content = issue_741_styles(3, kExtent);
+  const auto path = issue_741_write_asl(directory, QStringLiteral("Textures.asl"), content);
+  CHECK(QFileInfo(path).size() > 32LL * 1024LL * 1024LL);
+
+  const auto library_dir = directory.filePath(QStringLiteral("library"));
+  std::vector<std::pair<int, int>> steps;
+  QString first_storage_id;
+  {
+    patchy::ui::StyleLibrary library(library_dir);
+    QString error;
+    QStringList warnings;
+    first_storage_id = library.import_asl(path, error, warnings, [&steps](int done, int total) {
+      steps.emplace_back(done, total);
+      return true;
+    });
+    CHECK(!first_storage_id.isEmpty());
+    CHECK(error.isEmpty());
+    CHECK(warnings.isEmpty());
+    CHECK(library.entries().size() == 3U);
+    CHECK(library.folders() == QStringList{QStringLiteral("Textures")});
+  }
+  // Once before the read, then once before each style is stored.
+  CHECK(steps == (std::vector<std::pair<int, int>>{{0, 0}, {0, 3}, {1, 3}, {2, 3}}));
+
+  patchy::ui::StyleLibrary reopened(library_dir);
+  CHECK(reopened.entries().size() == 3U);
+  std::vector<QImage> thumbnails;
+  for (std::size_t index = 0; index < content.styles.size(); ++index) {
+    const auto* entry = reopened.find_entry_by_style_id(QString::fromStdString(content.styles[index].id));
+    CHECK(entry != nullptr);
+    CHECK(entry->style.pattern_overlays.size() == 1U);
+    const auto embedded = reopened.patterns_for_entry(entry->storage_id);
+    CHECK(embedded.size() == 1U);  // only the tile this style uses, not the file's other two
+    CHECK(embedded.front().id == content.patterns[index].id);
+    CHECK(embedded.front().tile.width() == kExtent && embedded.front().tile.height() == kExtent);
+    CHECK(std::equal(embedded.front().tile.data().begin(), embedded.front().tile.data().end(),
+                     content.patterns[index].tile.data().begin()));
+    CHECK(!entry->thumbnail.isNull());
+    thumbnails.push_back(entry->thumbnail.toImage());
+    // The stored style paints its own tile: without the tile the preview differs.
+    const auto with_pattern =
+        patchy::ui::render_style_preview(entry->style, entry->blend_settings, embedded, 96).toImage();
+    const auto without_pattern =
+        patchy::ui::render_style_preview(entry->style, entry->blend_settings, {}, 96).toImage();
+    CHECK(with_pattern == thumbnails.back());
+    CHECK(with_pattern != without_pattern);
+  }
+  CHECK(thumbnails[0] != thumbnails[1]);
+  CHECK(thumbnails[1] != thumbnails[2]);
+
+  // Opening the library reads the styles and their cached thumbnails, not the tiles. A
+  // thumbnail that went missing is drawn again from the stored tile.
+  const auto* first_entry = reopened.find_entry(first_storage_id);
+  CHECK(first_entry != nullptr);
+  const auto first_thumbnail = first_entry->thumbnail.toImage();
+  const auto thumbnail_file = QDir(library_dir).filePath(first_storage_id + QStringLiteral(".png"));
+  CHECK(QFile::remove(thumbnail_file));
+  {
+    patchy::ui::StyleLibrary redrawn(library_dir);
+    const auto* entry = redrawn.find_entry(first_storage_id);
+    CHECK(entry != nullptr);
+    CHECK(entry->thumbnail.toImage() == first_thumbnail);
+    CHECK(QFileInfo::exists(thumbnail_file));
+  }
+
+  // Importing the same file again adds nothing.
+  QString error;
+  QStringList warnings;
+  CHECK(reopened.import_asl(path, error, warnings) == first_storage_id);
+  CHECK(reopened.entries().size() == 3U);
+}
+
+// The step callback can stop an import between two styles, or before the read.
+void ui_style_library_import_stops_from_its_step() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto content = issue_741_styles(3, 4);
+  const auto path = issue_741_write_asl(directory, QStringLiteral("Small.asl"), content);
+
+  // Stopped when two of the three are stored: those two stay, with no error.
+  patchy::ui::StyleLibrary library(directory.filePath(QStringLiteral("library")));
+  int changed = 0;
+  QObject::connect(&library, &patchy::ui::StyleLibrary::changed, &library, [&changed] { ++changed; });
+  QString error;
+  QStringList warnings;
+  const auto first = library.import_asl(path, error, warnings, [](int done, int) { return done < 2; });
+  CHECK(!first.isEmpty());
+  CHECK(error.isEmpty());
+  CHECK(library.entries().size() == 2U);
+  CHECK(library.find_entry_by_style_id(QString::fromStdString(content.styles[1].id)) != nullptr);
+  CHECK(library.find_entry_by_style_id(QString::fromStdString(content.styles[2].id)) == nullptr);
+  CHECK(changed == 1);
+
+  // Stopped before the file is read: nothing is imported, and that is not an error.
+  patchy::ui::StyleLibrary untouched(directory.filePath(QStringLiteral("untouched")));
+  CHECK(untouched.import_asl(path, error, warnings, [](int, int) { return false; }).isEmpty());
+  CHECK(error.isEmpty());
+  CHECK(untouched.entries().empty());
+  // Stopped after the read, before the first style: the same.
+  CHECK(untouched.import_asl(path, error, warnings, [](int, int total) { return total == 0; }).isEmpty());
+  CHECK(error.isEmpty());
+  CHECK(untouched.entries().empty());
+}
+
+// The managers' import progress dialog (GitHub issue 741): at once for a large file, not
+// at all for a quick small one, and Cancel stops the import at its next step.
+void ui_preset_import_progress_dialog_shows_for_large_files_only() {
+  QWidget parent;
+  const auto label = [](int item, int total) { return QStringLiteral("Item %1 of %2").arg(item).arg(total); };
+  {
+    patchy::ui::PresetImportProgressDialog progress(
+        &parent, QStringLiteral("testImportProgressSmall"), QStringLiteral("Import"), QStringLiteral("Reading"),
+        QStringLiteral("Cancel"), label, patchy::ui::PresetImportProgressDialog::kShowAtOnceBytes - 1);
+    const auto step = progress.step();
+    auto* dialog = parent.findChild<QProgressDialog*>(QStringLiteral("testImportProgressSmall"));
+    CHECK(dialog != nullptr);
+    CHECK(step(0, 0));
+    CHECK(step(0, 3));
+    CHECK(step(1, 3));
+    CHECK(!dialog->isVisible());
+    CHECK(!progress.cancelled());
+  }
+  CHECK(parent.findChild<QProgressDialog*>() == nullptr);
+  {
+    patchy::ui::PresetImportProgressDialog progress(
+        &parent, QStringLiteral("testImportProgressLarge"), QStringLiteral("Import"), QStringLiteral("Reading"),
+        QStringLiteral("Cancel"), label, patchy::ui::PresetImportProgressDialog::kShowAtOnceBytes);
+    const auto step = progress.step();
+    auto* dialog = parent.findChild<QProgressDialog*>(QStringLiteral("testImportProgressLarge"));
+    CHECK(dialog != nullptr);
+    CHECK(!dialog->isVisible());
+    CHECK(step(0, 0));  // before the file is read
+    CHECK(dialog->isVisible());
+    CHECK(dialog->windowModality() == Qt::WindowModal);
+    CHECK(dialog->windowTitle() == QStringLiteral("Import"));
+    CHECK(dialog->labelText() == QStringLiteral("Reading"));
+    CHECK(dialog->maximum() == 0);  // busy, no count yet
+    CHECK(step(1, 3));  // one stored, the second of three next
+    CHECK(dialog->labelText() == QStringLiteral("Item 2 of 3"));
+    CHECK(dialog->maximum() == 3);
+    CHECK(dialog->value() == 1);
+    CHECK(step(2, 3));
+    CHECK(dialog->labelText() == QStringLiteral("Item 3 of 3"));
+    dialog->cancel();
+    CHECK(!step(3, 3));
+    CHECK(progress.cancelled());
+    CHECK(!dialog->isVisible());  // Cancel hid it and the last step did not bring it back
+  }
+  CHECK(parent.findChild<QProgressDialog*>() == nullptr);
+}
+
+// GitHub issue 741 through the Style Manager's Import button: a 37 MB library (refused
+// as too large before) shows the progress dialog while it imports and lists its styles
+// after.
+void ui_style_manager_imports_large_asl_with_progress() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto content = issue_741_styles(3, 2048);
+  const auto path = issue_741_write_asl(directory, QStringLiteral("Scrapbook Textures.asl"), content);
+  CHECK(QFileInfo(path).size() > 32LL * 1024LL * 1024LL);
+  patchy::ui::StyleLibrary library(directory.filePath(QStringLiteral("library")));
+
+  auto saw_progress = false;
+  QStringList progress_labels;
+  when_dialog_visible(QStringLiteral("styleManagerDialog"), [&](QDialog& manager) {
+    auto* import_button = manager.findChild<QPushButton*>(QStringLiteral("styleManagerImportButton"));
+    auto* tree = manager.findChild<patchy::ui::StyleBrowserWidget*>(QStringLiteral("styleManagerTree"));
+    CHECK(import_button != nullptr && tree != nullptr);
+    when_dialog_visible(QStringLiteral("styleManagerImportFileDialog"), [&path](QDialog& dialog) {
+      auto* files = qobject_cast<QFileDialog*>(&dialog);
+      CHECK(files != nullptr);
+      // selectFile leaves a focused name field alone, so the name is typed as well.
+      files->selectFile(path);
+      if (auto* name_edit = files->findChild<QLineEdit*>(QStringLiteral("fileNameEdit")); name_edit != nullptr) {
+        name_edit->setText(path);
+      }
+      QApplication::processEvents();
+      dialog.accept();
+    });
+    // The import runs inside the click; its progress dialog pumps events, so a timer
+    // sees the dialog while the file is read and the styles are stored.
+    QTimer watcher;
+    watcher.setInterval(0);
+    QObject::connect(&watcher, &QTimer::timeout, &manager, guarded([&] {
+      auto* progress =
+          qobject_cast<QProgressDialog*>(find_top_level_dialog(QStringLiteral("styleManagerImportProgress")));
+      if (progress == nullptr || !progress->isVisible()) {
+        return;
+      }
+      if (!saw_progress) {
+        saw_progress = true;
+        CHECK(progress->windowTitle() == QStringLiteral("Import Styles"));
+        save_widget_artifact("ui_style_manager_import_progress", *progress);
+      }
+      if (progress_labels.isEmpty() || progress_labels.back() != progress->labelText()) {
+        progress_labels.append(progress->labelText());
+      }
+    }));
+    watcher.start();
+    import_button->click();
+    watcher.stop();
+    QApplication::processEvents();
+    CHECK(saw_progress);
+    CHECK(progress_labels.front() == QStringLiteral("Reading \"Scrapbook Textures.asl\"..."));
+    CHECK(progress_labels.contains(QStringLiteral("Importing style 3 of 3...")));
+    CHECK(find_top_level_dialog(QStringLiteral("styleManagerImportProgress")) == nullptr);
+    CHECK(library.entries().size() == 3U);
+    CHECK(!tree->current_storage_id().isEmpty());  // the first imported style is selected
+    save_widget_artifact("ui_style_manager_after_large_import", manager);
+    manager.reject();
+  });
+  (void)patchy::ui::request_style_manager(nullptr, library, {});
+  CHECK(library.entries().size() == 3U);
+  CHECK(library.folders() == QStringList{QStringLiteral("Scrapbook Textures")});
+}
+
 void ui_layer_style_styles_page_applies_preset_and_previews() {
   QTemporaryDir directory;
   CHECK(directory.isValid());
@@ -1841,6 +2152,12 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part2() {
        ui_layer_style_library_pattern_cancel_and_undo_restore_store},
       {"ui_style_library_defaults_restore_export_import_round_trip",
        ui_style_library_defaults_restore_export_import_round_trip},
+      {"ui_style_library_rejects_oversized_asl_before_read", ui_style_library_rejects_oversized_asl_before_read},
+      {"ui_style_library_imports_asl_past_the_old_limit", ui_style_library_imports_asl_past_the_old_limit},
+      {"ui_style_library_import_stops_from_its_step", ui_style_library_import_stops_from_its_step},
+      {"ui_preset_import_progress_dialog_shows_for_large_files_only",
+       ui_preset_import_progress_dialog_shows_for_large_files_only},
+      {"ui_style_manager_imports_large_asl_with_progress", ui_style_manager_imports_large_asl_with_progress},
       {"ui_photo_pattern_presets_load_stable_tiles", ui_photo_pattern_presets_load_stable_tiles},
       {"ui_pattern_thumbnail_fits_large_images_without_tiling",
        ui_pattern_thumbnail_fits_large_images_without_tiling},

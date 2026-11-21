@@ -483,19 +483,38 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
     const auto before = library.entries().size();
     QStringList problems;
     QString first_storage_id;
+    auto stopped = false;
     for (const auto& path : paths) {
       QString error;
       QStringList warnings;
       const auto is_pat =
           QFileInfo(path).suffix().compare(QStringLiteral("pat"), Qt::CaseInsensitive) == 0;
-      const auto imported = is_pat ? library.import_pat(path, error, warnings)
-                                   : library.import_image(path, error, warnings);
+      QString imported;
+      if (is_pat) {
+        PresetImportProgressDialog progress(
+            &dialog, QStringLiteral("patternManagerImportProgress"), QObject::tr("Import Patterns"),
+            QObject::tr("Reading \"%1\"...").arg(QFileInfo(path).fileName()), QObject::tr("Cancel"),
+            [](int item, int total) { return QObject::tr("Importing pattern %1 of %2...").arg(item).arg(total); },
+            QFileInfo(path).size());
+        imported = library.import_pat(path, error, warnings, progress.step());
+        stopped = progress.cancelled();
+      } else {
+        imported = library.import_image(path, error, warnings);
+      }
       if (imported.isEmpty()) {
-        problems.append(error);
+        if (!error.isEmpty()) {  // empty: stopped from the progress dialog before any pattern
+          problems.append(error);
+        }
       } else if (first_storage_id.isEmpty()) {
         first_storage_id = imported;
       }
       problems.append(warnings);
+      if (stopped) {
+        break;  // Cancel ends the whole import, not just this file
+      }
+    }
+    if (first_storage_id.isEmpty() && stopped && problems.isEmpty()) {
+      return;
     }
     if (first_storage_id.isEmpty()) {
       QMessageBox::warning(&dialog, QObject::tr("Import Patterns"),

@@ -24,6 +24,7 @@
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
+#include "psd/pat_reader.hpp"
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_patterns.hpp"
 #include "test_harness.hpp"
@@ -1881,19 +1882,155 @@ void ui_pattern_library_reimport_deduplicates_remapped_source_id() {
 void ui_pattern_library_rejects_oversized_pat_before_read() {
   QTemporaryDir directory;
   CHECK(directory.isValid());
+  // 512 MiB since GitHub issue 741 (32 MiB before), shared with the core reader.
+  const auto limit = static_cast<qint64>(patchy::psd::kMaxPatFileBytes);
+  CHECK(limit == 512LL * 1024LL * 1024LL);
   const auto oversized_path = directory.filePath(QStringLiteral("oversized.pat"));
   QFile oversized(oversized_path);
   CHECK(oversized.open(QIODevice::WriteOnly));
-  CHECK(oversized.resize(32LL * 1024LL * 1024LL + 1LL));
+  CHECK(oversized.resize(limit + 1LL));
   oversized.close();
 
   patchy::ui::PatternLibrary library(directory.filePath(QStringLiteral("library")));
   QString error;
   QStringList warnings;
-  CHECK(library.import_pat(oversized_path, error, warnings).isEmpty());
+  int steps = 0;
+  CHECK(library
+            .import_pat(oversized_path, error, warnings,
+                        [&steps](int, int) {
+                          ++steps;
+                          return true;
+                        })
+            .isEmpty());
   CHECK(error == QStringLiteral("\"oversized.pat\" is too large to import safely."));
+  CHECK(steps == 0);  // refused from its size alone, before the read
   CHECK(warnings.isEmpty());
   CHECK(library.entries().empty());
+
+  // The limit is inclusive: a file of exactly that size passes the size check and is read
+  // (then turned down as not a PAT file, since it is all zeros).
+  CHECK(QFile::resize(oversized_path, limit));
+  CHECK(library.import_pat(oversized_path, error, warnings).isEmpty());
+  CHECK(error.contains(QStringLiteral("is not a supported Photoshop PAT file")));
+  CHECK(library.entries().empty());
+}
+
+// A standalone .pat holding `patterns`: "8BPT", version 1, a count, then the records a
+// Patt block stores behind a length prefix.
+[[nodiscard]] QByteArray issue_741_pat_bytes(std::span<const patchy::PatternResource> patterns) {
+  QByteArray bytes("8BPT\x00\x01", 6);
+  const auto count = static_cast<std::uint32_t>(patterns.size());
+  for (const auto shift : {24U, 16U, 8U, 0U}) {
+    bytes.append(static_cast<char>((count >> shift) & 0xFFU));
+  }
+  for (const auto& pattern : patterns) {
+    const auto block = patchy::psd::serialize_patterns_block(std::span(&pattern, 1U));
+    CHECK(block.size() > 4U);
+    const auto record_length = (std::size_t{block[0]} << 24U) | (std::size_t{block[1]} << 16U) |
+                               (std::size_t{block[2]} << 8U) | std::size_t{block[3]};
+    CHECK(record_length + 4U <= block.size());
+    bytes.append(reinterpret_cast<const char*>(block.data()) + 4, static_cast<qsizetype>(record_length));
+  }
+  return bytes;
+}
+
+[[nodiscard]] QString issue_741_write_file(const QTemporaryDir& directory, const QString& name,
+                                           const QByteArray& bytes) {
+  const auto path = directory.filePath(name);
+  QFile file(path);
+  CHECK(file.open(QIODevice::WriteOnly));
+  CHECK(file.write(bytes) == bytes.size());
+  file.close();
+  return path;
+}
+
+// GitHub issue 741: a .pat past the old 32 MiB file limit and the old 16 million pixel
+// total imports whole and reads back pixel for pixel.
+void ui_pattern_library_imports_pat_past_the_old_limits() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  constexpr int kExtent = 2048;
+  constexpr int kCount = 5;
+  std::vector<patchy::PatternResource> patterns;
+  for (int index = 0; index < kCount; ++index) {
+    patterns.push_back({"74100000-0000-4000-8000-00000000010" + std::to_string(index + 1),
+                        "Large " + std::to_string(index + 1),
+                        solid_pixels(kExtent, kExtent, patchy::PixelFormat::rgba8(),
+                                     QColor(20 + 40 * index, 90, 220 - 30 * index))});
+  }
+  const auto bytes = issue_741_pat_bytes(patterns);
+  CHECK(bytes.size() > 32LL * 1024LL * 1024LL);
+  CHECK(static_cast<qint64>(kCount) * kExtent * kExtent > 16LL * 1024LL * 1024LL);
+  const auto path = issue_741_write_file(directory, QStringLiteral("Large.pat"), bytes);
+
+  const auto library_dir = directory.filePath(QStringLiteral("library"));
+  std::vector<std::pair<int, int>> steps;
+  {
+    patchy::ui::PatternLibrary library(library_dir);
+    QString error;
+    QStringList warnings;
+    CHECK(!library
+               .import_pat(path, error, warnings,
+                           [&steps](int done, int total) {
+                             steps.emplace_back(done, total);
+                             return true;
+                           })
+               .isEmpty());
+    CHECK(error.isEmpty());
+    CHECK(warnings.isEmpty());
+    CHECK(library.entries().size() == static_cast<std::size_t>(kCount));
+  }
+  // Once before the read, then once before each pattern is stored.
+  CHECK(steps == (std::vector<std::pair<int, int>>{{0, 0}, {0, 5}, {1, 5}, {2, 5}, {3, 5}, {4, 5}}));
+
+  patchy::ui::PatternLibrary reloaded(library_dir);
+  CHECK(reloaded.entries().size() == static_cast<std::size_t>(kCount));
+  for (const auto& pattern : patterns) {
+    const auto* entry = reloaded.find_entry_by_pattern_id(QString::fromStdString(pattern.id));
+    CHECK(entry != nullptr);
+    CHECK(entry->folder == QStringLiteral("Large"));
+    CHECK(entry->size == QSize(kExtent, kExtent));
+  }
+  const auto last = reloaded.resource(QString::fromStdString(patterns.back().id));
+  CHECK(last.has_value());
+  CHECK(std::equal(last->tile.data().begin(), last->tile.data().end(), patterns.back().tile.data().begin()));
+}
+
+// The step callback can stop an import between two patterns, or before the read.
+void ui_pattern_library_import_stops_from_its_step() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  std::vector<patchy::PatternResource> patterns;
+  for (int index = 0; index < 3; ++index) {
+    patterns.push_back({"74100000-0000-4000-8000-00000000020" + std::to_string(index + 1),
+                        "Small " + std::to_string(index + 1),
+                        solid_pixels(4, 4, patchy::PixelFormat::rgba8(), QColor(60 * index, 120, 30))});
+  }
+  const auto path = issue_741_write_file(directory, QStringLiteral("Small.pat"), issue_741_pat_bytes(patterns));
+
+  // Stopped when two of the three are stored: those two stay, with no error.
+  patchy::ui::PatternLibrary library(directory.filePath(QStringLiteral("library")));
+  int changed = 0;
+  QObject::connect(&library, &patchy::ui::PatternLibrary::changed, &library, [&changed] { ++changed; });
+  QString error;
+  QStringList warnings;
+  const auto first = library.import_pat(path, error, warnings, [](int done, int) { return done < 2; });
+  CHECK(!first.isEmpty());
+  CHECK(error.isEmpty());
+  CHECK(library.entries().size() == 2U);
+  CHECK(library.find_entry_by_pattern_id(QString::fromStdString(patterns[1].id)) != nullptr);
+  CHECK(library.find_entry_by_pattern_id(QString::fromStdString(patterns[2].id)) == nullptr);
+  CHECK(changed == 1);
+
+  // Stopped before the file is read: nothing is imported, and that is not an error.
+  patchy::ui::PatternLibrary untouched(directory.filePath(QStringLiteral("untouched")));
+  CHECK(untouched.import_pat(path, error, warnings, [](int, int) { return false; }).isEmpty());
+  CHECK(error.isEmpty());
+  CHECK(untouched.entries().empty());
+  // Stopped after the read, before the first pattern: the same.
+  CHECK(untouched.import_pat(path, error, warnings, [](int, int total) { return total == 0; }).isEmpty());
+  CHECK(error.isEmpty());
+  CHECK(untouched.entries().empty());
 }
 
 void ui_pattern_library_delete_requires_tile_removal() {
@@ -2427,6 +2564,9 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part1() {
        ui_pattern_library_reimport_deduplicates_remapped_source_id},
       {"ui_pattern_library_rejects_oversized_pat_before_read",
        ui_pattern_library_rejects_oversized_pat_before_read},
+      {"ui_pattern_library_imports_pat_past_the_old_limits",
+       ui_pattern_library_imports_pat_past_the_old_limits},
+      {"ui_pattern_library_import_stops_from_its_step", ui_pattern_library_import_stops_from_its_step},
       {"ui_pattern_library_delete_requires_tile_removal",
        ui_pattern_library_delete_requires_tile_removal},
       {"ui_pattern_library_imports_image_files", ui_pattern_library_imports_image_files},

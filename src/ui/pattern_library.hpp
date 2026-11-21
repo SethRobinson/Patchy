@@ -100,7 +100,11 @@ public:
   // the same id receives a fresh pattern UUID and a warning. Its source id is
   // retained so re-importing the same pixels deduplicates the remapped entry.
   // Returns the first imported/deduplicated entry's storage id, or empty on failure.
-  QString import_pat(const QString& path, QString& error, QStringList& warnings);
+  // Files over psd::kMaxPatFileBytes are refused before they are read. `step` reports
+  // progress and may stop the import: stopped before any pattern was stored, the
+  // result is empty and so is `error`.
+  QString import_pat(const QString& path, QString& error, QStringList& warnings,
+                     const PresetImportStep& step = {});
 
   // Imports one image file (any format QImageReader reads, EXIF orientation
   // applied) as a single ungrouped pattern named after the file stem, with a

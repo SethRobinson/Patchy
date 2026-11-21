@@ -2,6 +2,7 @@
 
 #include "core/layer.hpp"
 #include "core/pattern_resource.hpp"
+#include "psd/psd_patterns.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -24,6 +25,10 @@ class CmykToRgbTransform;
 }
 
 namespace patchy::psd {
+
+// The largest .asl a read accepts, inclusive: the UI import, the stored single-style
+// files the style library rereads, and read_asl itself all use this one value.
+inline constexpr std::uint64_t kMaxAslFileBytes = kMaxPatternLibraryFileBytes;
 
 // A style's captured layer blending options (Photoshop's "Include Layer
 // Blending Options"). Patchy models opacity, fill opacity, blend mode, and
@@ -59,10 +64,30 @@ struct AslReadResult {
 // Once at least one style has been decoded, a damaged trailing record is
 // reported as a warning and the decoded prefix is returned. Trailing 8BIMphry
 // hierarchy data is deliberately ignored. CMYK effect colors use `cmyk_icc`
-// when supplied and the naive Photoshop ink mix otherwise.
+// when supplied and the naive Photoshop ink mix otherwise. A file over
+// `limits.file_bytes` is rejected; patterns past the decode budget are left out
+// with one warning and the styles still load.
 [[nodiscard]] std::optional<AslReadResult> read_asl(std::span<const std::uint8_t> bytes,
                                                     std::string& error,
-                                                    const CmykToRgbTransform* cmyk_icc = nullptr);
+                                                    const CmykToRgbTransform* cmyk_icc = nullptr,
+                                                    const PatternLibraryLimits& limits = {});
+
+// The fixed start of an .asl: version, signature, patterns version and the byte length
+// of the patterns section, which follows at once.
+inline constexpr std::size_t kAslHeaderBytes = 12;
+
+// The length of the patterns section that a file's first kAslHeaderBytes declare, or
+// nullopt when they are not an .asl header. A reader that wants the styles alone skips
+// that many bytes after the header and hands the rest to read_asl_styles.
+[[nodiscard]] std::optional<std::uint32_t> asl_patterns_section_length(std::span<const std::uint8_t> header);
+
+// read_asl for a file whose patterns section stayed on disk: `header` is its first
+// kAslHeaderBytes and `styles` everything after the patterns section. The result has
+// no patterns; nothing is decoded per pattern pixel.
+[[nodiscard]] std::optional<AslReadResult> read_asl_styles(std::span<const std::uint8_t> header,
+                                                           std::span<const std::uint8_t> styles,
+                                                           std::string& error,
+                                                           const CmykToRgbTransform* cmyk_icc = nullptr);
 
 // Serializes styles (and the pattern tiles they reference) into a .asl file.
 // Callers pass patterns deduped by id; styles with blend_settings gain the

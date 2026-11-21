@@ -30,6 +30,11 @@ enum PatternImageMode : std::uint32_t {
   kModeMultichannel = 7,
 };
 
+// A pattern that does not fit what is left of the file's decode budget.
+struct PatternBudgetExceeded : std::runtime_error {
+  PatternBudgetExceeded() : std::runtime_error("pattern exceeds the file's decode budget") {}
+};
+
 struct DecodedPlane {
   std::int32_t top{0};
   std::int32_t left{0};
@@ -48,7 +53,7 @@ struct DecodedPlane {
 // their declared length and remain inside the VMA, but their payload is skipped
 // without parsing or decompressing it.
 bool read_plane(BigEndianReader& reader, DecodedPlane& plane, std::size_t container_end,
-                bool decode_samples, bool* populated = nullptr) {
+                bool decode_samples, bool* populated = nullptr, PatternDecodeBudget* budget = nullptr) {
   if (reader.position() > container_end || container_end - reader.position() < 4U) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD pattern channel list is truncated"));
   }
@@ -96,6 +101,12 @@ bool read_plane(BigEndianReader& reader, DecodedPlane& plane, std::size_t contai
   }
   if ((depth != 8U && depth != 16U) || (pixel_depth != 8U && pixel_depth != 16U)) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD pattern channel depth is unsupported"));
+  }
+  if (budget != nullptr) {
+    if (plane_pixels > budget->plane_samples) {
+      throw PatternBudgetExceeded();
+    }
+    budget->plane_samples -= plane_pixels;
   }
   const auto bytes_per_sample = static_cast<std::size_t>(pixel_depth / 8U);
   const auto row_bytes = static_cast<std::size_t>(width) * bytes_per_sample;
@@ -174,7 +185,8 @@ bool read_plane(BigEndianReader& reader, DecodedPlane& plane, std::size_t contai
 // at the pattern's u32 length field. Returns nullopt for undecodable content.
 std::optional<PatternResource> parse_single_pattern(BigEndianReader& reader,
                                                     const CmykToRgbTransform* cmyk_icc,
-                                                    bool* extra_multichannel_planes = nullptr) {
+                                                    bool* extra_multichannel_planes = nullptr,
+                                                    PatternDecodeBudget* budget = nullptr) {
   const auto declared_length = reader.read_u32();
   if (declared_length < 16U || declared_length > reader.remaining()) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD pattern length is invalid"));
@@ -211,6 +223,12 @@ std::optional<PatternResource> parse_single_pattern(BigEndianReader& reader,
             : 0U;
     if (version == kPatternVersion && supported_mode && width > 0 && height > 0 && width <= 30000 &&
         height <= 30000 && pattern_pixels <= kMaxDecodedPatternPixels && !pattern_id.empty()) {
+      if (budget != nullptr) {
+        if (pattern_pixels > budget->pixels) {
+          throw PatternBudgetExceeded();
+        }
+        budget->pixels -= pattern_pixels;
+      }
       if (reader.position() > pattern_end || pattern_end - reader.position() < 8U) {
         throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD pattern VMA header is truncated"));
       }
@@ -242,7 +260,7 @@ std::optional<PatternResource> parse_single_pattern(BigEndianReader& reader,
         const auto extra_multichannel = mode == kModeMultichannel && slot > 0U &&
                                        slot < declared_channels;
         if (!read_plane(reader, plane, vma_end, relevant,
-                        extra_multichannel ? &extra_planes : nullptr)) {
+                        extra_multichannel ? &extra_planes : nullptr, budget)) {
           continue;
         }
         if (slot < color_channel_count) {
@@ -320,6 +338,9 @@ std::optional<PatternResource> parse_single_pattern(BigEndianReader& reader,
         }
       }
     }
+  } catch (const PatternBudgetExceeded&) {
+    result.reset();
+    ++budget->skipped;  // thrown only with a budget
   } catch (const std::exception&) {
     result.reset();  // undecodable pattern: the raw block preserves it
   }
@@ -337,12 +358,13 @@ std::optional<PatternResource> parse_single_pattern(BigEndianReader& reader,
 }  // namespace
 
 std::vector<PatternResource> parse_patterns_block(std::span<const std::uint8_t> payload,
-                                                  const CmykToRgbTransform* cmyk_icc) {
+                                                  const CmykToRgbTransform* cmyk_icc,
+                                                  PatternDecodeBudget* budget) {
   std::vector<PatternResource> resources;
   BigEndianReader reader(payload);
   try {
     while (reader.remaining() >= 16U) {
-      auto resource = parse_single_pattern(reader, cmyk_icc);
+      auto resource = parse_single_pattern(reader, cmyk_icc, nullptr, budget);
       if (resource.has_value()) {
         resources.push_back(std::move(*resource));
       }

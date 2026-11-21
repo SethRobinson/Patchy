@@ -16467,6 +16467,22 @@ Sostituirlo?</translation>
         <source>File not found on %1</source>
         <translation>File non trovato su %1</translation>
     </message>
+    <message>
+        <source>Some patterns were left out because the file holds more pattern pixels than one import allows</source>
+        <translation>Alcuni pattern sono stati esclusi perché il file contiene più pixel di pattern di quanti ne consenta un&apos;importazione</translation>
+    </message>
+    <message>
+        <source>Reading &quot;%1&quot;...</source>
+        <translation>Lettura di &quot;%1&quot;...</translation>
+    </message>
+    <message>
+        <source>Importing pattern %1 of %2...</source>
+        <translation>Importazione del pattern %1 di %2...</translation>
+    </message>
+    <message>
+        <source>Importing style %1 of %2...</source>
+        <translation>Importazione dello stile %1 di %2...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

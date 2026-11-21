@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/pattern_resource.hpp"
+#include "psd/psd_patterns.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -18,6 +19,9 @@ class CmykToRgbTransform;
 
 namespace patchy::psd {
 
+// The largest .pat a read accepts, inclusive: the UI import and read_pat use this one value.
+inline constexpr std::uint64_t kMaxPatFileBytes = kMaxPatternLibraryFileBytes;
+
 struct PatReadResult {
   // Standalone imports have no document raw block that can preserve them, so
   // resources are returned with PatternProvenance::Authored. A document that
@@ -34,9 +38,10 @@ struct PatReadResult {
 // decoded, an unreadable trailing record is reported as a warning and the
 // successfully decoded prefix is returned. Trailing 8BIMphry hierarchy data is
 // deliberately ignored. CMYK uses `cmyk_icc` when supplied and the existing
-// naive Photoshop ink mix otherwise.
+// naive Photoshop ink mix otherwise. A file over `limits.file_bytes` is rejected;
+// records past the file's pixel or plane-sample budget are skipped with a warning.
 [[nodiscard]] std::optional<PatReadResult> read_pat(
     std::span<const std::uint8_t> bytes, std::string& error,
-    const CmykToRgbTransform* cmyk_icc = nullptr);
+    const CmykToRgbTransform* cmyk_icc = nullptr, const PatternLibraryLimits& limits = {});
 
 }  // namespace patchy::psd

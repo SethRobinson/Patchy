@@ -1,13 +1,19 @@
 #include "ui/preset_manager_scaffold.hpp"
 
+#include "ui/dialog_utils.hpp"
+
+#include <QApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
+#include <QProgressDialog>
 #include <QPushButton>
 #include <QShortcut>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
+#include <algorithm>
+#include <limits>
 #include <utility>
 
 namespace patchy::ui {
@@ -103,6 +109,63 @@ std::function<void()> PresetManagerScaffold::single_selection_accept(
     chosen_id = ids.front();
     dialog->accept();
   };
+}
+
+PresetImportProgressDialog::PresetImportProgressDialog(
+    QWidget* parent, const QString& object_name, const QString& title, const QString& reading_label,
+    const QString& cancel_label, std::function<QString(int item, int total)> step_label,
+    qint64 file_bytes)
+    : dialog_(std::make_unique<QProgressDialog>(reading_label, cancel_label, 0, 0, parent)),
+      step_label_(std::move(step_label)),
+      file_bytes_(file_bytes) {
+  dialog_->setObjectName(object_name);
+  dialog_->setWindowTitle(title);
+  dialog_->setWindowModality(Qt::WindowModal);
+  // Shown by show_now() alone: Qt's own timer would need the event loop this import blocks.
+  dialog_->setMinimumDuration(std::numeric_limits<int>::max());
+  dialog_->setAutoClose(false);
+  dialog_->setAutoReset(false);
+  running_.start();
+}
+
+PresetImportProgressDialog::~PresetImportProgressDialog() {
+  dialog_->close();
+}
+
+void PresetImportProgressDialog::show_now() {
+  if (dialog_->isVisible()) {
+    return;
+  }
+  remember_dialog_position(*dialog_);
+  dialog_->show();
+}
+
+PresetImportStep PresetImportProgressDialog::step() {
+  return [this](int done, int total) {
+    if (dialog_->wasCanceled()) {
+      return false;  // Cancel hid the dialog; do not bring it back for the last step
+    }
+    if (total > 0) {
+      const auto label = step_label_(std::min(done + 1, total), total);
+      if (dialog_->labelText() != label) {
+        dialog_->setLabelText(label);
+      }
+      dialog_->setMaximum(total);
+      dialog_->setValue(done);
+    }
+    if (file_bytes_ >= kShowAtOnceBytes || running_.elapsed() >= kShowAfterMs) {
+      show_now();
+    }
+    if (dialog_->isVisible()) {
+      // Window-modal, so the manager under it takes no input while its import runs.
+      QApplication::processEvents(QEventLoop::AllEvents);
+    }
+    return !dialog_->wasCanceled();
+  };
+}
+
+bool PresetImportProgressDialog::cancelled() const {
+  return dialog_->wasCanceled();
 }
 
 }  // namespace patchy::ui

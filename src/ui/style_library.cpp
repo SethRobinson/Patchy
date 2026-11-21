@@ -33,7 +33,8 @@ namespace patchy::ui {
 namespace {
 
 constexpr std::size_t kPatternCacheLimit = 8;
-constexpr qint64 kMaxAslFileBytes = 32LL * 1024LL * 1024LL;
+// One limit for the import, the stored single-style files and the core reader.
+constexpr auto kMaxAslFileBytes = static_cast<qint64>(psd::kMaxAslFileBytes);
 
 using presets::pattern_tiles_equal;
 using presets::qstring_from_utf8;
@@ -267,6 +268,25 @@ std::optional<psd::AslReadResult> StyleLibrary::read_entry_asl(const QString& st
       error);
 }
 
+std::optional<psd::AslReadResult> StyleLibrary::read_entry_styles(const QString& storage_id) const {
+  QFile file(asl_path(storage_id));
+  if (!file.open(QIODevice::ReadOnly) || file.size() > kMaxAslFileBytes) {
+    return std::nullopt;
+  }
+  const auto header = file.read(static_cast<qint64>(psd::kAslHeaderBytes));
+  const auto as_span = [](const QByteArray& bytes) {
+    return std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+                                         static_cast<std::size_t>(bytes.size()));
+  };
+  const auto patterns_length = psd::asl_patterns_section_length(as_span(header));
+  if (!patterns_length.has_value() || !file.seek(header.size() + static_cast<qint64>(*patterns_length))) {
+    return std::nullopt;
+  }
+  const auto styles = file.readAll();
+  std::string error;
+  return psd::read_asl_styles(as_span(header), as_span(styles), error);
+}
+
 std::vector<PatternResource> StyleLibrary::patterns_for_entry(const QString& storage_id) const {
   for (const auto& cached : pattern_cache_) {
     if (cached.first == storage_id) {
@@ -316,7 +336,15 @@ void StyleLibrary::reload() {
   const auto asl_files = dir.entryInfoList({QStringLiteral("*.asl")}, QDir::Files, QDir::Name);
   for (const auto& file_info : asl_files) {
     const auto storage_id = file_info.completeBaseName();
-    auto parsed = read_entry_asl(storage_id);
+    // An entry with its thumbnail cached needs only its style: the pattern tiles (most of
+    // an imported library's bytes) are read when the style is applied, previewed or
+    // exported, not each time the library opens.
+    QPixmap cached_thumbnail;
+    const QFileInfo thumbnail_info(thumbnail_path(storage_id));
+    if (thumbnail_info.exists() && thumbnail_info.lastModified() >= file_info.lastModified()) {
+      cached_thumbnail = QPixmap(thumbnail_info.absoluteFilePath());
+    }
+    auto parsed = cached_thumbnail.isNull() ? read_entry_asl(storage_id) : read_entry_styles(storage_id);
     if (!parsed.has_value() || parsed->styles.empty()) {
       continue;  // one corrupt entry never hides the rest of the library
     }
@@ -352,11 +380,7 @@ void StyleLibrary::reload() {
       entry.name = tr("Untitled Style");
     }
 
-    const QFileInfo thumbnail_info(thumbnail_path(storage_id));
-    if (thumbnail_info.exists() &&
-        thumbnail_info.lastModified() >= file_info.lastModified()) {
-      entry.thumbnail = QPixmap(thumbnail_info.absoluteFilePath());
-    }
+    entry.thumbnail = std::move(cached_thumbnail);
     if (entry.thumbnail.isNull()) {
       refresh_thumbnail(entry, parsed->patterns, true);
     }
@@ -392,6 +416,9 @@ bool StyleLibrary::write_entry_asl(const StyleLibraryEntry& entry,
   style.blend_settings = entry.blend_settings;
   const auto embedded = referenced_patterns(entry.style, patterns);
   const auto bytes = psd::write_asl(std::span<const psd::AslStyle>(&style, 1), embedded);
+  if (bytes.size() > psd::kMaxAslFileBytes) {
+    return false;  // read_entry_asl would refuse it, and the style would vanish on the next load
+  }
   QSaveFile file(asl_path(entry.storage_id));
   if (!file.open(QIODevice::WriteOnly) ||
       file.write(reinterpret_cast<const char*>(bytes.data()),
@@ -458,7 +485,8 @@ QString StyleLibrary::add_style(const QString& name, const LayerStyle& style,
   return storage_id;
 }
 
-QString StyleLibrary::import_asl(const QString& path, QString& error, QStringList& warnings) {
+QString StyleLibrary::import_asl(const QString& path, QString& error, QStringList& warnings,
+                                 const PresetImportStep& step) {
   error.clear();
   warnings.clear();
   QFile file(path);
@@ -473,6 +501,9 @@ QString StyleLibrary::import_asl(const QString& path, QString& error, QStringLis
   }
   if (file_size > kMaxAslFileBytes) {
     error = tr("\"%1\" is too large to import safely.").arg(QFileInfo(path).fileName());
+    return {};
+  }
+  if (step && !step(0, 0)) {
     return {};
   }
   const auto bytes = file.readAll();
@@ -502,7 +533,13 @@ QString StyleLibrary::import_asl(const QString& path, QString& error, QStringLis
   QString first_storage_id;
   int added = 0;
   int style_index = 0;
+  auto stopped = false;
+  const auto style_count = static_cast<int>(parsed->styles.size());
   for (const auto& imported : parsed->styles) {
+    if (step && !step(style_index, style_count)) {
+      stopped = true;
+      break;
+    }
     ++style_index;
     auto name = qstring_from_utf8(imported.name).trimmed();
     if (name.isEmpty()) {
@@ -563,7 +600,9 @@ QString StyleLibrary::import_asl(const QString& path, QString& error, QStringLis
     }
   }
   if (first_storage_id.isEmpty()) {
-    error = tr("No styles could be imported from \"%1\".").arg(QFileInfo(path).fileName());
+    if (!stopped) {
+      error = tr("No styles could be imported from \"%1\".").arg(QFileInfo(path).fileName());
+    }
     return {};
   }
   if (added > 0) {

@@ -2,6 +2,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/layer_render_utils.hpp"
+#include "core/pattern_presets.hpp"
 #include "core/rect_utils.hpp"
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
@@ -10,7 +11,9 @@
 #include "filters/deep_filters.hpp"
 #include "filters/smart_filter_renderer.hpp"
 #include "formats/pdf_document_io.hpp"
+#include "psd/asl_io.hpp"
 #include "psd/psd_document_io.hpp"
+#include "psd/psd_patterns.hpp"
 #include "support/path_utils.hpp"
 #include "render/native_cmyk.hpp"
 #include "ui/qt_paths.hpp"
@@ -26,14 +29,18 @@
 #include "ui/liquify_dialog.hpp"
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/pattern_library.hpp"
 #include "ui/pdf_export.hpp"
 #include "ui/pdf_import.hpp"
+#include "ui/photo_pattern_presets.hpp"
+#include "ui/style_library.hpp"
 
 #include <QApplication>
 #include <QByteArray>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QDir>
 #include <QEventLoop>
 #include <QFile>
 #include <QLineF>
@@ -60,6 +67,7 @@
 #include <QSettings>
 #include <QSpinBox>
 #include <QTabWidget>
+#include <QTemporaryDir>
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QTimer>
@@ -7717,6 +7725,312 @@ void drag_audit_perf() {
   }
 }
 
+// --- presetimport: large .asl and .pat libraries (GitHub issue 741) -------------------
+
+[[nodiscard]] std::uint64_t process_private_bytes() {
+#ifdef Q_OS_WIN
+  PROCESS_MEMORY_COUNTERS_EX counters{};
+  if (GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&counters),
+                           sizeof(counters)) != 0) {
+    return counters.PrivateUsage;
+  }
+#endif
+  return 0;  // not measured on this platform
+}
+
+// Samples the process's private bytes every few milliseconds while a stage runs.
+class PrivateBytesPeak {
+ public:
+  PrivateBytesPeak() : baseline_(process_private_bytes()), peak_(baseline_) {
+    sampler_ = std::thread([this] {
+      while (!done_.load(std::memory_order_relaxed)) {
+        peak_.store(std::max(peak_.load(std::memory_order_relaxed), process_private_bytes()),
+                    std::memory_order_relaxed);
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      }
+    });
+  }
+  ~PrivateBytesPeak() { (void)finish_mb(); }
+  PrivateBytesPeak(const PrivateBytesPeak&) = delete;
+  PrivateBytesPeak& operator=(const PrivateBytesPeak&) = delete;
+
+  // The most the stage held above what the process held when it began, in MiB.
+  double finish_mb() {
+    if (sampler_.joinable()) {
+      done_.store(true, std::memory_order_relaxed);
+      sampler_.join();
+      peak_.store(std::max(peak_.load(), process_private_bytes()));
+    }
+    return static_cast<double>(peak_.load() - std::min(peak_.load(), baseline_)) / (1024.0 * 1024.0);
+  }
+
+ private:
+  std::uint64_t baseline_;
+  std::atomic<std::uint64_t> peak_;
+  std::atomic<bool> done_{false};
+  std::thread sampler_;
+};
+
+// What a library import reports through its step callback: when the file was read and
+// decoded, and the longest stretch the GUI thread spent between two callbacks.
+struct PresetImportTrace {
+  Clock::time_point started{Clock::now()};
+  Clock::time_point last{started};
+  double read_decode_ms{0.0};
+  double longest_gap_ms{0.0};
+  int steps{0};
+
+  [[nodiscard]] patchy::ui::PresetImportStep step() {
+    return [this](int done, int total) {
+      const auto now = Clock::now();
+      const auto gap = std::chrono::duration<double, std::milli>(now - last).count();
+      if (total > 0 && done == 0) {
+        read_decode_ms = gap;
+      } else {
+        longest_gap_ms = std::max(longest_gap_ms, gap);
+      }
+      last = now;
+      ++steps;
+      return true;
+    };
+  }
+  [[nodiscard]] double total_ms() {
+    const auto now = Clock::now();
+    longest_gap_ms = std::max(longest_gap_ms, std::chrono::duration<double, std::milli>(now - last).count());
+    return std::chrono::duration<double, std::milli>(now - started).count();
+  }
+};
+
+// One bundled texture, rolled and tinted by `index` so no two tiles are equal, tiled to
+// `extent` pixels a side. The textures are Patchy's own (CC0 photographs).
+[[nodiscard]] patchy::PatternResource preset_import_pattern(int index, int extent) {
+  const auto presets = patchy::photo_pattern_presets();
+  const auto& preset = presets[static_cast<std::size_t>(index) % presets.size()];
+  const auto source = patchy::ui::bundled_pattern_resource(preset.id);
+  if (!source.has_value() || source->tile.empty()) {
+    throw std::runtime_error("presetimport: a bundled texture did not load");
+  }
+  const auto& texture = std::as_const(source->tile);
+  const auto texture_bytes = texture.data();
+  const auto texture_width = static_cast<std::size_t>(texture.width());
+  const auto texture_height = static_cast<std::size_t>(texture.height());
+  const auto roll_x = static_cast<std::size_t>(index) * 37U;
+  const auto roll_y = static_cast<std::size_t>(index) * 61U;
+  const std::array<std::uint32_t, 3> tint{200U + static_cast<std::uint32_t>(index * 23 % 56),
+                                          200U + static_cast<std::uint32_t>(index * 41 % 56),
+                                          200U + static_cast<std::uint32_t>(index * 59 % 56)};
+  patchy::PatternResource pattern;
+  char id[40];
+  std::snprintf(id, sizeof(id), "741a0000-0000-4000-8000-%012d", index + 1);
+  pattern.id = id;
+  pattern.name = std::string(preset.english_name) + " " + std::to_string(index + 1);
+  pattern.tile = patchy::PixelBuffer(extent, extent, patchy::PixelFormat::rgba8());
+  auto bytes = pattern.tile.data();
+  for (std::size_t y = 0; y < static_cast<std::size_t>(extent); ++y) {
+    const auto source_row = ((y + roll_y) % texture_height) * texture_width;
+    for (std::size_t x = 0; x < static_cast<std::size_t>(extent); ++x) {
+      const auto* from = texture_bytes.data() + (source_row + (x + roll_x) % texture_width) * 4U;
+      auto* to = bytes.data() + (y * static_cast<std::size_t>(extent) + x) * 4U;
+      to[0] = static_cast<std::uint8_t>(from[0] * tint[0] / 255U);
+      to[1] = static_cast<std::uint8_t>(from[1] * tint[1] / 255U);
+      to[2] = static_cast<std::uint8_t>(from[2] * tint[2] / 255U);
+      to[3] = 255U;
+    }
+  }
+  return pattern;
+}
+
+[[nodiscard]] std::uint64_t preset_import_tile_hash(const patchy::PixelBuffer& tile) {
+  std::uint64_t hash = 0xCBF29CE484222325ULL;
+  for (const auto byte : std::as_const(tile).data()) {
+    hash = (hash ^ byte) * 0x100000001B3ULL;
+  }
+  return hash;
+}
+
+void preset_import_write(const QString& path, const std::vector<std::uint8_t>& bytes) {
+  QFile file(path);
+  if (!file.open(QIODevice::WriteOnly) ||
+      file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size())) !=
+          static_cast<qint64>(bytes.size())) {
+    throw std::runtime_error("presetimport: could not write " + path.toStdString());
+  }
+}
+
+// Imports style and pattern libraries of the sizes GitHub issue 741 reports (.asl files of
+// 78 MB and 94.5 MB, each style with its own embedded pattern) and a .pat of the larger
+// size, all built here from the bundled textures. Prints, per file: the time to read and
+// decode it, the whole import, the longest stretch between two progress steps (what the
+// progress dialog cannot break up), the time to open the stored library again (and, for
+// styles, to read every stored tile, which opening the library did before it left them on
+// disk), and the most memory the import held. It then checks that every style came back
+// with its pattern and renders with it. PATCHY_PERF_PRESET_KEEP=<folder> keeps the generated files there;
+// PATCHY_PERF_PRESET_CAP=1 adds a file just under the 512 MiB limit.
+void preset_import_perf() {
+  struct Stage {
+    const char* name;
+    bool styles;  // .asl, else .pat
+    int count;
+    int extent;
+  };
+  std::vector<Stage> stages{{"issue741-styles-78mb.asl", true, 100, 512},
+                            {"issue741-styles-94mb.asl", true, 120, 512},
+                            {"issue741-patterns-94mb.pat", false, 120, 512}};
+  if (qEnvironmentVariableIntValue("PATCHY_PERF_PRESET_CAP") != 0) {
+    stages.push_back({"issue741-styles-near-cap.asl", true, 170, 1024});
+    stages.push_back({"issue741-patterns-near-cap.pat", false, 170, 1024});
+  }
+  QTemporaryDir scratch;
+  if (!scratch.isValid()) {
+    throw std::runtime_error("presetimport: no temporary folder");
+  }
+  const auto keep_dir = qEnvironmentVariable("PATCHY_PERF_PRESET_KEEP");
+  if (!keep_dir.isEmpty() && !QDir().mkpath(keep_dir)) {
+    throw std::runtime_error("presetimport: could not create " + keep_dir.toStdString());
+  }
+  const auto ms_since = [](Clock::time_point start) {
+    return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+  };
+  std::cout << std::fixed << std::setprecision(1);
+  int stage_index = 0;
+  for (const auto& stage : stages) {
+    const auto path = QDir(keep_dir.isEmpty() ? scratch.path() : keep_dir).filePath(QString::fromLatin1(stage.name));
+    const auto library_dir = scratch.filePath(QStringLiteral("library-%1").arg(stage_index++));
+    std::vector<std::string> ids;
+    std::vector<std::uint64_t> hashes;
+    // Build and write the file, then let go of everything before the import is measured.
+    {
+      std::vector<patchy::PatternResource> patterns;
+      std::vector<patchy::psd::AslStyle> styles;
+      for (int index = 0; index < stage.count; ++index) {
+        patterns.push_back(preset_import_pattern(index, stage.extent));
+        ids.push_back(patterns.back().id);
+        hashes.push_back(preset_import_tile_hash(patterns.back().tile));
+        patchy::psd::AslStyle style;
+        char id[40];
+        std::snprintf(id, sizeof(id), "741b0000-0000-4000-8000-%012d", index + 1);
+        style.id = id;
+        style.name = patterns.back().name;
+        patchy::LayerPatternOverlay overlay;
+        overlay.enabled = true;
+        overlay.pattern_id = patterns.back().id;
+        overlay.pattern_name = patterns.back().name;
+        style.style.pattern_overlays.push_back(std::move(overlay));
+        patchy::LayerDropShadow shadow;
+        shadow.enabled = true;
+        style.style.drop_shadows.push_back(shadow);
+        styles.push_back(std::move(style));
+      }
+      if (stage.styles) {
+        preset_import_write(path, patchy::psd::write_asl(styles, patterns));
+      } else {
+        // A .pat is "8BPT", version 1, a count, then the records a Patt block keeps behind
+        // a length prefix and padding.
+        std::vector<std::uint8_t> bytes{'8', 'B', 'P', 'T', 0, 1, 0, 0, 0, 0};
+        bytes[6] = static_cast<std::uint8_t>(stage.count >> 24);
+        bytes[7] = static_cast<std::uint8_t>(stage.count >> 16);
+        bytes[8] = static_cast<std::uint8_t>(stage.count >> 8);
+        bytes[9] = static_cast<std::uint8_t>(stage.count);
+        for (const auto& pattern : patterns) {
+          const auto block = patchy::psd::serialize_patterns_block(std::span(&pattern, 1U));
+          const auto length = (std::size_t{block[0]} << 24U) | (std::size_t{block[1]} << 16U) |
+                              (std::size_t{block[2]} << 8U) | std::size_t{block[3]};
+          bytes.insert(bytes.end(), block.begin() + 4, block.begin() + 4 + static_cast<std::ptrdiff_t>(length));
+        }
+        preset_import_write(path, bytes);
+      }
+    }
+    const auto file_mb = static_cast<double>(QFileInfo(path).size()) / (1000.0 * 1000.0);
+
+    QString error;
+    QStringList warnings;
+    PresetImportTrace trace;
+    double import_ms = 0.0;
+    double peak_mb = 0.0;
+    double reopen_ms = 0.0;
+    double tiles_ms = 0.0;
+    std::size_t imported = 0;
+    if (stage.styles) {
+      {
+        patchy::ui::StyleLibrary library(library_dir);
+        PrivateBytesPeak peak;
+        trace = PresetImportTrace{};
+        const auto first = library.import_asl(path, error, warnings, trace.step());
+        import_ms = trace.total_ms();
+        peak_mb = peak.finish_mb();
+        if (first.isEmpty() || !error.isEmpty()) {
+          throw std::runtime_error("presetimport: " + error.toStdString());
+        }
+        imported = library.entries().size();
+      }
+      const auto reopen_start = Clock::now();
+      patchy::ui::StyleLibrary reopened(library_dir);
+      reopen_ms = ms_since(reopen_start);
+      if (imported != static_cast<std::size_t>(stage.count) || reopened.entries().size() != imported) {
+        throw std::runtime_error("presetimport: a style went missing");
+      }
+      // Every style kept its own pattern, pixel for pixel, and renders with it.
+      for (const auto& entry : reopened.entries()) {
+        const auto tiles_start = Clock::now();
+        const auto embedded = reopened.patterns_for_entry(entry.storage_id);
+        tiles_ms += ms_since(tiles_start);
+        if (embedded.size() != 1U || entry.style.pattern_overlays.size() != 1U ||
+            embedded.front().id != entry.style.pattern_overlays.front().pattern_id || entry.thumbnail.isNull()) {
+          throw std::runtime_error("presetimport: a stored style lost its pattern");
+        }
+        const auto found = std::find(ids.begin(), ids.end(), embedded.front().id);
+        if (found == ids.end() ||
+            hashes[static_cast<std::size_t>(found - ids.begin())] != preset_import_tile_hash(embedded.front().tile)) {
+          throw std::runtime_error("presetimport: a stored pattern changed");
+        }
+      }
+      const auto& sample = reopened.entries().front();
+      const auto with_pattern = patchy::ui::render_style_preview(
+          sample.style, sample.blend_settings, reopened.patterns_for_entry(sample.storage_id), 96);
+      const auto without_pattern = patchy::ui::render_style_preview(sample.style, sample.blend_settings, {}, 96);
+      if (with_pattern.isNull() || with_pattern.toImage() == without_pattern.toImage()) {
+        throw std::runtime_error("presetimport: the stored style does not render its pattern");
+      }
+    } else {
+      {
+        patchy::ui::PatternLibrary library(library_dir);
+        PrivateBytesPeak peak;
+        trace = PresetImportTrace{};
+        const auto first = library.import_pat(path, error, warnings, trace.step());
+        import_ms = trace.total_ms();
+        peak_mb = peak.finish_mb();
+        if (first.isEmpty() || !error.isEmpty()) {
+          throw std::runtime_error("presetimport: " + error.toStdString());
+        }
+        imported = library.entries().size();
+      }
+      const auto reopen_start = Clock::now();
+      patchy::ui::PatternLibrary reopened(library_dir);
+      reopen_ms = ms_since(reopen_start);
+      if (imported != static_cast<std::size_t>(stage.count) || reopened.entries().size() != imported) {
+        throw std::runtime_error("presetimport: a pattern went missing");
+      }
+      for (std::size_t index = 0; index < ids.size(); ++index) {
+        const auto resource = reopened.resource(QString::fromStdString(ids[index]));
+        if (!resource.has_value() || preset_import_tile_hash(resource->tile) != hashes[index]) {
+          throw std::runtime_error("presetimport: a stored pattern changed");
+        }
+      }
+    }
+    if (!warnings.isEmpty()) {
+      throw std::runtime_error("presetimport: " + warnings.join(QStringLiteral("; ")).toStdString());
+    }
+    std::cout << "[PERF] presetimport " << stage.name << " file_mb=" << file_mb << " items=" << stage.count
+              << " tile=" << stage.extent << " read_decode_ms=" << trace.read_decode_ms << " import_ms=" << import_ms
+              << " longest_gap_ms=" << trace.longest_gap_ms << " reopen_ms=" << reopen_ms;
+    if (stage.styles) {
+      std::cout << " read_all_tiles_ms=" << tiles_ms;
+    }
+    std::cout << " peak_private_mb=" << peak_mb << '\n' << std::flush;
+  }
+  std::cout << std::defaultfloat << std::setprecision(6);
+}
+
 int main(int argc, char* argv[]) {
   patchy::test::suppress_crash_dialogs();
 #ifdef Q_OS_WIN
@@ -7898,6 +8212,11 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "manylayers") {
       run_scenario("manylayers", many_layers_select_and_move_perf_if_available);
+      return 0;
+    }
+    // Explicit only: writes and imports preset files of 78 to 95 MB (GitHub issue 741).
+    if (argc > 1 && std::string_view(argv[1]) == "presetimport") {
+      run_scenario("presetimport", preset_import_perf);
       return 0;
     }
     // Explicit only: launches the app a dozen times (docs/startup-performance.md).

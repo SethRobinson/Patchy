@@ -16449,6 +16449,22 @@ Do you want to replace it?</source>
         <source>File not found on %1</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Some patterns were left out because the file holds more pattern pixels than one import allows</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reading &quot;%1&quot;...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Importing pattern %1 of %2...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Importing style %1 of %2...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

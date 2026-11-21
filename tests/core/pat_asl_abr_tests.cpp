@@ -774,6 +774,196 @@ void asl_reader_skips_damaged_records_and_rejects_bad_files() {
   CHECK(!error.empty());
 }
 
+// GitHub issue 741: style libraries of 78 MB and 94.5 MB were refused at 32 MiB.
+void pat_and_asl_file_size_limit_is_512_mib_inclusive() {
+  namespace psd = patchy::psd;
+  constexpr auto large = sizeof(std::size_t) >= 8;  // wasm32 keeps the earlier limits
+  static_assert(psd::kMaxAslFileBytes == (large ? 512ULL : 32ULL) << 20U);
+  static_assert(psd::kMaxPatFileBytes == psd::kMaxAslFileBytes);
+  static_assert(psd::kMaxPatternLibraryPixels == (large ? 256ULL : 16ULL) << 20U);
+  static_assert(psd::kMaxPatternLibraryPlaneSamples == psd::kMaxPatternLibraryPixels * 5U);
+  // The pixel budget admits every raw RGB file the size limit does.
+  static_assert(psd::kMaxPatternLibraryPixels * 3U >= psd::kMaxPatternLibraryFileBytes);
+  static_assert(psd::PatternLibraryLimits{}.file_bytes == psd::kMaxAslFileBytes);
+  static_assert(psd::PatternLibraryLimits{}.pixels == psd::kMaxPatternLibraryPixels);
+  static_assert(psd::PatternLibraryLimits{}.plane_samples == psd::kMaxPatternLibraryPlaneSamples);
+
+  // The cutoff is inclusive: a file of exactly the limit reads, one byte more is refused
+  // before anything in it is parsed. A small limit stands in for 512 MiB.
+  const auto asl = psd::write_asl(asl_test_styles(), asl_test_patterns());
+  psd::PatternLibraryLimits limits;
+  limits.file_bytes = asl.size();
+  std::string error;
+  const auto asl_at_limit = psd::read_asl(asl, error, nullptr, limits);
+  CHECK(asl_at_limit.has_value());
+  CHECK(asl_at_limit->styles.size() == 2U);
+  CHECK(asl_at_limit->patterns.size() == 1U);
+  limits.file_bytes = asl.size() - 1U;
+  CHECK(!psd::read_asl(asl, error, nullptr, limits).has_value());
+  CHECK(error.find("import limit") != std::string::npos);
+
+  const auto pat = test_raw_rgb_pat_bytes();
+  limits.file_bytes = pat.size();
+  const auto pat_at_limit = psd::read_pat(pat, error, nullptr, limits);
+  CHECK(pat_at_limit.has_value());
+  CHECK(pat_at_limit->patterns.size() == 1U);
+  limits.file_bytes = pat.size() - 1U;
+  CHECK(!psd::read_pat(pat, error, nullptr, limits).has_value());
+  CHECK(error.find("import limit") != std::string::npos);
+}
+
+// The .asl reader had no bound on what a file's patterns decode to. It now shares the
+// .pat reader's per-file budget: patterns past it are left out, the styles still load.
+void asl_reader_pattern_budget_leaves_patterns_out_and_keeps_styles() {
+  namespace psd = patchy::psd;
+  // Three opaque 8 x 8 patterns: 64 pixels and three 64-sample planes each.
+  std::vector<patchy::PatternResource> patterns;
+  for (int index = 0; index < 3; ++index) {
+    patchy::PatternResource pattern;
+    pattern.id = "74100000-0000-4000-8000-00000000000" + std::to_string(index + 1);
+    pattern.name = "Budget " + std::to_string(index + 1);
+    pattern.tile = patchy::PixelBuffer(8, 8, patchy::PixelFormat::rgba8());
+    auto bytes = pattern.tile.data();
+    for (std::size_t offset = 0; offset < bytes.size(); offset += 4U) {
+      bytes[offset] = static_cast<std::uint8_t>(40 * (index + 1));
+      bytes[offset + 1U] = static_cast<std::uint8_t>(offset);
+      bytes[offset + 2U] = 200U;
+      bytes[offset + 3U] = 255U;
+    }
+    patterns.push_back(std::move(pattern));
+  }
+  const auto bytes = psd::write_asl(asl_test_styles(), patterns);
+  const auto left_out = [](const psd::AslReadResult& result) {
+    return std::count_if(result.warnings.begin(), result.warnings.end(), [](const std::string& warning) {
+      return warning.find("patterns were left out") != std::string::npos;
+    });
+  };
+
+  std::string error;
+  const auto whole = psd::read_asl(bytes, error);
+  CHECK(whole.has_value());
+  CHECK(whole->patterns.size() == 3U);
+  CHECK(left_out(*whole) == 0);
+
+  // Exactly enough of both allowances takes all three.
+  psd::PatternLibraryLimits limits;
+  limits.pixels = 3U * 64U;
+  limits.plane_samples = 3U * 3U * 64U;
+  const auto exact = psd::read_asl(bytes, error, nullptr, limits);
+  CHECK(exact.has_value());
+  CHECK(exact->patterns.size() == 3U);
+  CHECK(left_out(*exact) == 0);
+
+  // One pixel short: the third tile is left out with one warning and both styles load.
+  limits.pixels = 3U * 64U - 1U;
+  const auto by_pixels = psd::read_asl(bytes, error, nullptr, limits);
+  CHECK(by_pixels.has_value());
+  CHECK(by_pixels->styles.size() == 2U);
+  CHECK(by_pixels->patterns.size() == 2U);
+  CHECK(by_pixels->patterns[1].id == patterns[1].id);
+  CHECK(left_out(*by_pixels) == 1);
+
+  // One plane sample short does the same.
+  limits = {};
+  limits.plane_samples = 3U * 3U * 64U - 1U;
+  const auto by_planes = psd::read_asl(bytes, error, nullptr, limits);
+  CHECK(by_planes.has_value());
+  CHECK(by_planes->styles.size() == 2U);
+  CHECK(by_planes->patterns.size() == 2U);
+  CHECK(left_out(*by_planes) == 1);
+
+  // A pattern that is admitted and then fails to decode still used its share: cutting the
+  // first tile's last plane short leaves the budget for one more tile, not two.
+  limits = {};
+  limits.pixels = 2U * 64U;
+  auto damaged = bytes;
+  // Layout: u16 2, '8BSL', u16 3, u32 patterns length, then the first pattern's u32 length.
+  const auto first_pattern_length = (std::size_t{bytes[12]} << 24U) | (std::size_t{bytes[13]} << 16U) |
+                                    (std::size_t{bytes[14]} << 8U) | std::size_t{bytes[15]};
+  CHECK(first_pattern_length > 23U + 64U);
+  // The unwritten slots after the third plane are 23 u32 zeros (slots 3 to 25); the plane's
+  // header starts 23 + 64 bytes before them. Compression 2 is not one the decoder knows.
+  const auto third_plane_data = 16U + first_pattern_length - 23U * 4U - 64U;
+  damaged[third_plane_data - 1U] = 2U;
+  const auto charged = psd::read_asl(damaged, error, nullptr, limits);
+  CHECK(charged.has_value());
+  CHECK(charged->patterns.size() == 1U);
+  CHECK(charged->patterns.front().id == patterns[1].id);
+  CHECK(left_out(*charged) == 1);
+}
+
+// The style library opens a stored style without its pattern tiles: the header says how
+// long the patterns section is, and the styles read from what follows it.
+void asl_reader_reads_styles_without_the_patterns_section() {
+  namespace psd = patchy::psd;
+  const auto styles = asl_test_styles();
+  const auto bytes = psd::write_asl(styles, asl_test_patterns());
+  const auto header = std::span<const std::uint8_t>(bytes).first(psd::kAslHeaderBytes);
+  const auto patterns_length = psd::asl_patterns_section_length(header);
+  CHECK(patterns_length.has_value());
+  CHECK(*patterns_length > 0U && psd::kAslHeaderBytes + *patterns_length < bytes.size());
+  std::string error;
+  const auto whole = psd::read_asl(bytes, error);
+  CHECK(whole.has_value() && whole->patterns.size() == 1U);
+
+  const auto rest = std::span<const std::uint8_t>(bytes).subspan(psd::kAslHeaderBytes + *patterns_length);
+  const auto styles_only = psd::read_asl_styles(header, rest, error);
+  CHECK(styles_only.has_value());
+  CHECK(error.empty());
+  CHECK(styles_only->patterns.empty());
+  CHECK(styles_only->styles.size() == whole->styles.size());
+  for (std::size_t index = 0; index < whole->styles.size(); ++index) {
+    CHECK(styles_only->styles[index].id == whole->styles[index].id);
+    CHECK(styles_only->styles[index].name == whole->styles[index].name);
+    CHECK(styles_only->styles[index].blend_settings == whole->styles[index].blend_settings);
+    CHECK(psd::photoshop_lfx2_layer_style_payload(styles_only->styles[index].style) ==
+          psd::photoshop_lfx2_layer_style_payload(whole->styles[index].style));
+  }
+
+  // A file with no patterns declares length 0, and the styles follow the header at once.
+  const auto plain = psd::write_asl(styles, {});
+  const auto plain_header = std::span<const std::uint8_t>(plain).first(psd::kAslHeaderBytes);
+  CHECK(psd::asl_patterns_section_length(plain_header) == std::optional<std::uint32_t>(0U));
+  CHECK(psd::read_asl_styles(plain_header, std::span<const std::uint8_t>(plain).subspan(psd::kAslHeaderBytes), error)
+            .has_value());
+
+  // Not an .asl header: too short, a wrong signature, another version.
+  CHECK(!psd::asl_patterns_section_length(header.first(psd::kAslHeaderBytes - 1U)).has_value());
+  auto wrong = std::vector<std::uint8_t>(header.begin(), header.end());
+  wrong[2] = 'X';
+  CHECK(!psd::asl_patterns_section_length(wrong).has_value());
+  CHECK(!psd::read_asl_styles(wrong, rest, error).has_value());
+  CHECK(error == "Not a Photoshop ASL file");
+  wrong = std::vector<std::uint8_t>(header.begin(), header.end());
+  wrong[1] = 9;
+  CHECK(!psd::asl_patterns_section_length(wrong).has_value());
+}
+
+// A record inside the per-pattern pixel cap can pass 32 MiB (deep or many-plane data; here
+// a spare slot the reader skips). The per-record cap used to equal the 32 MiB file cap.
+void pat_record_past_32_mib_imports() {
+  if (!patchy::psd::kLargePatternLibraries) {
+    return;  // a 32-bit build keeps the 32 MiB file limit
+  }
+  std::vector<TestPatPlane> planes{
+      {0, 0, 0, 2, 2, 8, 0, {10, 20, 30, 40}},
+      {1, 0, 0, 2, 2, 8, 0, {50, 60, 70, 80}},
+      {2, 0, 0, 2, 2, 8, 0, {90, 100, 110, 120}},
+      {4, 0, 0, 1, 1, 8, 0, {}},
+  };
+  planes.back().data.resize((std::size_t{33} << 20U) + 1U);
+  const auto bytes = test_color_pat_bytes(3, 2, 2, "Past 32 MiB", "99999999-0000-0000-0000-000000000741", planes);
+  CHECK(bytes.size() > (std::size_t{33} << 20U));
+  std::string error;
+  const auto result = patchy::psd::read_pat(bytes, error);
+  CHECK(result.has_value());
+  CHECK(error.empty());
+  CHECK(result->warnings.empty());
+  CHECK(result->patterns.size() == 1U);
+  const auto* pixel = result->patterns.front().tile.pixel(1, 1);
+  CHECK(pixel[0] == 40 && pixel[1] == 80 && pixel[2] == 120 && pixel[3] == 255);
+}
+
 void style_presets_have_stable_ids_and_recipes() {
   const auto presets = patchy::builtin_style_presets();
   CHECK(presets.size() == 39U);
@@ -1069,6 +1259,11 @@ void csh_reader_reads_speech_bubbles_if_available() {
 }
 
 void pat_attempt_budgets_include_failed_compressed_records() {
+  // The budgets a 32 MiB file had; the defaults are sixteen times these (GitHub issue 741,
+  // pinned in pat_and_asl_file_size_limit_is_512_mib_inclusive).
+  patchy::psd::PatternLibraryLimits limits;
+  limits.pixels = 16ULL << 20U;
+  limits.plane_samples = 80ULL << 20U;
   {
     auto bytes = test_raw_rgb_pat_bytes();
     write_test_u32_at(bytes, 6U, 4U);
@@ -1090,7 +1285,7 @@ void pat_attempt_budgets_include_failed_compressed_records() {
     }
 
     std::string error;
-    const auto result = patchy::psd::read_pat(bytes, error);
+    const auto result = patchy::psd::read_pat(bytes, error, nullptr, limits);
     CHECK(result.has_value());
     CHECK(error.empty());
     CHECK(result->patterns.size() == 1U);
@@ -1115,13 +1310,19 @@ void pat_attempt_budgets_include_failed_compressed_records() {
     }
 
     std::string error;
-    const auto result = patchy::psd::read_pat(bytes, error);
+    const auto result = patchy::psd::read_pat(bytes, error, nullptr, limits);
     CHECK(result.has_value());
     CHECK(error.empty());
     CHECK(result->patterns.size() == 1U);
     CHECK(result->warnings.size() == 2U);
     CHECK(result->warnings[0].find("channel data could not be decoded") != std::string::npos);
     CHECK(result->warnings[1].find("total pixel limit") != std::string::npos);
+
+    // With the default budget both records are admitted (and fail in the decoder).
+    const auto roomy = patchy::psd::read_pat(bytes, error);
+    CHECK(roomy.has_value());
+    CHECK(roomy->warnings.size() == 2U);
+    CHECK(roomy->warnings[1].find("channel data could not be decoded") != std::string::npos);
   }
 }
 
@@ -1806,6 +2007,12 @@ std::vector<patchy::test::TestCase> pat_asl_abr_tests() {
        asl_reader_reads_photoshop_blend_options_fixture},
       {"asl_reader_skips_damaged_records_and_rejects_bad_files",
        asl_reader_skips_damaged_records_and_rejects_bad_files},
+      {"pat_and_asl_file_size_limit_is_512_mib_inclusive", pat_and_asl_file_size_limit_is_512_mib_inclusive},
+      {"asl_reader_pattern_budget_leaves_patterns_out_and_keeps_styles",
+       asl_reader_pattern_budget_leaves_patterns_out_and_keeps_styles},
+      {"asl_reader_reads_styles_without_the_patterns_section",
+       asl_reader_reads_styles_without_the_patterns_section},
+      {"pat_record_past_32_mib_imports", pat_record_past_32_mib_imports},
       {"style_presets_have_stable_ids_and_recipes", style_presets_have_stable_ids_and_recipes},
       {"asl_reader_reads_photoshop_shipped_styles_if_available",
        asl_reader_reads_photoshop_shipped_styles_if_available},

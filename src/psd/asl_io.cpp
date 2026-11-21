@@ -18,7 +18,6 @@ namespace patchy::psd {
 
 namespace {
 
-constexpr std::size_t kMaxAslBytes = 32ULL * 1024ULL * 1024ULL;
 constexpr std::uint32_t kMaxStyleCount = 4096;
 constexpr std::size_t kMaxStyleIdBytes = 255;
 
@@ -271,10 +270,11 @@ void append_key(DescriptorObject& object, std::string key, DescriptorValue value
 }  // namespace
 
 std::optional<AslReadResult> read_asl(std::span<const std::uint8_t> bytes, std::string& error,
-                                      const CmykToRgbTransform* cmyk_icc) {
+                                      const CmykToRgbTransform* cmyk_icc,
+                                      const PatternLibraryLimits& limits) {
   error.clear();
-  if (bytes.size() > kMaxAslBytes) {
-    error = "ASL file exceeds the 32 MiB import limit";
+  if (bytes.size() > limits.file_bytes) {
+    error = "ASL file exceeds the " + std::to_string(limits.file_bytes >> 20U) + " MiB import limit";
     return std::nullopt;
   }
   AslReadResult result;
@@ -297,8 +297,13 @@ std::optional<AslReadResult> read_asl(std::span<const std::uint8_t> bytes, std::
       return std::nullopt;
     }
     if (patterns_length > 0U) {
+      PatternDecodeBudget budget{limits.pixels, limits.plane_samples};
       result.patterns = parse_patterns_block(
-          bytes.subspan(reader.position(), patterns_length), cmyk_icc);
+          bytes.subspan(reader.position(), patterns_length), cmyk_icc, &budget);
+      if (budget.skipped > 0U) {
+        result.warnings.push_back(PATCHY_TRANSLATE_NOOP(
+            "QObject", "Some patterns were left out because the file holds more pattern pixels than one import allows"));
+      }
       // Standalone files have no preserving document block; adopted tiles must
       // embed on save.
       for (auto& pattern : result.patterns) {
@@ -350,6 +355,32 @@ std::optional<AslReadResult> read_asl(std::span<const std::uint8_t> bytes, std::
     return std::nullopt;
   }
   return result;
+}
+
+std::optional<std::uint32_t> asl_patterns_section_length(std::span<const std::uint8_t> header) {
+  if (header.size() < kAslHeaderBytes || header[0] != 0U || header[1] != 2U || header[2] != '8' ||
+      header[3] != 'B' || header[4] != 'S' || header[5] != 'L') {
+    return std::nullopt;
+  }
+  return (std::uint32_t{header[8]} << 24U) | (std::uint32_t{header[9]} << 16U) |
+         (std::uint32_t{header[10]} << 8U) | std::uint32_t{header[11]};
+}
+
+std::optional<AslReadResult> read_asl_styles(std::span<const std::uint8_t> header,
+                                             std::span<const std::uint8_t> styles, std::string& error,
+                                             const CmykToRgbTransform* cmyk_icc) {
+  error.clear();
+  if (!asl_patterns_section_length(header).has_value()) {
+    error = "Not a Photoshop ASL file";
+    return std::nullopt;
+  }
+  // The same file with an empty patterns section (length 0, no records).
+  std::vector<std::uint8_t> bytes;
+  bytes.reserve(kAslHeaderBytes + styles.size());
+  bytes.assign(header.begin(), header.begin() + static_cast<std::ptrdiff_t>(kAslHeaderBytes));
+  std::fill(bytes.begin() + 8, bytes.end(), std::uint8_t{0});
+  bytes.insert(bytes.end(), styles.begin(), styles.end());
+  return read_asl(bytes, error, cmyk_icc);
 }
 
 std::vector<std::uint8_t> write_asl(std::span<const AslStyle> styles,

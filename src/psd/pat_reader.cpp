@@ -27,9 +27,9 @@ constexpr std::uint32_t kModeMultichannel = 7;
 constexpr std::uint32_t kMaxPatternCount = 4096;
 constexpr std::int32_t kMaxPatternDimension = 16384;
 constexpr std::uint64_t kMaxPatternPixels = 8ULL * 1024ULL * 1024ULL;
-constexpr std::uint64_t kMaxTotalPatternPixels = 16ULL * 1024ULL * 1024ULL;
-constexpr std::uint64_t kMaxAttemptedPlaneSamples = 80ULL * 1024ULL * 1024ULL;
-constexpr std::size_t kMaxPatternRecordBytes = 32ULL * 1024ULL * 1024ULL;
+// The largest record the per-pattern pixel cap admits: five 16-bit planes of
+// kMaxPatternPixels, with room for PackBits overhead and the row tables.
+constexpr std::size_t kMaxPatternRecordBytes = 96ULL * 1024ULL * 1024ULL;
 constexpr std::size_t kIndexedColorTableBytes = 256U * 3U;
 constexpr std::size_t kChannelHeaderBytes = 23U;
 
@@ -195,7 +195,8 @@ PatRecord read_record(BigEndianReader& reader, std::span<const std::uint8_t> byt
 // final sheet-transparency plane are relevant to the shared decoder; written
 // spare/user-mask slots still have their lengths validated and are skipped.
 [[nodiscard]] PatPlaneInspection inspect_planes(const PatRecord& record,
-                                                std::span<const std::uint8_t> bytes) {
+                                                std::span<const std::uint8_t> bytes,
+                                                std::uint64_t max_plane_samples) {
   BigEndianReader vma(bytes.subspan(record.vma_start, record.record_end - record.vma_start));
   if (vma.read_u32() != kVirtualMemoryArrayVersion) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PAT pattern VMA version is unsupported"));
@@ -232,7 +233,8 @@ PatRecord read_record(BigEndianReader& reader, std::span<const std::uint8_t> byt
     if (length != 0U && relevant) {
       const auto plane_samples =
           validate_plane_geometry(payload.subspan(slots.position(), length));
-      if (plane_samples > kMaxAttemptedPlaneSamples - inspection.decode_samples) {
+      if (inspection.decode_samples > max_plane_samples ||
+          plane_samples > max_plane_samples - inspection.decode_samples) {
         throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PAT pattern plane sample count is too large"));
       }
       inspection.decode_samples += plane_samples;
@@ -250,7 +252,8 @@ PatRecord read_record(BigEndianReader& reader, std::span<const std::uint8_t> byt
   // the color plane a second time to retain exact palette indices.
   if (record.mode == kModeIndexed && !inspection.sheet_alpha &&
       record.transparent_index < 256U) {
-    if (indexed_color_samples > kMaxAttemptedPlaneSamples - inspection.decode_samples) {
+    if (inspection.decode_samples > max_plane_samples ||
+        indexed_color_samples > max_plane_samples - inspection.decode_samples) {
       throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PAT pattern plane sample count is too large"));
     }
     inspection.decode_samples += indexed_color_samples;
@@ -407,8 +410,13 @@ PatRecord read_record(BigEndianReader& reader, std::span<const std::uint8_t> byt
 }  // namespace
 
 std::optional<PatReadResult> read_pat(std::span<const std::uint8_t> bytes, std::string& error,
-                                      const CmykToRgbTransform* cmyk_icc) {
+                                      const CmykToRgbTransform* cmyk_icc,
+                                      const PatternLibraryLimits& limits) {
   error.clear();
+  if (bytes.size() > limits.file_bytes) {
+    error = "PAT file exceeds the " + std::to_string(limits.file_bytes >> 20U) + " MiB import limit";
+    return std::nullopt;
+  }
   try {
     BigEndianReader reader(bytes);
     const auto signature = reader.read_bytes(4U);
@@ -484,7 +492,8 @@ std::optional<PatReadResult> read_pat(std::span<const std::uint8_t> bytes, std::
         result.warnings.push_back(label + ": record is too large");
         continue;
       }
-      if (pixel_count > kMaxTotalPatternPixels - attempted_pattern_pixels) {
+      if (attempted_pattern_pixels > limits.pixels ||
+          pixel_count > limits.pixels - attempted_pattern_pixels) {
         result.warnings.push_back(label + ": skipped because the file exceeds the total pixel limit");
         continue;
       }
@@ -501,12 +510,13 @@ std::optional<PatReadResult> read_pat(std::span<const std::uint8_t> bytes, std::
 
       PatPlaneInspection inspection;
       try {
-        inspection = inspect_planes(record, bytes);
+        inspection = inspect_planes(record, bytes, limits.plane_samples);
       } catch (const std::exception& inspect_error) {
         result.warnings.push_back(label + ": skipped unreadable pattern: " + inspect_error.what());
         continue;
       }
-      if (inspection.decode_samples > kMaxAttemptedPlaneSamples - attempted_plane_samples) {
+      if (attempted_plane_samples > limits.plane_samples ||
+          inspection.decode_samples > limits.plane_samples - attempted_plane_samples) {
         result.warnings.push_back(
             label + ": skipped because the file exceeds the cumulative plane sample limit");
         continue;

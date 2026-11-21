@@ -2,6 +2,7 @@
 
 #include "core/pattern_resource.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -27,14 +28,46 @@ class CmykToRgbTransform;
 
 namespace patchy::psd {
 
+// Limits for one preset file of patterns, shared by the .asl and .pat readers and the
+// libraries that import them (docs/style-presets-patterns.md, "Import limits"). The file
+// is read into memory whole and every pattern it holds is decoded to RGBA8 before the
+// library stores it, so the three scale together: the pixel budget admits any raw RGB
+// file at the size cap, and the plane budget is five planes (CMYK and transparency) of
+// that. A 32-bit address space (wasm32) keeps the smaller set.
+inline constexpr bool kLargePatternLibraries = sizeof(std::size_t) >= 8;
+inline constexpr std::uint64_t kMaxPatternLibraryFileBytes = (kLargePatternLibraries ? 512ULL : 32ULL) << 20U;
+inline constexpr std::uint64_t kMaxPatternLibraryPixels = (kLargePatternLibraries ? 256ULL : 16ULL) << 20U;
+inline constexpr std::uint64_t kMaxPatternLibraryPlaneSamples = kMaxPatternLibraryPixels * 5U;
+
+// The limits one read applies. Tests pass small ones to reach a cutoff without building
+// a file of that size.
+struct PatternLibraryLimits {
+  std::uint64_t file_bytes{kMaxPatternLibraryFileBytes};
+  std::uint64_t pixels{kMaxPatternLibraryPixels};
+  std::uint64_t plane_samples{kMaxPatternLibraryPlaneSamples};
+};
+
+// A running allowance for one file's patterns. `pixels` bounds the RGBA tiles kept and
+// `plane_samples` the channel planes decoded on the way: a record's planes carry their
+// own rectangles, so a small pattern can still ask for large planes. A pattern is charged
+// when it is admitted to the decode, whether or not its data then decodes, so a run of
+// damaged records cannot get past the bound.
+struct PatternDecodeBudget {
+  std::uint64_t pixels{kMaxPatternLibraryPixels};
+  std::uint64_t plane_samples{kMaxPatternLibraryPlaneSamples};
+  std::size_t skipped{0};  // patterns left out because an allowance ran out
+};
+
 // Decodes every pattern in a block payload into RGBA8 resources (provenance
 // ImportedRaw). Undecodable patterns are skipped — the raw block preserves them —
 // and a malformed payload never throws out of this function. Gray/Indexed/RGB/CMYK
 // at 8/16-bit and compression 0 (raw) / 1 (PackBits with a per-row count table)
 // are supported; CMYK converts through `cmyk_icc` when non-null, the naive
-// Photoshop ink mix otherwise.
+// Photoshop ink mix otherwise. With a `budget`, a pattern that does not fit what is
+// left of it is skipped and counted there.
 [[nodiscard]] std::vector<PatternResource> parse_patterns_block(
-    std::span<const std::uint8_t> payload, const CmykToRgbTransform* cmyk_icc);
+    std::span<const std::uint8_t> payload, const CmykToRgbTransform* cmyk_icc,
+    PatternDecodeBudget* budget = nullptr);
 
 // Header-only scan: the pattern ids present in a raw block, without pixel decode.
 // The writer uses this to avoid re-embedding ids already covered by preserved raw

@@ -16411,6 +16411,22 @@ Do you want to replace it?</source>
         <source>File not found on %1</source>
         <translation>%1에서 파일을 찾을 수 없습니다</translation>
     </message>
+    <message>
+        <source>Some patterns were left out because the file holds more pattern pixels than one import allows</source>
+        <translation>파일의 패턴 픽셀 수가 한 번에 가져올 수 있는 한도를 넘어 일부 패턴을 제외했습니다</translation>
+    </message>
+    <message>
+        <source>Reading &quot;%1&quot;...</source>
+        <translation>&quot;%1&quot;을(를) 읽는 중...</translation>
+    </message>
+    <message>
+        <source>Importing pattern %1 of %2...</source>
+        <translation>%2개 중 %1번째 패턴을 가져오는 중...</translation>
+    </message>
+    <message>
+        <source>Importing style %1 of %2...</source>
+        <translation>%2개 중 %1번째 스타일을 가져오는 중...</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

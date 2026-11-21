@@ -5,6 +5,7 @@
 #include <QStringList>
 
 #include <algorithm>
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -16,6 +17,11 @@ class PixelBuffer;
 }
 
 namespace patchy::ui {
+
+// What a preset file import calls as it moves on: first (0, 0) before the file is read and
+// decoded, then (items handled, items in the file) before each item is stored. Returning
+// false stops the import; what it stored up to then stays in the library.
+using PresetImportStep = std::function<bool(int done, int total)>;
 
 // QObject base of the preset libraries (styles, patterns, brush tips,
 // gradients, filter looks): owns the storage directory and the shared

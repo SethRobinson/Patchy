@@ -36,7 +36,8 @@ namespace {
 constexpr std::size_t kTileCacheLimit = 16;
 constexpr std::size_t kTileCacheByteLimit = 64U * 1024U * 1024U;
 constexpr int kInitialBuiltinPatternVersion = 1;
-constexpr qint64 kMaxPatFileBytes = 32LL * 1024LL * 1024LL;
+// One limit for the import and the core reader.
+constexpr auto kMaxPatFileBytes = static_cast<qint64>(psd::kMaxPatFileBytes);
 // Mirrors pat_reader's per-pattern decode cap.
 constexpr std::int64_t kMaxImagePatternPixels = 8LL * 1024LL * 1024LL;
 constexpr int kMaxPatternDimension = 30'000;
@@ -442,7 +443,8 @@ QString PatternLibrary::add_pattern(const QString& name, const PixelBuffer& tile
   return storage_id;
 }
 
-QString PatternLibrary::import_pat(const QString& path, QString& error, QStringList& warnings) {
+QString PatternLibrary::import_pat(const QString& path, QString& error, QStringList& warnings,
+                                   const PresetImportStep& step) {
   error.clear();
   warnings.clear();
   QFile file(path);
@@ -457,6 +459,9 @@ QString PatternLibrary::import_pat(const QString& path, QString& error, QStringL
   }
   if (file_size > kMaxPatFileBytes) {
     error = tr("\"%1\" is too large to import safely.").arg(QFileInfo(path).fileName());
+    return {};
+  }
+  if (step && !step(0, 0)) {
     return {};
   }
   const auto bytes = file.readAll();
@@ -487,7 +492,13 @@ QString PatternLibrary::import_pat(const QString& path, QString& error, QStringL
   QString first_storage_id;
   int added = 0;
   int pattern_index = 0;
+  auto stopped = false;
+  const auto pattern_count = static_cast<int>(parsed->patterns.size());
   for (const auto& imported : parsed->patterns) {
+    if (step && !step(pattern_index, pattern_count)) {
+      stopped = true;
+      break;
+    }
     ++pattern_index;
     // Photoshop's own .pat sets name each pattern with a localization key (issue 271).
     auto name = qstring_from_utf8(photoshop_zstring_display_text(imported.name)).trimmed();
@@ -557,7 +568,9 @@ QString PatternLibrary::import_pat(const QString& path, QString& error, QStringL
     }
   }
   if (first_storage_id.isEmpty()) {
-    error = tr("No patterns could be imported from \"%1\".").arg(QFileInfo(path).fileName());
+    if (!stopped) {
+      error = tr("No patterns could be imported from \"%1\".").arg(QFileInfo(path).fileName());
+    }
     return {};
   }
   if (added > 0) {
