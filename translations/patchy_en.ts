@@ -16481,6 +16481,20 @@ Do you want to replace it?</source>
         <source>Importing style %1 of %2...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Break the effect up into grain</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smooth</source>
+        <comment>gradient interpolation</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stripes</source>
+        <comment>gradient interpolation</comment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

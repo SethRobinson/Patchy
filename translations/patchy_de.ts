@@ -16499,6 +16499,20 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Importing style %1 of %2...</source>
         <translation>Stil %1 von %2 wird importiert...</translation>
     </message>
+    <message>
+        <source>Break the effect up into grain</source>
+        <translation>Den Effekt in Körnung auflösen</translation>
+    </message>
+    <message>
+        <source>Smooth</source>
+        <comment>gradient interpolation</comment>
+        <translation>Glatt</translation>
+    </message>
+    <message>
+        <source>Stripes</source>
+        <comment>gradient interpolation</comment>
+        <translation>Streifen</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

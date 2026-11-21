@@ -2538,7 +2538,7 @@ interface PatchyVectorGradient {
   alphaStops?: {position: number; opacity: number; midpoint?: number}[];
   /** Native 0..4096 smoothness. */ smoothness?: number;
   angle?: number; scale?: number; reverse?: boolean; dither?: boolean;
-  interpolation?: "classic" | "perceptual" | "linear";
+  interpolation?: "classic" | "perceptual" | "linear" | "smooth" | "stripes";
   alignWithLayer?: boolean;
   /** Native percentage offsets. */ offsetX?: number; offsetY?: number;
   noise?: {seed?: number; roughness?: number; transparency?: boolean; restrictColors?: boolean;

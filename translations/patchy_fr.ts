@@ -16499,6 +16499,20 @@ Voulez-vous le remplacer ?</translation>
         <source>Importing style %1 of %2...</source>
         <translation>Import du style %1 sur %2...</translation>
     </message>
+    <message>
+        <source>Break the effect up into grain</source>
+        <translation>Décompose l&apos;effet en grain</translation>
+    </message>
+    <message>
+        <source>Smooth</source>
+        <comment>gradient interpolation</comment>
+        <translation>Lisse</translation>
+    </message>
+    <message>
+        <source>Stripes</source>
+        <comment>gradient interpolation</comment>
+        <translation>Rayures</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

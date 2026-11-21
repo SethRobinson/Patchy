@@ -18,4 +18,18 @@ Inner Shadow, Inner Glow and Outer Glow apply the contour to the falloff mask be
 
 Gradient Outer Glow samples the near stop at full strength and the far stop where the matte fades away. The position is one minus the Range-scaled, contoured coverage. The lower of the gradient's sampled opacity and the raw matte divided by 0.12 controls transparency. Photoshop 2027 controls on black and white cover solid color, three RGB stops, constant and ramped stop opacity, and Range 50%, 75% and 100%. Gradient jitter is retained on save. Its effect on the stop position is uncalibrated.
 
+## Noise
+
+Quality > Noise (`Nose`, percent) on Drop Shadow, Inner Shadow, Outer Glow and Inner Glow (GitHub issue 742; Photoshop 2027 captures of November 2026 in `local-test-fixtures/layer-style-742/noise`):
+
+- Each pixel adds `noise x v` to the effect's coverage and clamps the sum to 0..1, with `v` spread evenly over -1..1 in 256 steps. This happens before Opacity, after the contour and the Range gain. Flat full coverage at Noise 100 leaves half the pixels untouched and spreads the rest evenly down to zero (mean 74.26% in Photoshop, 75% by the rule); Noise 50 gave 87.99% (87.5%).
+- The pattern belongs to the document: a pixel keeps its value when the layer moves, a repeated render gives the same bytes, and Drop Shadow and Outer Glow show the same grain at the same place. Patchy draws `v` from splitmix64 of the pixel's document position (`effect_noise_coverage`, src/render/layer_style_mask_ops.hpp), so strips, tiles and whole renders agree. It reproduces Photoshop's statistics, not its pixels: Photoshop's generator was not identified.
+- Zero coverage stays zero. On Drop Shadow and Outer Glow the noisy coverage is also limited to the blurred matte divided by 0.12 (`exterior_glow_opacity`, the limit the glow contours use), so the grain never reaches past the blur. The two interior effects have no such limit: any pixel the falloff reaches can jump to full strength.
+- On a gradient Outer Glow, Noise moves the opacity only. The stop position, and so the color, is the same as without Noise.
+- Noise 0 takes the code path it always did and renders the same bytes.
+
+Tests: `layer_effect_noise_matches_photoshop_statistics_and_is_document_anchored`, `layer_effect_noise_stays_inside_each_effect`, `psd_layer_effect_noise_round_trips`. Unprobed: Noise with a shaped contour (Patchy applies the contour first), and with the Precise technique.
+
+## Reference cells
+
 Photoshop reference measurements use 80 by 80 pixel cells with a gray square on white. Four curves (Cone, a double peak, an asymmetric rise and a descending curve) cover sizes 7 and 12, Range 50% and 75%, and Anti-aliased off and on. Across the four cells per effect, the largest mean absolute errors on the 0 to 255 scale were 0.039 for Inner Shadow, 0.090 for Inner Glow and 0.164 for Outer Glow. The largest single-pixel errors were 1, 3 and 3 respectively. The reference pairs are `layer-style-735/contours` and `layer-style-735/asymmetric` in the local fixtures.

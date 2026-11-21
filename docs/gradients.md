@@ -7,6 +7,7 @@ Layer-style placement adds Linear, Radial, Angle, Reflected, and Diamond geometr
 Related documents:
 
 - [gradients-fill-handles.md](gradients-fill-handles.md): the Gradient tool's on-canvas handles on a Gradient Fill (ends, line, stops, midpoints, deleting stops, cursors, drag performance, the background bake at the release).
+- [gradients-methods.md](gradients-methods.md): the Smooth and Stripes methods, their PSD tokens and their Photoshop captures.
 
 ## Rendering
 
@@ -20,6 +21,7 @@ previews still interpolate the converted RGB stops.
 - Classic applies the stored smoothness as cubic interpolation after destination-stop midpoint remapping.
 - Perceptual interpolates in OKLab.
 - Linear interpolates in linear-light RGB.
+- Smooth (an OKLab spline through the stops and midpoints) and Stripes (hard steps at the stops) ignore Smoothness: [gradients-methods.md](gradients-methods.md#smooth-and-stripes).
 - Gradient Map adjustments pass `ease_every_method`, which applies the Classic smoothness ease to the segment position for Perceptual and Linear too (Photoshop's map behavior; [adjustment-kinds.md](adjustment-kinds.md#gradient-map)). Fills and effects leave it off.
 - Dither uses fixed integer hashing and noise uses a clean-room model of Photoshop's noise output (below). Never substitute a standard-library random distribution: output must stay identical across toolchains.
 - Noise gradients render Photoshop's colors for a given `RndS`/`Smth`; see "Noise gradients".

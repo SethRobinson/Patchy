@@ -157,8 +157,15 @@ GradientInterpolationMethod gradient_interpolation_from_descriptor(std::string_v
   // Photoshop writes either the long stringID or the four-character code; its own
   // fill layers in psd-tools' collection carry "Perc" and "Lnr " (October 2026: a
   // "Lnr " gradient read as Classic was up to 60/255 off Photoshop's pixels).
-  if (value == "perceptual" || value == "Perc" || value == "Smoo") {
+  if (value == "perceptual" || value == "Perc") {
     return GradientInterpolationMethod::Perceptual;
+  }
+  // Photoshop 2027 files hold the four-character codes: Smoo, and GIMs for Stripes (#742).
+  if (value == "smooth" || value == "Smoo") {
+    return GradientInterpolationMethod::Smooth;
+  }
+  if (value == "stripes" || value == "GIMs") {
+    return GradientInterpolationMethod::Stripes;
   }
   if (value == "linear" || value == "Lnr ") {
     return GradientInterpolationMethod::Linear;
@@ -333,6 +340,7 @@ std::optional<LayerDropShadow> parse_drop_shadow(const DescriptorObject& effect,
   shadow.spread = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
   shadow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
   shadow.layer_conceals = descriptor_bool(effect, "layerConceals", true);
+  shadow.noise = std::clamp(static_cast<float>(descriptor_number(effect, "Nose", 0.0)), 0.0F, 100.0F);
   if (const auto* contour = descriptor_object(effect, "TrnS"); contour != nullptr) {
     shadow.contour = parse_shape_contour(*contour);
   }
@@ -357,6 +365,7 @@ std::optional<LayerInnerShadow> parse_inner_shadow(const DescriptorObject& effec
   shadow.distance = std::max(0.0F, static_cast<float>(descriptor_number(effect, "Dstn", 5.0)));
   shadow.choke = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
   shadow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
+  shadow.noise = std::clamp(static_cast<float>(descriptor_number(effect, "Nose", 0.0)), 0.0F, 100.0F);
   if (const auto* contour = descriptor_object(effect, "TrnS"); contour != nullptr) {
     shadow.contour = parse_shape_contour(*contour);
   }
@@ -382,6 +391,7 @@ std::optional<LayerOuterGlow> parse_outer_glow(const DescriptorObject& effect,
   glow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
   glow.spread = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
   glow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
+  glow.noise = std::clamp(static_cast<float>(descriptor_number(effect, "Nose", 0.0)), 0.0F, 100.0F);
   glow.technique = descriptor_enum(effect, "GlwT", "SfBL") == "PrBL" ? LayerGlowTechnique::Precise
                                                                      : LayerGlowTechnique::Softer;
   // Photoshop renders a glow with no 'Inpr' at Range 100 (COM-probed; the UI
@@ -413,6 +423,7 @@ std::optional<LayerInnerGlow> parse_inner_glow(const DescriptorObject& effect,
   glow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
   glow.choke = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
   glow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
+  glow.noise = std::clamp(static_cast<float>(descriptor_number(effect, "Nose", 0.0)), 0.0F, 100.0F);
   glow.source = inner_glow_source_from_descriptor(descriptor_enum(effect, "glwS", "SrcE"));
   glow.technique = descriptor_enum(effect, "GlwT", "SfBL") == "PrBL" ? LayerGlowTechnique::Precise
                                                                      : LayerGlowTechnique::Softer;
@@ -1412,6 +1423,10 @@ std::string_view gradient_interpolation_descriptor_value(GradientInterpolationMe
       return "perceptual";
     case GradientInterpolationMethod::Linear:
       return "linear";
+    case GradientInterpolationMethod::Smooth:
+      return "Smoo";
+    case GradientInterpolationMethod::Stripes:
+      return "GIMs";
     case GradientInterpolationMethod::Classic:
       return "Gcls";
   }
@@ -1604,7 +1619,7 @@ void write_drop_shadow_descriptor(BigEndianWriter& writer, const LayerDropShadow
   write_descriptor_unit_float_item(writer, "Dstn", {'#', 'P', 'x', 'l'}, shadow.distance);
   write_descriptor_unit_float_item(writer, "Ckmt", {'#', 'P', 'x', 'l'}, shadow.spread);
   write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, shadow.size);
-  write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
+  write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, shadow.noise);
   write_descriptor_bool_item(writer, "AntA", shadow.anti_aliased);
   if (contoured) {
     write_shape_contour_descriptor_item(writer, "TrnS", shadow.contour);
@@ -1624,7 +1639,7 @@ void write_inner_shadow_descriptor(BigEndianWriter& writer, const LayerInnerShad
   write_descriptor_unit_float_item(writer, "Dstn", {'#', 'P', 'x', 'l'}, shadow.distance);
   write_descriptor_unit_float_item(writer, "Ckmt", {'#', 'P', 'x', 'l'}, shadow.choke);
   write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, shadow.size);
-  write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
+  write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, shadow.noise);
   write_descriptor_bool_item(writer, "AntA", shadow.anti_aliased);
   if (contoured) write_shape_contour_descriptor_item(writer, "TrnS", shadow.contour);
 }
@@ -1647,7 +1662,7 @@ void write_outer_glow_descriptor(BigEndianWriter& writer, const LayerOuterGlow& 
                              glow.technique == LayerGlowTechnique::Precise ? "PrBL" : "SfBL");
   write_descriptor_unit_float_item(writer, "Ckmt", {'#', 'P', 'x', 'l'}, glow.spread);
   write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, glow.size);
-  write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
+  write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, glow.noise);
   write_descriptor_unit_float_item(writer, "ShdN", {'#', 'P', 'r', 'c'}, glow.jitter);
   write_descriptor_bool_item(writer, "AntA", glow.anti_aliased);
   if (contoured) write_shape_contour_descriptor_item(writer, "TrnS", glow.contour);
@@ -1666,7 +1681,7 @@ void write_inner_glow_descriptor(BigEndianWriter& writer, const LayerInnerGlow& 
                              glow.technique == LayerGlowTechnique::Precise ? "PrBL" : "SfBL");
   write_descriptor_unit_float_item(writer, "Ckmt", {'#', 'P', 'x', 'l'}, glow.choke);
   write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, glow.size);
-  write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
+  write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, glow.noise);
   write_descriptor_enum_item(writer, "glwS", "IGSr", inner_glow_source_descriptor_value(glow.source));
   write_descriptor_unit_float_item(writer, "ShdN", {'#', 'P', 'r', 'c'}, glow.jitter);
   write_descriptor_bool_item(writer, "AntA", glow.anti_aliased);

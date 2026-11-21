@@ -59,6 +59,8 @@ struct BevelTexturePageControls {
   QCheckBox* bevel_texture_invert{};
   QCheckBox* bevel_texture_link{};
   QPushButton* bevel_texture_snap{};
+  QSpinBox* bevel_texture_offset_x{};
+  QSpinBox* bevel_texture_offset_y{};
 };
 BevelTexturePageControls build_bevel_texture_page(LayerStylePageContext& context, QVBoxLayout* bevel_texture_layout, const LayerBevelEmboss& bevel);
 
@@ -71,6 +73,8 @@ struct PatternOverlayPageControls {
   QSpinBox* pattern_overlay_scale{};
   QCheckBox* pattern_overlay_link{};
   QPushButton* pattern_overlay_snap{};
+  QSpinBox* pattern_overlay_offset_x{};
+  QSpinBox* pattern_overlay_offset_y{};
 };
 PatternOverlayPageControls build_pattern_overlay_page(LayerStylePageContext& context, QVBoxLayout* pattern_overlay_layout, const LayerPatternOverlay& pattern_overlay);
 
@@ -105,6 +109,7 @@ struct InnerShadowPageControls {
   QPushButton* remove_inner_shadow{};
   QComboBox* contour{};
   QCheckBox* anti_aliased{};
+  QSpinBox* noise{};
 };
 InnerShadowPageControls build_inner_shadow_page(LayerStylePageContext& context, QVBoxLayout* inner_shadow_layout, const LayerInnerShadow& inner_shadow);
 
@@ -124,6 +129,7 @@ struct InnerGlowPageControls {
   QPushButton* remove_inner_glow{};
   QComboBox* contour{};
   QCheckBox* anti_aliased{};
+  QSpinBox* noise{};
 };
 InnerGlowPageControls build_inner_glow_page(LayerStylePageContext& context, QVBoxLayout* inner_glow_layout, const LayerInnerGlow& inner_glow);
 
@@ -173,7 +179,16 @@ struct OuterGlowPageControls {
   QSpinBox* outer_glow_blue{};
   QComboBox* contour{};
   QCheckBox* anti_aliased{};
+  QSpinBox* noise{};
+  // Fill: Color or Gradient (GitHub issue 742). The gradient editor shows the stops and the
+  // Method only: a glow has no angle, scale or offset.
+  QComboBox* fill{};
+  std::unique_ptr<LayerStyleGradientControls> gradient_controls{};
+  std::function<void()> update_fill_visibility{};
 };
+// The gradient a solid glow starts from when its Fill is switched to Gradient: its color,
+// opaque at the layer's edge and fading out.
+LayerStyleGradient outer_glow_gradient_from_color(RgbColor color);
 OuterGlowPageControls build_outer_glow_page(LayerStylePageContext& context, QVBoxLayout* outer_glow_layout, const LayerOuterGlow& outer_glow);
 
 struct ShadowPageControls {
@@ -193,6 +208,7 @@ struct ShadowPageControls {
   QSpinBox* shadow_red{};
   QSpinBox* shadow_green{};
   QSpinBox* shadow_blue{};
+  QSpinBox* shadow_noise{};
 };
 ShadowPageControls build_shadow_page(LayerStylePageContext& context, QVBoxLayout* shadow_layout, const LayerDropShadow& shadow, const StyleContour& custom_shadow_contour);
 

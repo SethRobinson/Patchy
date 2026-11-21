@@ -343,6 +343,7 @@ void add_effect_fields(const EffectFields<LayerDropShadow>& fields) {
   EFFECT_FIELD(fade);
   EFFECT_FIELD(contour);
   EFFECT_FIELD(anti_aliased);
+  EFFECT_FIELD(noise);
 }
 
 void add_effect_fields(const EffectFields<LayerInnerShadow>& fields) {
@@ -357,6 +358,7 @@ void add_effect_fields(const EffectFields<LayerInnerShadow>& fields) {
   EFFECT_FIELD(use_global_light);
   EFFECT_FIELD(contour);
   EFFECT_FIELD(anti_aliased);
+  EFFECT_FIELD(noise);
 }
 
 void add_effect_fields(const EffectFields<LayerOuterGlow>& fields) {
@@ -371,6 +373,7 @@ void add_effect_fields(const EffectFields<LayerOuterGlow>& fields) {
   EFFECT_FIELD(contour);
   EFFECT_FIELD(anti_aliased);
   EFFECT_FIELD(jitter);
+  EFFECT_FIELD(noise);
   EFFECT_FIELD(gradient);
 }
 
@@ -387,6 +390,7 @@ void add_effect_fields(const EffectFields<LayerInnerGlow>& fields) {
   EFFECT_FIELD(contour);
   EFFECT_FIELD(anti_aliased);
   EFFECT_FIELD(jitter);
+  EFFECT_FIELD(noise);
 }
 
 void add_effect_fields(const EffectFields<LayerColorOverlay>& fields) {

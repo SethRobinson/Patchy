@@ -629,8 +629,13 @@ void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuff
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
       auto coverage = mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
+      const auto matte = coverage;
       if (contoured) {
         coverage = sample_style_contour_lut(contour_lut, coverage, shadow.anti_aliased);
+      }
+      if (shadow.noise > 0.0F) {
+        // Noise never reaches past the blurred matte: the same 12% limit as the glow's.
+        coverage = exterior_glow_opacity(effect_noise_coverage(coverage, shadow.noise, x, y), matte);
       }
       auto alpha = coverage * shadow.opacity * layer.opacity();
       if (clip_to_mask) {
@@ -677,8 +682,10 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
         StyleMaskEntry computed;
         auto base = layer_alpha_mask(source, layer, bounds, domain, 0, 0, layer_mask_bounds);
         const bool shaped = !style_contour_is_linear(glow.contour);
+        // Noise needs the unscaled matte too: it limits how far the grain reaches.
+        const bool keep_matte = glow.gradient.has_value() || glow.noise > 0.0F;
         if (softer) {
-          const auto blur_range = shaped || glow.gradient ? 100.0F : glow.range;
+          const auto blur_range = shaped || keep_matte ? 100.0F : glow.range;
           prepare_outer_glow_softer_mask(base, domain.width, domain.height, glow.size, glow.spread, blur_range);
           computed.primary = std::move(base);
         } else {
@@ -687,11 +694,11 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
         // A gradient runs from the strong edge towards its far stop. Range and
         // the contour set the stop position, while the raw matte limits opacity.
         const auto gain = 100.0F / std::clamp(glow.range, 1.0F, 100.0F);
-        if (glow.gradient) computed.secondary = computed.primary;
+        if (keep_matte) computed.secondary = computed.primary;
         if (shaped) {
           apply_effect_contour(computed.primary, domain.width, glow.contour, glow.anti_aliased,
                                gain, !glow.gradient);
-        } else if (glow.gradient) {
+        } else if (glow.gradient || (keep_matte && softer)) {
           for (auto& value : computed.primary) value = clamp_unit(value * gain);
         }
         return computed;
@@ -716,8 +723,14 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
       if (glow.gradient) {
         if (entry->secondary[index] <= 0.0F || source_alpha >= 1.0F) continue;
         const auto position = 1.0F - strength;
-        strength = exterior_glow_opacity(gradient_stop_opacity(*glow.gradient, position, true), entry->secondary[index]);
+        strength = gradient_stop_opacity(*glow.gradient, position, true);
+        // Noise moves a gradient glow's opacity, never its stop position.
+        strength = exterior_glow_opacity(effect_noise_coverage(strength, glow.noise, x, y), entry->secondary[index]);
         color = gradient_color(*glow.gradient, position, true);
+      } else if (glow.noise > 0.0F) {
+        // The unscaled matte rides in `secondary` (see the mask above).
+        const auto matte = entry->secondary.empty() ? strength : entry->secondary[index];
+        strength = exterior_glow_opacity(effect_noise_coverage(strength, glow.noise, x, y), matte);
       }
       auto glow_alpha = strength * exterior_effect_knockout(source_alpha, source_alpha * paint_scale, true) *
                         glow.opacity * layer.opacity();
@@ -791,7 +804,8 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
       }
       const auto falloff_alpha =
           shifted_mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
-      auto shadow_alpha = source_alpha * falloff_alpha * shadow.opacity * layer.opacity();
+      auto shadow_alpha = source_alpha * effect_noise_coverage(falloff_alpha, shadow.noise, x, y) * shadow.opacity *
+                          layer.opacity();
       if (knockout != nullptr) {
         shadow_alpha *= knockout->at(x, y);
       }
@@ -852,7 +866,8 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
       }
       const auto source_factor =
           falloff_mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
-      auto glow_alpha = source_alpha * source_factor * glow.opacity * layer.opacity();
+      auto glow_alpha = source_alpha * effect_noise_coverage(source_factor, glow.noise, x, y) * glow.opacity *
+                        layer.opacity();
       if (knockout != nullptr) {
         glow_alpha *= knockout->at(x, y);
       }

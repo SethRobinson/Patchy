@@ -667,6 +667,10 @@ const char* gradient_interpolation_enum_value(GradientInterpolationMethod method
       return "perceptual";
     case GradientInterpolationMethod::Linear:
       return "linear";
+    case GradientInterpolationMethod::Smooth:
+      return "Smoo";
+    case GradientInterpolationMethod::Stripes:
+      return "GIMs";
     case GradientInterpolationMethod::Classic:
       break;
   }

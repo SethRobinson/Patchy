@@ -141,6 +141,7 @@ int main(int argc, char** argv) {
            gradients_interior_effects_tests,
            psd_core_io_tests,
            stroke_mask_effects_tests,
+           layer_style_noise_methods_tests,
            smart_objects_warp_tests,
            smart_filter_pixels_tests,
            smart_filter_classic_tests,

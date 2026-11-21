@@ -14,6 +14,7 @@ std::vector<patchy::test::TestCase> compositor_layer_styles_tests();
 std::vector<patchy::test::TestCase> gradients_interior_effects_tests();
 std::vector<patchy::test::TestCase> psd_core_io_tests();
 std::vector<patchy::test::TestCase> stroke_mask_effects_tests();
+std::vector<patchy::test::TestCase> layer_style_noise_methods_tests();
 std::vector<patchy::test::TestCase> smart_objects_warp_tests();
 std::vector<patchy::test::TestCase> smart_filter_pixels_tests();
 std::vector<patchy::test::TestCase> smart_filter_classic_tests();

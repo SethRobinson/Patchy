@@ -19,6 +19,10 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-22 (addition): a gradient's `interpolation` accepts `"smooth"` and `"stripes"` beside
+`"classic"`, `"perceptual"` and `"linear"`, wherever a gradient object is taken or returned
+([gradients-methods.md](gradients-methods.md#smooth-and-stripes)). Existing values keep their meaning.
+
 2026-11-18 (additions): `doc.createTemporaryCopy()` opens a disposable working tab that
 the host closes at run end, including on interruption. `patchy.io.pathKey(path)` returns
 Patchy's file name comparison key for preflighting output paths.

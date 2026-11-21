@@ -443,6 +443,14 @@ LayerInnerShadow builtin_default_inner_shadow() {
   return shadow;
 }
 
+// The Horizontal and Vertical Offset fields (GitHub issue 742) hold whole pixels in a limited
+// range. While a field still shows the stored phase, rounded and clamped, the stored value is
+// kept: a fractional or distant phase from a file survives edits to the other settings.
+float pattern_offset_value(const QSpinBox* field, float stored) {
+  const auto shown = std::clamp(static_cast<int>(std::lround(stored)), field->minimum(), field->maximum());
+  return field->value() == shown ? stored : static_cast<float>(field->value());
+}
+
 LayerOuterGlow builtin_default_outer_glow() {
   LayerOuterGlow glow;
   glow.enabled = true;
@@ -1748,6 +1756,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       explicit_fields, reset_batch_capture, [&](bool stroke_gradient) {
         const auto* current = categories->currentItem();
         const auto index = current ? current->data(kLayerStyleEffectIndexRole).toInt() : 0;
+        // An Outer Glow's gradient is one optional property, not a placement plus a definition.
+        if (current != nullptr && static_cast<LayerStyleEffectKind>(current->data(kLayerStyleEffectKindRole).toInt()) ==
+                                      LayerStyleEffectKind::OuterGlow) {
+          return effect_property_prefix(LayerStyleEffectKind::OuterGlow, index) + ".gradient";
+        }
         return effect_property_prefix(stroke_gradient ? LayerStyleEffectKind::Stroke
             : LayerStyleEffectKind::GradientOverlay, index) + ".gradient.definition";
       }};
@@ -2470,6 +2483,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto& outer_glow_red = outer_glow_page.outer_glow_red;
   auto& outer_glow_green = outer_glow_page.outer_glow_green;
   auto& outer_glow_blue = outer_glow_page.outer_glow_blue;
+  auto& outer_glow_gradient_controls = outer_glow_page.gradient_controls;
+  // An imported gradient glow keeps its gradient exactly until the editor or Fill changes.
+  bool outer_glow_gradient_edited = false;
 
   auto shadow_page = build_shadow_page(page_context, shadow_layout, shadow, custom_shadow_contour);
   auto& shadow_blend = shadow_page.shadow_blend;
@@ -2773,8 +2789,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.texture.depth = static_cast<float>(bevel_texture_depth->value()) / 100.0F;
         target.texture.invert = bevel_texture_invert->isChecked();
         target.texture.link_with_layer = bevel_texture_link->isChecked();
-        target.texture.phase_x = bevel.texture.phase_x;
-        target.texture.phase_y = bevel.texture.phase_y;
+        target.texture.phase_x = pattern_offset_value(bevel_texture_page.bevel_texture_offset_x, bevel.texture.phase_x);
+        target.texture.phase_y = pattern_offset_value(bevel_texture_page.bevel_texture_offset_y, bevel.texture.phase_y);
         break;
       }
       case LayerStyleEffectKind::Stroke: {
@@ -2810,6 +2826,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.distance = static_cast<float>(inner_shadow_distance->value());
         target.size = static_cast<float>(inner_shadow_size->value());
         target.choke = static_cast<float>(inner_shadow_choke->value());
+        target.noise = static_cast<float>(inner_shadow_page.noise->value());
         target.color = RgbColor{static_cast<std::uint8_t>(inner_shadow_red->value()),
                                 static_cast<std::uint8_t>(inner_shadow_green->value()),
                                 static_cast<std::uint8_t>(inner_shadow_blue->value())};
@@ -2830,6 +2847,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.technique = static_cast<LayerGlowTechnique>(inner_glow_technique->currentData().toInt());
         target.range = static_cast<float>(inner_glow_range->value());
         target.source = inner_glow_source.first->isChecked() ? LayerInnerGlowSource::Center : LayerInnerGlowSource::Edge;
+        target.noise = static_cast<float>(inner_glow_page.noise->value());
         target.color = RgbColor{static_cast<std::uint8_t>(inner_glow_red->value()),
                                 static_cast<std::uint8_t>(inner_glow_green->value()),
                                 static_cast<std::uint8_t>(inner_glow_blue->value())};
@@ -2891,8 +2909,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.angle_degrees = static_cast<float>(pattern_overlay_angle->value());
         target.scale = static_cast<float>(pattern_overlay_scale->value()) / 100.0F;
         target.link_with_layer = pattern_overlay_link->isChecked();
-        target.phase_x = pattern_overlay.phase_x;
-        target.phase_y = pattern_overlay.phase_y;
+        target.phase_x = pattern_offset_value(pattern_overlay_page.pattern_overlay_offset_x, pattern_overlay.phase_x);
+        target.phase_y = pattern_offset_value(pattern_overlay_page.pattern_overlay_offset_y, pattern_overlay.phase_y);
         break;
       }
       case LayerStyleEffectKind::OuterGlow: {
@@ -2909,9 +2927,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.size = static_cast<float>(outer_glow_size->value());
         target.spread = static_cast<float>(outer_glow_spread->value());
         target.range = static_cast<float>(outer_glow_range->value());
+        target.noise = static_cast<float>(outer_glow_page.noise->value());
         target.color = RgbColor{static_cast<std::uint8_t>(outer_glow_red->value()),
                                 static_cast<std::uint8_t>(outer_glow_green->value()),
                                 static_cast<std::uint8_t>(outer_glow_blue->value())};
+        if (!outer_glow_page.fill->currentData().toBool()) {
+          target.gradient.reset();
+        } else if (outer_glow_gradient_edited || !target.gradient.has_value()) {
+          target.gradient = outer_glow_gradient_controls->value();
+        }
         break;
       }
       case LayerStyleEffectKind::DropShadow: {
@@ -2932,6 +2956,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.anti_aliased = shadow_anti_aliased->isChecked();
         target.continuous = shadow_continuous->isChecked();
         target.fade = static_cast<float>(shadow_fade->value());
+        target.noise = static_cast<float>(shadow_page.shadow_noise->value());
         target.color = RgbColor{static_cast<std::uint8_t>(shadow_red->value()),
                                 static_cast<std::uint8_t>(shadow_green->value()),
                                 static_cast<std::uint8_t>(shadow_blue->value())};
@@ -3031,6 +3056,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         bevel_texture_link->setChecked(value.texture.link_with_layer);
         bevel.texture.phase_x = value.texture.phase_x;
         bevel.texture.phase_y = value.texture.phase_y;
+        bevel_texture_page.bevel_texture_offset_x->setValue(static_cast<int>(std::lround(value.texture.phase_x)));
+        bevel_texture_page.bevel_texture_offset_y->setValue(static_cast<int>(std::lround(value.texture.phase_y)));
         break;
       }
       case LayerStyleEffectKind::Stroke: {
@@ -3063,6 +3090,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         inner_shadow_distance->setValue(static_cast<int>(std::round(value.distance)));
         inner_shadow_size->setValue(static_cast<int>(std::round(value.size)));
         inner_shadow_choke->setValue(static_cast<int>(std::round(value.choke)));
+        inner_shadow_page.noise->setValue(static_cast<int>(std::round(value.noise)));
         inner_shadow_red->setValue(value.color.red);
         inner_shadow_green->setValue(value.color.green);
         inner_shadow_blue->setValue(value.color.blue);
@@ -3081,6 +3109,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         set_combo_data(inner_glow_technique, static_cast<int>(value.technique));
         inner_glow_range->setValue(std::clamp(static_cast<int>(std::round(value.range)), 1, 100));
         inner_glow_source.set_first(value.source == LayerInnerGlowSource::Center);
+        inner_glow_page.noise->setValue(static_cast<int>(std::round(value.noise)));
         inner_glow_red->setValue(value.color.red);
         inner_glow_green->setValue(value.color.green);
         inner_glow_blue->setValue(value.color.blue);
@@ -3139,6 +3168,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         pattern_overlay_scale->setValue(
             std::clamp(static_cast<int>(std::round(value.scale * 100.0F)), 1, 1000));
         pattern_overlay_link->setChecked(value.link_with_layer);
+        pattern_overlay_page.pattern_overlay_offset_x->setValue(static_cast<int>(std::lround(value.phase_x)));
+        pattern_overlay_page.pattern_overlay_offset_y->setValue(static_cast<int>(std::lround(value.phase_y)));
         break;
       }
       case LayerStyleEffectKind::OuterGlow: {
@@ -3153,10 +3184,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         outer_glow_size->setValue(static_cast<int>(std::round(value.size)));
         outer_glow_spread->setValue(static_cast<int>(std::round(value.spread)));
         outer_glow_range->setValue(std::clamp(static_cast<int>(std::round(value.range)), 1, 100));
-        outer_glow_rows.row_container->setEnabled(!value.gradient.has_value());
+        outer_glow_page.noise->setValue(static_cast<int>(std::round(value.noise)));
         outer_glow_red->setValue(value.color.red);
         outer_glow_green->setValue(value.color.green);
         outer_glow_blue->setValue(value.color.blue);
+        outer_glow_page.fill->setCurrentIndex(value.gradient.has_value() ? 1 : 0);
+        outer_glow_gradient_controls->load(value.gradient ? *value.gradient
+                                                          : outer_glow_gradient_from_color(value.color));
+        outer_glow_gradient_edited = false;
+        outer_glow_page.update_fill_visibility();
         break;
       }
       case LayerStyleEffectKind::DropShadow: {
@@ -3175,6 +3211,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         shadow_anti_aliased->setChecked(value.anti_aliased);
         shadow_continuous->setChecked(value.continuous);
         shadow_fade->setValue(static_cast<int>(std::round(value.fade)));
+        shadow_page.shadow_noise->setValue(static_cast<int>(std::round(value.noise)));
         sync_continuous_controls();
         shadow_red->setValue(value.color.red);
         shadow_green->setValue(value.color.green);
@@ -3189,6 +3226,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     color_overlay_rows.update_preview();
     gradient_controls->update_previews();
     stroke_gradient_controls->update_previews();
+    outer_glow_gradient_controls->update_previews();
     outer_glow_rows.update_preview();
     inner_glow_rows.update_preview();
     satin_rows.update_preview();
@@ -3508,6 +3546,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     color_overlay_rows.update_preview();
     gradient_controls->update_previews();
     stroke_gradient_controls->update_previews();
+    outer_glow_gradient_controls->update_previews();
     outer_glow_rows.update_preview();
     inner_glow_rows.update_preview();
     satin_rows.update_preview();
@@ -3604,6 +3643,21 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   }
   gradient_controls->changed = [&emit_preview](bool immediate) { emit_preview(immediate); };
   stroke_gradient_controls->changed = [&emit_preview](bool immediate) { emit_preview(immediate); };
+  outer_glow_gradient_controls->changed = [&](bool immediate) {
+    if (loading_controls || rebuilding_categories) {
+      return;
+    }
+    outer_glow_gradient_edited = true;
+    emit_preview(immediate);
+  };
+  QObject::connect(outer_glow_page.fill, &QComboBox::currentIndexChanged, &dialog, [&](int) {
+    outer_glow_page.update_fill_visibility();
+    if (loading_controls || rebuilding_categories) {
+      return;
+    }
+    outer_glow_gradient_edited = true;
+    emit_preview(true);
+  });
   QObject::connect(categories, &QListWidget::itemSelectionChanged, &dialog, restyle_category_rows);
   QObject::connect(categories, &QListWidget::currentItemChanged, &dialog,
                    [&](QListWidgetItem* current, QListWidgetItem* previous) {
@@ -3681,7 +3735,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                      satin_size, satin_red, satin_green, satin_blue, shadow_opacity, shadow_angle, shadow_distance,
                      shadow_size, shadow_spread, shadow_fade, shadow_red,
                      shadow_green, shadow_blue, inner_shadow_opacity, inner_shadow_angle, inner_shadow_distance,
-                     inner_shadow_size, inner_shadow_choke, inner_shadow_red, inner_shadow_green, inner_shadow_blue}) {
+                     inner_shadow_size, inner_shadow_choke, inner_shadow_red, inner_shadow_green, inner_shadow_blue,
+                     shadow_page.shadow_noise, inner_shadow_page.noise, outer_glow_page.noise, inner_glow_page.noise,
+                     bevel_texture_page.bevel_texture_offset_x, bevel_texture_page.bevel_texture_offset_y,
+                     pattern_overlay_page.pattern_overlay_offset_x, pattern_overlay_page.pattern_overlay_offset_y}) {
     QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog,
                      [&emit_preview](int) { emit_preview(false); });
   }
@@ -4011,6 +4068,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(bevel_texture_snap, &QPushButton::clicked, &dialog, [&] {
     bevel.texture.phase_x = 0.0F;
     bevel.texture.phase_y = 0.0F;
+    for (auto* field : {bevel_texture_page.bevel_texture_offset_x, bevel_texture_page.bevel_texture_offset_y}) {
+      const QSignalBlocker blocker(field);
+      field->setValue(0);
+    }
     if (batch) explicit_fields = {"bevels.0.texture.phase_x", "bevels.0.texture.phase_y"};
     emit_preview(true);
   });
@@ -4023,6 +4084,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(pattern_overlay_snap, &QPushButton::clicked, &dialog, [&] {
     pattern_overlay.phase_x = 0.0F;
     pattern_overlay.phase_y = 0.0F;
+    for (auto* field : {pattern_overlay_page.pattern_overlay_offset_x, pattern_overlay_page.pattern_overlay_offset_y}) {
+      const QSignalBlocker blocker(field);
+      field->setValue(0);
+    }
     if (batch) {
       const auto prefix = effect_property_prefix(LayerStyleEffectKind::PatternOverlay,
                                                  item_effect_index(categories->currentItem()));
@@ -4632,6 +4697,30 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     effect(outer_glow_size, LayerStyleEffectKind::OuterGlow, "size");
     effect(outer_glow_spread, LayerStyleEffectKind::OuterGlow, "spread");
     effect(outer_glow_range, LayerStyleEffectKind::OuterGlow, "range");
+    effect(outer_glow_page.noise, LayerStyleEffectKind::OuterGlow, "noise");
+    effect(inner_glow_page.noise, LayerStyleEffectKind::InnerGlow, "noise");
+    effect(shadow_page.shadow_noise, LayerStyleEffectKind::DropShadow, "noise");
+    effect(inner_shadow_page.noise, LayerStyleEffectKind::InnerShadow, "noise");
+    effect(bevel_texture_page.bevel_texture_offset_x, LayerStyleEffectKind::BevelTexture, "phase_x");
+    effect(bevel_texture_page.bevel_texture_offset_y, LayerStyleEffectKind::BevelTexture, "phase_y");
+    effect(pattern_overlay_page.pattern_overlay_offset_x, LayerStyleEffectKind::PatternOverlay, "phase_x");
+    effect(pattern_overlay_page.pattern_overlay_offset_y, LayerStyleEffectKind::PatternOverlay, "phase_y");
+    // The glow's gradient is a single optional property: Fill and every editor field map to it.
+    effect(outer_glow_page.fill, LayerStyleEffectKind::OuterGlow, "gradient");
+    {
+      auto* fields = outer_glow_gradient_controls.get();
+      for (QWidget* widget : std::initializer_list<QWidget*>{
+               fields->interpolation, fields->form_combo, fields->smoothness, fields->noise_seed,
+               fields->noise_roughness, fields->noise_transparency, fields->noise_restrict, fields->noise_color_model,
+               fields->stop_location, fields->stop_opacity, fields->stop_midpoint}) {
+        effect(widget, LayerStyleEffectKind::OuterGlow, "gradient");
+      }
+      for (auto* widget : fields->noise_minimum) effect(widget, LayerStyleEffectKind::OuterGlow, "gradient");
+      for (auto* widget : fields->noise_maximum) effect(widget, LayerStyleEffectKind::OuterGlow, "gradient");
+      effect(fields->stop_swatch, LayerStyleEffectKind::OuterGlow, "gradient", false);
+      effect(fields->stop_hex, LayerStyleEffectKind::OuterGlow, "gradient", false);
+      effect(fields->editor, LayerStyleEffectKind::OuterGlow, "gradient", false);
+    }
     effect(inner_glow_blend, LayerStyleEffectKind::InnerGlow, "blend_mode");
     effect(inner_glow_page.contour, LayerStyleEffectKind::InnerGlow, "contour");
     effect(inner_glow_page.anti_aliased, LayerStyleEffectKind::InnerGlow, "anti_aliased");

@@ -339,7 +339,9 @@ enum class GradientDefinitionForm { Solid, Noise };
 
 enum class GradientNoiseColorModel { RGB, HSB, Lab };
 
-enum class GradientInterpolationMethod { Classic, Perceptual, Linear };
+// Append-only: saved by value in gradient settings and in Gradient Map text. Smooth and
+// Stripes (GitHub issue 742): docs/gradients-methods.md, "Smooth and Stripes".
+enum class GradientInterpolationMethod { Classic, Perceptual, Linear, Smooth, Stripes };
 
 // A Grayscale document's noise gradient renders gray: each sample's gray value (luma of
 // the RGB/HSB color, L for Lab) through the document's gray-to-sRGB table. Set by the PSD
@@ -445,6 +447,9 @@ struct LayerDropShadow {
   // (docs/xcf-layer-effects.md, "Layer effects").
   StyleContour contour;
   bool anti_aliased{false};
+  // Quality > Noise (descriptor 'Nose', percent 0..100): a per-pixel offset on the effect's
+  // coverage before Opacity (effect_noise_coverage, render/layer_style_mask_ops.hpp).
+  float noise{0.0F};
 };
 
 struct LayerInnerShadow {
@@ -459,6 +464,9 @@ struct LayerInnerShadow {
   bool use_global_light{false};
   StyleContour contour;
   bool anti_aliased{false};
+  // Quality > Noise (descriptor 'Nose', percent 0..100): a per-pixel offset on the effect's
+  // coverage before Opacity (effect_noise_coverage, render/layer_style_mask_ops.hpp).
+  float noise{0.0F};
 };
 
 // Photoshop's outer-glow Technique ('GlwT' BETE enum): Softer blurs the
@@ -484,6 +492,9 @@ struct LayerOuterGlow {
   StyleContour contour;
   bool anti_aliased{false};
   float jitter{0.0F};  // Gradient color jitter (ShdN); solid glows have one color.
+  // Quality > Noise (descriptor 'Nose', percent 0..100): a per-pixel offset on the effect's
+  // coverage before Opacity (effect_noise_coverage, render/layer_style_mask_ops.hpp).
+  float noise{0.0F};
   std::optional<LayerStyleGradient> gradient;
 };
 
@@ -509,6 +520,9 @@ struct LayerInnerGlow {
   StyleContour contour;
   bool anti_aliased{false};
   float jitter{0.0F};  // Gradient color jitter (ShdN); solid glows have one color.
+  // Quality > Noise (descriptor 'Nose', percent 0..100): a per-pixel offset on the effect's
+  // coverage before Opacity (effect_noise_coverage, render/layer_style_mask_ops.hpp).
+  float noise{0.0F};
 };
 
 struct LayerColorOverlay {

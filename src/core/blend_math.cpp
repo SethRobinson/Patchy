@@ -418,6 +418,117 @@ double gradient_segment_ease(double t, std::uint16_t smoothness) {
   return t + (eased - t) * (static_cast<double>(smoothness) / 4096.0);
 }
 
+// OKLab to linear-light RGB without the 8-bit rounding of oklab_to_rgb, for the Smooth method.
+std::array<double, 3> oklab_to_linear_rgb(const std::array<double, 3>& color) {
+  const auto l_ = color[0] + 0.3963377774 * color[1] + 0.2158037573 * color[2];
+  const auto m_ = color[0] - 0.1055613458 * color[1] - 0.0638541728 * color[2];
+  const auto s_ = color[0] - 0.0894841775 * color[1] - 1.2914855480 * color[2];
+  const auto l = l_ * l_ * l_;
+  const auto m = m_ * m_ * m_;
+  const auto s = s_ * s_ * s_;
+  return {4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+          -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+          -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s};
+}
+
+// The Smooth method's curve (docs/gradients-methods.md, "Smooth and Stripes"), a model fitted to
+// Photoshop's rendered output: a cubic Hermite spline whose knots are every stop and every
+// midpoint, the midpoint holding the average of its two stops. Interior tangents are the
+// slope between the two neighboring knots; the first and last knot take 0.6 of their
+// segment's slope (0.4 when the stop sits inside the gradient and a flat run leads up to it).
+// Each segment stays within the range of its two knots, so no stop is overshot. Smoothness
+// is not used. `position` lies strictly between the first and last stop.
+template <std::size_t N, class Stops, class ValueOf>
+std::array<double, N> smooth_gradient_sample(const Stops& stops, float position, ValueOf value_of) {
+  const auto stop_count = stops.size();
+  std::size_t right = 1;
+  while (right + 1U < stop_count && position > stops[right].location) {
+    ++right;
+  }
+  const auto knot_count = stop_count * 2U - 1U;
+  const auto knot_position = [&](std::size_t knot) {
+    const auto stop = knot / 2U;
+    if (knot % 2U == 0U) {
+      return static_cast<double>(stops[stop].location);
+    }
+    const auto midpoint = std::clamp(static_cast<double>(stops[stop + 1U].midpoint), 0.0001, 0.9999);
+    return stops[stop].location + (static_cast<double>(stops[stop + 1U].location) - stops[stop].location) * midpoint;
+  };
+  const auto knot_value = [&](std::size_t knot) {
+    const auto stop = knot / 2U;
+    auto value = value_of(stops[stop]);
+    if (knot % 2U == 1U) {
+      const auto next = value_of(stops[stop + 1U]);
+      for (std::size_t c = 0; c < N; ++c) {
+        value[c] = (value[c] + next[c]) * 0.5;
+      }
+    }
+    return value;
+  };
+  constexpr double kMinimumSpan = 1.0e-6;
+  const auto slope = [&](std::size_t from, std::size_t to) {
+    const auto span = std::max(kMinimumSpan, knot_position(to) - knot_position(from));
+    const auto a = knot_value(from);
+    auto b = knot_value(to);
+    for (std::size_t c = 0; c < N; ++c) {
+      b[c] = (b[c] - a[c]) / span;
+    }
+    return b;
+  };
+  const auto tangent = [&](std::size_t knot) {
+    if (knot == 0U || knot + 1U == knot_count) {
+      auto end = knot == 0U ? slope(0U, 1U) : slope(knot - 1U, knot);
+      const bool at_gradient_end = knot == 0U ? knot_position(knot) <= 0.0 : knot_position(knot) >= 1.0;
+      for (auto& channel : end) {
+        channel *= at_gradient_end ? 0.6 : 0.4;
+      }
+      return end;
+    }
+    return slope(knot - 1U, knot + 1U);
+  };
+  auto first = (right - 1U) * 2U;
+  if (position >= knot_position(first + 1U)) {
+    ++first;
+  }
+  const auto start = knot_position(first);
+  const auto span = knot_position(first + 1U) - start;
+  const auto from = knot_value(first);
+  const auto to = knot_value(first + 1U);
+  if (span < kMinimumSpan) {
+    return to;
+  }
+  const auto t = std::clamp((static_cast<double>(position) - start) / span, 0.0, 1.0);
+  const auto t2 = t * t;
+  const auto t3 = t2 * t;
+  const auto from_tangent = tangent(first);
+  const auto to_tangent = tangent(first + 1U);
+  std::array<double, N> result{};
+  for (std::size_t c = 0; c < N; ++c) {
+    const auto value = (2.0 * t3 - 3.0 * t2 + 1.0) * from[c] + (t3 - 2.0 * t2 + t) * span * from_tangent[c] +
+                       (-2.0 * t3 + 3.0 * t2) * to[c] + (t3 - t2) * span * to_tangent[c];
+    result[c] = std::clamp(value, std::min(from[c], to[c]), std::max(from[c], to[c]));
+  }
+  return result;
+}
+
+std::array<double, 3> smooth_gradient_oklab(const std::vector<GradientColorStop>& stops, float position) {
+  return smooth_gradient_sample<3>(stops, position, [](const GradientColorStop& stop) {
+    const auto lab = rgb_to_oklab(stop.color);
+    return std::array<double, 3>{lab.l, lab.a, lab.b};
+  });
+}
+
+// The Stripes method: each stop's color (or opacity) holds, unchanged, up to the next stop.
+// `position` lies strictly between the first and last stop.
+template <class Stops>
+const auto& stripes_gradient_stop(const Stops& stops, float position) {
+  std::size_t index = 0;
+  while (index + 2U < stops.size() && position >= stops[index + 1U].location) {
+    ++index;
+  }
+  return stops[index];
+}
+
 // Clean-room noise gradient model, fitted black-box to the rendered output of
 // 16-bit Photoshop 2026 noise Gradient Fills; no Photoshop code was inspected
 // or disassembled (docs/gradients.md "Noise gradients"). Each
@@ -1003,6 +1114,15 @@ float gradient_stop_opacity(const LayerStyleGradient& gradient, float position,
   if (position >= stops.back().location) {
     return stops.back().opacity;
   }
+  if (gradient.interpolation == GradientInterpolationMethod::Stripes) {
+    return stripes_gradient_stop(stops, position).opacity;
+  }
+  if (gradient.interpolation == GradientInterpolationMethod::Smooth) {
+    const auto opacity = smooth_gradient_sample<1>(stops, position, [](const GradientAlphaStop& stop) {
+      return std::array<double, 1>{stop.opacity};
+    });
+    return std::clamp(static_cast<float>(opacity[0]), 0.0F, 1.0F);
+  }
   for (std::size_t index = 1; index < stops.size(); ++index) {
     const auto& right = stops[index];
     const auto& left = stops[index - 1U];
@@ -1083,6 +1203,15 @@ RgbColor gradient_color(const LayerStyleGradient& gradient, float position,
   }
   if (position >= stops.back().location) {
     return stops.back().color;
+  }
+  if (gradient.interpolation == GradientInterpolationMethod::Stripes) {
+    return stripes_gradient_stop(stops, position).color;
+  }
+  if (gradient.interpolation == GradientInterpolationMethod::Smooth) {
+    const auto rgb = oklab_to_linear_rgb(smooth_gradient_oklab(stops, position));
+    return RgbColor{clamp_byte(static_cast<float>(linear_to_srgb(rgb[0]) * 255.0)),
+                    clamp_byte(static_cast<float>(linear_to_srgb(rgb[1]) * 255.0)),
+                    clamp_byte(static_cast<float>(linear_to_srgb(rgb[2]) * 255.0))};
   }
   for (std::size_t index = 1; index < stops.size(); ++index) {
     const auto& right = stops[index];
@@ -1168,6 +1297,16 @@ std::array<double, 3> gradient_color_precise(const LayerStyleGradient& gradient,
   }
   if (position >= stops.back().location) {
     return as_output(stops.back().color);
+  }
+  if (gradient.interpolation == GradientInterpolationMethod::Stripes) {
+    return as_output(stripes_gradient_stop(stops, position).color);
+  }
+  if (gradient.interpolation == GradientInterpolationMethod::Smooth) {
+    auto rgb = oklab_to_linear_rgb(smooth_gradient_oklab(stops, position));
+    for (auto& channel : rgb) {
+      channel = (linear_light ? std::clamp(channel, 0.0, 1.0) : linear_to_srgb(channel)) * 255.0;
+    }
+    return rgb;
   }
   for (std::size_t index = 1; index < stops.size(); ++index) {
     const auto& right = stops[index];

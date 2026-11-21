@@ -24,7 +24,7 @@ int choice(const QJsonObject& obj, const QString& key, const QStringList& values
   return i;
 }
 const QStringList gradient_types{"linear", "radial", "angle", "reflected", "diamond"};
-const QStringList interpolations{"classic", "perceptual", "linear"};
+const QStringList interpolations{"classic", "perceptual", "linear", "smooth", "stripes"};
 QJsonObject gradient_json(const LayerStyleGradient& g) {
   QJsonArray colors, alpha, minimum, maximum;
   for (const auto& s : g.color_stops) { colors.append(QJsonObject{{"position", s.location}, {"color", color_json(s.color)}, {"midpoint", s.midpoint},

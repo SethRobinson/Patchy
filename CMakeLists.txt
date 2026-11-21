@@ -2664,6 +2664,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/stylize_render_filters_tests.cpp
     tests/core/smart_objects_warp_tests.cpp
     tests/core/stroke_mask_effects_tests.cpp
+    tests/core/layer_style_noise_methods_tests.cpp
     tests/core/pdf_tests.cpp
     tests/core/pdf_hidden_text_tests.cpp
     tests/core/artboard_tests.cpp

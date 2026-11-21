@@ -2363,8 +2363,11 @@ void ui_layer_style_outer_glow_technique_and_range_map_to_settings() {
     categories->setCurrentItem(glow_items.front());
     QApplication::processEvents();
     CHECK(!range->visibleRegion().isEmpty());
+    // A gradient glow opens on Fill: Gradient, its solid color row hidden.
     auto* solid_color = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleOuterGlowColorPreview"));
-    CHECK(solid_color != nullptr && !solid_color->isEnabled());
+    auto* fill = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleOuterGlowFillCombo"));
+    CHECK(solid_color != nullptr && !solid_color->isVisible());
+    CHECK(fill != nullptr && fill->currentData().toBool());
     technique->setCurrentIndex(
         std::max(0, technique->findData(static_cast<int>(patchy::LayerGlowTechnique::Softer))));
     range->setValue(25);
@@ -2682,6 +2685,270 @@ void ui_layer_style_pattern_overlay_controls_map_to_settings() {
   CHECK(result.angle_degrees == 15.0F);
   CHECK(std::abs(result.scale - 2.5F) < 0.001F);
   CHECK(!result.link_with_layer);
+}
+
+// GitHub issue 742: Quality > Noise on the two shadows and the two glows loads from the style
+// and maps back to it.
+void ui_layer_style_noise_controls_map_to_settings() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Noisy",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerDropShadow drop;
+  drop.enabled = true;
+  drop.noise = 20.0F;
+  layer.layer_style().drop_shadows.push_back(drop);
+  patchy::LayerInnerShadow inner;
+  inner.enabled = true;
+  inner.noise = 30.0F;
+  layer.layer_style().inner_shadows.push_back(inner);
+  patchy::LayerOuterGlow outer_glow;
+  outer_glow.enabled = true;
+  outer_glow.noise = 40.0F;
+  layer.layer_style().outer_glows.push_back(outer_glow);
+  patchy::LayerInnerGlow inner_glow;
+  inner_glow.enabled = true;
+  layer.layer_style().inner_glows.push_back(inner_glow);
+
+  int previews = 0;
+  QTimer::singleShot(0, guarded([] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* drop_noise = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowNoiseSpin"));
+    auto* inner_noise = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleInnerShadowNoiseSpin"));
+    auto* outer_glow_noise = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOuterGlowNoiseSpin"));
+    auto* inner_glow_noise = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleInnerGlowNoiseSpin"));
+    CHECK(drop_noise != nullptr && inner_noise != nullptr && outer_glow_noise != nullptr &&
+          inner_glow_noise != nullptr);
+    CHECK(drop_noise->value() == 20);
+    CHECK(inner_noise->value() == 30);
+    CHECK(outer_glow_noise->value() == 40);
+    CHECK(inner_glow_noise->value() == 0);
+    CHECK(drop_noise->minimum() == 0 && drop_noise->maximum() == 100);
+    // Each field sits beside a slider like the other percent rows.
+    CHECK(dialog->findChild<QSlider*>(QStringLiteral("layerStyleDropShadowNoiseSlider")) != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    CHECK(categories != nullptr);
+    // Selecting a page loads its stored values, so each page is edited while it is current.
+    const auto edit = [&](const QString& category, QSpinBox* field, int value) {
+      const auto items = categories->findItems(category, Qt::MatchExactly);
+      CHECK(!items.empty());
+      categories->setCurrentItem(items.front());
+      QApplication::processEvents();
+      CHECK(field->isVisible());
+      field->setValue(value);
+      QApplication::processEvents();
+    };
+    edit(QStringLiteral("Inner Shadow"), inner_noise, 0);
+    edit(QStringLiteral("Outer Glow"), outer_glow_noise, 100);
+    edit(QStringLiteral("Inner Glow"), inner_glow_noise, 7);
+    edit(QStringLiteral("Drop Shadow"), drop_noise, 55);
+    save_widget_artifact("issue742_drop_shadow_noise", *dialog);
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  }));
+
+  const auto settings =
+      patchy::ui::request_layer_style_settings(nullptr, layer, [&](const patchy::ui::LayerStyleSettings&) { ++previews; });
+  CHECK(settings.has_value());
+  CHECK(settings->style.drop_shadows.size() == 1 && settings->style.drop_shadows.front().noise == 55.0F);
+  CHECK(settings->style.inner_shadows.size() == 1 && settings->style.inner_shadows.front().noise == 0.0F);
+  CHECK(settings->style.outer_glows.size() == 1 && settings->style.outer_glows.front().noise == 100.0F);
+  CHECK(settings->style.inner_glows.size() == 1 && settings->style.inner_glows.front().noise == 7.0F);
+  CHECK(previews >= 1);
+}
+
+// GitHub issue 742: Horizontal and Vertical Offset on Pattern Overlay and Bevel Texture edit
+// the effects' phase. A phase the fields cannot show exactly stays as it is until its field
+// changes, and Snap to Origin clears both.
+void ui_layer_style_pattern_offsets_map_to_settings() {
+  const auto make_layer = [](patchy::Document& document) {
+    patchy::Layer layer(document.allocate_layer_id(), "Patterned",
+                        solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+    patchy::LayerPatternOverlay overlay;
+    overlay.enabled = true;
+    overlay.pattern_id = patchy::builtin_pattern_presets()[9].id;
+    overlay.pattern_name = patchy::builtin_pattern_presets()[9].english_name;
+    overlay.phase_x = 12.25F;
+    overlay.phase_y = -3000.0F;
+    layer.layer_style().pattern_overlays.push_back(overlay);
+    patchy::LayerBevelEmboss bevel;
+    bevel.enabled = true;
+    bevel.texture.enabled = true;
+    bevel.texture.pattern_id = patchy::builtin_pattern_presets()[9].id;
+    bevel.texture.pattern_name = patchy::builtin_pattern_presets()[9].english_name;
+    bevel.texture.phase_x = 4.0F;
+    bevel.texture.phase_y = 6.5F;
+    layer.layer_style().bevels.push_back(bevel);
+    return layer;
+  };
+  const auto find_fields = [](QDialog* dialog) {
+    struct Fields {
+      QSpinBox* overlay_x;
+      QSpinBox* overlay_y;
+      QSpinBox* texture_x;
+      QSpinBox* texture_y;
+    };
+    return Fields{dialog->findChild<QSpinBox*>(QStringLiteral("layerStylePatternOverlayOffsetXSpin")),
+                  dialog->findChild<QSpinBox*>(QStringLiteral("layerStylePatternOverlayOffsetYSpin")),
+                  dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBevelTextureOffsetXSpin")),
+                  dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBevelTextureOffsetYSpin"))};
+  };
+
+  {
+    patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+    auto layer = make_layer(document);
+    QTimer::singleShot(0, guarded([&] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+      CHECK(dialog != nullptr);
+      const auto fields = find_fields(dialog);
+      CHECK(fields.overlay_x != nullptr && fields.overlay_y != nullptr && fields.texture_x != nullptr &&
+            fields.texture_y != nullptr);
+      auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+      CHECK(categories != nullptr);
+      const auto overlay_items = categories->findItems(QStringLiteral("Pattern Overlay"), Qt::MatchExactly);
+      CHECK(!overlay_items.empty());
+      categories->setCurrentItem(overlay_items.front());
+      QApplication::processEvents();
+      CHECK(fields.overlay_x->isVisible() && fields.overlay_y->isVisible());
+      CHECK(fields.overlay_x->value() == 12);
+      CHECK(fields.overlay_y->value() == fields.overlay_y->minimum());
+      fields.overlay_x->setValue(40);
+      QApplication::processEvents();
+      save_widget_artifact("issue742_pattern_overlay_offsets", *dialog);
+      const auto texture_items = categories->findItems(QStringLiteral("Texture"), Qt::MatchContains);
+      CHECK(!texture_items.empty());
+      categories->setCurrentItem(texture_items.front());
+      QApplication::processEvents();
+      CHECK(fields.texture_x->isVisible() && fields.texture_y->isVisible());
+      CHECK(fields.texture_x->value() == 4);
+      CHECK(fields.texture_y->value() == 7);
+      fields.texture_y->setValue(-9);
+      QApplication::processEvents();
+      save_widget_artifact("issue742_bevel_texture_offsets", *dialog);
+      QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+    }));
+    const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+    CHECK(settings.has_value());
+    CHECK(settings->style.pattern_overlays.size() == 1);
+    CHECK(settings->style.pattern_overlays.front().phase_x == 40.0F);
+    // Untouched fields keep the stored phase, out of range and fractional included.
+    CHECK(settings->style.pattern_overlays.front().phase_y == -3000.0F);
+    CHECK(settings->style.bevels.size() == 1);
+    CHECK(settings->style.bevels.front().texture.phase_x == 4.0F);
+    CHECK(settings->style.bevels.front().texture.phase_y == -9.0F);
+  }
+  {
+    patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+    auto layer = make_layer(document);
+    QTimer::singleShot(0, guarded([&] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+      CHECK(dialog != nullptr);
+      const auto fields = find_fields(dialog);
+      auto* overlay_snap = dialog->findChild<QPushButton*>(QStringLiteral("layerStylePatternOverlaySnapOriginButton"));
+      auto* texture_snap = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleBevelTextureSnapOriginButton"));
+      auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+      CHECK(overlay_snap != nullptr && texture_snap != nullptr && categories != nullptr);
+      const auto overlay_items = categories->findItems(QStringLiteral("Pattern Overlay"), Qt::MatchExactly);
+      const auto texture_items = categories->findItems(QStringLiteral("Texture"), Qt::MatchContains);
+      CHECK(!overlay_items.empty() && !texture_items.empty());
+      categories->setCurrentItem(overlay_items.front());
+      QApplication::processEvents();
+      overlay_snap->click();
+      CHECK(fields.overlay_x->value() == 0 && fields.overlay_y->value() == 0);
+      categories->setCurrentItem(texture_items.front());
+      QApplication::processEvents();
+      texture_snap->click();
+      CHECK(fields.texture_x->value() == 0 && fields.texture_y->value() == 0);
+      QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+    }));
+    const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+    CHECK(settings.has_value());
+    CHECK(settings->style.pattern_overlays.front().phase_x == 0.0F);
+    CHECK(settings->style.pattern_overlays.front().phase_y == 0.0F);
+    CHECK(settings->style.bevels.front().texture.phase_x == 0.0F);
+    CHECK(settings->style.bevels.front().texture.phase_y == 0.0F);
+  }
+}
+
+// GitHub issue 742: an Outer Glow's Fill switches between its solid color and an editable
+// gradient, and the gradient editor offers the two new methods.
+void ui_layer_style_outer_glow_fill_switches_between_color_and_gradient() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Glow",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.color = patchy::RgbColor{250, 120, 10};
+  layer.layer_style().outer_glows.push_back(glow);
+
+  QTimer::singleShot(0, guarded([] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* fill = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleOuterGlowFillCombo"));
+    auto* group = dialog->findChild<QGroupBox*>(QStringLiteral("layerStyleOuterGlowGradientGroup"));
+    auto* solid_color = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleOuterGlowColorPreview"));
+    auto* method = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleOuterGlowGradientInterpolationCombo"));
+    auto* angle = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOuterGlowGradientAngleSpin"));
+    CHECK(categories != nullptr && fill != nullptr && group != nullptr && solid_color != nullptr && method != nullptr);
+    const auto glow_items = categories->findItems(QStringLiteral("Outer Glow"), Qt::MatchExactly);
+    CHECK(!glow_items.empty());
+    categories->setCurrentItem(glow_items.front());
+    QApplication::processEvents();
+    // A solid glow opens on Color with the gradient editor hidden.
+    CHECK(!fill->currentData().toBool());
+    CHECK(solid_color->isVisible());
+    CHECK(!group->isVisible());
+    fill->setCurrentIndex(fill->findData(true));
+    QApplication::processEvents();
+    CHECK(group->isVisible());
+    CHECK(!solid_color->isVisible());
+    // A glow has no angle: the placement rows stay hidden, the Method stays.
+    CHECK(angle == nullptr || !angle->isVisible());
+    CHECK(method->isVisible());
+    CHECK(method->findData(static_cast<int>(patchy::GradientInterpolationMethod::Smooth)) >= 0);
+    CHECK(method->findData(static_cast<int>(patchy::GradientInterpolationMethod::Stripes)) >= 0);
+    method->setCurrentIndex(method->findData(static_cast<int>(patchy::GradientInterpolationMethod::Stripes)));
+    QApplication::processEvents();
+    save_widget_artifact("issue742_outer_glow_gradient", *dialog);
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  }));
+  const auto with_gradient = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(with_gradient.has_value());
+  CHECK(with_gradient->style.outer_glows.size() == 1);
+  const auto& gradient_glow = with_gradient->style.outer_glows.front();
+  CHECK(gradient_glow.gradient.has_value());
+  CHECK(gradient_glow.gradient->interpolation == patchy::GradientInterpolationMethod::Stripes);
+  // The gradient starts from the glow's color, fading out.
+  CHECK(gradient_glow.gradient->color_stops.size() == 2);
+  CHECK(gradient_glow.gradient->color_stops.front().color.red == 250 &&
+        gradient_glow.gradient->color_stops.front().color.green == 120 &&
+        gradient_glow.gradient->color_stops.front().color.blue == 10);
+  CHECK(gradient_glow.gradient->alpha_stops.size() == 2);
+  CHECK(gradient_glow.gradient->alpha_stops.front().opacity == 1.0F);
+  CHECK(gradient_glow.gradient->alpha_stops.back().opacity == 0.0F);
+
+  // Back to Color: the gradient goes and the solid color returns.
+  layer.layer_style() = with_gradient->style;
+  QTimer::singleShot(0, guarded([] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* fill = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleOuterGlowFillCombo"));
+    CHECK(categories != nullptr && fill != nullptr);
+    const auto glow_items = categories->findItems(QStringLiteral("Outer Glow"), Qt::MatchExactly);
+    CHECK(!glow_items.empty());
+    categories->setCurrentItem(glow_items.front());
+    QApplication::processEvents();
+    CHECK(fill->currentData().toBool());
+    fill->setCurrentIndex(fill->findData(false));
+    QApplication::processEvents();
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  }));
+  const auto solid_again = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(solid_again.has_value());
+  CHECK(solid_again->style.outer_glows.size() == 1);
+  CHECK(!solid_again->style.outer_glows.front().gradient.has_value());
+  CHECK(solid_again->style.outer_glows.front().color.red == 250);
 }
 
 void ui_layer_style_slider_rows_have_step_buttons() {
@@ -4235,6 +4502,10 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
        ui_layer_style_bevel_texture_missing_pattern_presents_unchecked},
       {"ui_layer_style_pattern_overlay_controls_map_to_settings",
        ui_layer_style_pattern_overlay_controls_map_to_settings},
+      {"ui_layer_style_noise_controls_map_to_settings", ui_layer_style_noise_controls_map_to_settings},
+      {"ui_layer_style_pattern_offsets_map_to_settings", ui_layer_style_pattern_offsets_map_to_settings},
+      {"ui_layer_style_outer_glow_fill_switches_between_color_and_gradient",
+       ui_layer_style_outer_glow_fill_switches_between_color_and_gradient},
       {"ui_layer_style_blending_options_round_trip_channel_restrictions",
        ui_layer_style_blending_options_round_trip_channel_restrictions},
       {"ui_layer_style_channel_checkboxes_disabled_for_unsupported_payload",

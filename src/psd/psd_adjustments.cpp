@@ -640,10 +640,12 @@ std::vector<std::uint8_t> photoshop_photo_filter_payload(const PhotoFilterAdjust
 // (0..100), u16 color space, four u16 components, u16 pad; u16 opacity stop count
 // and per stop u32 location, u32 midpoint, u16 opacity (0..255); then u16 2, u16 smoothness
 // (0..4096) and the noise fields, padded to four bytes.
-constexpr std::array<std::pair<GradientInterpolationMethod, std::array<char, 4>>, 3> kGradientMapMethodKeys{{
+constexpr std::array<std::pair<GradientInterpolationMethod, std::array<char, 4>>, 5> kGradientMapMethodKeys{{
     {GradientInterpolationMethod::Classic, {'G', 'c', 'l', 's'}},
     {GradientInterpolationMethod::Linear, {'L', 'n', 'r', ' '}},
     {GradientInterpolationMethod::Perceptual, {'P', 'e', 'r', 'c'}},
+    {GradientInterpolationMethod::Smooth, {'S', 'm', 'o', 'o'}},
+    {GradientInterpolationMethod::Stripes, {'G', 'I', 'M', 's'}},
 }};
 
 struct ParsedGradientMap {

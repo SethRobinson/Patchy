@@ -5,6 +5,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/pattern_sampler.hpp"
+#include "core/splitmix64.hpp"
 #include "core/style_contour.hpp"
 #include "render/layer_render_types.hpp"
 
@@ -207,6 +208,23 @@ void blur_satin_tent_mask_in_place(std::vector<float>& mask, int width, int heig
 // their requested opacity at 12% coverage of the unscaled exterior matte.
 inline float exterior_glow_opacity(float requested, float coverage) {
   return std::min(requested, coverage / 0.12F);
+}
+
+// Quality > Noise of a shadow or glow (descriptor 'Nose'; GitHub issue 742, calibration in
+// docs/layer-effects-render-shadows-glows.md, "Noise"): each pixel offsets the effect's
+// coverage by noise x v before Opacity and clamps to 0..1, with v spread evenly over -1..1
+// in 256 steps. v depends only on the pixel's document position, so a strip, a tile and a
+// whole render agree and the pattern stays put when the layer moves. Zero coverage stays
+// zero. Patchy's own splitmix64 pattern: Photoshop's statistics, not its pixels.
+[[nodiscard]] inline float effect_noise_coverage(float coverage, float noise_percent, std::int32_t x,
+                                                 std::int32_t y) noexcept {
+  if (noise_percent <= 0.0F || coverage <= 0.0F) {
+    return coverage;
+  }
+  const auto hash = splitmix64((static_cast<std::uint64_t>(static_cast<std::uint32_t>(y)) << 32U) |
+                               static_cast<std::uint64_t>(static_cast<std::uint32_t>(x)));
+  const auto offset = (static_cast<float>(hash >> 56U) - 127.5F) / 127.5F;
+  return std::clamp(coverage + offset * std::min(noise_percent, 100.0F) / 100.0F, 0.0F, 1.0F);
 }
 
 void apply_effect_contour(std::vector<float>& mask, int width, const StyleContour& contour, bool anti_aliased,

@@ -315,7 +315,7 @@ std::optional<LayerStyleGradient> parse_gradient_map(std::string_view encoded) {
     return std::nullopt;
   }
   LayerStyleGradient gradient = GradientMapAdjustment::default_gradient_map_gradient();
-  gradient.interpolation = static_cast<GradientInterpolationMethod>(std::clamp(head[0], 0, 2));
+  gradient.interpolation = static_cast<GradientInterpolationMethod>(std::clamp(head[0], 0, 4));
   gradient.reverse = head[1] != 0;
   gradient.dither = head[2] != 0;
   gradient.smoothness = static_cast<std::uint16_t>(std::clamp(head[3], 0, 4096));

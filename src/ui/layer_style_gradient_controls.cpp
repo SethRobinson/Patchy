@@ -349,6 +349,12 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
     state->interpolation->addItem(
         QObject::tr("Linear", "gradient interpolation"),
         static_cast<int>(GradientInterpolationMethod::Linear));
+    state->interpolation->addItem(
+        QObject::tr("Smooth", "gradient interpolation"),
+        static_cast<int>(GradientInterpolationMethod::Smooth));
+    state->interpolation->addItem(
+        QObject::tr("Stripes", "gradient interpolation"),
+        static_cast<int>(GradientInterpolationMethod::Stripes));
     form->addRow(QObject::tr("Method:"), state->interpolation);
     state->style_combo = new QComboBox(parent_widget);
     state->style_combo->setObjectName(object_prefix +

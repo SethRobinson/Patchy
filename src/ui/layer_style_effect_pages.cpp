@@ -17,9 +17,26 @@
 #include <QVBoxLayout>
 #include <algorithm>
 #include <cmath>
+#include <initializer_list>
 #include <utility>
 namespace patchy::ui::layer_style_detail {
 namespace {
+// Pattern offsets (the effects' phase, in document pixels; GitHub issue 742). The field covers
+// this range; a stored phase outside it, or a fractional one, stays as it is until the field
+// is changed (pattern_offset_value in layer_style_dialog.cpp).
+constexpr int kPatternOffsetMaximum = 2000;
+
+int pattern_offset_field_value(float phase) {
+  return std::clamp(static_cast<int>(std::lround(phase)), -kPatternOffsetMaximum, kPatternOffsetMaximum);
+}
+
+// Quality > Noise, shared by the two shadows and the two glows.
+QSpinBox* add_noise_row(QFormLayout* form, QWidget* parent, const QString& object_prefix, float noise) {
+  auto* spin = add_slider_spin_row(form, parent, QObject::tr("Noise:"), object_prefix + QStringLiteral("NoiseSpin"), 0,
+                                   100, std::clamp(static_cast<int>(std::lround(noise)), 0, 100), QStringLiteral("%"));
+  spin->setToolTip(QObject::tr("Break the effect up into grain"));
+  return spin;
+}
 // Photoshop's Drop/Inner Shadow Distance maximum.
 constexpr int kShadowDistanceMaximum = 30000;
 
@@ -205,13 +222,21 @@ BevelTexturePageControls build_bevel_texture_page(LayerStylePageContext& context
   bevel_texture_link->setToolTip(
       QObject::tr("Anchor the pattern to the layer so it follows when the layer moves"));
   bevel_texture_form->addRow(QString(), bevel_texture_link);
+  auto* bevel_texture_offset_x = add_slider_spin_row(
+      bevel_texture_form, bevel_texture_group, QObject::tr("Horizontal Offset:"),
+      QStringLiteral("layerStyleBevelTextureOffsetXSpin"), -kPatternOffsetMaximum, kPatternOffsetMaximum,
+      pattern_offset_field_value(bevel.texture.phase_x));
+  auto* bevel_texture_offset_y = add_slider_spin_row(
+      bevel_texture_form, bevel_texture_group, QObject::tr("Vertical Offset:"),
+      QStringLiteral("layerStyleBevelTextureOffsetYSpin"), -kPatternOffsetMaximum, kPatternOffsetMaximum,
+      pattern_offset_field_value(bevel.texture.phase_y));
   auto* bevel_texture_snap = new QPushButton(QObject::tr("Snap to Origin"), bevel_texture_group);
   bevel_texture_snap->setObjectName(QStringLiteral("layerStyleBevelTextureSnapOriginButton"));
   bevel_texture_form->addRow(QString(), bevel_texture_snap);
   bevel_texture_layout->addWidget(bevel_texture_group);
   bevel_texture_layout->addStretch(1);
 
-  return {bevel_texture_pattern, bevel_texture_manage, bevel_texture_scale, bevel_texture_depth, bevel_texture_invert, bevel_texture_link, bevel_texture_snap};
+  return {bevel_texture_pattern, bevel_texture_manage, bevel_texture_scale, bevel_texture_depth, bevel_texture_invert, bevel_texture_link, bevel_texture_snap, bevel_texture_offset_x, bevel_texture_offset_y};
 }
 
 PatternOverlayPageControls build_pattern_overlay_page(LayerStylePageContext& context, QVBoxLayout* pattern_overlay_layout, const LayerPatternOverlay& pattern_overlay) {
@@ -256,13 +281,21 @@ PatternOverlayPageControls build_pattern_overlay_page(LayerStylePageContext& con
   pattern_overlay_link->setToolTip(
       QObject::tr("Anchor the pattern to the layer so it follows when the layer moves"));
   pattern_overlay_form->addRow(QString(), pattern_overlay_link);
+  auto* pattern_overlay_offset_x = add_slider_spin_row(
+      pattern_overlay_form, pattern_overlay_group, QObject::tr("Horizontal Offset:"),
+      QStringLiteral("layerStylePatternOverlayOffsetXSpin"), -kPatternOffsetMaximum, kPatternOffsetMaximum,
+      pattern_offset_field_value(pattern_overlay.phase_x));
+  auto* pattern_overlay_offset_y = add_slider_spin_row(
+      pattern_overlay_form, pattern_overlay_group, QObject::tr("Vertical Offset:"),
+      QStringLiteral("layerStylePatternOverlayOffsetYSpin"), -kPatternOffsetMaximum, kPatternOffsetMaximum,
+      pattern_offset_field_value(pattern_overlay.phase_y));
   auto* pattern_overlay_snap = new QPushButton(QObject::tr("Snap to Origin"), pattern_overlay_group);
   pattern_overlay_snap->setObjectName(QStringLiteral("layerStylePatternOverlaySnapOriginButton"));
   pattern_overlay_form->addRow(QString(), pattern_overlay_snap);
   pattern_overlay_layout->addWidget(pattern_overlay_group);
   pattern_overlay_layout->addStretch(1);
 
-  return {pattern_overlay_blend, pattern_overlay_opacity, pattern_overlay_pattern, pattern_overlay_manage, pattern_overlay_angle, pattern_overlay_scale, pattern_overlay_link, pattern_overlay_snap};
+  return {pattern_overlay_blend, pattern_overlay_opacity, pattern_overlay_pattern, pattern_overlay_manage, pattern_overlay_angle, pattern_overlay_scale, pattern_overlay_link, pattern_overlay_snap, pattern_overlay_offset_x, pattern_overlay_offset_y};
 }
 
 StrokePageControls build_stroke_page(LayerStylePageContext& context, QVBoxLayout* stroke_layout, const LayerStroke& stroke) {
@@ -382,6 +415,8 @@ InnerShadowPageControls build_inner_shadow_page(LayerStylePageContext& context, 
                           static_cast<int>(std::round(inner_shadow.choke)), QStringLiteral("%"));
   const auto [contour, anti_aliased] = add_contour_row(context, inner_shadow_form, QStringLiteral("layerStyleInnerShadow"),
                                                         inner_shadow.contour, inner_shadow.anti_aliased);
+  auto* noise = add_noise_row(inner_shadow_form, inner_shadow_group, QStringLiteral("layerStyleInnerShadow"),
+                              inner_shadow.noise);
   const auto inner_shadow_rows = make_color_rows(
       inner_shadow_form, inner_shadow_group, QStringLiteral("layerStyleInnerShadow"), inner_shadow.color);
   auto* inner_shadow_red = inner_shadow_rows.red;
@@ -405,7 +440,7 @@ InnerShadowPageControls build_inner_shadow_page(LayerStylePageContext& context, 
   inner_shadow_layout->addWidget(inner_shadow_group);
   inner_shadow_layout->addStretch(1);
 
-  return {inner_shadow_blend, inner_shadow_opacity, inner_shadow_angle, inner_shadow_distance, inner_shadow_size, inner_shadow_choke, inner_shadow_rows, inner_shadow_red, inner_shadow_green, inner_shadow_blue, add_inner_shadow, remove_inner_shadow, contour, anti_aliased};
+  return {inner_shadow_blend, inner_shadow_opacity, inner_shadow_angle, inner_shadow_distance, inner_shadow_size, inner_shadow_choke, inner_shadow_rows, inner_shadow_red, inner_shadow_green, inner_shadow_blue, add_inner_shadow, remove_inner_shadow, contour, anti_aliased, noise};
 }
 
 InnerGlowPageControls build_inner_glow_page(LayerStylePageContext& context, QVBoxLayout* inner_glow_layout, const LayerInnerGlow& inner_glow) {
@@ -446,6 +481,8 @@ InnerGlowPageControls build_inner_glow_page(LayerStylePageContext& context, QVBo
   inner_glow_form->addRow(QObject::tr("Source:"), inner_glow_source.row);
   const auto [contour, anti_aliased] = add_contour_row(context, inner_glow_form, QStringLiteral("layerStyleInnerGlow"),
                                                         inner_glow.contour, inner_glow.anti_aliased);
+  auto* noise = add_noise_row(inner_glow_form, inner_glow_group, QStringLiteral("layerStyleInnerGlow"),
+                              inner_glow.noise);
   const auto inner_glow_rows = make_color_rows(inner_glow_form, inner_glow_group,
                                                QStringLiteral("layerStyleInnerGlow"), inner_glow.color);
   auto* inner_glow_red = inner_glow_rows.red;
@@ -469,7 +506,7 @@ InnerGlowPageControls build_inner_glow_page(LayerStylePageContext& context, QVBo
   inner_glow_layout->addWidget(inner_glow_group);
   inner_glow_layout->addStretch(1);
 
-  return {inner_glow_blend, inner_glow_technique, inner_glow_opacity, inner_glow_size, inner_glow_choke, inner_glow_range, inner_glow_source, inner_glow_rows, inner_glow_red, inner_glow_green, inner_glow_blue, add_inner_glow, remove_inner_glow, contour, anti_aliased};
+  return {inner_glow_blend, inner_glow_technique, inner_glow_opacity, inner_glow_size, inner_glow_choke, inner_glow_range, inner_glow_source, inner_glow_rows, inner_glow_red, inner_glow_green, inner_glow_blue, add_inner_glow, remove_inner_glow, contour, anti_aliased, noise};
 }
 
 SatinPageControls build_satin_page(LayerStylePageContext& context, QVBoxLayout* satin_layout, const LayerSatin& satin) {
@@ -560,7 +597,15 @@ GradientPageControls build_gradient_page(LayerStylePageContext& context, QVBoxLa
   return {gradient_blend, gradient_opacity, std::move(gradient_controls)};
 }
 
+LayerStyleGradient outer_glow_gradient_from_color(RgbColor color) {
+  LayerStyleGradient gradient;
+  gradient.color_stops = {GradientColorStop{0.0F, color}, GradientColorStop{1.0F, color}};
+  gradient.alpha_stops = {GradientAlphaStop{0.0F, 1.0F}, GradientAlphaStop{1.0F, 0.0F}};
+  return gradient;
+}
+
 OuterGlowPageControls build_outer_glow_page(LayerStylePageContext& context, QVBoxLayout* outer_glow_layout, const LayerOuterGlow& outer_glow) {
+  auto& dialog = context.dialog;
   auto& controls = context.controls;
   auto* outer_glow_group = new QGroupBox(page_title(QObject::tr("Outer Glow")), controls);
   auto* outer_glow_form = new QFormLayout(outer_glow_group);
@@ -593,15 +638,77 @@ OuterGlowPageControls build_outer_glow_page(LayerStylePageContext& context, QVBo
                                                QStringLiteral("%"));
   const auto [contour, anti_aliased] = add_contour_row(context, outer_glow_form, QStringLiteral("layerStyleOuterGlow"),
                                                         outer_glow.contour, outer_glow.anti_aliased);
+  auto* noise = add_noise_row(outer_glow_form, outer_glow_group, QStringLiteral("layerStyleOuterGlow"),
+                              outer_glow.noise);
+  auto* fill = new QComboBox(outer_glow_group);
+  fill->setObjectName(QStringLiteral("layerStyleOuterGlowFillCombo"));
+  fill->addItem(QObject::tr("Color"), false);
+  fill->addItem(QObject::tr("Gradient"), true);
+  fill->setCurrentIndex(outer_glow.gradient.has_value() ? 1 : 0);
+  outer_glow_form->addRow(QObject::tr("Fill:"), fill);
   const auto outer_glow_rows = make_color_rows(outer_glow_form, outer_glow_group,
                                                QStringLiteral("layerStyleOuterGlow"), outer_glow.color);
   auto* outer_glow_red = outer_glow_rows.red;
   auto* outer_glow_green = outer_glow_rows.green;
   auto* outer_glow_blue = outer_glow_rows.blue;
-  outer_glow_layout->addWidget(outer_glow_group);
-  outer_glow_layout->addStretch(1);
+  auto* gradient_group = new QGroupBox(QObject::tr("Gradient"), outer_glow_group);
+  gradient_group->setObjectName(QStringLiteral("layerStyleOuterGlowGradientGroup"));
+  auto* gradient_form = new QFormLayout(gradient_group);
+  auto gradient_controls = make_gradient_controls(
+      context.gradient_context, gradient_form, gradient_group, QStringLiteral("layerStyleOuterGlowGradient"),
+      outer_glow.gradient ? *outer_glow.gradient : outer_glow_gradient_from_color(outer_glow.color),
+      QObject::tr("Choose Gradient Stop Color"));
+  // A glow's gradient runs from the layer's edge outward: it has no style, angle, scale,
+  // offset, Reverse, Dither or Align with Layer, so those rows stay hidden.
+  const auto hide_row = [gradient_form](QWidget* widget) {
+    for (auto* candidate = widget; candidate != nullptr; candidate = candidate->parentWidget()) {
+      int row = -1;
+      QFormLayout::ItemRole role{};
+      gradient_form->getWidgetPosition(candidate, &row, &role);
+      if (row >= 0) {
+        gradient_form->setRowVisible(row, false);
+        return;
+      }
+    }
+  };
+  for (QWidget* widget : std::initializer_list<QWidget*>{gradient_controls->style_combo, gradient_controls->angle,
+                                                         gradient_controls->scale, gradient_controls->offset_x,
+                                                         gradient_controls->offset_y,
+                                                         gradient_controls->reset_alignment,
+                                                         gradient_controls->reverse}) {
+    if (widget != nullptr) {
+      hide_row(widget);
+    }
+  }
+  outer_glow_form->addRow(gradient_group);
+  auto update_fill_visibility = [fill, outer_glow_form, outer_glow_rows, gradient_group] {
+    const bool uses_gradient = fill->currentData().toBool();
+    outer_glow_form->setRowVisible(outer_glow_rows.row_container, !uses_gradient);
+    outer_glow_form->setRowVisible(gradient_group, uses_gradient);
+  };
+  // Scrolls like the Stroke page, so the gradient block does not set the dialog's height.
+  auto* outer_glow_scroll = new QScrollArea(&dialog);
+  outer_glow_scroll->setObjectName(QStringLiteral("layerStyleOuterGlowScroll"));
+  outer_glow_scroll->setWidgetResizable(true);
+  outer_glow_scroll->setFrameShape(QFrame::NoFrame);
+  outer_glow_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  set_themed_style(*outer_glow_scroll,
+                   QStringLiteral("QScrollArea#layerStyleOuterGlowScroll { background: transparent; }"
+                                  "QScrollArea#layerStyleOuterGlowScroll > QWidget > QWidget { "
+                                  "background: transparent; }"));
+  auto* outer_glow_scroll_page = new QWidget(outer_glow_scroll);
+  outer_glow_scroll_page->setObjectName(QStringLiteral("layerStyleOuterGlowScrollPage"));
+  auto* outer_glow_scroll_column = new QVBoxLayout(outer_glow_scroll_page);
+  outer_glow_scroll_column->setContentsMargins(0, 0, 6, 0);
+  outer_glow_scroll_column->addWidget(outer_glow_group);
+  outer_glow_scroll_column->addStretch(1);
+  outer_glow_scroll->setWidget(outer_glow_scroll_page);
+  outer_glow_scroll->setMinimumWidth(outer_glow_scroll_page->minimumSizeHint().width() +
+                                     outer_glow_scroll->verticalScrollBar()->sizeHint().width());
+  update_fill_visibility();
+  outer_glow_layout->addWidget(outer_glow_scroll, 1);
 
-  return {outer_glow_blend, outer_glow_technique, outer_glow_opacity, outer_glow_size, outer_glow_spread, outer_glow_range, outer_glow_rows, outer_glow_red, outer_glow_green, outer_glow_blue, contour, anti_aliased};
+  return {outer_glow_blend, outer_glow_technique, outer_glow_opacity, outer_glow_size, outer_glow_spread, outer_glow_range, outer_glow_rows, outer_glow_red, outer_glow_green, outer_glow_blue, contour, anti_aliased, noise, fill, std::move(gradient_controls), update_fill_visibility};
 }
 
 ShadowPageControls build_shadow_page(LayerStylePageContext& context, QVBoxLayout* shadow_layout, const LayerDropShadow& shadow, const StyleContour& custom_shadow_contour) {
@@ -683,6 +790,7 @@ ShadowPageControls build_shadow_page(LayerStylePageContext& context, QVBoxLayout
   shadow_anti_aliased->setChecked(shadow.anti_aliased);
   shadow_contour_layout->addWidget(shadow_anti_aliased);
   shadow_form->addRow(QObject::tr("Contour:"), shadow_contour_row);
+  auto* shadow_noise = add_noise_row(shadow_form, shadow_group, QStringLiteral("layerStyleDropShadow"), shadow.noise);
   const auto shadow_rows =
       make_color_rows(shadow_form, shadow_group, QStringLiteral("layerStyleDropShadow"), shadow.color);
   auto* shadow_red = shadow_rows.red;
@@ -691,7 +799,7 @@ ShadowPageControls build_shadow_page(LayerStylePageContext& context, QVBoxLayout
   shadow_layout->addWidget(shadow_group);
   shadow_layout->addStretch(1);
 
-  return {shadow_blend, shadow_opacity, shadow_angle, shadow_distance, shadow_size, shadow_spread, shadow_continuous, shadow_fade, sync_continuous_controls, shadow_conceals, shadow_contour, shadow_anti_aliased, shadow_rows, shadow_red, shadow_green, shadow_blue};
+  return {shadow_blend, shadow_opacity, shadow_angle, shadow_distance, shadow_size, shadow_spread, shadow_continuous, shadow_fade, sync_continuous_controls, shadow_conceals, shadow_contour, shadow_anti_aliased, shadow_rows, shadow_red, shadow_green, shadow_blue, shadow_noise};
 }
 
 }  // namespace patchy::ui::layer_style_detail

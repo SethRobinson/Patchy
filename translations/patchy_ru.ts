@@ -16555,6 +16555,20 @@ Do you want to replace it?</source>
         <source>Importing style %1 of %2...</source>
         <translation>Импорт стиля %1 из %2...</translation>
     </message>
+    <message>
+        <source>Break the effect up into grain</source>
+        <translation>Разбейте эффект на зерно.</translation>
+    </message>
+    <message>
+        <source>Smooth</source>
+        <comment>gradient interpolation</comment>
+        <translation>Плавный</translation>
+    </message>
+    <message>
+        <source>Stripes</source>
+        <comment>gradient interpolation</comment>
+        <translation>Полосы</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

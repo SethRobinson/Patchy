@@ -16443,6 +16443,20 @@ Do you want to replace it?</source>
         <source>Importing style %1 of %2...</source>
         <translation>正在导入第 %1 个样式,共 %2 个...</translation>
     </message>
+    <message>
+        <source>Break the effect up into grain</source>
+        <translation>将效果分解为颗粒</translation>
+    </message>
+    <message>
+        <source>Smooth</source>
+        <comment>gradient interpolation</comment>
+        <translation>平滑</translation>
+    </message>
+    <message>
+        <source>Stripes</source>
+        <comment>gradient interpolation</comment>
+        <translation>条纹</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
