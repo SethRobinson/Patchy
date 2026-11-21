@@ -4905,10 +4905,23 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     }
   }
 
+  // The pages that scroll on their own take their width from their rows, so they measure
+  // again after every change to the label column.
+  const auto fit_scrolling_pages = [fit_stroke = stroke_page.fit_scroll_width,
+                                    fit_outer_glow = outer_glow_page.fit_scroll_width] {
+    if (fit_stroke) {
+      fit_stroke();
+    }
+    if (fit_outer_glow) {
+      fit_outer_glow();
+    }
+  };
   align_page_label_columns(*controls);
+  fit_scrolling_pages();
   // The theme sheet reaches the labels and buttons once the dialog shows.
-  QTimer::singleShot(0, &dialog, [controls, equalize_buttons] {
+  QTimer::singleShot(0, &dialog, [controls, equalize_buttons, fit_scrolling_pages] {
     align_page_label_columns(*controls);
+    fit_scrolling_pages();
     equalize_buttons();
   });
 

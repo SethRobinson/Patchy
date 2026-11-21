@@ -4020,16 +4020,27 @@ void ui_layer_style_issue_606_layout() {
       CHECK(mask->x() > interior->x());
       CHECK(mask->y() == interior->y());
       CHECK(show->y() > mask->y());
-      // At its smallest the dialog scrolls this page, and the scroll bar's width leaves the
-      // section too narrow for two columns. (At the opening height the page fits since the
-      // default buttons moved into the pages, issue 726 follow-up, and two columns still fit.)
+      // The dialog's smallest width fits both columns even with this page's scroll bar: the
+      // pages that scroll on their own set that width from their real rows (fit_scroll_width,
+      // November 2026; it was 22 px short before). So the section itself is narrowed for the
+      // one-column arrangement.
       const auto height_before_narrow = dialog.height();
       dialog.resize(dialog.minimumWidth(), dialog.minimumHeight());
       QApplication::processEvents();
       save_image_artifact("ui_layer_style_606_blending_options_narrow", dialog.grab().toImage());
-      CHECK(mask->x() == interior->x());
-      CHECK(mask->y() > clipped->y());
       CHECK(!mask->visibleRegion().isEmpty() || mask->isVisible());
+      auto* columns = mask->parentWidget();
+      CHECK(columns != nullptr && columns == interior->parentWidget());
+      if (columns != nullptr) {
+        const auto columns_size = columns->size();
+        columns->resize(std::max(interior->sizeHint().width(), mask->sizeHint().width()) + 4,
+                        columns_size.height() * 2);
+        CHECK(mask->x() == interior->x());
+        CHECK(mask->y() > clipped->y());
+        columns->resize(columns_size);
+        CHECK(mask->x() > interior->x());
+        CHECK(mask->y() == interior->y());
+      }
       dialog.resize(dialog.minimumWidth(), height_before_narrow);
       QApplication::processEvents();
     }

@@ -373,14 +373,22 @@ StrokePageControls build_stroke_page(LayerStylePageContext& context, QVBoxLayout
   stroke_scroll_column->addWidget(stroke_group);
   stroke_scroll_column->addStretch(1);
   stroke_scroll->setWidget(stroke_scroll_page);
-  // Measured while the gradient group is still visible so the sliders keep
-  // their full width when the vertical scrollbar appears.
-  stroke_scroll->setMinimumWidth(stroke_scroll_page->minimumSizeHint().width() +
-                                 stroke_scroll->verticalScrollBar()->sizeHint().width());
-  update_stroke_fill_visibility();
+  // Measured with both Fill blocks showing so the sliders keep their full width when the
+  // gradient block and the vertical scrollbar appear. The width taken here predates the
+  // dialog's shared label column and the theme's text size, so the dialog measures again
+  // once it is shown (the Outer Glow page ran 17 px past its scroll area at 125% on macOS).
+  auto fit_scroll_width = [stroke_scroll, stroke_scroll_page, stroke_form, stroke_rows, stroke_gradient_group,
+                           update_stroke_fill_visibility] {
+    stroke_form->setRowVisible(stroke_rows.row_container, true);
+    stroke_form->setRowVisible(stroke_gradient_group, true);
+    stroke_scroll->setMinimumWidth(stroke_scroll_page->minimumSizeHint().width() +
+                                   stroke_scroll->verticalScrollBar()->sizeHint().width());
+    update_stroke_fill_visibility();
+  };
+  fit_scroll_width();
   stroke_layout->addWidget(stroke_scroll, 1);
 
-  return {stroke_size, stroke_position, stroke_blend, stroke_opacity, stroke_overprint, stroke_fill, stroke_rows, stroke_red, stroke_green, stroke_blue, std::move(stroke_gradient_controls), update_stroke_fill_visibility};
+  return {stroke_size, stroke_position, stroke_blend, stroke_opacity, stroke_overprint, stroke_fill, stroke_rows, stroke_red, stroke_green, stroke_blue, std::move(stroke_gradient_controls), update_stroke_fill_visibility, fit_scroll_width};
 }
 
 InnerShadowPageControls build_inner_shadow_page(LayerStylePageContext& context, QVBoxLayout* inner_shadow_layout, const LayerInnerShadow& inner_shadow) {
@@ -703,12 +711,18 @@ OuterGlowPageControls build_outer_glow_page(LayerStylePageContext& context, QVBo
   outer_glow_scroll_column->addWidget(outer_glow_group);
   outer_glow_scroll_column->addStretch(1);
   outer_glow_scroll->setWidget(outer_glow_scroll_page);
-  outer_glow_scroll->setMinimumWidth(outer_glow_scroll_page->minimumSizeHint().width() +
-                                     outer_glow_scroll->verticalScrollBar()->sizeHint().width());
-  update_fill_visibility();
+  auto fit_scroll_width = [outer_glow_scroll, outer_glow_scroll_page, outer_glow_form, outer_glow_rows, gradient_group,
+                           update_fill_visibility] {
+    outer_glow_form->setRowVisible(outer_glow_rows.row_container, true);
+    outer_glow_form->setRowVisible(gradient_group, true);
+    outer_glow_scroll->setMinimumWidth(outer_glow_scroll_page->minimumSizeHint().width() +
+                                       outer_glow_scroll->verticalScrollBar()->sizeHint().width());
+    update_fill_visibility();
+  };
+  fit_scroll_width();
   outer_glow_layout->addWidget(outer_glow_scroll, 1);
 
-  return {outer_glow_blend, outer_glow_technique, outer_glow_opacity, outer_glow_size, outer_glow_spread, outer_glow_range, outer_glow_rows, outer_glow_red, outer_glow_green, outer_glow_blue, contour, anti_aliased, noise, fill, std::move(gradient_controls), update_fill_visibility};
+  return {outer_glow_blend, outer_glow_technique, outer_glow_opacity, outer_glow_size, outer_glow_spread, outer_glow_range, outer_glow_rows, outer_glow_red, outer_glow_green, outer_glow_blue, contour, anti_aliased, noise, fill, std::move(gradient_controls), update_fill_visibility, fit_scroll_width};
 }
 
 ShadowPageControls build_shadow_page(LayerStylePageContext& context, QVBoxLayout* shadow_layout, const LayerDropShadow& shadow, const StyleContour& custom_shadow_contour) {

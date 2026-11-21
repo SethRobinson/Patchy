@@ -66,6 +66,15 @@ where the slider was and keep the field at the right; Bevel's Shading uses the
 angle-and-altitude dial (`add_angle_altitude_rows`) with Altitude's field under
 Angle's (GitHub issue 618).
 
+The Stroke and Outer Glow pages scroll on their own (`layerStyleStrokeScroll`,
+`layerStyleOuterGlowScroll`), so their gradient block does not set the dialog's height.
+Each sets its scroll area's minimum width from its rows with both Fill blocks counted
+(`fit_scroll_width` in its page controls). The dialog runs that again after
+`align_page_label_columns`, including the pass once it is shown: the width taken while
+the page is built predates the shared label column and the theme's text size, and the
+Outer Glow page ran 17 px past its scroll area at 125% text on macOS
+(`ui_text_size_sweep_keeps_text_fitting_en`).
+
 ## Effect defaults: Save as Default, Load Default, Restore Built-in Default
 
 Every effect page except Style Presets, Blending Options, Contour and Texture ends

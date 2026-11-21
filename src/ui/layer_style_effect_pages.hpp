@@ -91,6 +91,9 @@ struct StrokePageControls {
   QSpinBox* stroke_blue{};
   std::unique_ptr<LayerStyleGradientControls> stroke_gradient_controls{};
   std::function<void()> update_stroke_fill_visibility{};
+  // Sets the scrolling page's minimum width from its widest row, both Fill blocks counted.
+  // The dialog runs it again once the shared label column and the theme's text size are in.
+  std::function<void()> fit_scroll_width{};
 };
 StrokePageControls build_stroke_page(LayerStylePageContext& context, QVBoxLayout* stroke_layout, const LayerStroke& stroke);
 
@@ -185,6 +188,7 @@ struct OuterGlowPageControls {
   QComboBox* fill{};
   std::unique_ptr<LayerStyleGradientControls> gradient_controls{};
   std::function<void()> update_fill_visibility{};
+  std::function<void()> fit_scroll_width{};  // as StrokePageControls::fit_scroll_width
 };
 // The gradient a solid glow starts from when its Fill is switched to Gradient: its color,
 // opaque at the layer's edge and fading out.
