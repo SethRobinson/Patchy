@@ -5800,7 +5800,7 @@ void MainWindow::edit_fill_dialog() {
       return;
     }
     fill_active_layer_with_color(
-        QColor(Qt::black), tr("Fill"),
+        QColor(Qt::black), tr("Fill"),  // color-literal-ok: the pattern tile supplies the pixels
         FillCommandBlend{chosen->opacity, chosen->mode, chosen->preserve_transparency, std::move(pattern->tile)});
     return;
   }
