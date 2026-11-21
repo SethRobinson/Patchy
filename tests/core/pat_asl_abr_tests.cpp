@@ -1318,11 +1318,14 @@ void pat_attempt_budgets_include_failed_compressed_records() {
     CHECK(result->warnings[0].find("channel data could not be decoded") != std::string::npos);
     CHECK(result->warnings[1].find("total pixel limit") != std::string::npos);
 
-    // With the default budget both records are admitted (and fail in the decoder).
+    // With the default budget both records are admitted (and fail in the decoder). A 32-bit
+    // build (the web app) keeps the budget set above as its default, so it stops the second
+    // record the same way.
     const auto roomy = patchy::psd::read_pat(bytes, error);
     CHECK(roomy.has_value());
     CHECK(roomy->warnings.size() == 2U);
-    CHECK(roomy->warnings[1].find("channel data could not be decoded") != std::string::npos);
+    CHECK(roomy->warnings[1].find(patchy::psd::kLargePatternLibraries ? "channel data could not be decoded"
+                                                                      : "total pixel limit") != std::string::npos);
   }
 }
 
