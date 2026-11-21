@@ -345,7 +345,7 @@ CanvasWidget::RenderCacheDiagnostics CanvasWidget::render_cache_diagnostics() co
 bool CanvasWidget::render_settled() const noexcept {
   return !render_cache_dirty_ && !async_render_cache_in_flight_ && !move_commit_job_.has_value() &&
          !brush_realign_job_.has_value() && !move_preview_in_flight_ && !transform_base_pending_ &&
-         !transform_rest_pending_ && vector_preview_settled();
+         !transform_rest_pending_ && !transform_styled_proxy_pending_ && vector_preview_settled();
 }
 
 bool CanvasWidget::move_commit_job_pending() const noexcept {

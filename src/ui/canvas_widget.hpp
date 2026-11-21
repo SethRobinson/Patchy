@@ -3905,6 +3905,13 @@ private:
   void refresh_transform_preview_for_drag();
   [[nodiscard]] bool transform_drag_should_use_proxy_preview() const;
   void ensure_transform_proxy_image();
+  // The latched drag's picture of a styled layer: the layer alone with its mask and effects,
+  // mapped through the session delta like the multi-target snapshot. Built once per session,
+  // on a worker where the session's other renders run there; the plain proxy shows until then.
+  void request_transform_styled_proxy();
+  void finish_transform_styled_proxy(std::uint64_t generation, QImage image, QRect document_rect);
+  void drop_transform_styled_proxy() noexcept;
+  [[nodiscard]] bool transform_styled_proxy_shown() const noexcept;
   bool ensure_transform_clip_group_image();
   void draw_transform_clip_group_preview(QPainter& painter) const;
   void refresh_free_transform_preview_caches();
@@ -5609,6 +5616,13 @@ private:
   int transform_base_cache_scale_level_{0};
   QImage transform_proxy_image_{};
   double transform_proxy_layer_opacity_{1.0};
+  // Styled twin of the proxy (request_transform_styled_proxy): the image, the document rect
+  // it covers at the session's start, and the request's bookkeeping.
+  QImage transform_styled_proxy_image_{};
+  QRect transform_styled_proxy_rect_{};
+  std::uint64_t transform_styled_proxy_generation_{0};
+  bool transform_styled_proxy_pending_{false};
+  bool transform_styled_proxy_requested_{false};
   // Clip-group drag preview (GitHub #398): a single target that is a clipping
   // base with nothing visible above its run draws, per drag frame, the
   // transformed source atop-composited with the clipped members' one-time

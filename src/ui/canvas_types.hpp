@@ -557,6 +557,9 @@ struct CanvasRenderCacheDiagnostics {
   // frame ran over the live_preview_frame_latch_ms escape hatch. At most
   // once per drag.
   int transform_proxy_previews{0};
+  // Styled snapshots built for a latched free-transform drag (the layer alone with its
+  // effects). At most once per session, more after a live Layer Style edit.
+  int transform_styled_proxies{0};
   // Times a free-transform drag of a clipping base drew the clip-group blit
   // (the transformed base plus the cached clipped members, GitHub #398)
   // instead of compositing patches per mouse-move. At most once per drag.

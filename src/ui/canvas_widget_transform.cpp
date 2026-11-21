@@ -1412,6 +1412,7 @@ bool CanvasWidget::begin_free_transform() {
   transform_drag_uses_proxy_preview_ = false;
   transform_live_frame_slow_ = false;
   transform_proxy_image_ = QImage();
+  drop_transform_styled_proxy();
   transform_drag_uses_clip_group_preview_ = false;
   transform_clip_group_image_ = QImage();
   transform_clip_group_rect_ = QRect();
@@ -1816,6 +1817,7 @@ bool CanvasWidget::begin_free_transform_multi(TransformTargetCollection collecti
   transform_drag_uses_proxy_preview_ = false;
   transform_live_frame_slow_ = false;
   transform_proxy_image_ = QImage();
+  drop_transform_styled_proxy();
   transform_drag_uses_clip_group_preview_ = false;
   transform_clip_group_image_ = QImage();
   transform_clip_group_rect_ = QRect();
@@ -1895,6 +1897,12 @@ QImage CanvasWidget::compose_transform_commit_hold_image() const {
   } else {
     // The single-layer proxy/source blit in document units.
     painter.setRenderHint(QPainter::SmoothPixmapTransform, smooth);
+    if (proxy && transform_styled_proxy_shown()) {
+      painter.setTransform(transform_session_delta(), true);
+      painter.drawImage(QRectF(transform_styled_proxy_rect_), transform_styled_proxy_image_,
+                        QRectF(transform_styled_proxy_image_.rect()));
+      return hold;
+    }
     const auto& source = proxy ? transform_proxy_image_ : transform_preview_source_image();
     if (proxy) {
       painter.setOpacity(transform_proxy_layer_opacity_);
@@ -1962,6 +1970,7 @@ void CanvasWidget::reset_free_transform_session_state() {
   transform_live_frame_slow_ = false;
   transform_preview_patches_banded_ = false;
   transform_proxy_image_ = QImage();
+  drop_transform_styled_proxy();
   transform_drag_uses_clip_group_preview_ = false;
   transform_clip_group_image_ = QImage();
   transform_clip_group_rect_ = QRect();
@@ -3154,6 +3163,146 @@ void CanvasWidget::ensure_transform_proxy_image() {
                                .convertToFormat(QImage::Format_ARGB32_Premultiplied);
 }
 
+namespace {
+
+// Render ceilings for the styled proxy's source rect; past them the snapshot covers only
+// the part of the layer on the canvas. A worker can afford more than a drag frame.
+constexpr std::int64_t kStyledProxyInlineRenderPixels = 8'000'000;
+constexpr std::int64_t kStyledProxyWorkerRenderPixels = 32'000'000;
+
+// The layer alone over transparency with its mask and effects: every other pixel leaf is
+// hidden and adjustments stay to act on it, as in the multi-target snapshot. Bounded like
+// the plain proxy.
+QImage render_transform_styled_proxy(const Document& document, LayerId id, QRect rect) {
+  const auto* layer = document.find_layer(id);
+  if (layer == nullptr || rect.isEmpty()) {
+    return {};
+  }
+  std::optional<Document> isolated;
+  const auto* owner = artboard_owning_layer(document, id);
+  if (layer->clipped() || owner != nullptr) {
+    // Its clip base is hidden below, and an artboard would paint its paper and clip the
+    // layer where it stood: the blit clips to the artboard instead.
+    isolated.emplace(document);
+    if (auto* copy = isolated->find_layer(id); copy != nullptr) {
+      copy->set_clipped(false);
+    }
+    if (owner != nullptr) {
+      for (auto& top : isolated->layers()) {
+        if (top.id() == owner->id()) {
+          top.clear_artboard();
+        }
+      }
+    }
+  }
+  const Document& source = isolated.has_value() ? *isolated : document;
+  std::vector<LayerId> hidden;
+  const std::function<void(const std::vector<Layer>&)> collect = [&](const std::vector<Layer>& layers) {
+    for (const auto& item : layers) {
+      if (item.kind() == LayerKind::Group) {
+        collect(item.children());
+      } else if (item.kind() != LayerKind::Adjustment && item.id() != id) {
+        hidden.push_back(item.id());
+      }
+    }
+  };
+  collect(source.layers());
+  auto image = render_pasteboard_patch(source, rect, hidden);
+  if (image.isNull()) {
+    return {};
+  }
+  const auto area = static_cast<std::int64_t>(image.width()) * static_cast<std::int64_t>(image.height());
+  if (area > kTransformProxyMaxPixels) {
+    const auto scale = std::sqrt(static_cast<double>(kTransformProxyMaxPixels) / static_cast<double>(area));
+    image = image.scaled(std::max(1, static_cast<int>(std::lround(image.width() * scale))),
+                         std::max(1, static_cast<int>(std::lround(image.height() * scale))), Qt::IgnoreAspectRatio,
+                         Qt::SmoothTransformation);
+  }
+  return image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+}
+
+}  // namespace
+
+bool CanvasWidget::transform_styled_proxy_shown() const noexcept {
+  return transform_drag_uses_proxy_preview_ && transform_targets_.empty() && !transform_styled_proxy_image_.isNull() &&
+         !transform_styled_proxy_rect_.isEmpty();
+}
+
+void CanvasWidget::drop_transform_styled_proxy() noexcept {
+  ++transform_styled_proxy_generation_;
+  transform_styled_proxy_pending_ = false;
+  transform_styled_proxy_requested_ = false;
+  transform_styled_proxy_image_ = QImage();
+  transform_styled_proxy_rect_ = QRect();
+}
+
+void CanvasWidget::request_transform_styled_proxy() {
+  if (transform_styled_proxy_requested_ || document_ == nullptr || !transform_layer_id_.has_value() ||
+      !transform_targets_.empty() || transform_floating_.has_value() || transform_has_pending_warp_ ||
+      transform_selection_only_) {
+    return;
+  }
+  const auto& document = std::as_const(*document_);
+  const auto* layer = document.find_layer(*transform_layer_id_);
+  // The plain proxy already is an unstyled layer; a deep or palette document keeps it too.
+  if (layer == nullptr || !layer->layer_style().effects_visible || layer->layer_style().empty() ||
+      document.color_state().bit_depth != BitDepth::UInt8 || palette_snap_context() != nullptr) {
+    return;
+  }
+  transform_styled_proxy_requested_ = true;
+  const bool background = transform_background_renders_allowed();
+  auto rect = to_qrect(layer_bounds_with_effects(*layer, layer->bounds()));
+  const auto area = static_cast<std::int64_t>(rect.width()) * static_cast<std::int64_t>(rect.height());
+  if (area > (background ? kStyledProxyWorkerRenderPixels : kStyledProxyInlineRenderPixels)) {
+    rect = rect.intersected(QRect(0, 0, document.width(), document.height()));
+  }
+  if (rect.isEmpty()) {
+    return;
+  }
+  const auto id = *transform_layer_id_;
+  const auto generation = ++transform_styled_proxy_generation_;
+  transform_styled_proxy_pending_ = true;
+  if (!background) {
+    finish_transform_styled_proxy(generation, render_transform_styled_proxy(document, id, rect), rect);
+    return;
+  }
+  auto snapshot = std::make_shared<const Document>(*document_);
+  auto* app = QApplication::instance();
+  const QPointer<CanvasWidget> widget(this);
+  run_tracked_background_worker([widget, app, generation, snapshot, id, rect] {
+    QImage image;
+    try {
+      image = render_transform_styled_proxy(*snapshot, id, rect);
+    } catch (...) {
+      image = {};
+    }
+    QMetaObject::invokeMethod(
+        app,
+        [widget, generation, rect, image = std::move(image)]() mutable {
+          if (widget) {
+            widget->finish_transform_styled_proxy(generation, std::move(image), rect);
+          }
+        },
+        Qt::QueuedConnection);
+  });
+}
+
+void CanvasWidget::finish_transform_styled_proxy(std::uint64_t generation, QImage image, QRect document_rect) {
+  if (generation != transform_styled_proxy_generation_) {
+    return;
+  }
+  transform_styled_proxy_pending_ = false;
+  if (!transforming_layer_ || image.isNull() || document_rect.isEmpty()) {
+    return;
+  }
+  transform_styled_proxy_image_ = std::move(image);
+  transform_styled_proxy_rect_ = document_rect;
+  ++render_cache_diagnostics_.transform_styled_proxies;
+  if (transform_styled_proxy_shown()) {
+    update();
+  }
+}
+
 // The clipped members' own composite over transparency (members unclipped on
 // a copy-on-write document copy, every other leaf hidden), over their extent
 // on the canvas, built once per session at the first clip-group drag frame.
@@ -3296,6 +3445,7 @@ void CanvasWidget::refresh_transform_preview_for_drag() {
       ensure_transform_proxy_image();
     }
     if (transform_drag_uses_proxy_preview_) {
+      request_transform_styled_proxy();
       // Re-cleared every move so a mid-drag external refresh cannot leave a
       // stale composited patch under the proxy.
       transform_preview_patches_.clear();
@@ -3328,6 +3478,13 @@ QRect CanvasWidget::transform_preview_document_rect() const {
     // included), which the rotated box alone does not.
     const auto delta = transform_session_delta();
     rect = rect.united(delta.mapRect(QRectF(transform_multi_snapshot_rect_)).toAlignedRect().adjusted(-1, -1, 1, 1));
+  }
+  if (transform_styled_proxy_shown()) {
+    // The styled proxy draws its effects past the box, mapped through the same delta.
+    rect = rect.united(transform_session_delta()
+                           .mapRect(QRectF(transform_styled_proxy_rect_))
+                           .toAlignedRect()
+                           .adjusted(-1, -1, 1, 1));
   }
   // The path overlay of a transformed shape layer rides the same delta.
   if (const auto overlay = path_overlay_preview_document_rect(); !overlay.isEmpty()) {
@@ -3405,6 +3562,7 @@ void CanvasWidget::refresh_free_transform_preview_caches() {
       !transform_floating_.has_value() && transform_clip_group_preview_possible(*document_, *layer);
   transform_clip_group_image_ = QImage();  // a member's live style edit changes the snapshot
   transform_clip_group_rect_ = QRect();
+  drop_transform_styled_proxy();
   rebuild_transform_base_cache();
   refresh_transform_composited_preview_cache();
   if (isVisible()) {
@@ -4964,8 +5122,16 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
     clip_painter_to_transform_artboard(painter);
     painter.setRenderHint(QPainter::SmoothPixmapTransform,
                           transform_interpolation_ != TransformInterpolation::NearestNeighbor);
-    painter.setOpacity(transform_proxy_layer_opacity_);
-    if (transform_is_distorted()) {
+    const bool styled = transform_styled_proxy_shown();
+    painter.setOpacity(styled ? 1.0 : transform_proxy_layer_opacity_);
+    if (styled) {
+      // A styled layer: its own render with mask, opacity and effects baked in, mapped
+      // through the session delta (homography included) like the multi-target snapshot.
+      // Effect geometry scales with the layer until the release renders it exactly.
+      painter.setTransform(transform_session_delta() * view_transform().to_widget(), true);
+      painter.drawImage(QRectF(transform_styled_proxy_rect_), transform_styled_proxy_image_,
+                        QRectF(transform_styled_proxy_image_.rect()));
+    } else if (transform_is_distorted()) {
       // Skew/Distort/Perspective: the quad's homography maps the proxy directly.
       const auto document_to_widget = view_transform().to_widget();
       painter.setTransform(transform_session_image_to_document(transform_proxy_image_) * document_to_widget, true);
@@ -7271,6 +7437,7 @@ bool CanvasWidget::switch_warp_to_free_transform() {
   transform_drag_uses_proxy_preview_ = false;
   transform_live_frame_slow_ = false;
   transform_proxy_image_ = QImage();
+  drop_transform_styled_proxy();
   transform_drag_uses_clip_group_preview_ = false;
   transform_clip_group_image_ = QImage();
   transform_clip_group_rect_ = QRect();

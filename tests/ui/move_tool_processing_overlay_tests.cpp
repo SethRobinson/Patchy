@@ -26,6 +26,7 @@
 #include <QApplication>
 #include <QByteArray>
 #include <QCheckBox>
+#include <QDir>
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
@@ -5944,6 +5945,101 @@ void ui_free_transform_untouched_grab_keeps_the_composite() {
   CHECK(!scene.canvas->free_transform_active());
 }
 
+// A latched Free Transform drag draws a styled layer with its effects (November 2026: the
+// plain proxy showed the bare pixels inside the canvas while View > Show > Content Outside
+// Canvas drew the same layer with its effects beyond the edge). Checked with that view
+// option off and on, with the snapshot built inline and, on a large document, on a worker.
+void ui_free_transform_latched_drag_draws_layer_effects() {
+  const QColor ink(20, 90, 235);
+  const QColor stroke_color(230, 35, 45);
+  for (const bool large : {false, true}) {
+    for (const bool outside : {false, true}) {
+      DeferredMoveScene scene;
+      auto& doc = patchy::ui::MainWindowTestAccess::document(scene.window);
+      auto* layer = doc.find_layer(scene.layer_id);
+      CHECK(layer != nullptr);
+      if (layer == nullptr) {
+        return;
+      }
+      layer->set_bounds(patchy::Rect{320, 40, 60, 60});
+      patchy::LayerStroke stroke;
+      stroke.enabled = true;
+      stroke.blend_mode = patchy::BlendMode::Normal;
+      stroke.color = patchy::RgbColor{230, 35, 45};
+      stroke.opacity = 1.0F;
+      stroke.size = 8.0F;
+      stroke.position = patchy::LayerStrokePosition::Outside;
+      layer->layer_style().strokes.push_back(stroke);
+      if (large) {
+        for (int i = 0; i < 200; ++i) {
+          doc.add_layer(patchy::Layer(doc.allocate_layer_id(), "Empty", patchy::PixelBuffer()));
+        }
+      }
+      doc.set_active_layer(scene.layer_id);
+      qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("0"));
+      scene.canvas->set_show_outside_canvas(outside);
+      scene.canvas->document_changed();
+      scene.settle();
+      scene.canvas->set_selected_layer_ids({scene.layer_id});
+      scene.canvas->set_rulers_visible(false);
+      patchy::ui::MainWindowTestAccess::refresh_layer_ui(scene.window);
+      const auto diagnostics = [&] { return scene.canvas->render_cache_diagnostics(); };
+      const auto before = diagnostics();
+
+      require_action(scene.window, "editFreeTransformAction")->trigger();
+      QApplication::processEvents();
+      scene.settle();
+      CHECK(scene.canvas->free_transform_active());
+      const auto start = scene.canvas->widget_position_for_document_point(QPoint(350, 70));
+      send_mouse(*scene.canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*scene.canvas, QEvent::MouseMove, start + QPoint(10, 0), Qt::NoButton, Qt::LeftButton);
+      scene.settle();
+      send_mouse(*scene.canvas, QEvent::MouseMove, start + QPoint(20, 0), Qt::NoButton, Qt::LeftButton);
+      // The layer now spans 380 to 440: 20 px on the 400 px canvas, the rest beyond it.
+      send_mouse(*scene.canvas, QEvent::MouseMove, start + QPoint(60, 0), Qt::NoButton, Qt::LeftButton);
+      scene.settle();
+      CHECK(diagnostics().transform_proxy_previews == before.transform_proxy_previews + 1);
+      CHECK(diagnostics().transform_styled_proxies == before.transform_styled_proxies + 1);
+      CHECK((diagnostics().awaited_renders == before.awaited_renders) || !large);
+
+      const auto frame = scene.canvas->grab().toImage();
+      QDir().mkpath(QStringLiteral("test-artifacts"));
+      frame.save(QStringLiteral("test-artifacts/free-transform-styled-drag-%1-%2.png")
+                     .arg(large ? QStringLiteral("worker") : QStringLiteral("inline"),
+                          outside ? QStringLiteral("outside-on") : QStringLiteral("outside-off")));
+      const auto sample = [&](QPoint document_point) {
+        const auto point = scene.canvas->widget_position_for_document_point(document_point);
+        CHECK(frame.rect().contains(point));
+        return frame.rect().contains(point) ? frame.pixelColor(point) : QColor();
+      };
+      // On the canvas: the layer, and its stroke where the bare pixels would leave white.
+      CHECK(color_close(sample(QPoint(390, 60)), ink, 12));
+      CHECK(color_close(sample(QPoint(375, 60)), stroke_color, 12));
+      CHECK(color_close(sample(QPoint(390, 35)), stroke_color, 12));
+      CHECK(color_close(sample(QPoint(365, 60)), QColor(Qt::white), 12));
+      if (outside) {
+        // Beyond the edge the dimmed pasteboard view draws the layer, never the full-strength blit.
+        CHECK(!color_close(sample(QPoint(420, 60)), ink, 12));
+        CHECK(!color_close(sample(QPoint(444, 60)), stroke_color, 12));
+      } else {
+        // With that view off the drag's own picture runs past the edge, effects included.
+        CHECK(color_close(sample(QPoint(420, 60)), ink, 12));
+        CHECK(color_close(sample(QPoint(444, 60)), stroke_color, 12));
+      }
+
+      // The release's exact frame agrees with what the drag showed on the canvas.
+      send_mouse(*scene.canvas, QEvent::MouseButtonRelease, start + QPoint(60, 0), Qt::LeftButton, Qt::NoButton);
+      scene.settle();
+      CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(390, 60)), ink, 12));
+      CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(375, 60)), stroke_color, 12));
+      CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(365, 60)), QColor(Qt::white), 12));
+      send_key(*scene.canvas, Qt::Key_Escape);
+      scene.settle();
+      CHECK(!scene.canvas->free_transform_active());
+    }
+  }
+}
+
 void ui_move_rapid_commits_keep_latest_region_and_exact_pixels() {
   DeferredMoveScene scene;
   for (int i = 0; i < 5; ++i) {
@@ -5967,6 +6063,7 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
       {"ui_free_transform_large_document_renders_in_the_background",
        ui_free_transform_large_document_renders_in_the_background},
       {"ui_free_transform_untouched_grab_keeps_the_composite", ui_free_transform_untouched_grab_keeps_the_composite},
+      {"ui_free_transform_latched_drag_draws_layer_effects", ui_free_transform_latched_drag_draws_layer_effects},
       {"ui_move_preview_preserves_layer_order", ui_move_preview_preserves_layer_order},
       {"ui_move_tool_moves_selected_layers_together", ui_move_tool_moves_selected_layers_together},
       {"ui_move_auto_select_hover_outlines_with_multi_selection",
