@@ -18,3 +18,15 @@ Remaining slow paths (future tiers): `merge_layer_into` and the channel-restrict
 ## Gaussian line filters
 
 Gaussian Blur, High Pass, Unsharp Mask (RGBA8, smart_filter_renderer.cpp) and the 16/32-bit plane filter (`filter_plane_with_photoshop_kernel`) share one separable line filter, `filter_gaussian_lines`: it filters several interleaved lines at once (the channels of a row, or every channel of a block of columns), giving each lane exactly a lone line's operations in order, so output never depends on lane count. Rows, then 16-column blocks (64 for one-channel planes), fan out through `run_filter_blocks`; the column pass reads a 64-byte slice of the byte-rounded row plane per row instead of striding a whole row per sample. `gaussian_line_filters_match_pinned_bytes` pins 152 digests taken from the earlier single-threaded, one-channel-at-a-time code; any change to these filters keeps them. `patchy_perf_tests.exe gaussian` times a 6000x4000 image (`PATCHY_PERF_GAUSSIAN_SIZE=WxH`): about 0.2 s per RGBA8 Gaussian at any radius on a 32-thread box (GitHub issue 564).
+
+## Strip renders against the one-pass walk
+
+The one-pass walk (`PATCHY_RENDER_SINGLE_THREADED=1`) is the reference; the canvas shows strip renders. `patchy_perf_tests stripcheck` (`PATCHY_PERF_MANYLAYERS_PSD=<psd>`) renders a document both ways, then each visible leaf alone, and prints the differing pixels, the largest channel difference and their extent. It reports only.
+
+Measured November 22, 2026 on the 4000x2781 pinball poster (16 strips of 174 rows), the same at `c5c31b996` and after the patch-strip work, so it predates both:
+
+- Whole document: 5.3 M pixels differ, up to 44/255, rows 174 to 2609. Each render is repeatable (threaded twice and one-pass twice give identical bytes), so this is the windows, not a race.
+- The two "GRID" layers (12597x1336 and 13484x1475, hanging off both sides of the canvas, one Outer Glow each): 2.6 M and 4.3 M pixels, up to 36/255. A layer whose padded bounds leave the canvas gets its effect masks windowed to each render's clip, and this glow is not the same in a strip's window as in the canvas's.
+- Four "ARCADE copy" layers (inside the canvas, two Strokes each): 2 to 8 rows just below the strip boundary at row 1914, up to 140/255, across the layer's width. Each layer's bottom edge is 2 to 8 rows above that boundary and the band ends 10 rows below the edge.
+
+What follows from it today: a region patch and a full render use different windows, so after a Move of a GRID layer the committed patch differed from a fresh threaded render by up to 17/255 (`movesweep` with `PATCHY_PERF_VERIFY_FINAL=1` prints the canvas against a threaded and a one-pass render after every drag; one-pass throughout, every drag is exact). An export or flatten that takes the one-pass walk is not the picture on the canvas for such a document. Not fixed; the two causes above are where to start.

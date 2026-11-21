@@ -104,3 +104,26 @@ US 8380005 claim 1 if they describe masking an inserted image after placing it.
 The MacUser review text beyond its header; the Live Picture user guides; whether Live Picture
 displayed the built output; the dates and content of the Photoshop 4.0 and 5.0 manuals on the
 image cache; the prosecution histories themselves (only the citation lists were read).
+
+## Follow-up, 2026-11-22: a refined frame while the pointer rests
+
+Question: during a Free Transform or Move drag that shows the proxy, could a worker render a better frame while the pointer rests and show it until the next move? Claims below were read from the USPTO Patent Public Search service on 2026-11-22 ([how](patent-research.md#reading-patent-text)). End dates are the earliest non-provisional filing date plus 20 years plus the term adjustment, before any terminal disclaimer; fee status was not checked.
+
+What each independent claim requires:
+
+- **US 9058699 B2** (Adobe, to 2029-02-02), claims 1, 11, 18: a composite image that includes an object extracted from one image as included in another; the composite displayed in a first resolution during a preview; after that, a refined version rendered "in a second resolution that is higher than the first resolution" (claim 18 also displays it).
+- **US 8380005 B1** (Adobe, to 2031-12-23), claims 1, 18: an image accessed on selection, a copy displayed superimposed over another image, an object extracted from that copy, a merged preview, then a refined render that operates on a representation of the object's portion "at a higher resolution" than the one the preview used.
+- **US 8885208 B2** (Adobe, "Progressive refinement of an edited image using secondary high resolution image processing", filed 2006-07-21, 2328 days adjustment, to 2032-12-04), claims 1, 6, 14: a low resolution proxy result of an editing operation determined at a first processor; a higher resolution result determined at a second processor in parallel; the proxy displayed before the second finishes; high resolution data from a previous input reduced and incrementally composited with the proxy as a tile update; the display updated with that and then with the higher resolution result.
+- **US 10776907 B2** (Adobe, "Dynamic image resolution adjustment for rendering changes to graphical content", filed 2018-10-24, 141 days, to 2039-03-14), claims 1, 8, 14: the number of tracker (input device) events between two consecutive renditions of a manipulated image is determined, normalized, and used to select a version of the image from several versions of different resolutions; the next rendition manipulates that version.
+- **US 8547378 B2** (Adobe, "Time-based degradation of images using a GPU", filed 2008-08-28, 1097 days, to 2031-08-30), claims 1, 10, 11, 20, 21, 30: frames or sets of images rendered with a graphics processing unit; the time one took is measured against a threshold; a downsampling factor is determined from that and the next set is sent to the GPU at the reduced resolution.
+
+What Patchy does today: the drag shows a proxy bounded by a pixel count or patches composited from the preview-scaled document, and the release renders the accurate full-resolution patches (the sequence the decision above covers). The proxy latch is an area gate plus a frame-time gate (`live_preview_frame_latch_ms`); the proxy's size comes from a fixed pixel cap, rendering is on the CPU, and no input-event count is read.
+
+Options recorded (no behavior changed):
+
+- **R1. A full-resolution frame on rest.** A second occurrence, at a pause instead of at release, of the sequence US 9058699 and US 8380005 describe, where the preview was at reduced resolution. A pause is an absence of input events, the quantity US 10776907 selects a resolution from, though by a timer and not by a count between renditions.
+- **R2. A same-resolution frame on rest.** The worker composites the transformed layer through the real compositor (blend mode, masks, layer styles, layers above) at exactly the resolution the drag preview is shown at: the display level's scaled document when zoomed out, and never above the proxy's own scale (the largest power-of-two level at or below it when the proxy was downscaled). Differences from the claims: no step renders at a resolution higher than the preview's (the element every independent claim of US 9058699, US 8380005 and US 8885208 states), and no resolution is chosen from input events or frame time. The full-resolution render stays where it is today, at release.
+- **R3. Move the two existing waits off the UI thread.** The first-press preparation and the release render run on a worker behind the frame already on screen, as the Move release does (the deferred commit in the audit record's list). Same pictures in the same order as today.
+- **R4. A proxy blit that applies the layer's blend mode.** A change to how the proxy is drawn during the drag; no second render.
+
+Constraints these readings add for any preview work: never choose a preview's resolution from the count or rate of input events (US 10776907); keep rendering on the CPU, or re-read US 8547378 before a GPU path measures frame time to pick a downsampling factor; a rest frame, if built, stays at the preview's resolution. Watch items to add when a decision is recorded: US 8547378 at 2031-08-30, US 8885208 at 2032-12-04, US 10776907 at 2039-03-14.

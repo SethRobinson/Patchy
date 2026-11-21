@@ -1239,6 +1239,519 @@ void many_layers_select_and_move_perf_if_available() {
   }
 }
 
+// Repeated Move-tool drags of a styled poster's layers, the way a user nudges things into
+// place (November 2026 report on the pinball poster: "delays when moving layers, like it
+// recaches the preview of that layer each time you move it"). For each of the topmost
+// movable pixel layers: two short drags released before any background preview can finish,
+// then a drag held until the preview is ready, then one more short drag. Every drag settles
+// before the next. A drag line reports the first move, the slowest move, how long the
+// preview took to appear while the button stayed down (0 when the drag was released
+// first), and whether the press reused the previous drag's preview images.
+// PATCHY_PERF_MANYLAYERS_PSD picks the document, PATCHY_PERF_SWEEP_LAYERS how many layers.
+void move_sweep_perf_if_available() {
+  const auto env_path = qgetenv("PATCHY_PERF_MANYLAYERS_PSD");
+  const auto path = env_path.isEmpty() ? patchy::test::local_psd_fixture_path("pinball_retronight_poster_a3.psd")
+                                       : patchy::ui::to_filesystem_path(env_path);
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] move sweep fixture missing: " << path.string() << '\n';
+    return;
+  }
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  window.show();
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdString(path.string()));
+  QApplication::processEvents();
+  auto* canvas = active_canvas(window);
+  CHECK(canvas != nullptr);
+  const auto settle = [&] {
+    const auto started = Clock::now();
+    while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 120.0) {
+      canvas->repaint();
+      QApplication::processEvents();
+    }
+    CHECK(canvas->render_settled());
+    return std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+  };
+  settle();
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  std::vector<patchy::LayerId> leaves;
+  std::function<void(const std::vector<patchy::Layer>&, bool)> collect =
+      [&](const std::vector<patchy::Layer>& layers, bool ancestors_visible) {
+        for (const auto& layer : layers) {
+          const bool visible = ancestors_visible && layer.visible();
+          if (layer.kind() == patchy::LayerKind::Group) {
+            collect(layer.children(), visible);
+          } else if (visible && layer.kind() == patchy::LayerKind::Pixel && !layer.pixels().empty()) {
+            leaves.push_back(layer.id());
+          }
+        }
+      };
+  collect(std::as_const(doc).layers(), true);
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+  std::cout << "[PERF_MOVE_SWEEP] file=\"" << path.filename().string() << "\" size=" << doc.width() << 'x'
+            << doc.height() << " zoom=" << canvas->view_zoom() << " pixel_leaves=" << leaves.size() << '\n';
+
+  bool ok = false;
+  const auto wanted = qEnvironmentVariableIntValue("PATCHY_PERF_SWEEP_LAYERS", &ok);
+  const int layer_budget = ok && wanted > 0 ? wanted : 4;
+  int swept = 0;
+  std::set<patchy::LayerId> seen;
+  for (auto it = leaves.rbegin(); it != leaves.rend() && swept < layer_budget; ++it) {
+    const auto* leaf = std::as_const(doc).find_layer(*it);
+    if (leaf == nullptr || patchy::layer_effectively_locks_position(std::as_const(doc).layers(), *it)) {
+      continue;
+    }
+    const auto point = opaque_document_point(*leaf, 40);
+    if (!point.has_value()) {
+      continue;
+    }
+    // The click activates whatever wins the hit test there; that layer is the one dragged.
+    auto position = canvas->widget_position_for_document_point(*point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    settle();
+    const auto active = doc.active_layer_id();
+    if (!active.has_value() || !seen.insert(*active).second) {
+      continue;
+    }
+    const auto* target = std::as_const(doc).find_layer(*active);
+    if (target == nullptr) {
+      continue;
+    }
+    ++swept;
+    const bool styled = target->layer_style().effects_visible && !target->layer_style().empty();
+    std::cout << "[PERF_MOVE_SWEEP] layer=\"" << clean_name(target->name()) << "\" id=" << *active
+              << " bounds=" << target->bounds().width << 'x' << target->bounds().height << " styled="
+              << (styled ? 1 : 0) << '\n';
+    const auto drag = [&](const char* name, QPoint step, bool hold_until_ready) {
+      const auto before = canvas->render_cache_diagnostics();
+      const auto press_ms = elapsed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton);
+        QApplication::processEvents();
+      });
+      const auto drag_started = Clock::now();
+      double first_ms = 0.0;
+      double max_ms = 0.0;
+      constexpr int kFrames = 5;
+      for (int frame = 1; frame <= kFrames; ++frame) {
+        position += step;
+        const auto ms = elapsed_ms([&] {
+          send_mouse(*canvas, QEvent::MouseMove, position, Qt::NoButton, Qt::LeftButton);
+          QApplication::processEvents();
+          canvas->repaint();
+        });
+        if (frame == 1) {
+          first_ms = ms;
+        }
+        max_ms = std::max(max_ms, ms);
+      }
+      double ready_ms = 0.0;
+      if (hold_until_ready) {
+        while (!canvas->render_settled() &&
+               std::chrono::duration<double>(Clock::now() - drag_started).count() < 120.0) {
+          QApplication::processEvents();
+        }
+        canvas->repaint();
+        ready_ms = std::chrono::duration<double, std::milli>(Clock::now() - drag_started).count();
+      }
+      const auto drag_ms = std::chrono::duration<double, std::milli>(Clock::now() - drag_started).count();
+      const auto during = canvas->render_cache_diagnostics();
+      const auto release_ms = elapsed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton);
+        QApplication::processEvents();
+      });
+      const auto settle_ms = settle();
+      const auto after = canvas->render_cache_diagnostics();
+      std::cout << "[PERF_MOVE_SWEEP]   drag=" << name << " press_ms=" << press_ms << " first_move_ms=" << first_ms
+                << " max_move_ms=" << max_ms << " drag_ms=" << drag_ms << " preview_ready_ms=" << ready_ms
+                << " reused=" << (after.move_preview_cache_reuses - before.move_preview_cache_reuses)
+                << " proxy_shown_in_drag=" << (during.move_proxy_previews - before.move_proxy_previews)
+                << " outline=" << (after.move_outline_previews - before.move_outline_previews)
+                << " adopted=" << (after.move_preview_adoptions - before.move_preview_adoptions)
+                << " release_ms=" << release_ms << " settle_ms=" << settle_ms
+                << " deferred=" << (after.move_deferred_commits - before.move_deferred_commits)
+                << " full_refreshes=" << (after.full_refreshes - before.full_refreshes) << '\n';
+    };
+    // PATCHY_PERF_VERIFY_FINAL: after each drag the settled composite must be the picture a
+    // fresh render of the document gives, pixel for pixel (read without disturbing the
+    // caches). Three pictures are compared, because the strip-parallel full render has its
+    // own documented divergence near styled strip boundaries: what the canvas holds, a fresh
+    // render on all threads, and a fresh single-threaded render (the reference walk).
+    struct PictureDifference {
+      std::int64_t pixels{0};
+      int worst{0};
+      QRect extent;
+    };
+    const auto difference = [](const QImage& left, const QImage& right) {
+      PictureDifference result;
+      if (left.size() != right.size()) {
+        result.pixels = -1;
+        return result;
+      }
+      for (int y = 0; y < left.height(); ++y) {
+        const auto* a = left.constScanLine(y);
+        const auto* b = right.constScanLine(y);
+        for (int x = 0; x < left.width(); ++x) {
+          int delta = 0;
+          for (int c = 0; c < 4; ++c) {
+            delta = std::max(delta, std::abs(static_cast<int>(a[x * 4 + c]) - static_cast<int>(b[x * 4 + c])));
+          }
+          if (delta != 0) {
+            ++result.pixels;
+            result.worst = std::max(result.worst, delta);
+            result.extent = result.extent.united(QRect(x, y, 1, 1));
+          }
+        }
+      }
+      return result;
+    };
+    const auto describe = [](const PictureDifference& d) {
+      std::ostringstream text;
+      text << d.pixels << " px worst " << d.worst << " in " << d.extent.x() << ',' << d.extent.y() << ' '
+           << d.extent.width() << 'x' << d.extent.height();
+      return text.str();
+    };
+    auto strips_seen = patchy::ui::patch_strip_renders();
+    auto fallbacks_seen = patchy::ui::patch_strip_fallbacks();
+    const auto verify = [&](const char* name) {
+      if (!qEnvironmentVariableIsSet("PATCHY_PERF_VERIFY_FINAL")) {
+        return;
+      }
+      const auto strips = patchy::ui::patch_strip_renders() - strips_seen;
+      const auto fallbacks = patchy::ui::patch_strip_fallbacks() - fallbacks_seen;
+      const auto shown = canvas->current_composite().convertToFormat(QImage::Format_RGBA8888);
+      const auto fresh =
+          patchy::ui::qimage_from_document(std::as_const(doc), true).convertToFormat(QImage::Format_RGBA8888);
+      const bool was_single = qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED");
+      qputenv("PATCHY_RENDER_SINGLE_THREADED", "1");
+      const auto reference =
+          patchy::ui::qimage_from_document(std::as_const(doc), true).convertToFormat(QImage::Format_RGBA8888);
+      if (!was_single) {
+        qunsetenv("PATCHY_RENDER_SINGLE_THREADED");
+      }
+      const auto shown_vs_reference = difference(shown, reference);
+      std::cout << "[PERF_MOVE_SWEEP]   exact_after=" << name << " canvas_vs_single_threaded=["
+                << describe(shown_vs_reference) << "] canvas_vs_threaded=[" << describe(difference(shown, fresh))
+                << "] threaded_vs_single_threaded=[" << describe(difference(fresh, reference)) << "] patch_strips="
+                << strips << " strip_fallbacks=" << fallbacks << '\n';
+      strips_seen = patchy::ui::patch_strip_renders();
+      fallbacks_seen = patchy::ui::patch_strip_fallbacks();
+      // Only the one-pass walk is the reference: strips of two different windows are not
+      // the same bytes on a document like this one (stripcheck), so a threaded run reports.
+      if (was_single) {
+        CHECK(shown_vs_reference.pixels == 0);
+      }
+    };
+    drag("short1", QPoint(6, 4), false);
+    verify("short1");
+    drag("short2", QPoint(-6, -4), false);
+    verify("short2");
+    drag("held", QPoint(6, 4), true);
+    verify("held");
+    drag("short3", QPoint(-6, -4), false);
+    verify("short3");
+  }
+  CHECK(swept > 0);
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_VERIFY_FINAL")) {
+    const auto capture = [canvas] {
+      QImage image(canvas->size(), QImage::Format_ARGB32_Premultiplied);
+      image.fill(Qt::transparent);
+      canvas->render(&image);
+      return image;
+    };
+    const auto committed = capture();
+    canvas->force_refresh();
+    settle();
+    const bool identical = images_equal_rgba(committed, capture());
+    std::cout << "[PERF_FINAL_RENDER_CHECK] matches_full_refresh=" << (identical ? 1 : 0) << '\n';
+    CHECK(identical);
+  }
+}
+
+// Free Transform (Ctrl+T) on the top layers of a real many-layer document: opening the
+// session, a handle drag of twelve moves, the release (which renders the accurate preview),
+// a second drag, and Escape. Reports whether the drag latched the proxy, so the rough
+// frames and the wait for the accurate one can be told apart. PATCHY_PERF_MANYLAYERS_PSD
+// picks the document, PATCHY_PERF_SWEEP_LAYERS how many layers.
+void transform_sweep_perf_if_available() {
+  const auto env_path = qgetenv("PATCHY_PERF_MANYLAYERS_PSD");
+  const auto path = env_path.isEmpty() ? patchy::test::local_psd_fixture_path("pinball_retronight_poster_a3.psd")
+                                       : patchy::ui::to_filesystem_path(env_path);
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] transform sweep fixture missing: " << path.string() << '\n';
+    return;
+  }
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  window.show();
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdString(path.string()));
+  QApplication::processEvents();
+  auto* canvas = active_canvas(window);
+  CHECK(canvas != nullptr);
+  const auto settle = [&] {
+    const auto started = Clock::now();
+    while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 120.0) {
+      canvas->repaint();
+      QApplication::processEvents();
+    }
+    CHECK(canvas->render_settled());
+    return std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+  };
+  settle();
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  std::vector<patchy::LayerId> leaves;
+  std::function<void(const std::vector<patchy::Layer>&, bool)> collect =
+      [&](const std::vector<patchy::Layer>& layers, bool ancestors_visible) {
+        for (const auto& layer : layers) {
+          const bool visible = ancestors_visible && layer.visible();
+          if (layer.kind() == patchy::LayerKind::Group) {
+            collect(layer.children(), visible);
+          } else if (visible && layer.kind() == patchy::LayerKind::Pixel && !layer.pixels().empty()) {
+            leaves.push_back(layer.id());
+          }
+        }
+      };
+  collect(std::as_const(doc).layers(), true);
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(false);
+  QApplication::processEvents();
+  auto* transform_action = window.findChild<QAction*>(QStringLiteral("editFreeTransformAction"));
+  CHECK(transform_action != nullptr);
+  std::cout << "[PERF_TRANSFORM_SWEEP] file=\"" << path.filename().string() << "\" size=" << doc.width() << 'x'
+            << doc.height() << " zoom=" << canvas->view_zoom() << " pixel_leaves=" << leaves.size() << '\n';
+
+  bool ok = false;
+  const auto wanted = qEnvironmentVariableIntValue("PATCHY_PERF_SWEEP_LAYERS", &ok);
+  const int layer_budget = ok && wanted > 0 ? wanted : 5;
+  int swept = 0;
+  std::set<patchy::LayerId> seen;
+  const QRect usable = canvas->rect().adjusted(24, 24, -24, -24);
+  for (auto it = leaves.rbegin(); it != leaves.rend() && swept < layer_budget; ++it) {
+    const auto* leaf = std::as_const(doc).find_layer(*it);
+    if (leaf == nullptr || patchy::layer_effectively_locks_position(std::as_const(doc).layers(), *it)) {
+      continue;
+    }
+    const auto point = opaque_document_point(*leaf, 40);
+    if (!point.has_value()) {
+      continue;
+    }
+    const auto inside = canvas->widget_position_for_document_point(*point);
+    if (!usable.contains(inside)) {
+      continue;
+    }
+    send_mouse(*canvas, QEvent::MouseButtonPress, inside, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, inside, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    settle();
+    const auto active = doc.active_layer_id();
+    if (!active.has_value() || !seen.insert(*active).second) {
+      continue;
+    }
+    const auto* target = std::as_const(doc).find_layer(*active);
+    if (target == nullptr) {
+      continue;
+    }
+    const auto bounds = target->bounds();
+    const bool styled = target->layer_style().effects_visible && !target->layer_style().empty();
+    const auto before = canvas->render_cache_diagnostics();
+    const auto begin_ms = elapsed_ms([&] {
+      transform_action->trigger();
+      QApplication::processEvents();
+      canvas->repaint();
+    });
+    if (!canvas->free_transform_active()) {
+      std::cout << "[PERF_TRANSFORM_SWEEP] layer=\"" << clean_name(target->name()) << "\" refused\n";
+      continue;
+    }
+    ++swept;
+    // The rotate zone just above the top edge when it is on screen; otherwise a drag from
+    // inside the box, which moves the layer within the session.
+    const auto above_top =
+        canvas->widget_position_for_document_point(QPoint(bounds.x + bounds.width / 2, bounds.y)) + QPoint(0, -32);
+    const bool rotate = usable.contains(above_top);
+    const auto start = rotate ? above_top : inside;
+    const auto drag = [&](QPoint from, QPoint step, const char* name) {
+      const auto drag_before = canvas->render_cache_diagnostics();
+      const auto press_ms = elapsed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+        canvas->repaint();
+      });
+      constexpr int kFrames = 12;
+      std::vector<double> frames;
+      auto position = from;
+      for (int frame = 1; frame <= kFrames; ++frame) {
+        position += step;
+        frames.push_back(elapsed_ms([&] {
+          send_mouse(*canvas, QEvent::MouseMove, position, Qt::NoButton, Qt::LeftButton);
+          canvas->repaint();
+        }));
+      }
+      const auto release_ms = elapsed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton);
+        canvas->repaint();
+      });
+      const auto rest_ms = settle();
+      const auto drag_after = canvas->render_cache_diagnostics();
+      auto sorted = frames;
+      std::sort(sorted.begin(), sorted.end());
+      std::cout << "[PERF_TRANSFORM_SWEEP]   drag=" << name << " press_ms=" << press_ms << " first_move_ms="
+                << frames.front() << " median_move_ms=" << sorted[sorted.size() / 2] << " max_move_ms=" << sorted.back()
+                << " release_ms=" << release_ms << " settle_after_release_ms=" << rest_ms << " proxy="
+                << (drag_after.transform_proxy_previews - drag_before.transform_proxy_previews) << " clip_group="
+                << (drag_after.transform_clip_group_previews - drag_before.transform_clip_group_previews)
+                << " awaited=" << (drag_after.awaited_renders - drag_before.awaited_renders) << " overlays="
+                << (drag_after.processing_overlays_shown - drag_before.processing_overlays_shown) << '\n';
+      return position;
+    };
+    std::cout << "[PERF_TRANSFORM_SWEEP] layer=\"" << clean_name(target->name()) << "\" id=" << *active << " bounds="
+              << bounds.width << 'x' << bounds.height << " styled=" << (styled ? 1 : 0) << " gesture="
+              << (rotate ? "rotate" : "move") << " begin_ms=" << begin_ms << " scaled_base="
+              << (canvas->render_cache_diagnostics().transform_scaled_bases - before.transform_scaled_bases) << '\n';
+    const auto end = drag(start, QPoint(5, 2), "first");
+    drag(end, QPoint(-4, 3), "second");
+    const auto cancel_ms = elapsed_ms([&] {
+      send_key(*canvas, Qt::Key_Escape);
+      canvas->repaint();
+    });
+    const auto cancel_settle_ms = settle();
+    std::cout << "[PERF_TRANSFORM_SWEEP]   cancel_ms=" << cancel_ms << " settle_ms=" << cancel_settle_ms
+              << " still_active=" << (canvas->free_transform_active() ? 1 : 0) << '\n';
+  }
+  CHECK(swept > 0);
+}
+
+// Strip-parallel full render against the one-pass reference walk, for a real document and
+// then with each leaf layer alone, to name the layers whose pixels depend on the strips
+// (November 2026: the 4000x2781 pinball poster differed by up to 44/255 over half the
+// canvas, far beyond the 1-2/255 the strip notes allow). PATCHY_PERF_MANYLAYERS_PSD picks
+// the document. Prints only; it fails nothing.
+void strip_check_perf_if_available() {
+  const auto env_path = qgetenv("PATCHY_PERF_MANYLAYERS_PSD");
+  const auto path = env_path.isEmpty() ? patchy::test::local_psd_fixture_path("pinball_retronight_poster_a3.psd")
+                                       : patchy::ui::to_filesystem_path(env_path);
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] strip check fixture missing: " << path.string() << '\n';
+    return;
+  }
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  window.show();
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdString(path.string()));
+  QApplication::processEvents();
+  const patchy::Document original = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto render_pair = [](const patchy::Document& document) {
+    qunsetenv("PATCHY_RENDER_SINGLE_THREADED");
+    auto threaded = patchy::ui::qimage_from_document(document, true).convertToFormat(QImage::Format_RGBA8888);
+    qputenv("PATCHY_RENDER_SINGLE_THREADED", "1");
+    auto single = patchy::ui::qimage_from_document(document, true).convertToFormat(QImage::Format_RGBA8888);
+    qunsetenv("PATCHY_RENDER_SINGLE_THREADED");
+    return std::pair{std::move(threaded), std::move(single)};
+  };
+  const auto report = [](const std::string& label, const QImage& left, const QImage& right) {
+    std::int64_t pixels = 0;
+    int worst = 0;
+    QRect extent;
+    for (int y = 0; y < left.height(); ++y) {
+      const auto* a = left.constScanLine(y);
+      const auto* b = right.constScanLine(y);
+      for (int x = 0; x < left.width(); ++x) {
+        int delta = 0;
+        for (int c = 0; c < 4; ++c) {
+          delta = std::max(delta, std::abs(static_cast<int>(a[x * 4 + c]) - static_cast<int>(b[x * 4 + c])));
+        }
+        if (delta != 0) {
+          ++pixels;
+          worst = std::max(worst, delta);
+          extent = extent.united(QRect(x, y, 1, 1));
+        }
+      }
+    }
+    std::cout << "[PERF_STRIP_CHECK] " << label << " differing_pixels=" << pixels << " worst_delta=" << worst
+              << " extent=" << extent.x() << ',' << extent.y() << ' ' << extent.width() << 'x' << extent.height()
+              << '\n';
+    return pixels;
+  };
+  {
+    const auto [threaded, single] = render_pair(original);
+    report("whole size=" + std::to_string(original.width()) + "x" + std::to_string(original.height()), threaded,
+           single);
+    // The same render again: a difference that comes and goes is a race, not the strips.
+    const auto [threaded_again, single_again] = render_pair(original);
+    report("whole threaded_twice", threaded, threaded_again);
+    report("whole single_twice", single, single_again);
+  }
+  // Each visible leaf alone (its ancestors stay, so folder styles and masks still apply).
+  std::vector<patchy::LayerId> leaves;
+  std::function<void(const std::vector<patchy::Layer>&, bool)> collect =
+      [&](const std::vector<patchy::Layer>& layers, bool ancestors_visible) {
+        for (const auto& layer : layers) {
+          const bool visible = ancestors_visible && layer.visible();
+          if (layer.kind() == patchy::LayerKind::Group) {
+            collect(layer.children(), visible);
+          } else if (visible) {
+            leaves.push_back(layer.id());
+          }
+        }
+      };
+  collect(original.layers(), true);
+  for (const auto keep : leaves) {
+    patchy::Document alone = original;
+    std::function<void(std::vector<patchy::Layer>&)> hide = [&](std::vector<patchy::Layer>& layers) {
+      for (auto& layer : layers) {
+        if (layer.kind() == patchy::LayerKind::Group) {
+          hide(layer.children());
+        } else if (layer.id() != keep && std::as_const(layer).visible()) {
+          layer.set_visible(false);
+        }
+      }
+    };
+    hide(alone.layers());
+    const auto* layer = std::as_const(alone).find_layer(keep);
+    const auto [threaded, single] = render_pair(alone);
+    const auto& style = layer->layer_style();
+    std::ostringstream label;
+    label << "leaf=\"" << clean_name(layer->name()) << "\" id=" << keep << " kind=" << static_cast<int>(layer->kind())
+          << " bounds=" << layer->bounds().x << ',' << layer->bounds().y << ' ' << layer->bounds().width << 'x'
+          << layer->bounds().height << " effects=" << (style.effects_visible && !style.empty() ? 1 : 0)
+          << " shadows=" << style.drop_shadows.size() << " glows=" << style.outer_glows.size()
+          << " strokes=" << style.strokes.size();
+    report(label.str(), threaded, single);
+  }
+}
+
+// Image > Rotate 90 on a long canvas (November 2026: a 32000 px image turned with the
+// window frozen and nothing on screen). Times the core quarter turn alone, which the
+// command now runs on a worker behind the Processing overlay. PATCHY_PERF_ROTATE_SIZE=WxH.
+void canvas_rotate_perf() {
+  int width = 32000;
+  int height = 4000;
+  if (const auto text = qEnvironmentVariable("PATCHY_PERF_ROTATE_SIZE"); !text.isEmpty()) {
+    const auto parts = text.split(QLatin1Char('x'));
+    if (parts.size() == 2 && parts[0].toInt() > 0 && parts[1].toInt() > 0) {
+      width = parts[0].toInt();
+      height = parts[1].toInt();
+    }
+  }
+  patchy::Document document(width, height, patchy::PixelFormat::rgba8());
+  document.add_layer(
+      patchy::Layer(document.allocate_layer_id(), "Long", patchy::PixelBuffer(width, height, patchy::PixelFormat::rgba8())));
+  const auto clockwise_ms = elapsed_ms([&] { patchy::rotate_document_clockwise(document); });
+  CHECK(document.width() == height);
+  const auto counterclockwise_ms = elapsed_ms([&] { patchy::rotate_document_counterclockwise(document); });
+  CHECK(document.width() == width);
+  const auto half_ms = elapsed_ms([&] { patchy::rotate_document_180(document); });
+  std::cout << "[PERF] canvasrotate size=" << width << 'x' << height << " clockwise_ms=" << clockwise_ms
+            << " counterclockwise_ms=" << counterclockwise_ms << " rotate_180_ms=" << half_ms << '\n';
+}
+
 // Free Transform rotate-drag cost with and without a layer mask (GitHub #13
 // and #15: "rotating a layer with a mask causes severe lag" / "massive CPU
 // usage", reported on a 12-thread laptop). Synthetic, so it runs on any
@@ -8252,6 +8765,22 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "effecteye") {
       run_scenario("effecteye", layer_effect_eye_toggle_perf_if_available);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "transformsweep") {
+      run_scenario("transformsweep", transform_sweep_perf_if_available);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "stripcheck") {
+      run_scenario("stripcheck", strip_check_perf_if_available);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "canvasrotate") {
+      run_scenario("canvasrotate", canvas_rotate_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "movesweep") {
+      run_scenario("movesweep", move_sweep_perf_if_available);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "manylayers") {
