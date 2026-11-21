@@ -3724,7 +3724,16 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         !outline_dirty.isEmpty()) {
       update(widget_rect_for_document_rect(outline_dirty));
     }
-    cancel_move_preview();
+    // A preview worker still rendering for this selection is kept past the release when the
+    // retention decision below allows it: a drag shorter than the preparation used to throw
+    // the work away, so quick drags never got a preview on a large document.
+    auto sorted_committed_ids = committed_move_ids;
+    std::sort(sorted_committed_ids.begin(), sorted_committed_ids.end());
+    if (move_preview_worker_serves(sorted_committed_ids)) {
+      set_move_preview_requested(false);
+    } else {
+      cancel_move_preview();
+    }
     moving_layer_ = false;
     move_drag_pending_ = false;
     moving_layers_.clear();
@@ -3799,7 +3808,16 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       retain_move_caches = true;
       update();
     }
-    if (retain_move_caches && !move_external_change_during_drag_) {
+    if (retain_move_caches && !move_external_change_during_drag_ && move_base_cache_.isNull() &&
+        move_preview_worker_serves(sorted_committed_ids)) {
+      // Nothing to retain yet: the worker's result is, once it lands (MovePreviewAdoption).
+      if (!move_preview_adoption_.has_value()) {
+        move_preview_adoption_ = MovePreviewAdoption{move_preview_worker_generation_, QPoint()};
+      }
+      move_preview_adoption_->committed_delta += commit_delta;
+      move_drag_uses_proxy_preview_ = false;
+    } else if (retain_move_caches && !move_external_change_during_drag_) {
+      cancel_move_preview();
       retain_move_preview_caches(committed_move_ids, commit_delta, proxy_content_complete);
     } else {
       clear_retained_move_caches();

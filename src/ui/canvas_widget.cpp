@@ -420,6 +420,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   cancel_path_transform();
   clear_preview_scaled_document();
   preview_scale_cache_.reset();
+  ++preview_scale_cache_epoch_;
   clear_transform_commit_hold();  // a held commit frame belongs to the outgoing state
   gradient_view_preview_.reset();
   gradient_view_preview_source_.reset();

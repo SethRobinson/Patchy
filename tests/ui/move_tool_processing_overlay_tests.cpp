@@ -5686,6 +5686,96 @@ void ui_move_cold_preview_is_async_and_uses_latest_delta() {
   CHECK(images_equal_rgba(no_badge, render_widget_image(*scene.canvas).copy(badge_area)));
 }
 
+// A drag released before its background preview finished used to throw that work away, so
+// on a large document quick drags of a layer never got past the dashed outline, however
+// often it was dragged (November 2026, the 4000x2781 pinball poster: 0.9 to 1.2 s of
+// preparation discarded at every release). The worker now finishes for the selection's
+// next drag, which starts on the proxy at once.
+void ui_move_short_drag_keeps_its_background_preview_for_the_next_drag() {
+  DeferredMoveScene scene;
+  auto& doc = patchy::ui::MainWindowTestAccess::document(scene.window);
+  // Deep but small: the production threshold for background preparation.
+  for (int i = 0; i < 200; ++i) {
+    doc.add_layer(patchy::Layer(doc.allocate_layer_id(), "Empty", patchy::PixelBuffer()));
+  }
+  doc.set_active_layer(scene.layer_id);
+  scene.canvas->document_changed();
+  scene.settle();
+  scene.canvas->set_selected_layer_ids({scene.layer_id});
+  scene.canvas->set_rulers_visible(false);
+  constexpr int kShortDelayMs = 400;
+  const QColor ink(20, 90, 235);
+  const auto diagnostics = [&] { return scene.canvas->render_cache_diagnostics(); };
+  // Press at `from` and move 20 px right with the button still down.
+  const auto press_and_move = [&](QPoint from) {
+    const auto start = scene.canvas->widget_position_for_document_point(from);
+    send_mouse(*scene.canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*scene.canvas, QEvent::MouseMove, start + QPoint(20, 0), Qt::NoButton, Qt::LeftButton);
+    return start;
+  };
+
+  // 1. One short drag (layer 40 -> 90): no preview while it lasted, the worker lands after.
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray::number(kShortDelayMs));
+  const auto before = diagnostics();
+  scene.drag_right(QPoint(70, 70));
+  CHECK(scene.layer_x() == 90);
+  CHECK(diagnostics().move_proxy_previews == before.move_proxy_previews);
+  CHECK(diagnostics().move_preview_adoptions == before.move_preview_adoptions);
+  scene.settle();
+  CHECK(diagnostics().move_preview_adoptions == before.move_preview_adoptions + 1);
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(140, 70)), ink, 8));
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(45, 70)), QColor(Qt::white), 8));
+
+  // 2. The next drag of that layer is on the proxy from its first move. A worker started
+  //    now would take four seconds, so the proxy on screen can only be the kept one.
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray::number(kDeferredMoveRenderDelayMs));
+  auto start = press_and_move(QPoint(120, 70));
+  CHECK(diagnostics().move_preview_cache_reuses == before.move_preview_cache_reuses + 1);
+  CHECK(diagnostics().move_proxy_previews == before.move_proxy_previews + 1);
+  // The layer (90..150) shows 20 px right of where the first drag left it.
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(165, 70)), ink, 8));
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(100, 70)), QColor(Qt::white), 8));
+  send_mouse(*scene.canvas, QEvent::MouseButtonRelease, start + QPoint(50, 0), Qt::LeftButton, Qt::NoButton);
+  CHECK(scene.layer_x() == 140);
+  scene.settle();
+  CHECK(images_equal_rgba(render_widget_image(*scene.canvas), scene.reference_image()));
+
+  // 3. Two short drags in a row share one worker: its picture is from before both releases
+  //    and must land where both of them left the layer (140 -> 190 -> 240).
+  scene.canvas->set_selected_layer_ids({scene.layer_id});
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray::number(kShortDelayMs));
+  const auto before_chain = diagnostics();
+  scene.drag_right(QPoint(170, 70));
+  scene.drag_right(QPoint(220, 70));
+  CHECK(scene.layer_x() == 240);
+  CHECK(diagnostics().move_proxy_previews == before_chain.move_proxy_previews);
+  scene.settle();
+  CHECK(diagnostics().move_preview_adoptions == before_chain.move_preview_adoptions + 1);
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray::number(kDeferredMoveRenderDelayMs));
+  start = press_and_move(QPoint(270, 70));
+  CHECK(diagnostics().move_proxy_previews == before_chain.move_proxy_previews + 1);
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(315, 70)), ink, 8));
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(250, 70)), QColor(Qt::white), 8));
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(200, 70)), QColor(Qt::white), 8));
+  send_mouse(*scene.canvas, QEvent::MouseButtonRelease, start + QPoint(50, 0), Qt::LeftButton, Qt::NoButton);
+  CHECK(scene.layer_x() == 290);
+  scene.settle();
+  CHECK(images_equal_rgba(render_widget_image(*scene.canvas), scene.reference_image()));
+
+  // 4. Anything else that changes the document drops the worker's picture: after Undo the
+  //    layer is elsewhere and the backdrop may differ.
+  scene.canvas->set_selected_layer_ids({scene.layer_id});
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray::number(kShortDelayMs));
+  const auto before_undo = diagnostics();
+  scene.drag_right(QPoint(320, 70));
+  CHECK(scene.layer_x() == 340);
+  patchy::ui::MainWindowTestAccess::undo(scene.window);
+  scene.settle();
+  CHECK(scene.layer_x() == 290);
+  CHECK(diagnostics().move_preview_adoptions == before_undo.move_preview_adoptions);
+  CHECK(images_equal_rgba(render_widget_image(*scene.canvas), scene.reference_image()));
+}
+
 void ui_move_rapid_commits_keep_latest_region_and_exact_pixels() {
   DeferredMoveScene scene;
   for (int i = 0; i < 5; ++i) {
@@ -5704,6 +5794,8 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
   return {
       {"ui_move_cold_preview_is_async_and_uses_latest_delta", ui_move_cold_preview_is_async_and_uses_latest_delta},
       {"ui_move_rapid_commits_keep_latest_region_and_exact_pixels", ui_move_rapid_commits_keep_latest_region_and_exact_pixels},
+      {"ui_move_short_drag_keeps_its_background_preview_for_the_next_drag",
+       ui_move_short_drag_keeps_its_background_preview_for_the_next_drag},
       {"ui_move_preview_preserves_layer_order", ui_move_preview_preserves_layer_order},
       {"ui_move_tool_moves_selected_layers_together", ui_move_tool_moves_selected_layers_together},
       {"ui_move_auto_select_hover_outlines_with_multi_selection",

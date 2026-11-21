@@ -544,6 +544,9 @@ struct CanvasRenderCacheDiagnostics {
   // the previous commit of the same selection (skipping both rebuilds). At
   // most once per drag.
   int move_preview_cache_reuses{0};
+  // Background previews that finished after their drag was released and became the
+  // retained caches of that selection, so its next drag starts on the proxy.
+  int move_preview_adoptions{0};
   // Times a move drag fell back to the dashed-outline preview: the work area
   // crossed the same limits but the proxy snapshot could not be built (or
   // would exceed kMoveProxyLastResortSnapshotArea). At most once per drag.

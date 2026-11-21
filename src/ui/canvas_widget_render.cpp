@@ -2059,7 +2059,7 @@ void CanvasWidget::start_async_render_cache_refresh() {
       if (const auto delay = processing_render_test_delay_ms(); delay > 0) {
         std::this_thread::sleep_for(std::chrono::milliseconds(delay));
       }
-      // PATCHY_ZOOM_TRACE timings (docs/interactive-previews.md#dialog-slider-drags).
+      // PATCHY_ZOOM_TRACE timings (docs/interactive-previews-dialog-sliders.md#dialog-slider-drags).
       ZoomTraceScope trace_worker(region.has_value() ? "async_refresh_region" : "async_refresh_full", 0.0);
       if (region.has_value()) {
         frame->image = std::move(base_frame);

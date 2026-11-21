@@ -5,6 +5,7 @@
 Related documents:
 
 - [interactive-previews-drag-coalescing.md](interactive-previews-drag-coalescing.md): drag move coalescing on Wayland, the drags it covers, tests and live timings.
+- [interactive-previews-dialog-sliders.md](interactive-previews-dialog-sliders.md): slider drags in preview dialogs on large images (GitHub #601), region preview refreshes, worker-built display mips.
 
 ## Visibility render waits
 
@@ -36,24 +37,6 @@ one render in flight plus one pending). A choice from the open list (after its o
 hover preview, #367) still renders at once. Pinned by
 `ui_layer_blend_mode_fast_steps_render_only_the_landing_mode` (2400x1600: 1 to 6 ms a
 press on a 12th-gen i7).
-
-## Dialog slider drags
-
-GitHub #601: a slider dragged in a preview dialog (Layer Style, adjustments, filters) on a large image left its handle behind the pointer and froze the canvas preview until the drag paused. The shared pieces that keep it live:
-
-- `CoalescedPreviewEmitter` (coalesced_preview_emitter.hpp) throttles: a change while its 33 ms timer runs only replaces the pending settings, so a continuous drag previews about 30 times a second instead of once it pauses.
-- The async pixel previews (`make_destructive_adjustment_preview_state`, the filter and Smart Filter edit previews in main_window_filters.cpp, main_window_smart_filter_adjustments.cpp) land a finished render even when a newer request waits, then start that one. An identity request (Preview off, no effect) bumps the generation, so a render it overtook never lands. The commit path recomputes from the accepted settings; previews never feed it.
-- Under an open preview dialog (canvas `edit_locked_`), a document change covering at least `live_preview_async_refresh_min_area()` (1 M pixels; `PATCHY_LIVE_PREVIEW_ASYNC_MIN_AREA` overrides) takes `document_changed_async_preview` instead of a GUI-thread region patch (`live_preview_change_should_refresh_async`, counted in `live_preview_async_refreshes`). Mask display, Smart Filter mask targets and non-Immediate reasons keep the patch.
-- When a background full refresh finishes while a newer one is pending under the explicit hold, its frame is installed anyway (`intermediate_refreshes`): the cache stays dirty, so exact-pixel readers still render the current document and only the settled render clears it.
-- `ensure_slider_drag_coalescing` (dialog_utils.cpp, installed by `exec_dialog`, `run_non_modal_dialog` and the MainWindow constructor) coalesces window-system mouse moves to a pressed `QAbstractSlider` (and to a widget that called `coalesce_widget_drag_moves`, with a button held) per event-loop pass, like the canvas's drag-move coalescing below: Wayland delivers every motion, and each ran the dialog's whole valueChanged chain. Presses, releases and keys flush the pending move first.
-- Per-move work must stay small: `set_themed_style` skips an identical sheet (re-setting one repolishes the subtree; swatches refresh on every move) and `set_appearance_mixed` returns when the state is unchanged (its label search walks the dialog). The Layer Style dialog passes a batch context even for one layer, so both run on every move (about 0.6 ms a move with these skips). Each landed preview also refreshes the Layers panel thumbnail, whose content zoom reads `visible_alpha_local_bounds` on the GUI thread; its 16/32-bit scan reads rows from both ends like the 8-bit one (about 1 ms for a 2400x1800 16-bit layer).
-
-- Background refreshes build the display mip chain on the worker (`extend_display_mips` with the banded `halved_display_mip(source, workers)`, canvas_widget_render.cpp) for the zoom at request time, and `install_async_frame` installs it with the frame. Zoomed out, paint used to rebuild the chain from every landed frame on the GUI thread: 70 to 146 ms per 3580x5370 frame on an i9-11900KF, which froze the handle in the reporter's second video and stretched an 80-step drag from 1.4 s to 7.5 s. Palette display skips it (its frame is quantized on install).
-- Region preview refreshes: while a dialog holds the canvas (`edit_locked_`), the canvas keeps the snapshot whose render is on screen (`render_cache_snapshot_`, valid while the frame's `cacheKey()` is unchanged, so any other write to the cache invalidates it; dropped on unlock because it pins layer pixels). The next refresh diffs it against the document (`history_restore_changed_region`, the undo diff, plus `document_effect_padding`); under half the canvas and 64 rects it renders only that region, in row bands across workers (`qimage_patches_from_document_region_banded`, preview-only), over a copy of the frame and patches the copied mips (`async_preview_region`). A region frame never settles the cache: once nothing is pending, a full render follows. `PATCHY_REGION_PREVIEW_OFF=1` turns it off; `PATCHY_ZOOM_TRACE=1` times `async_refresh_region`, `async_refresh_full`, `async_refresh_mips` and `async_refresh_install`.
-
-Worst GUI-thread stall during the test drag on an i9-11900KF: Levels 8000x6000 22 ms, Levels 4000x3000 16-bit 14 ms, Gaussian Blur 4000x3000 16-bit 12 ms, with the canvas following the drag. Zoomed to fit on a 3580x5370 photo with a 760x900 layer (80-step Size drags, 46-step Opacity), before the worker mips and region frames: worst stall 98 to 146 ms for Stroke, Outer Glow, Drop Shadow and Inner Glow, one GUI mip rebuild per frame, Size drags 7.2 to 7.9 s; after: 4 to 7 ms, no GUI mip rebuild, 1.36 to 1.42 s. A region frame at Stroke Size 241 costs about 75 ms on the worker (mask 30, composite 17, frame copy 11, mips) against about 120 ms plus the GUI mip rebuild for a full frame.
-
-Pinned by `ui_layer_style_stroke_size_drag_stays_responsive_on_large_image`, `ui_layer_style_drag_on_zoomed_out_large_image_never_stalls` (zoomed out: no event pass does 60 ms of GUI-thread CPU work, measured with `patchy::test::current_thread_cpu_ms` so a host that does not schedule the GUI thread cannot fail it; no GUI mip rebuild, region frames, exact settle), `ui_levels_drag_stays_responsive_on_large_image`, `ui_gaussian_blur_drag_stays_responsive_on_large_image` (no awaited render, the canvas follows mid-drag, the settled frame equals a fresh render; `PATCHY_TEST_601_SIZE=8000x6000` and `PATCHY_TEST_601_DEEP=1` time bigger and 16-bit documents) and `ui_slider_drag_moves_coalesce_to_the_latest_position`. Not on the shared path: the filter dialog's own proxy preview (a 35 ms debounce that cancels the render in flight, so it updates once a drag pauses) and the G'MIC preview's run state.
 
 ## Move-drag proxy preview
 
@@ -87,6 +70,31 @@ accurate render cache. `render_settled()` includes preview work;
 `manylayers` reports first-frame, preview-ready and final-settle times separately.
 `PATCHY_PERF_VERIFY_FINAL=1` additionally compares the settled canvas with a
 fresh full render after timing.
+
+A drag released before its worker finishes keeps the worker (`MovePreviewAdoption`). The
+release records the worker's generation and what it committed instead of cancelling, on the
+routes that retain caches (deferred, precommit patch, zero delta) while the worker still
+serves that selection and level (`move_preview_worker_serves`). The completion then installs
+the base and the proxy, its rect moved by the committed deltas, as the selection's retained
+caches (`move_preview_adoptions`), or as the preview of a further drag of the same selection
+that is already under way; a scaled document from before those releases is refitted
+(`retarget_preview_scaled_for_committed_move`) or left to the canvas's own copy.
+`cancel_move_preview` drops the record, so everything that invalidates retained caches (any
+other document change, a press on another selection, a zoom level change) still discards the
+result. A canvas-clipped proxy is not kept, as after a commit. Before this a drag shorter
+than the preparation threw it away, so quick drags on a large document never left the dashed
+outline: on the 4000x2781 pinball poster (i9-14900HX) each drag restarted 0.9 to 1.2 s of
+work, and now the second and later drags of a layer start on the proxy. A worker also
+finishes its scaled-surface build when cancelled and publishes that `PreviewScaleCache`
+(guarded by `preview_scale_cache_epoch_`, bumped when the document is replaced), about half
+of a cold preparation that the next drag of any layer reuses. Pinned by
+`ui_move_short_drag_keeps_its_background_preview_for_the_next_drag`; `patchy_perf_tests
+movesweep` (`PATCHY_PERF_MANYLAYERS_PSD`, `PATCHY_PERF_SWEEP_LAYERS`) repeats short and held
+drags over a document's top layers and prints, per drag, the first move, the time to the
+preview and whether the press reused or adopted one. Still slow there: the first drag of
+each layer shows the outline for 0.35 to 1.2 s while its backdrop renders, and below the
+background threshold (the 1200x849 poster) that first build runs in the move handler, 0.3 to
+0.7 s once per layer.
 
 Idle focus loss preserves completed base/proxy images and the slow-frame latch;
 focus loss during a gesture still cancels it. Visibility patches the scaled

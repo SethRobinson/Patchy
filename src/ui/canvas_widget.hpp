@@ -2372,6 +2372,9 @@ private:
   void set_move_preview_requested(bool requested);
   bool should_prepare_move_preview_async() const noexcept;
   void cancel_move_preview() noexcept;
+  // True while the worker in flight was started for exactly this selection (sorted ids) at
+  // the current composite level and nothing has cancelled it since.
+  [[nodiscard]] bool move_preview_worker_serves(const std::vector<LayerId>& sorted_ids) const;
   // Deferred Move commit (see mouseReleaseEvent and the MoveCommitJob members).
   [[nodiscard]] bool can_hold_move_commit_preview(QPoint commit_delta) const noexcept;
   void arm_move_commit_hold(QPoint commit_delta);
@@ -5475,10 +5478,26 @@ private:
   std::optional<Document> preview_scaled_document_{};
   int preview_scaled_document_level_{0};
   std::shared_ptr<PreviewScaleCache> preview_scale_cache_{};
+  // Bumped when the cache is dropped with its document, so a worker that copied the old
+  // one cannot publish it back.
+  std::uint64_t preview_scale_cache_epoch_{0};
   bool move_preview_in_flight_{false};
   bool move_preview_requested_{false};
   std::uint64_t move_preview_generation_{0};
   std::shared_ptr<std::atomic_bool> move_preview_cancel_{};
+  // The worker in flight: its generation, selection (sorted) and composite level.
+  std::uint64_t move_preview_worker_generation_{0};
+  std::vector<LayerId> move_preview_worker_ids_{};
+  int move_preview_worker_level_{-1};
+  // A drag released while its preview worker was still rendering keeps the worker: its base
+  // and proxy become that selection's retained caches, moved by what the releases since its
+  // snapshot committed, or the preview of a further drag of the same selection. Everything
+  // that invalidates the retained caches cancels it (cancel_move_preview).
+  struct MovePreviewAdoption {
+    std::uint64_t generation{0};
+    QPoint committed_delta{};
+  };
+  std::optional<MovePreviewAdoption> move_preview_adoption_{};
   std::optional<LayerId> transform_layer_id_;
   QRectF transform_original_rect_{};
   QRectF transform_current_rect_{};

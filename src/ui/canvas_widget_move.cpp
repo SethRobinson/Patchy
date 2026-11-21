@@ -861,7 +861,14 @@ void CanvasWidget::draw_move_layer_selection(QPainter& painter) const {
 
 void CanvasWidget::begin_move_drag(const std::vector<LayerId>& layer_ids, QPoint document_point,
                                    QPoint widget_point, std::vector<LayerId> duplicate_roots) {
-  cancel_move_preview();
+  auto sorted_press_ids = layer_ids;
+  std::sort(sorted_press_ids.begin(), sorted_press_ids.end());
+  // A worker still rendering the preview of this very selection (its last drag was released
+  // first) keeps going: this drag shows its result, or retains it for the next.
+  const bool adopting_worker = move_preview_adoption_.has_value() && move_preview_worker_serves(sorted_press_ids);
+  if (!adopting_worker) {
+    cancel_move_preview();
+  }
   move_drag_pending_ = true;
   move_drag_duplicate_roots_ = std::move(duplicate_roots);
   moving_layer_ = false;
@@ -876,13 +883,15 @@ void CanvasWidget::begin_move_drag(const std::vector<LayerId>& layer_ids, QPoint
   // retained selection at the composite level they were built at: the
   // commit translated the proxy rect and the base never contained the
   // moving set, so both are current.
-  auto sorted_press_ids = layer_ids;
-  std::sort(sorted_press_ids.begin(), sorted_press_ids.end());
   if (!retained_move_ids_.empty() && sorted_press_ids == retained_move_ids_ &&
       preview_composite_level_for_zoom(view_zoom()) == retained_move_composite_level_ && !move_base_cache_.isNull()) {
     // Counted only when the press becomes a real drag (the caches build
     // lazily at the first move, so a plain click skips nothing).
     move_press_reused_retained_caches_ = true;
+    move_drag_uses_proxy_preview_ = false;
+  } else if (adopting_worker) {
+    // Nothing is retained yet (the worker has not landed), and clearing would cancel it.
+    move_press_reused_retained_caches_ = false;
     move_drag_uses_proxy_preview_ = false;
   } else {
     move_press_reused_retained_caches_ = false;
@@ -1417,8 +1426,15 @@ QRect CanvasWidget::moving_layers_outline_dirty_rect(QPoint old_delta, QPoint ne
 
 void CanvasWidget::cancel_move_preview() noexcept {
   ++move_preview_generation_;
+  move_preview_adoption_.reset();
   set_move_preview_requested(false);
   if (move_preview_cancel_) move_preview_cancel_->store(true);
+}
+
+bool CanvasWidget::move_preview_worker_serves(const std::vector<LayerId>& sorted_ids) const {
+  return move_preview_in_flight_ && move_preview_worker_generation_ == move_preview_generation_ &&
+         move_preview_cancel_ != nullptr && !move_preview_cancel_->load() && move_preview_worker_ids_ == sorted_ids &&
+         move_preview_worker_level_ == preview_composite_level_for_zoom(view_zoom());
 }
 
 bool CanvasWidget::request_move_preview() {
@@ -1435,6 +1451,7 @@ bool CanvasWidget::request_move_preview() {
   auto scaled = std::make_shared<std::optional<Document>>();
   auto scale_cache = preview_scale_cache_ ? std::make_shared<PreviewScaleCache>(*preview_scale_cache_)
                                         : std::make_shared<PreviewScaleCache>();
+  const auto scale_cache_epoch = preview_scale_cache_epoch_;
   if (level >= 1 && preview_scaled_document_ && preview_scaled_document_level_ == level) {
     scaled->emplace(*preview_scaled_document_);
   }
@@ -1479,17 +1496,25 @@ bool CanvasWidget::request_move_preview() {
   const auto cancelled = std::make_shared<std::atomic_bool>(false);
   move_preview_cancel_ = cancelled;
   move_preview_in_flight_ = true;
+  move_preview_worker_generation_ = generation;
+  move_preview_worker_ids_ = moving_ids;
+  std::sort(move_preview_worker_ids_.begin(), move_preview_worker_ids_.end());
+  move_preview_worker_level_ = level;
   const int delay = std::max(0, qEnvironmentVariableIntValue("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS"));
   auto* app = QApplication::instance();
   const QPointer<CanvasWidget> widget(this);
   run_tracked_background_worker([widget, app, generation, level, key, snapshot, scaled, moving_ids, hidden,
                                  unclip_ids, proxy_rect, proxy_shift, clipped, cancelled, delay, scale_cache,
-                                 base = std::move(base)]() mutable {
+                                 scale_cache_epoch, base = std::move(base)]() mutable {
     QImage proxy;
+    bool scaled_built = false;
     try {
       if (delay > 0) std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-      if (!cancelled->load() && level >= 1 && !*scaled) {
+      // Built even when the gesture is already over: the scaled surfaces it leaves in the
+      // cache are most of a cold preparation, and the next drag of any layer reuses them.
+      if (level >= 1 && !*scaled) {
         scaled->emplace(build_preview_scaled_document(*snapshot, level, scale_cache.get()));
+        scaled_built = true;
       }
       const auto& source = *scaled ? **scaled : *snapshot;
       if (!cancelled->load() && base.isNull()) {
@@ -1525,30 +1550,69 @@ bool CanvasWidget::request_move_preview() {
       base = {};
       proxy = {};
     }
-    QMetaObject::invokeMethod(app, [widget, generation, level, key, scaled, scale_cache, cancelled, proxy_rect,
-                                  proxy_shift, clipped, base = std::move(base),
-                                  proxy = std::move(proxy)]() mutable {
+    QMetaObject::invokeMethod(app, [widget, generation, level, key, scaled, scaled_built, scale_cache,
+                                  scale_cache_epoch, cancelled, moving_ids, proxy_rect, proxy_shift, clipped,
+                                  base = std::move(base), proxy = std::move(proxy)]() mutable {
       if (!widget) return;
       widget->move_preview_in_flight_ = false;
-      if (!cancelled->load() && generation == widget->move_preview_generation_ && widget->moving_layer_ &&
-          key == widget->move_live_latch_key() && level == preview_composite_level_for_zoom(widget->view_zoom())) {
-        widget->set_move_preview_requested(false);
-        if (*scaled) {
+      const bool current = !cancelled->load() && generation == widget->move_preview_generation_ &&
+                           level == preview_composite_level_for_zoom(widget->view_zoom());
+      // Releases since the snapshot moved the selection by this much (a drag released
+      // before this worker finished; MovePreviewAdoption).
+      std::optional<QPoint> adopted_delta;
+      if (widget->move_preview_adoption_.has_value() && widget->move_preview_adoption_->generation == generation) {
+        if (current) adopted_delta = widget->move_preview_adoption_->committed_delta;
+        widget->move_preview_adoption_.reset();
+      }
+      const bool for_this_drag = current && widget->moving_layer_ && key == widget->move_live_latch_key();
+      const bool for_next_drag = current && adopted_delta.has_value() && !widget->moving_layer_;
+      // The cache's entries are keyed by the storage they were scaled from, so a build that
+      // nobody waited for still spares the next drag its cold preparation.
+      if (scaled_built && !for_this_drag && !for_next_drag && widget->document_ != nullptr &&
+          scale_cache_epoch == widget->preview_scale_cache_epoch_ &&
+          level == preview_composite_level_for_zoom(widget->view_zoom())) {
+        widget->preview_scale_cache_ = scale_cache;
+      }
+      if (for_this_drag || for_next_drag) {
+        if (for_this_drag) widget->set_move_preview_requested(false);
+        // A scaled copy from before those releases holds the selection where it was: the
+        // canvas keeps its own (refitted at each release), or refits this one.
+        if (*scaled && (!adopted_delta.has_value() || !widget->preview_scaled_document_.has_value() ||
+                        widget->preview_scaled_document_level_ != level)) {
           widget->move_nest_preview_document_.reset();
           widget->preview_scaled_document_ = std::move(*scaled);
           widget->preview_scaled_document_level_ = level;
           widget->preview_scale_cache_ = std::move(scale_cache);
+          if (adopted_delta.has_value()) {
+            // cancel_move_preview inside a failed refit only bumps the generation: this
+            // completion already read everything it needs from it.
+            widget->retarget_preview_scaled_for_committed_move(moving_ids);
+          }
         }
         if (!base.isNull() && !proxy.isNull()) {
+          const auto committed = adopted_delta.value_or(QPoint());
           widget->move_base_cache_ = std::move(base);
           widget->move_base_cache_scale_level_ = level;
-          widget->move_proxy_image_ = std::move(proxy);
-          widget->move_proxy_document_rect_ = proxy_rect.translated(-proxy_shift);
-          widget->move_proxy_rect_canvas_clipped_ = clipped;
-          widget->moving_layers_use_outline_preview_ = false;
-          widget->move_drag_uses_proxy_preview_ = true;
+          if (for_this_drag || !clipped) {
+            widget->move_proxy_image_ = std::move(proxy);
+            widget->move_proxy_document_rect_ = proxy_rect.translated(-proxy_shift).translated(committed);
+            widget->move_proxy_rect_canvas_clipped_ = clipped;
+          }
           widget->move_live_frame_slow_ = true;
-          ++widget->render_cache_diagnostics_.move_proxy_previews;
+          widget->move_live_latch_key_ = key;
+          if (for_this_drag) {
+            widget->moving_layers_use_outline_preview_ = false;
+            widget->move_drag_uses_proxy_preview_ = true;
+            ++widget->render_cache_diagnostics_.move_proxy_previews;
+          } else {
+            // What retain_move_preview_caches leaves after a commit: begin_move_drag reuses
+            // them when the same selection is pressed again at this level.
+            widget->retained_move_ids_ = moving_ids;
+            std::sort(widget->retained_move_ids_.begin(), widget->retained_move_ids_.end());
+            widget->retained_move_composite_level_ = level;
+            ++widget->render_cache_diagnostics_.move_preview_adoptions;
+            if (widget->move_drag_pending_) widget->move_press_reused_retained_caches_ = true;
+          }
         }
         // Paint uses the current delta, including moves delivered during work.
         widget->update();
