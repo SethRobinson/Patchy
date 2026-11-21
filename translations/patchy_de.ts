@@ -37159,6 +37159,14 @@ Fixiert: %1</translation>
 
 %1</translation>
     </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>Effekte einblenden</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>Effekte ausblenden</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

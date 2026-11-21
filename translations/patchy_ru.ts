@@ -37274,6 +37274,14 @@ Locked: %1</source>
 
 %1</translation>
     </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>Показать эффекты</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>Скрыть эффекты</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

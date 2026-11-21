@@ -2209,6 +2209,11 @@ private:
   // Each change is one undo step; a locked layer refuses.
   void set_layer_effects_visible(LayerId layer_id, bool visible);
   void set_layer_effect_enabled(LayerId layer_id, LayerStyleEffect effect, std::size_t index, bool enabled);
+  // One effect of a press-drag along the effect eyes (LayerListWidget's effect sweep):
+  // every change that carries the same nonzero `gesture` lands in one undo step, named
+  // after the effect while it is the only one and "Hide Effects" or "Show Effects" after.
+  void sweep_layer_effect_enabled(LayerId layer_id, LayerStyleEffect effect, std::size_t index, bool enabled,
+                                  std::uint64_t gesture);
   void edit_layer_effect(LayerId layer_id, LayerStyleEffect effect, std::size_t index);
   // Removes that effect instance (one undo step; the saved PSD drops it).
   void delete_layer_effect(LayerId layer_id, LayerStyleEffect effect, std::size_t index);
@@ -2222,8 +2227,11 @@ private:
   void reveal_layer_effects(LayerId layer_id);
   // The Smart Filter rows' disclosure state (issue 361): open by default; adding a filter opens it.
   void toggle_layer_smart_filters_expanded(LayerId layer_id);
+  // A nonzero `edit_run_token` folds the edit into the undo step that token opened; the
+  // step is then renamed `run_undo_text`.
   bool apply_layer_effect_row_edit(LayerId layer_id, const QString& undo_text, const QString& status_text,
-                                   const std::function<bool(LayerStyle&)>& edit);
+                                   const std::function<bool(LayerStyle&)>& edit, std::uint64_t edit_run_token = 0,
+                                   const QString& run_undo_text = QString());
   void copy_active_layer_style();
   void paste_layer_style_to_selected_layers();
   void delete_selected_layer_styles();

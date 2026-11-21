@@ -37044,6 +37044,14 @@ Locked: %1</source>
 
 %1</translation>
     </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>顯示效果</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>隱藏效果</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

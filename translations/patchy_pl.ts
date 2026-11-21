@@ -37274,6 +37274,14 @@ Zablokowano: %1</translation>
 
 %1</translation>
     </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>Pokaż efekty</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>Ukryj efekty</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

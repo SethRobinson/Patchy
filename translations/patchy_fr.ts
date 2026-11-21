@@ -37159,6 +37159,14 @@ Verrouillé : %1</translation>
 
 %1</translation>
     </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>Afficher les effets</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>Masquer les effets</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

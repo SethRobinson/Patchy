@@ -37159,6 +37159,14 @@ Bloccato: %1</translation>
 
 %1</translation>
     </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>Mostra effetti</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>Nascondi effetti</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

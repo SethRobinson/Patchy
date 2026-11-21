@@ -331,6 +331,11 @@ void LayerListWidget::set_visibility_sweep_callback(std::function<void(LayerId, 
   visibility_sweep_callback_ = std::move(callback);
 }
 
+void LayerListWidget::set_effect_visibility_sweep_callback(
+    std::function<void(LayerId, int, std::size_t, bool, std::uint64_t)> callback) {
+  effect_visibility_sweep_callback_ = std::move(callback);
+}
+
 void LayerListWidget::set_visibility_only(bool visibility_only) {
   if (visibility_only_ == visibility_only) {
     return;
@@ -393,6 +398,96 @@ bool LayerListWidget::handle_visibility_eye_press(QWidget* eye_button, const QMo
   return true;
 }
 
+bool LayerListWidget::handle_effect_eye_press(QWidget* eye_button, const QMouseEvent* event) {
+  auto* button = qobject_cast<QToolButton*>(eye_button);
+  auto* entry_row = eye_button->parentWidget();
+  // A locked layer's eye is disabled; this filter still sees its press.
+  if (button == nullptr || !button->isEnabled() || entry_row == nullptr || !effect_visibility_sweep_callback_ ||
+      entry_row->objectName() != QLatin1String("layerEffectEntryRow")) {
+    return false;
+  }
+  const auto viewport_pos = viewport()->mapFromGlobal(eye_button->mapToGlobal(event->pos()));
+  auto* item = itemAt(viewport_pos);
+  const auto id = item != nullptr ? static_cast<LayerId>(item->data(kLayerIdRole).toULongLong()) : LayerId{0};
+  if (id == 0) {
+    return false;
+  }
+  const SweptEffect pressed{id, entry_row->property("layerEffectKind").toInt(),
+                            static_cast<std::size_t>(entry_row->property("layerEffectIndex").toULongLong())};
+  // Like the layer eyes: the toggle happens on press and its state is the whole sweep's.
+  constexpr int kSweepColumnSlack = 8;
+  const auto button_top_left = viewport()->mapFromGlobal(eye_button->mapToGlobal(QPoint(0, 0)));
+  visibility_sweep_active_ = true;
+  visibility_sweep_effects_ = true;
+  visibility_sweep_target_visible_ = !button->isChecked();
+  visibility_sweep_min_x_ = button_top_left.x() - kSweepColumnSlack;
+  visibility_sweep_max_x_ = button_top_left.x() + eye_button->width() + kSweepColumnSlack;
+  visibility_sweep_last_viewport_pos_ = viewport_pos;
+  visibility_sweep_pointer_ = viewport_pos;
+  visibility_swept_effects_ = {pressed};
+  const auto gesture = ++effect_sweep_gesture_;
+  // Each effect change replaces every row, destroying the pressed eye and Qt's
+  // implicit mouse grab with it: the viewport takes the rest of the gesture.
+  viewport()->grabMouse();
+  QTimer::singleShot(0, this, [this, pressed, gesture, visible = visibility_sweep_target_visible_] {
+    if (effect_visibility_sweep_callback_) {
+      effect_visibility_sweep_callback_(pressed.layer, pressed.effect, pressed.index, visible, gesture);
+    }
+  });
+  return true;
+}
+
+void LayerListWidget::sweep_effect_eyes(int span_top, int span_bottom) {
+  for (int i = 0; i < count(); ++i) {
+    auto* candidate = item(i);
+    if (candidate == nullptr) {
+      continue;
+    }
+    const auto rect = visualItemRect(candidate);
+    if (rect.bottom() < span_top || rect.top() > span_bottom) {
+      continue;
+    }
+    const auto candidate_id = static_cast<LayerId>(candidate->data(kLayerIdRole).toULongLong());
+    auto* row_widget = itemWidget(candidate);
+    if (candidate_id == 0 || row_widget == nullptr) {
+      continue;
+    }
+    for (auto* entry_row : row_widget->findChildren<QWidget*>(QStringLiteral("layerEffectEntryRow"))) {
+      const auto entry_top = viewport()->mapFromGlobal(entry_row->mapToGlobal(QPoint(0, 0))).y();
+      if (entry_top + entry_row->height() - 1 < span_top || entry_top > span_bottom) {
+        continue;
+      }
+      auto* eye = entry_row->findChild<QToolButton*>(QStringLiteral("layerEffectVisibilityButton"));
+      if (eye == nullptr || !eye->isEnabled()) {
+        continue;  // a locked layer's effects
+      }
+      // A row at another folder depth indents its eyes out of the pressed column: the
+      // pointer passes beside them, not over them.
+      const auto eye_left = viewport()->mapFromGlobal(eye->mapToGlobal(QPoint(0, 0))).x();
+      if (eye_left > visibility_sweep_max_x_ || eye_left + eye->width() < visibility_sweep_min_x_) {
+        continue;
+      }
+      const SweptEffect swept{candidate_id, entry_row->property("layerEffectKind").toInt(),
+                              static_cast<std::size_t>(entry_row->property("layerEffectIndex").toULongLong())};
+      if (std::find(visibility_swept_effects_.begin(), visibility_swept_effects_.end(), swept) !=
+          visibility_swept_effects_.end()) {
+        continue;  // crossed already: backtracking over it changes nothing
+      }
+      visibility_swept_effects_.push_back(swept);
+      if (eye->isChecked() == visibility_sweep_target_visible_) {
+        continue;  // already in the sweep's state
+      }
+      // Deferred: the change rebuilds the rows this loop is walking.
+      QTimer::singleShot(0, this, [this, swept, gesture = effect_sweep_gesture_,
+                                   visible = visibility_sweep_target_visible_] {
+        if (effect_visibility_sweep_callback_) {
+          effect_visibility_sweep_callback_(swept.layer, swept.effect, swept.index, visible, gesture);
+        }
+      });
+    }
+  }
+}
+
 bool LayerListWidget::handle_visibility_sweep_move(QPoint viewport_position, const QMouseEvent* event) {
   if (!visibility_sweep_active_) {
     return false;
@@ -422,6 +517,10 @@ void LayerListWidget::sweep_visibility_to(QPoint viewport_position) {
                          viewport_position.x() < viewport()->width();
   if (!past_edge &&
       (viewport_position.x() < visibility_sweep_min_x_ || viewport_position.x() > visibility_sweep_max_x_)) {
+    return;
+  }
+  if (visibility_sweep_effects_) {
+    sweep_effect_eyes(span_top, span_bottom);
     return;
   }
   for (int i = 0; i < count(); ++i) {
@@ -493,6 +592,8 @@ void LayerListWidget::end_visibility_sweep() {
   visibility_sweep_last_viewport_pos_ = QPoint();
   visibility_sweep_pointer_ = QPoint();
   visibility_swept_ids_.clear();
+  visibility_sweep_effects_ = false;
+  visibility_swept_effects_.clear();
   if (was_active) {
     stop_auto_scroll();
   }
@@ -959,6 +1060,13 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
       return true;
     }
     if (widget != nullptr && mouse_event->button() == Qt::LeftButton &&
+        widget->objectName() == QLatin1String("layerEffectVisibilityButton") &&
+        (mouse_event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)) == 0 &&
+        handle_effect_eye_press(widget, mouse_event)) {
+      event->accept();
+      return true;
+    }
+    if (widget != nullptr && mouse_event->button() == Qt::LeftButton &&
         (mouse_event->modifiers() & Qt::ControlModifier) != 0 &&
         widget->objectName() != QStringLiteral("layerMaskLinkButton") &&
         widget->objectName() != QStringLiteral("layerVectorMaskLinkButton")) {
@@ -1023,6 +1131,12 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
       if (widget->objectName() == QLatin1String("layerVisibilityCheck") &&
           (mouse_event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)) == 0 &&
           handle_visibility_eye_press(widget, mouse_event)) {
+        event->accept();
+        return true;
+      }
+      if (widget->objectName() == QLatin1String("layerEffectVisibilityButton") &&
+          (mouse_event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)) == 0 &&
+          handle_effect_eye_press(widget, mouse_event)) {
         event->accept();
         return true;
       }

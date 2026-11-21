@@ -37075,6 +37075,14 @@ Locked: %1</source>
 %1</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Show Effects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -23,7 +23,7 @@ For editing tools, files and formats, see the [full feature list](features.md).
 - **Color panel**: hue cube with hex and RGB boxes (right-click sets background, also in the Foreground Color window) or RGB/HSB/CMYK sliders (gear)
 - **Layers panel**
   - Previews blend modes while browsing (Shift+Plus/Minus steps them or a painting tool's Mode, Shift+Alt+letter sets one), with four thumbnail sizes aligned by nesting
-  - Digits (00: 0%) set layer opacity off painting tools and "/" locks transparency; drag along eyes to toggle layers, or right-click one for more
+  - Digits (00: 0%) set layer opacity off painting tools and "/" locks transparency; drag along eyes to toggle layers (or along a layer's effect eyes to hide or show several effects in one undo step), or right-click a layer eye for more
   - Alt/Option-click New Layer for its dialog (fill the new layer with a color, Edit > Fill's list, or the mode's neutral color), Ctrl/Cmd-click to add below; Alt-click Add Layer Mask for a hiding mask, Ctrl/Cmd-click for a vector mask
   - Layer > Color labels a layer with any of Photoshop's eleven colors (Seafoam, Indigo, Magenta and Fuchsia included), kept in PSDs
   - Layer > Arrange > Link Layers links the selected layers so the Move tool and Free Transform take them together (a link badge marks them; Select Linked Layers selects a group), kept in PSDs

@@ -36,10 +36,12 @@
 #include <QPointF>
 #include <QStringList>
 #include <QPoint>
+#include <QPointer>
 #include <QStackedWidget>
 #include <QDir>
 #include <QFileInfo>
 #include <QStatusBar>
+#include <QTest>
 #include <QTimer>
 #include <QToolButton>
 #include <QWidget>
@@ -48,6 +50,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <initializer_list>
 #include <functional>
 #include <iostream>
 #include <string>
@@ -1262,10 +1265,420 @@ void ui_layer_rows_with_every_badge_fit_narrow_and_wide() {
   CHECK(failures == 0);
 }
 
+// local-063: a press on one effect's eye and a drag along the eye column sets every effect
+// eye crossed to the state the press produced.
+//
+// A white 240x160 document with a red 80x80 "Paint Layer" square at (80,40) whose style
+// lists, in the rows' order, Bevel & Emboss, a blue 6 px outside Stroke, Satin, a green
+// Color Overlay and a yellow Outer Glow.
+patchy::Document swept_effects_document() {
+  patchy::Document document(240, 160, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(240, 160, patchy::PixelFormat::rgb8(), QColor(255, 255, 255)));
+  patchy::Layer paint(document.allocate_layer_id(), "Paint Layer",
+                      solid_pixels(80, 80, patchy::PixelFormat::rgba8(), QColor(220, 40, 40)));
+  paint.set_bounds(patchy::Rect{80, 40, 80, 80});
+  auto& style = paint.layer_style();
+  patchy::LayerBevelEmboss bevel;
+  bevel.enabled = true;
+  style.bevels.push_back(bevel);
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.size = 6.0F;
+  stroke.position = patchy::LayerStrokePosition::Outside;
+  stroke.color = patchy::RgbColor{20, 40, 220};
+  stroke.opacity = 1.0F;
+  style.strokes.push_back(stroke);
+  patchy::LayerSatin satin;
+  satin.enabled = true;
+  style.satins.push_back(satin);
+  patchy::LayerColorOverlay overlay;
+  overlay.enabled = true;
+  overlay.color = patchy::RgbColor{20, 200, 40};
+  overlay.opacity = 1.0F;
+  style.color_overlays.push_back(overlay);
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.color = patchy::RgbColor{255, 210, 0};
+  glow.opacity = 1.0F;
+  glow.size = 24.0F;
+  style.outer_glows.push_back(glow);
+  const auto paint_id = paint.id();
+  document.add_layer(std::move(paint));
+  document.set_active_layer(paint_id);
+  return document;
+}
+
+constexpr std::array<const char*, 5> kSweptEffectNames{"Bevel & Emboss", "Stroke", "Satin", "Color Overlay",
+                                                       "Outer Glow"};
+
+QToolButton* swept_effect_eye(QListWidget& list, const char* effect_name) {
+  auto* row = list.itemWidget(require_layer_item(list, QStringLiteral("Paint Layer")));
+  auto* entry = row != nullptr ? effect_entry_row(*row, QString::fromLatin1(effect_name)) : nullptr;
+  return entry != nullptr ? entry->findChild<QToolButton*>(QStringLiteral("layerEffectVisibilityButton")) : nullptr;
+}
+
+// The five effects' `enabled` flags in the rows' order.
+std::array<bool, 5> swept_effect_flags(const patchy::LayerStyle& style) {
+  return {style.bevels.front().enabled, style.strokes.front().enabled, style.satins.front().enabled,
+          style.color_overlays.front().enabled, style.outer_glows.front().enabled};
+}
+
+// The handlers defer past the row rebuild, and the rebuild deletes the old rows later.
+void settle_effect_rows() {
+  for (int pass = 0; pass < 3; ++pass) {
+    QApplication::processEvents();
+  }
+  QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+}
+
+// A press on `start`'s eye, one move to each of `crossed` in turn (a name several rows from
+// the last is one fast move over the rows between) and a release on the last, all through
+// Qt's window system: the pressed eye is destroyed by the first rebuild, and only real
+// routing shows whether the rest of the gesture still arrives. `x_offset` shifts the moves
+// out of the eye column.
+void sweep_effect_eyes_like_a_user(patchy::ui::MainWindow& window, QListWidget& list, const char* start,
+                                   std::initializer_list<const char*> crossed, int x_offset = 0) {
+  auto* handle = window.windowHandle();
+  auto* eye = swept_effect_eye(list, start);
+  CHECK(handle != nullptr && eye != nullptr);
+  if (handle == nullptr || eye == nullptr) {
+    return;
+  }
+  auto point = eye->mapTo(&window, eye->rect().center());
+  QTest::mousePress(handle, Qt::LeftButton, Qt::NoModifier, point);
+  settle_effect_rows();
+  for (const auto* name : crossed) {
+    eye = swept_effect_eye(list, name);
+    CHECK(eye != nullptr);
+    if (eye == nullptr) {
+      break;
+    }
+    point = eye->mapTo(&window, eye->rect().center()) + QPoint(x_offset, 0);
+    QTest::mouseMove(handle, point);
+    settle_effect_rows();
+  }
+  QTest::mouseRelease(handle, Qt::LeftButton, Qt::NoModifier, point);
+  settle_effect_rows();
+}
+
+void ui_layer_effect_eye_sweep_sets_crossed_effects_to_first_state() {
+  using Flags = std::array<bool, 5>;
+  using patchy::ui::MainWindowTestAccess;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  // The seven rows need the Layers list's height, which the expanded Color panel takes.
+  MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
+  window.add_document_session(swept_effects_document(), QStringLiteral("Effect Eye Sweep"));
+  QApplication::processEvents();
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(list != nullptr);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto paint_id = *doc.active_layer_id();
+  const auto style = [&]() -> const patchy::LayerStyle& {
+    return std::as_const(doc).find_layer(paint_id)->layer_style();
+  };
+  const auto flags = [&] { return swept_effect_flags(style()); };
+  const auto undo_depth = [&] { return MainWindowTestAccess::active_session_undo_depth(window); };
+  expand_effects(*list, QStringLiteral("Paint Layer"));
+  auto* row = list->itemWidget(require_layer_item(*list, QStringLiteral("Paint Layer")));
+  CHECK(row != nullptr);
+  QStringList names;
+  for (auto* entry : row->findChildren<QWidget*>(QStringLiteral("layerEffectEntryRow"))) {
+    names.push_back(entry->findChild<QLabel*>(QStringLiteral("layerEffectEntryLabel"))->text());
+  }
+  QStringList expected_names;
+  for (const auto* name : kSweptEffectNames) {
+    expected_names.push_back(QString::fromLatin1(name));
+  }
+  CHECK(names == expected_names);
+  for (const auto* name : kSweptEffectNames) {
+    auto* eye = swept_effect_eye(*list, name);
+    CHECK(eye != nullptr && eye->isVisible() && list->viewport()->rect().contains(
+                                                    list->viewport()->mapFromGlobal(eye->mapToGlobal(eye->rect().center()))));
+  }
+
+  // The canvas with every effect on: a blue stroke ring, a green square, a glow past the ring.
+  const QPoint ring(76, 80);
+  const QPoint center(120, 80);
+  const QPoint halo(66, 80);
+  const auto ring_on = composite_pixel(window, ring.x(), ring.y());
+  const auto center_on = composite_pixel(window, center.x(), center.y());
+  const auto halo_on = composite_pixel(window, halo.x(), halo.y());
+  CHECK(ring_on.blue() > 150 && ring_on.red() < 100);
+  CHECK(center_on.green() > center_on.red() + 40);
+  CHECK(halo_on.blue() < 235);
+  const auto selected_before = list->selectedItems().size();
+  const auto current_before = list->currentItem()->data(Qt::UserRole).toULongLong();
+
+  // Down: press Bevel & Emboss and move straight to Satin. The Stroke row between them is
+  // crossed by that one move. Three effects hide, the two below stay, in one undo step.
+  auto undo_before = undo_depth();
+  QPointer<QToolButton> pressed_eye = swept_effect_eye(*list, "Bevel & Emboss");
+  sweep_effect_eyes_like_a_user(window, *list, "Bevel & Emboss", {"Satin"});
+  CHECK(pressed_eye.isNull());  // the rows were rebuilt under the gesture
+  CHECK(QWidget::mouseGrabber() == nullptr);
+  CHECK((flags() == Flags{false, false, false, true, true}));
+  CHECK(undo_depth() == undo_before + 1);
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Hide Effects"));
+  CHECK(!swept_effect_eye(*list, "Stroke")->isChecked());
+  CHECK(swept_effect_eye(*list, "Color Overlay")->isChecked());
+  const auto ring_hidden = composite_pixel(window, ring.x(), ring.y());
+  CHECK(!(ring_hidden.blue() > 150 && ring_hidden.red() < 100));  // the stroke is gone
+  const auto center_kept = composite_pixel(window, center.x(), center.y());
+  CHECK(center_kept.green() > center_kept.red() + 40);  // the overlay still greens it
+  CHECK(style().effects_visible);
+  CHECK(std::as_const(doc).find_layer(paint_id)->visible());
+  // The press-drag selects nothing and starts no row drag.
+  CHECK(list->selectedItems().size() == selected_before);
+  CHECK(list->currentItem()->data(Qt::UserRole).toULongLong() == current_before);
+  // A plain hover after the release changes nothing.
+  QTest::mouseMove(window.windowHandle(), swept_effect_eye(*list, "Outer Glow")->mapTo(
+                                              &window, swept_effect_eye(*list, "Outer Glow")->rect().center()));
+  settle_effect_rows();
+  CHECK((flags() == Flags{false, false, false, true, true}));
+
+  // One undo brings all three back; redo hides them again.
+  MainWindowTestAccess::undo(window);
+  settle_effect_rows();
+  CHECK((flags() == Flags{true, true, true, true, true}));
+  MainWindowTestAccess::redo(window);
+  settle_effect_rows();
+  CHECK((flags() == Flags{false, false, false, true, true}));
+
+  // Up, across mixed states, with backtracking: press Outer Glow (visible, so the sweep
+  // hides), cross Color Overlay, reach Satin (hidden already, left as it is), then go back
+  // down over the two just hidden. Nothing flips back; the two changes are one undo step.
+  undo_before = undo_depth();
+  sweep_effect_eyes_like_a_user(window, *list, "Outer Glow",
+                                {"Color Overlay", "Satin", "Color Overlay", "Outer Glow", "Color Overlay"});
+  CHECK((flags() == Flags{false, false, false, false, false}));
+  CHECK(undo_depth() == undo_before + 1);
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Hide Effects"));
+  const auto center_bare = composite_pixel(window, center.x(), center.y());
+  CHECK(center_bare.red() > 150 && center_bare.green() < 100);  // the square's own red
+  const auto halo_bare = composite_pixel(window, halo.x(), halo.y());
+  CHECK(halo_bare.red() > 250 && halo_bare.green() > 250 && halo_bare.blue() > 250);
+
+  // Up from the last empty slot to the first in one move: every effect shows again and
+  // the canvas is what it was.
+  undo_before = undo_depth();
+  sweep_effect_eyes_like_a_user(window, *list, "Outer Glow", {"Bevel & Emboss"});
+  CHECK((flags() == Flags{true, true, true, true, true}));
+  CHECK(undo_depth() == undo_before + 1);
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Show Effects"));
+  CHECK(composite_pixel(window, ring.x(), ring.y()) == ring_on);
+  CHECK(composite_pixel(window, center.x(), center.y()) == center_on);
+  CHECK(composite_pixel(window, halo.x(), halo.y()) == halo_on);
+
+  // A drag that leaves the eye column stops there: only the pressed effect changes, and
+  // its step keeps the effect's own name.
+  undo_before = undo_depth();
+  sweep_effect_eyes_like_a_user(window, *list, "Bevel & Emboss", {"Stroke", "Satin"}, /*x_offset=*/60);
+  CHECK((flags() == Flags{false, true, true, true, true}));
+  CHECK(undo_depth() == undo_before + 1);
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Hide Bevel & Emboss"));
+  MainWindowTestAccess::undo(window);
+  settle_effect_rows();
+
+  // Up past the first effect: the Layer Styles master eye shares the column and the layer's
+  // own row lies beyond it. Neither is an effect eye, so neither changes.
+  {
+    auto* handle = window.windowHandle();
+    auto* eye = swept_effect_eye(*list, "Stroke");
+    QTest::mousePress(handle, Qt::LeftButton, Qt::NoModifier, eye->mapTo(&window, eye->rect().center()));
+    settle_effect_rows();
+    row = list->itemWidget(require_layer_item(*list, QStringLiteral("Paint Layer")));
+    auto* master = row->findChild<QToolButton*>(QStringLiteral("layerEffectsVisibilityButton"));
+    CHECK(master != nullptr);
+    const auto master_point = master->mapTo(&window, master->rect().center());
+    QTest::mouseMove(handle, master_point);
+    settle_effect_rows();
+    const auto layer_row_point = QPoint(master_point.x(), master_point.y() - 30);
+    QTest::mouseMove(handle, layer_row_point);
+    settle_effect_rows();
+    QTest::mouseRelease(handle, Qt::LeftButton, Qt::NoModifier, layer_row_point);
+    settle_effect_rows();
+    CHECK((flags() == Flags{false, false, true, true, true}));
+    CHECK(style().effects_visible);
+    CHECK(std::as_const(doc).find_layer(paint_id)->visible());
+    CHECK(QWidget::mouseGrabber() == nullptr);
+    MainWindowTestAccess::undo(window);
+    settle_effect_rows();
+    CHECK((flags() == Flags{true, true, true, true, true}));
+  }
+
+  // A plain click still toggles one effect, one undo step each, and so does each click of a
+  // quick pair (the second arrives as a double-click).
+  undo_before = undo_depth();
+  click_row_child(*list, *swept_effect_eye(*list, "Stroke"));
+  CHECK((flags() == Flags{true, false, true, true, true}));
+  CHECK(undo_depth() == undo_before + 1);
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Hide Stroke"));
+  click_row_child(*list, *swept_effect_eye(*list, "Stroke"));
+  CHECK((flags() == Flags{true, true, true, true, true}));
+  CHECK(undo_depth() == undo_before + 2);
+  {
+    // The press rebuilds the rows and deletes the eye: take its points first.
+    auto* eye = swept_effect_eye(*list, "Satin");
+    const auto eye_center = eye->rect().center();
+    const auto release_point = list->viewport()->mapFromGlobal(eye->mapToGlobal(eye_center));
+    send_mouse(*eye, QEvent::MouseButtonPress, eye_center, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*list->viewport(), QEvent::MouseButtonRelease, release_point, Qt::LeftButton, Qt::NoButton);
+    settle_effect_rows();
+    CHECK((flags() == Flags{true, true, false, true, true}));
+    eye = swept_effect_eye(*list, "Satin");
+    send_mouse(*eye, QEvent::MouseButtonDblClick, eye_center, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*list->viewport(), QEvent::MouseButtonRelease, release_point, Qt::LeftButton, Qt::NoButton);
+    settle_effect_rows();
+    CHECK((flags() == Flags{true, true, true, true, true}));
+    CHECK(undo_depth() == undo_before + 4);
+  }
+
+  // The master eye still hides and shows the whole list with a click; a locked layer's
+  // effect eyes change nothing.
+  row = list->itemWidget(require_layer_item(*list, QStringLiteral("Paint Layer")));
+  click_row_child(*list, *row->findChild<QToolButton*>(QStringLiteral("layerEffectsVisibilityButton")));
+  CHECK(!style().effects_visible);
+  CHECK((flags() == Flags{true, true, true, true, true}));
+  row = list->itemWidget(require_layer_item(*list, QStringLiteral("Paint Layer")));
+  click_row_child(*list, *row->findChild<QToolButton*>(QStringLiteral("layerEffectsVisibilityButton")));
+  CHECK(style().effects_visible);
+  patchy::set_layer_lock_flags(*doc.find_layer(paint_id), patchy::kLayerLockAll);
+  MainWindowTestAccess::refresh_layer_ui(window);
+  settle_effect_rows();
+  CHECK(swept_effect_eye(*list, "Bevel & Emboss") != nullptr && !swept_effect_eye(*list, "Bevel & Emboss")->isEnabled());
+  undo_before = undo_depth();
+  click_row_child(*list, *swept_effect_eye(*list, "Bevel & Emboss"));
+  CHECK((flags() == Flags{true, true, true, true, true}));
+  CHECK(undo_depth() == undo_before);
+  CHECK(QWidget::mouseGrabber() == nullptr);
+}
+
+// The moves of one sweep delivered in a burst (Wayland hands over every motion): the sweep
+// keeps each one, since crossing is a matter of the path, and ends where the same moves
+// sent one by one leave it, as one undo step.
+void ui_layer_effect_eye_sweep_handles_queued_moves() {
+  using Flags = std::array<bool, 5>;
+  using patchy::ui::MainWindowTestAccess;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
+  window.add_document_session(swept_effects_document(), QStringLiteral("Effect Eye Sweep Queue"));
+  QApplication::processEvents();
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(list != nullptr);
+  auto* viewport = list->viewport();
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto paint_id = *doc.active_layer_id();
+  const auto flags = [&] { return swept_effect_flags(std::as_const(doc).find_layer(paint_id)->layer_style()); };
+  const auto undo_depth = [&] { return MainWindowTestAccess::active_session_undo_depth(window); };
+  expand_effects(*list, QStringLiteral("Paint Layer"));
+  const auto eye_point = [&](const char* name) {
+    auto* eye = swept_effect_eye(*list, name);
+    CHECK(eye != nullptr);
+    return eye != nullptr ? viewport->mapFromGlobal(eye->mapToGlobal(eye->rect().center())) : QPoint();
+  };
+  const auto press = [&](const char* name) {
+    auto* eye = swept_effect_eye(*list, name);
+    CHECK(eye != nullptr);
+    send_mouse(*eye, QEvent::MouseButtonPress, eye->rect().center(), Qt::LeftButton, Qt::LeftButton);
+    settle_effect_rows();
+  };
+  // 30 moves from `from` to `to`, evenly spaced.
+  const auto path = [](QPoint from, QPoint to) {
+    std::vector<QPoint> points;
+    for (int step = 1; step <= 30; ++step) {
+      points.push_back(from + (to - from) * step / 30);
+    }
+    return points;
+  };
+  const auto post_moves = [&](const std::vector<QPoint>& points) {
+    for (const auto point : points) {
+      QApplication::postEvent(viewport, new QMouseEvent(QEvent::MouseMove, QPointF(point),
+                                                        QPointF(viewport->mapToGlobal(point)), Qt::NoButton,
+                                                        Qt::LeftButton, Qt::NoModifier));
+    }
+  };
+  const auto top = eye_point("Bevel & Emboss");
+  const auto bottom = eye_point("Outer Glow");
+  CHECK(bottom.y() > top.y() + 80);
+
+  // Queued: the whole way down in one burst, then up and down again in a second burst.
+  const auto undo_before = undo_depth();
+  press("Bevel & Emboss");
+  CHECK((flags() == Flags{false, true, true, true, true}));
+  post_moves(path(top, bottom));
+  settle_effect_rows();
+  settle_effect_rows();
+  CHECK((flags() == Flags{false, false, false, false, false}));
+  CHECK(undo_depth() == undo_before + 1);
+  auto back_and_forth = path(bottom, top);
+  const auto down_again = path(top, bottom);
+  back_and_forth.insert(back_and_forth.end(), down_again.begin(), down_again.end());
+  post_moves(back_and_forth);
+  settle_effect_rows();
+  settle_effect_rows();
+  CHECK((flags() == Flags{false, false, false, false, false}));  // backtracking flips nothing
+  CHECK(undo_depth() == undo_before + 1);
+  send_mouse(*viewport, QEvent::MouseButtonRelease, bottom, Qt::LeftButton, Qt::NoButton);
+  settle_effect_rows();
+  CHECK(QWidget::mouseGrabber() == nullptr);
+  CHECK(MainWindowTestAccess::current_history_label(window) == QStringLiteral("Hide Effects"));
+  const auto queued = flags();
+  // Moves after the release belong to no sweep.
+  post_moves(path(bottom, top));
+  settle_effect_rows();
+  CHECK(flags() == queued);
+
+  // One undo step for the burst; the same moves one by one end in the same place.
+  MainWindowTestAccess::undo(window);
+  settle_effect_rows();
+  CHECK((flags() == Flags{true, true, true, true, true}));
+  CHECK(undo_depth() == undo_before);
+  press("Bevel & Emboss");
+  for (const auto point : path(top, bottom)) {
+    send_mouse(*viewport, QEvent::MouseMove, point, Qt::NoButton, Qt::LeftButton);
+  }
+  settle_effect_rows();
+  send_mouse(*viewport, QEvent::MouseButtonRelease, bottom, Qt::LeftButton, Qt::NoButton);
+  settle_effect_rows();
+  CHECK(flags() == queued);
+  CHECK(undo_depth() == undo_before + 1);
+}
+
+// local-063 pictures (Dark): the window with every effect on, then after one press on the
+// Bevel & Emboss eye dragged down the eye column to Outer Glow. No checks on the outcome,
+// so the same run on the code before the change gives the BEFORE picture.
+void ui_layer_effect_eye_sweep_local_063_shots() {
+  ColorSchemeRestorer restore_scheme;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
+  window.add_document_session(swept_effects_document(), QStringLiteral("Effect Eye Sweep"));
+  QApplication::processEvents();
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(list != nullptr);
+  expand_effects(*list, QStringLiteral("Paint Layer"));
+  auto* canvas = require_canvas(window);
+  canvas->force_refresh();
+  QApplication::processEvents();
+  save_widget_artifact("ui_layer_effect_eye_sweep_local_063_start", window);
+  sweep_effect_eyes_like_a_user(window, *list, "Bevel & Emboss", {"Stroke", "Satin", "Color Overlay", "Outer Glow"});
+  CHECK(process_events_until([&] { return !canvas->current_composite().isNull(); }));
+  canvas->force_refresh();
+  QApplication::processEvents();
+  save_widget_artifact("ui_layer_effect_eye_sweep_local_063_swept", window);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_effect_rows_tests() {
   return {
+      {"ui_layer_effect_eye_sweep_sets_crossed_effects_to_first_state",
+       ui_layer_effect_eye_sweep_sets_crossed_effects_to_first_state},
+      {"ui_layer_effect_eye_sweep_handles_queued_moves", ui_layer_effect_eye_sweep_handles_queued_moves},
+      {"ui_layer_effect_eye_sweep_local_063_shots", ui_layer_effect_eye_sweep_local_063_shots},
       {"ui_layer_rows_with_every_badge_fit_narrow_and_wide", ui_layer_rows_with_every_badge_fit_narrow_and_wide},
       {"ui_layer_advanced_blending_badge_names_settings_and_opens_blending_options",
        ui_layer_advanced_blending_badge_names_settings_and_opens_blending_options},

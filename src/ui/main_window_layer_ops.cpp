@@ -3592,7 +3592,8 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
 }
 
 bool MainWindow::apply_layer_effect_row_edit(LayerId layer_id, const QString& undo_text, const QString& status_text,
-                                             const std::function<bool(LayerStyle&)>& edit) {
+                                             const std::function<bool(LayerStyle&)>& edit,
+                                             std::uint64_t edit_run_token, const QString& run_undo_text) {
   if (!has_active_document() || canvas_ == nullptr) {
     return false;
   }
@@ -3617,7 +3618,15 @@ bool MainWindow::apply_layer_effect_row_edit(LayerId layer_id, const QString& un
     refresh_layer_list();
     return false;
   }
-  push_undo_snapshot(undo_text);
+  auto& history = session().history;
+  const bool continues_run = edit_run_token != 0 && history.edit_run_token() == edit_run_token &&
+                             !history.undo_stack().empty();
+  push_undo_snapshot(session(), undo_text, edit_run_token);
+  if (continues_run) {
+    // Folded into the run's step, which now holds more than the edit it was named after.
+    history.set_current_state_label(run_undo_text);
+    refresh_history_panel();
+  }
   auto* target = doc.find_layer(layer_id);
   target->layer_style() = std::move(next);
   // The preserved lfx2 bytes no longer describe the style; the writer regenerates it.
@@ -3644,7 +3653,14 @@ void MainWindow::set_layer_effects_visible(LayerId layer_id, bool visible) {
 
 void MainWindow::set_layer_effect_enabled(LayerId layer_id, LayerStyleEffect effect, std::size_t index,
                                           bool enabled) {
+  sweep_layer_effect_enabled(layer_id, effect, index, enabled, 0);
+}
+
+void MainWindow::sweep_layer_effect_enabled(LayerId layer_id, LayerStyleEffect effect, std::size_t index,
+                                            bool enabled, std::uint64_t gesture) {
   const auto name = layer_effect_display_name(effect);
+  // The top bit keeps a sweep's token apart from the canvas's own edit runs (a held nudge).
+  constexpr std::uint64_t kEffectSweepRun = std::uint64_t{1} << 63;
   apply_layer_effect_row_edit(layer_id, enabled ? tr("Show %1").arg(name) : tr("Hide %1").arg(name),
                               enabled ? tr("%1 shown").arg(name) : tr("%1 hidden").arg(name),
                               [effect, index, enabled](LayerStyle& style) {
@@ -3654,7 +3670,7 @@ void MainWindow::set_layer_effect_enabled(LayerId layer_id, LayerStyleEffect eff
     }
     *flag = enabled;
     return true;
-  });
+  }, gesture != 0 ? (kEffectSweepRun | gesture) : 0, enabled ? tr("Show Effects") : tr("Hide Effects"));
 }
 
 void MainWindow::delete_layer_effect(LayerId layer_id, LayerStyleEffect effect, std::size_t index) {

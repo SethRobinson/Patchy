@@ -1667,6 +1667,10 @@ void MainWindow::create_docks() {
   layer_list->set_visibility_isolate_callback([this](LayerId id) { isolate_layer_visibility(id); });
   layer_list->set_visibility_sweep_callback(
       [this](LayerId id, bool visible) { set_layer_visibility(id, visible); });
+  layer_list->set_effect_visibility_sweep_callback(
+      [this](LayerId id, int effect, std::size_t index, bool visible, std::uint64_t gesture) {
+        sweep_layer_effect_enabled(id, static_cast<LayerStyleEffect>(effect), index, visible, gesture);
+      });
   layer_list->set_ctrl_click_callback(
       [this](QListWidgetItem* item, LayerCtrlClickTarget target, Qt::KeyboardModifiers modifiers) {
         if (canvas_ == nullptr || item == nullptr) {

@@ -72,6 +72,9 @@ public:
   // so a later edit in the same run pushes again instead of folding into someone else's.
   [[nodiscard]] std::uint64_t edit_run_token() const noexcept { return edit_run_token_; }
   void set_edit_run_token(std::uint64_t token) noexcept { edit_run_token_ = token; }
+  // Renames the live state: an edit run that grew past what its first edit's label says
+  // (an effect-eye sweep that reached a second effect).
+  void set_current_state_label(QString label) { current_state_label_ = std::move(label); }
 
   void record_push(State state, QString action_label);
   void initialize(QString initial_label);

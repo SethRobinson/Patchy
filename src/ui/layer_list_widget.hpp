@@ -83,6 +83,14 @@ public:
   // Photoshop's eye sweep: press an eye and drag along the column; every eye
   // crossed adopts the state the first toggle produced.
   void set_visibility_sweep_callback(std::function<void(LayerId, bool)> callback);
+  // The same sweep along the effect eyes under an open Layer Styles header: press one
+  // effect's eye and drag along the column, and every effect eye crossed, on any layer,
+  // adopts the state the press produced. Layer eyes, the Layer Styles master eye and
+  // Smart Filter eyes are left alone. `effect` and `index` are the entry row's
+  // layerEffectKind and layerEffectIndex; `gesture` is nonzero and the same for every
+  // call of one press-drag, so the host can record the sweep as one undo step.
+  void set_effect_visibility_sweep_callback(
+      std::function<void(LayerId, int effect, std::size_t index, bool visible, std::uint64_t gesture)> callback);
   // While true the list answers its visibility eyes (click, sweep, Alt-click) and
   // scrolling only: selection, drags, renames, editors, the context menu, keys and drops
   // are swallowed. A preview dialog that lets the user inspect layers (the G'MIC Filter
@@ -187,6 +195,8 @@ private:
   [[nodiscard]] std::optional<std::pair<LayerCtrlClickTarget, QWidget*>> ctrl_click_hit(QListWidgetItem* item,
                                                                                         QPoint viewport_pos) const;
   bool handle_visibility_eye_press(QWidget* eye_button, const QMouseEvent* event);
+  bool handle_effect_eye_press(QWidget* eye_button, const QMouseEvent* event);
+  void sweep_effect_eyes(int span_top, int span_bottom);
   bool handle_visibility_sweep_move(QPoint viewport_position, const QMouseEvent* event);
   void sweep_visibility_to(QPoint viewport_position);
   void update_visibility_sweep_auto_scroll();
@@ -263,6 +273,17 @@ private:
   // Where the pointer is, unclamped (past the list's edge while autoscrolling).
   QPoint visibility_sweep_pointer_{};
   std::vector<LayerId> visibility_swept_ids_;
+  // An effect-eye sweep shares the fields above (state, column, positions, the grab and
+  // the autoscroll) and crosses effect entry rows instead of layer rows.
+  struct SweptEffect {
+    LayerId layer{0};
+    int effect{0};
+    std::size_t index{0};
+    bool operator==(const SweptEffect&) const = default;
+  };
+  bool visibility_sweep_effects_{false};
+  std::vector<SweptEffect> visibility_swept_effects_;
+  std::uint64_t effect_sweep_gesture_{0};
   QBasicTimer auto_scroll_timer_;
   int auto_scroll_direction_{0};
   int wheel_pixel_remainder_{0};
@@ -291,6 +312,7 @@ private:
   std::function<void(LayerId)> clip_boundary_toggle_;
   std::function<void(LayerId)> visibility_isolate_callback_;
   std::function<void(LayerId, bool)> visibility_sweep_callback_;
+  std::function<void(LayerId, int, std::size_t, bool, std::uint64_t)> effect_visibility_sweep_callback_;
   QPointer<QWidget> clip_cursor_widget_;
   SelectionLoadCursor selection_load_cursor_;
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> ctrl_click_callback_;
