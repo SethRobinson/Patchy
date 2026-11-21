@@ -1270,9 +1270,10 @@ std::vector<RenderedDocumentPatch> render_document_region(
   // A brush patch computes the painted layer's masks per rect and keeps none
   // of them, so a large rect splits into row bands for the workers below.
   // Each band pays for its own mask apron, which sets the minimum band height.
-  // The bands take half the workers: the stroke goes on painting on the GUI
-  // thread while a background pass renders them (BrushRealignJob), and with
-  // every core busy its moves ran four times slower.
+  // The bands take a quarter of the workers: the stroke goes on painting on
+  // the GUI thread while a background pass renders them (BrushRealignJob).
+  // On 20 threads its moves took 73 ms with every worker on the bands, 60 ms
+  // with half and 37 ms with a quarter, against 12 to 23 ms with none.
   constexpr int kBrushBandMinRows = 96;
   constexpr std::int64_t kBrushBandMinArea = 400'000;
   // Tracing/profiling stay sequential so per-render instrumentation remains
@@ -1281,7 +1282,7 @@ std::vector<RenderedDocumentPatch> render_document_region(
                            !render_profile_enabled();
   const auto band_workers =
       windowed_layer && may_fan_out
-          ? std::max(1, max_blocking_fanout_workers(patchy::hardware_worker_threads()) / 2)
+          ? std::max(1, max_blocking_fanout_workers(patchy::hardware_worker_threads()) / 4)
           : 1;
   bool banded = false;
   for (const auto& rect : document_region.intersected(canvas_rect)) {
