@@ -5372,6 +5372,151 @@ void ui_move_deferred_commit_yields_to_undo() {
   CHECK(images_equal_rgba(restored, scene.reference_image()));
 }
 
+// An arrow-key nudge whose patch would hold the key handler (here a layer with effects
+// over more than a megapixel) moves the layer at once and renders the patch on the Move
+// commit worker. A held key replaces the request before its render ends; the render in
+// flight still lands, so the canvas keeps showing frames (before, a nudge of this layer
+// took 300 ms in the handler on 32 threads, and a full-canvas layer showed no frame until
+// the key came up). The settled canvas is a fresh render's pixels, and Undo drops the job.
+void ui_arrow_nudge_defers_slow_patches_and_lands_frames_while_held() {
+  EnvironmentVariableRestorer restore_render_delay{"PATCHY_PROCESSING_RENDER_TEST_DELAY_MS"};
+  // The "Processing..." badge would be drawn over the pixels this test reads.
+  EnvironmentVariableRestorer restore_overlay_delay{"PATCHY_PROCESSING_OVERLAY_DELAY_MS"};
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", QByteArray("600000"));
+  constexpr int kWidth = 2000;
+  constexpr int kHeight = 1400;
+  const QColor ink(20, 90, 235);
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer chip(document.allocate_layer_id(), "Chip",
+                     solid_pixels(80, 80, patchy::PixelFormat::rgba8(), QColor(200, 60, 40)));
+  const auto chip_id = chip.id();
+  chip.set_bounds(patchy::Rect{40, 40, 80, 80});
+  document.add_layer(std::move(chip));
+  patchy::Layer styled(document.allocate_layer_id(), "Styled", solid_pixels(1300, 850, patchy::PixelFormat::rgba8(), ink));
+  const auto styled_id = styled.id();
+  styled.set_bounds(patchy::Rect{300, 250, 1300, 850});
+  {
+    auto& shadow = styled.layer_style().drop_shadows.emplace_back();
+    shadow.enabled = true;
+    shadow.distance = 12.0F;
+    shadow.size = 10.0F;
+    auto& glow = styled.layer_style().outer_glows.emplace_back();
+    glow.enabled = true;
+    glow.size = 14.0F;
+  }
+  document.add_layer(std::move(styled));
+  document.set_active_layer(styled_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Deferred Nudge"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  canvas->set_show_transform_controls(false);
+  canvas->set_auto_select_layer(false);
+  canvas->set_snap_enabled(false);
+  canvas->set_selected_layer_ids({styled_id});
+  // The layer's right edge, where each nudge turns one more column into the layer's color.
+  canvas->zoom_to_document_rect(QRect(1480, 560, 240, 160));
+  canvas->setFocus();
+  QApplication::processEvents();
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto settle = [canvas] {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+    while (!canvas->render_settled() && std::chrono::steady_clock::now() < deadline) {
+      QApplication::processEvents();
+    }
+    CHECK(canvas->render_settled());
+  };
+  const auto reference = [&] {
+    qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("0"));
+    canvas->force_refresh();
+    settle();
+    return render_widget_image(*canvas);
+  };
+  const auto layer_x = [&doc](patchy::LayerId id) { return std::as_const(doc).find_layer(id)->bounds().x; };
+  canvas->force_refresh();
+  settle();
+  constexpr int kRenderDelayMs = 1500;
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray::number(kRenderDelayMs));
+
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto before = canvas->render_cache_diagnostics();
+  const auto pressed = std::chrono::steady_clock::now();
+  send_key(*canvas, Qt::Key_Right);
+  send_key(*canvas, Qt::Key_Right);
+  const auto keys_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - pressed).count();
+  // Neither key waited for a render, and both moved the layer and recorded history.
+  CHECK(keys_ms < kRenderDelayMs / 2);
+  CHECK(canvas->move_commit_job_pending());
+  CHECK(!canvas->render_settled());
+  CHECK(layer_x(styled_id) == 302);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 2);
+  auto diagnostics = canvas->render_cache_diagnostics();
+  CHECK(diagnostics.move_deferred_commits == before.move_deferred_commits + 2);
+  CHECK(diagnostics.partial_patches == before.partial_patches);
+  CHECK(diagnostics.full_refreshes == before.full_refreshes);
+
+  // The first key's render lands while the second key's is still owed: the frame shows
+  // the layer one pixel along.
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+  while (canvas->render_cache_diagnostics().move_intermediate_patches == before.move_intermediate_patches &&
+         std::chrono::steady_clock::now() < deadline) {
+    QApplication::processEvents();
+  }
+  CHECK(canvas->render_cache_diagnostics().move_intermediate_patches == before.move_intermediate_patches + 1);
+  CHECK(canvas->move_commit_job_pending());
+  CHECK(color_close(canvas_pixel_center(*canvas, QPoint(1600, 640)), ink, 4));
+  CHECK(!color_close(canvas_pixel_center(*canvas, QPoint(1601, 640)), ink, 4));
+
+  settle();
+  CHECK(!canvas->move_commit_job_pending());
+  CHECK(canvas->render_cache_diagnostics().move_precommit_patches == before.move_precommit_patches + 1);
+  CHECK(color_close(canvas_pixel_center(*canvas, QPoint(1601, 640)), ink, 4));
+  CHECK(!color_close(canvas_pixel_center(*canvas, QPoint(1602, 640)), ink, 4));
+  {
+    const auto landed = render_widget_image(*canvas);
+    CHECK(images_equal_rgba(landed, reference()));
+  }
+
+  // Undo while a nudge's render is pending drops the job and shows the earlier state.
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray::number(kRenderDelayMs));
+  send_key(*canvas, Qt::Key_Right);
+  CHECK(canvas->move_commit_job_pending());
+  CHECK(layer_x(styled_id) == 303);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(!canvas->move_commit_job_pending());
+  CHECK(layer_x(styled_id) == 302);
+  settle();
+  CHECK(color_close(canvas_pixel_center(*canvas, QPoint(1601, 640)), ink, 4));
+  CHECK(!color_close(canvas_pixel_center(*canvas, QPoint(1602, 640)), ink, 4));
+  {
+    const auto restored = render_widget_image(*canvas);
+    CHECK(images_equal_rgba(restored, reference()));
+  }
+
+  // A small plain layer still patches in the key handler.
+  doc.set_active_layer(chip_id);
+  canvas->set_selected_layer_ids({chip_id});
+  QApplication::processEvents();
+  settle();
+  const auto before_chip = canvas->render_cache_diagnostics();
+  send_key(*canvas, Qt::Key_Right);
+  CHECK(layer_x(chip_id) == 41);
+  CHECK(!canvas->move_commit_job_pending());
+  diagnostics = canvas->render_cache_diagnostics();
+  CHECK(diagnostics.move_deferred_commits == before_chip.move_deferred_commits);
+  CHECK(diagnostics.partial_patches == before_chip.partial_patches + 1);
+  settle();
+  {
+    const auto patched = render_widget_image(*canvas);
+    CHECK(images_equal_rgba(patched, reference()));
+  }
+}
+
 // A full background refresh that outlives the badge delay must still land.
 // The badge animation repaints the canvas every 80 ms, and each repaint used
 // to mark the in-flight refresh pending, so every completion discarded its
@@ -5675,6 +5820,8 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
       {"ui_move_deferred_commit_shows_processing_badge_after_delay",
        ui_move_deferred_commit_shows_processing_badge_after_delay},
       {"ui_move_deferred_commit_yields_to_undo", ui_move_deferred_commit_yields_to_undo},
+      {"ui_arrow_nudge_defers_slow_patches_and_lands_frames_while_held",
+       ui_arrow_nudge_defers_slow_patches_and_lands_frames_while_held},
       {"ui_background_refresh_lands_while_processing_badge_animates",
        ui_background_refresh_lands_while_processing_badge_animates},
       {"ui_move_deferred_commit_serves_exact_pixels_to_readers",

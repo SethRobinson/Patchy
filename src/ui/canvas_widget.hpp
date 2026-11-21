@@ -2376,8 +2376,11 @@ private:
   [[nodiscard]] bool can_hold_move_commit_preview(QPoint commit_delta) const noexcept;
   void arm_move_commit_hold(QPoint commit_delta);
   void clear_move_commit_hold() noexcept;
-  void start_move_commit_job(const QRegion& document_region);
-  void finish_move_commit_job(std::uint64_t generation);
+  void start_move_commit_job(const QRegion& document_region, bool lands_superseded = false);
+  // `rendered` is what the worker rendered for `generation`: a superseded render lands
+  // from it (MoveCommitJob::lands_superseded). The current job lands from its future.
+  void finish_move_commit_job(std::uint64_t generation,
+                              std::shared_ptr<const std::vector<RenderedDocumentPatch>> rendered = nullptr);
   void cancel_move_commit_job() noexcept;
   void wait_for_move_commit_job();
   // Brush realign job (see the BrushRealignJob members).
@@ -3045,7 +3048,12 @@ private:
   bool handle_shape_ctrl_press(QMouseEvent* event, QPointF document_point);
   // Move press with an unlinked vector mask targeted: drags the mask path alone.
   bool handle_move_vector_mask_press(QMouseEvent* event, QPointF document_point);
-  // Shows the effects a vector mask drag hid again and repaints them (release, tool
+  // Hides `layer`'s effects for the path drag in progress when they are expensive to
+  // redraw per move (layer_style_preview_is_expensive) and repaints the layer without
+  // them. The drag's undo snapshot is taken before its first step, so history never sees
+  // the hidden state. Returns whether it hid them now.
+  bool draft_path_drag_effects(Layer& layer);
+  // Shows the effects a path drag hid again and repaints them (release, cancel, tool
   // switch, document reset). No-op when none are hidden.
   void restore_path_drag_effects();
   // Re-rasterizes, once and from its final path, every shape layer a Path Select drag
@@ -3821,6 +3829,11 @@ private:
   [[nodiscard]] QRect moving_layers_outline_dirty_rect(QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] bool moving_layers_should_use_outline_preview(QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] QRegion move_active_layer_by(QPoint delta, std::uint64_t edit_run_token = 0);
+  // An arrow-key nudge whose patch would hold the key handler (a large layer, or one with
+  // effects) renders it on the Move commit worker instead: the layers have moved, the
+  // frame on screen stays until the patch lands, and a further nudge joins the pending
+  // job, so a held key keeps landing frames. False when the caller should patch as usual.
+  [[nodiscard]] bool defer_nudge_patches(const QRegion& dirty, const std::vector<LayerId>& moved);
   void notify_before_edit(const QString& label, std::uint64_t edit_run_token);
   void end_layer_nudge_hold() noexcept;
   void document_changed_impl(QRegion document_region, bool includes_effect_bounds,
@@ -4174,10 +4187,11 @@ private:
   // Move tool on a targeted, unlinked vector mask: the gesture drags the whole mask path
   // through the path-edit handlers as Path Select would (press -> release).
   bool move_vector_mask_drag_{false};
-  // A vector mask drag on a layer with expensive effects hides them until release
-  // (their style masks would rebuild over the whole layer per move); see
-  // restore_path_drag_effects.
-  std::optional<LayerId> path_drag_effects_hidden_layer_;
+  // A vector mask drag, or a point or handle drag on a shape layer, hides the layer's
+  // expensive effects until release (their style masks would rebuild over the whole layer
+  // per move); see draft_path_drag_effects and restore_path_drag_effects. A Direct Select
+  // drag can move points on several shape layers.
+  std::vector<LayerId> path_drag_effects_hidden_layers_;
   // A drag step that translates a shape layer's WHOLE path (Path Select dragging every
   // shape on it) moves the layer's existing raster by the rounded total instead of
   // re-rasterizing per mouse move (GitHub #678): `translation` is the path's total
@@ -5400,8 +5414,16 @@ private:
   // any other document change cancels the job and folds its region
   // into that change's invalidation, and a further commit restarts one job
   // over the union of both regions.
+  // An arrow-key nudge defers the same way without a hold (defer_nudge_patches). A held
+  // key replaces the request faster than a render finishes, so those jobs let the render
+  // in flight finish and land it (`lands_superseded`): it shows the layers where an
+  // earlier nudge put them, inside a region the pending job still owns. That is only
+  // sound while nothing but further nudges has touched the document, which is what
+  // `chain_start` records: the generation of the first job since the last cancel.
   struct MoveCommitJob {
     std::uint64_t generation{0};
+    std::uint64_t chain_start{0};
+    bool lands_superseded{false};
     QRegion region{};
     std::shared_future<std::vector<RenderedDocumentPatch>> result{};
   };

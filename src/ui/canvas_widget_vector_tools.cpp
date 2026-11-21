@@ -1722,22 +1722,45 @@ void CanvasWidget::finish_path_drag_rasters() {
   }
 }
 
+bool CanvasWidget::draft_path_drag_effects(Layer& layer) {
+  if (document_ == nullptr ||
+      std::find(path_drag_effects_hidden_layers_.begin(), path_drag_effects_hidden_layers_.end(), layer.id()) !=
+          path_drag_effects_hidden_layers_.end()) {
+    return false;
+  }
+  const auto& style = std::as_const(layer).layer_style();
+  if (!style.effects_visible || style.empty() ||
+      !layer_style_preview_is_expensive(std::as_const(layer),
+                                        Rect::from_size(document_->width(), document_->height()))) {
+    return false;
+  }
+  const auto full = to_qrect(layer_bounds_with_effects(std::as_const(layer), std::as_const(layer).bounds()));
+  layer.layer_style().effects_visible = false;
+  path_drag_effects_hidden_layers_.push_back(layer.id());
+  document_changed_effect_bounds(full);
+  return true;
+}
+
 void CanvasWidget::restore_path_drag_effects() {
-  if (!path_drag_effects_hidden_layer_.has_value()) {
+  if (path_drag_effects_hidden_layers_.empty()) {
     return;
   }
-  const auto id = *path_drag_effects_hidden_layer_;
-  path_drag_effects_hidden_layer_.reset();
+  const auto hidden = std::exchange(path_drag_effects_hidden_layers_, {});
   if (document_ == nullptr) {
     return;
   }
-  auto* layer = document_->find_layer(id);
-  if (layer == nullptr || std::as_const(*layer).layer_style().effects_visible) {
-    return;
+  QRegion shown;
+  for (const auto id : hidden) {
+    auto* layer = document_->find_layer(id);
+    if (layer == nullptr || std::as_const(*layer).layer_style().effects_visible) {
+      continue;
+    }
+    layer->layer_style().effects_visible = true;
+    shown += to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
   }
-  layer->layer_style().effects_visible = true;
-  document_changed_effect_bounds(
-      to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds())));
+  if (!shown.isEmpty()) {
+    document_changed_effect_bounds(shown);
+  }
 }
 
 void CanvasWidget::replace_path_edit_target(VectorPath path, const std::vector<int>& touched_groups,
@@ -1766,18 +1789,11 @@ void CanvasWidget::replace_path_edit_target(VectorPath path, const std::vector<i
       // and only it, grown by the layer's effect reach, recomposites. The layer's
       // whole effect rect (often the canvas) made every move a full recomposite.
       const auto canvas = Rect::from_size(document_->width(), document_->height());
-      if (path_drag_mode_ != PathEditDrag::None && path_drag_mode_ != PathEditDrag::Marquee &&
-          !path_drag_effects_hidden_layer_.has_value()) {
+      if (path_drag_mode_ != PathEditDrag::None && path_drag_mode_ != PathEditDrag::Marquee) {
         // Draft effects for the drag: a canvas-sized layer's Bevel or shadows rebuild
         // their masks over the whole layer each move (about a second at 2000x3000).
         // The undo snapshot was taken before this, so history never sees it.
-        const auto& style = std::as_const(*layer).layer_style();
-        if (style.effects_visible && !style.empty() && layer_style_preview_is_expensive(std::as_const(*layer), canvas)) {
-          const auto full = to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
-          layer->layer_style().effects_visible = false;
-          path_drag_effects_hidden_layer_ = layer->id();
-          document_changed_effect_bounds(full);
-        }
+        static_cast<void>(draft_path_drag_effects(*layer));
       }
       auto boxes = changed_path_boxes(path_edit_target_path(), path, overlay);
       // A band of many small boxes decomposes into more rects than a partial refresh
@@ -1922,6 +1938,14 @@ void CanvasWidget::write_shape_layer_path(Layer& layer, VectorPath path,
       layer.set_bounds(bounds);
     }
   } else {
+    if (path_drag_mode_ != PathEditDrag::None && path_drag_mode_ != PathEditDrag::Marquee) {
+      // A point or handle drag re-bakes the shape on every move, and each bake gives the
+      // layer's effects new masks over the whole layer: with five effects on a 1500 px
+      // shape that was 220 of a move's 260 ms on 32 threads. They are drafted (hidden)
+      // until release, like a vector mask drag's. The whole-shape drag above keeps them:
+      // its shifted raster keeps their masks.
+      static_cast<void>(draft_path_drag_effects(layer));
+    }
     path_drag_raster_lag_.erase(layer.id());
     layer.set_vector_shape(std::move(content));
     layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;

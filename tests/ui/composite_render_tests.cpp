@@ -22,6 +22,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/psd_source_colors.hpp"
 #include "core/vector_raster.hpp"
+#include "core/worker_budget.hpp"
 #include "render/compositor.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/image_document_io.hpp"
@@ -972,6 +973,110 @@ void check_stroke_scene(StrokeScene scene) {
   CHECK(patchy::ui::style_mask_cache_misses() == misses);
 }
 
+// A region patch between 0.5 and 4 Mpx composites in strips across the workers, as a
+// full render does from 4 Mpx up, while every effect mask it reads is a full-layer one:
+// its bytes are then those of one pass (and of that part of a full render). A layer whose
+// effects reach past the canvas edge has masks windowed to each render, so a patch that
+// reads them keeps the one pass. 8-bit and 16-bit, a single rect and the rect-plus-sliver
+// region an arrow-key nudge makes (before, such a patch took one thread: 300 ms a nudge
+// for a 3.4 Mpx layer with five effects on 32 threads, against 77 ms for the whole canvas).
+void region_patch_strips_match_one_pass() {
+  if (patchy::hardware_worker_threads() < 2) {
+    return;  // one worker: every render is one pass
+  }
+  constexpr int kWidth = 2000;
+  constexpr int kHeight = 1500;
+  for (const bool deep : {false, true}) {
+    patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+    {
+      patchy::PixelBuffer photo(kWidth, kHeight, patchy::PixelFormat::rgba8());
+      for (int y = 0; y < kHeight; ++y) {
+        auto* row = photo.pixel(0, y);
+        for (int x = 0; x < kWidth; ++x) {
+          row[x * 4 + 0] = static_cast<std::uint8_t>(60 + (x * 7 + y * 3) % 150);
+          row[x * 4 + 1] = static_cast<std::uint8_t>(80 + (x / 9 + y / 5) % 120);
+          row[x * 4 + 2] = static_cast<std::uint8_t>(100 + (y * 11) % 90);
+          row[x * 4 + 3] = 255;
+        }
+      }
+      document.add_layer(patchy::Layer(document.allocate_layer_id(), "Photo", std::move(photo)));
+    }
+    // A soft-edged slab with a hole: contours inside every strip.
+    patchy::PixelBuffer slab(1100, 800, patchy::PixelFormat::rgba8());
+    slab.clear(0);
+    for (int y = 0; y < 800; ++y) {
+      for (int x = 0; x < 1100; ++x) {
+        if (x >= 400 && x < 600 && y >= 300 && y < 520) {
+          continue;
+        }
+        auto* pixel = slab.pixel(x, y);
+        pixel[0] = 200;
+        pixel[1] = static_cast<std::uint8_t>(60 + (y % 90));
+        pixel[2] = 50;
+        pixel[3] = static_cast<std::uint8_t>(x < 16 ? 16 * x + 8 : 255);
+      }
+    }
+    patchy::Layer ink(document.allocate_layer_id(), "Ink", std::move(slab));
+    const auto ink_id = ink.id();
+    ink.set_bounds({420, 330, 1100, 800});
+    add_stroke_scene_effects(ink, true, true);
+    document.add_layer(std::move(ink));
+    patchy::Layer group(document.allocate_layer_id(), "Group", patchy::LayerKind::Group);
+    add_stroke_scene_effects(group, true, false);
+    patchy::Layer chip(document.allocate_layer_id(), "Chip", solid_rgba(300, 200, 60, 150, 90, 255));
+    chip.set_bounds({1500, 180, 300, 200});
+    group.add_child(std::move(chip));
+    patchy::Layer blob(document.allocate_layer_id(), "Blob", solid_rgba(250, 250, 40, 60, 200, 180));
+    blob.set_bounds({150, 1100, 250, 250});
+    group.add_child(std::move(blob));
+    document.add_layer(std::move(group));
+    if (deep) {
+      patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
+    }
+
+    // `whole_matches`: the patch is also that part of a full render. Not asked of a patch
+    // that reads masks windowed to its clip, whose blurs may round differently per window.
+    const auto check_region = [&](const QRegion& region, bool expect_strips, bool whole_matches = true) {
+      const auto strips_before = patchy::ui::patch_strip_renders();
+      const auto fallbacks_before = patchy::ui::patch_strip_fallbacks();
+      const auto striped = patchy::ui::qimage_patches_from_document_region(document, region, true);
+      const auto strips = patchy::ui::patch_strip_renders() - strips_before;
+      CHECK(expect_strips ? strips > 0 : strips == 0);
+      CHECK(patchy::ui::patch_strip_fallbacks() == fallbacks_before);
+      std::vector<patchy::ui::RenderedDocumentPatch> one_pass;
+      QImage whole;
+      {
+        ScopedSingleThreadedRender single;
+        one_pass = patchy::ui::qimage_patches_from_document_region(document, region, true);
+        whole = patchy::ui::qimage_from_document(document, true);
+      }
+      CHECK(patchy::ui::patch_strip_renders() - strips_before == strips);
+      CHECK(striped.size() == one_pass.size() && !striped.empty());
+      for (std::size_t index = 0; index < std::min(striped.size(), one_pass.size()); ++index) {
+        CHECK(striped[index].document_rect == one_pass[index].document_rect);
+        CHECK(striped[index].image == one_pass[index].image);
+        CHECK(!whole_matches ||
+              striped[index].image ==
+                  whole.copy(striped[index].document_rect).convertToFormat(striped[index].image.format()));
+      }
+    };
+    // One rect of 1.65 Mpx.
+    check_region(QRegion(QRect(200, 150, 1500, 1100)), true);
+    // A nudge's shape: three bands, the middle one (0.75 Mpx) with the sliver's columns.
+    check_region(QRegion(QRect(200, 150, 1500, 1000)) + QRect(1700, 400, 4, 500), true);
+    // Every band large enough for strips.
+    check_region(QRegion(QRect(100, 100, 1800, 1300)) + QRect(1900, 600, 4, 300), true);
+    // Under half a megapixel: one pass, as before.
+    check_region(QRegion(QRect(500, 400, 700, 600)), false);
+
+    // The slab's glow and shadow now cross the canvas edge.
+    document.find_layer(ink_id)->set_bounds({-40, 330, 1100, 800});
+    check_region(QRegion(QRect(0, 150, 1500, 1100)), false, false);
+    // A patch that does not reach that layer's effects still takes strips.
+    check_region(QRegion(QRect(1150, 60, 800, 700)), true);
+  }
+}
+
 void ui_styled_group_and_mask_strokes_match_full_render() {
   for (const char* name : {"layer_mask", "pass_through_group", "isolated_group", "nested_groups", "clip_base_folder",
                            "group_mask", "group_eraser", "deep_group", "gradient_in_group"}) {
@@ -995,6 +1100,7 @@ std::vector<patchy::test::TestCase> composite_render_tests() {
       {"ui_styled_group_and_mask_strokes_match_full_render", ui_styled_group_and_mask_strokes_match_full_render},
       {"styled_group_partial_render_and_child_edit_match_full_render", styled_group_partial_render_and_child_edit_match_full_render},
       {"styled_group_parallel_strips_match_single_threaded", styled_group_parallel_strips_match_single_threaded},
+      {"region_patch_strips_match_one_pass", region_patch_strips_match_one_pass},
       {"knockout_preview_preserves_alpha_depth_and_partial_bounds", knockout_preview_preserves_alpha_depth_and_partial_bounds},
       {"hidden_knockout_does_not_change_rgb_matte_blending", hidden_knockout_does_not_change_rgb_matte_blending},
       {"group_clipped_adjustment_preview_keeps_backdrop_and_tracks_child_move",

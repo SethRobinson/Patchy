@@ -77,6 +77,12 @@ bool move_layer_has_expensive_style(const Layer& layer) {
 }
 
 constexpr std::int64_t kMoveOutlineDirtyAreaThreshold = 4'000'000;
+// The smallest arrow-key nudge patch that renders on the Move commit worker instead of in
+// the key handler (defer_nudge_patches): for a layer with effects, and for any layer. A
+// 3.4 Mpx patch of a layer with five effects costs 60 ms in strips on 32 threads and 300 ms
+// when its effects cross the canvas edge (one pass); a held key sends one every 33 ms.
+constexpr std::int64_t kNudgeDeferStyledMinPixels = 1'000'000;
+constexpr std::int64_t kNudgeDeferMinPixels = 4'000'000;
 constexpr std::int64_t kStyledMoveOutlineDirtyAreaThreshold = 1'000'000;
 // The proxy snapshot is downscaled to at most this many pixels (mirrors
 // kTransformProxyMaxPixels) and refused outright above the last-resort cap,
@@ -1859,6 +1865,56 @@ QRegion CanvasWidget::move_active_layer_by(QPoint delta, std::uint64_t edit_run_
     deltas.emplace_back(id, delta);
   }
   return offset_layers(deltas, layer_ids.size() >= 2U ? tr("Nudge layers") : tr("Nudge layer"), true, edit_run_token);
+}
+
+bool CanvasWidget::defer_nudge_patches(const QRegion& dirty, const std::vector<LayerId>& moved) {
+  if constexpr (kBackgroundWorkRunsInline) {
+    return false;  // no worker to defer to
+  }
+  if (document_ == nullptr || !isVisible() || render_cache_dirty_ || render_cache_.isNull() ||
+      render_cache_.size() != QSize(document_->width(), document_->height()) || edit_locked_ ||
+      mask_display_mode_ != MaskDisplayMode::None || transforming_layer_ || warping_layer_) {
+    return false;
+  }
+  auto region = dirty.intersected(QRect(0, 0, document_->width(), document_->height()));
+  if (region.isEmpty()) {
+    return false;
+  }
+  const auto ancestor_style_info = collect_ancestor_group_style_info(std::as_const(*document_).layers());
+  bool styled = false;
+  for (const auto id : moved) {
+    const auto* layer = std::as_const(*document_).find_layer(id);
+    if (layer == nullptr || move_layer_requires_smart_filter_rerender(*layer)) {
+      return false;
+    }
+    styled = styled || move_layer_has_expensive_style(*layer);
+    if (const auto found = ancestor_style_info.find(id); found != ancestor_style_info.end()) {
+      styled = styled || found->second.styled;
+    }
+  }
+  // A job that is already pending takes every further nudge: patching here instead
+  // would cancel it and render its region on this thread too.
+  std::int64_t area = 0;
+  for (const auto& rect : region) {
+    area += static_cast<std::int64_t>(rect.width()) * rect.height();
+  }
+  if (!move_commit_job_.has_value() && area < (styled ? kNudgeDeferStyledMinPixels : kNudgeDeferMinPixels)) {
+    return false;
+  }
+  // What document_changed_impl settles before a patch, on the Move release's deferred
+  // route (mouseReleaseEvent): the cache stays stale inside the job's region, never dirty.
+  clear_transform_commit_hold();
+  refresh_shape_resize_box();
+  region += cancel_brush_realign_job();
+  clear_preview_scaled_document();
+  invalidate_retained_move_caches();
+  if (async_render_cache_in_flight_) {
+    async_render_cache_pending_ = true;
+  }
+  start_move_commit_job(region, true);
+  notify_document_changed();
+  update();
+  return true;
 }
 
 QRegion CanvasWidget::offset_layers(const std::vector<std::pair<LayerId, QPoint>>& deltas,

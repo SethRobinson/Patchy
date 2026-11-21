@@ -39,6 +39,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QEvent>
+#include <QFocusEvent>
 #include <QImage>
 #include <QPaintEvent>
 #include <QPainter>
@@ -1329,6 +1330,146 @@ void ui_path_select_drag_coalesces_queued_moves() {
   patchy::ui::MainWindowTestAccess::undo(window);
   CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - 100.0) < 0.5);
   CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_y - 100.0) < 0.5);
+}
+
+// A Direct Select point drag re-bakes the shape on every move, and each bake gave the
+// layer's effects new masks over the whole layer (five effects on a 1500 px shape: 220 of
+// a move's 260 ms on 32 threads). A layer with expensive effects drafts them (hidden) for
+// the drag and shows them again on release and when the drag is cancelled. The drag is one
+// undo step, history never holds the hidden state, and the canvas after the release is a
+// fresh render. A cheap style stays live through the drag.
+void ui_shape_point_drag_drafts_expensive_effects() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  const auto set_shadow_size = [&](float size) {
+    auto& style = document.find_layer(layer_id)->layer_style();
+    style.drop_shadows.clear();
+    auto& shadow = style.drop_shadows.emplace_back();
+    shadow.enabled = true;
+    shadow.distance = 6.0F;
+    shadow.size = size;
+    canvas->document_changed();
+    QApplication::processEvents();
+  };
+  const auto effects_visible = [&] {
+    return std::as_const(document).find_layer(layer_id)->layer_style().effects_visible;
+  };
+  const auto path_text = [&] {
+    return patchy::serialize_vector_path(std::as_const(document).find_layer(layer_id)->vector_shape()->path);
+  };
+  const auto settle = [canvas] {
+    QApplication::processEvents();
+    CHECK(process_events_until([canvas] { return canvas->render_settled(); }, 60000));
+    QApplication::processEvents();
+  };
+  canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+  QApplication::processEvents();
+  const auto corner = canvas->widget_position_for_document_point(QPoint(100, 100));
+  // A click selects the path; the next press on the corner drags that point.
+  send_mouse(*canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, corner, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  // Presses at the corner and moves it away; returns whether every move saw the effects hidden.
+  const auto drag_corner = [&](bool& visible_during_drag) {
+    bool hidden = true;
+    visible_during_drag = true;
+    send_mouse(*canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
+    for (int step = 1; step <= 5; ++step) {
+      send_mouse(*canvas, QEvent::MouseMove, corner - QPoint(step * 4, step * 3), Qt::NoButton, Qt::LeftButton);
+      QApplication::processEvents();
+      canvas->repaint();
+      hidden = hidden && !effects_visible();
+      visible_during_drag = visible_during_drag && effects_visible();
+    }
+    return hidden;
+  };
+  const auto release = [&] {
+    send_mouse(*canvas, QEvent::MouseButtonRelease, corner - QPoint(20, 15), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  const auto path_before = path_text();
+  bool visible_during_drag = false;
+
+  // A small shadow on a small shape is cheap: it stays on screen while the point moves.
+  set_shadow_size(8.0F);
+  static_cast<void>(drag_corner(visible_during_drag));
+  release();
+  CHECK(visible_during_drag);
+  CHECK(effects_visible());
+  CHECK(path_text() != path_before);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(path_text() == path_before);
+
+  // A shadow that reaches 96 px or more is drafted.
+  set_shadow_size(120.0F);
+  settle();
+  const auto history = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto before = canvas->render_cache_diagnostics();
+  const auto hidden_during_drag = drag_corner(visible_during_drag);
+  const auto during = canvas->render_cache_diagnostics();
+  CHECK(hidden_during_drag);
+  CHECK(during.full_refreshes == before.full_refreshes);
+  release();
+  CHECK(effects_visible());
+  CHECK(path_text() != path_before);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == history + 1);
+  settle();
+  {
+    const auto released = render_widget_image(*canvas);
+    canvas->force_refresh();
+    settle();
+    CHECK(images_equal_rgba(released, render_widget_image(*canvas)));
+  }
+  // Neither side of the undo step holds the drafted state.
+  const auto path_after = path_text();
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(path_text() == path_before);
+  CHECK(effects_visible());
+  patchy::ui::MainWindowTestAccess::redo(window);
+  QApplication::processEvents();
+  CHECK(path_text() == path_after);
+  CHECK(effects_visible());
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  settle();
+
+  // A drag that ends without a release shows the effects again: a tool switch, and focus loss.
+  CHECK(drag_corner(visible_during_drag));
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  CHECK(effects_visible());
+  send_mouse(*canvas, QEvent::MouseButtonRelease, corner - QPoint(20, 15), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+  QApplication::processEvents();
+  send_mouse(*canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, corner, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto anchored = canvas->widget_position_for_document_point(QPoint(300, 220));
+  send_mouse(*canvas, QEvent::MouseButtonPress, anchored, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, anchored + QPoint(9, 7), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  if (!effects_visible()) {
+    QFocusEvent focus_out(QEvent::FocusOut, Qt::OtherFocusReason);
+    QApplication::sendEvent(canvas, &focus_out);
+    QApplication::processEvents();
+    CHECK(effects_visible());
+  } else {
+    // The press did not start a point drag here; the tool-switch case above covers the cancel.
+    send_mouse(*canvas, QEvent::MouseButtonRelease, anchored + QPoint(9, 7), Qt::LeftButton, Qt::NoButton);
+  }
+  settle();
+  {
+    const auto shown = render_widget_image(*canvas);
+    canvas->force_refresh();
+    settle();
+    CHECK(images_equal_rgba(shown, render_widget_image(*canvas)));
+  }
 }
 
 // GitHub #678: a Path Select drag of a whole shape moves the shape's existing raster by
@@ -3131,6 +3272,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_path_select_drag_coalesces_queued_moves", ui_path_select_drag_coalesces_queued_moves},
       {"ui_path_select_shape_drag_shifts_raster_and_rebakes_once",
        ui_path_select_shape_drag_shifts_raster_and_rebakes_once},
+      {"ui_shape_point_drag_drafts_expensive_effects", ui_shape_point_drag_drafts_expensive_effects},
       {"ui_path_select_drag_coalesces_moves_and_keeps_the_fill_current",
        ui_path_select_drag_coalesces_moves_and_keeps_the_fill_current},
       {"ui_direct_select_drags_points_of_unselected_shapes",

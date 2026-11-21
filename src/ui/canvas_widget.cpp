@@ -397,7 +397,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
     finish_path_drag_rasters();
     restore_path_drag_effects();
   } else {
-    path_drag_effects_hidden_layer_.reset();
+    path_drag_effects_hidden_layers_.clear();
     path_drag_raster_lag_.clear();  // the shifted rasters belong to the outgoing document
     move_float_memory_.reset();  // the remembered floating pixels belong to the outgoing document
   }

@@ -2682,14 +2682,16 @@ void CanvasWidget::clear_move_commit_hold() noexcept {
   move_commit_hold_patches_.clear();
 }
 
-void CanvasWidget::start_move_commit_job(const QRegion& document_region) {
+void CanvasWidget::start_move_commit_job(const QRegion& document_region, bool lands_superseded) {
   if (document_ == nullptr) {
     return;
   }
   auto region = document_region.intersected(QRect(0, 0, document_->width(), document_->height()));
+  std::uint64_t chain_start = 0;
   if (move_commit_job_.has_value()) {
     // One job over both regions: the earlier result is stale now.
     region += move_commit_job_->region;
+    chain_start = move_commit_job_->chain_start;
   }
   if (region.isEmpty()) {
     cancel_move_commit_job();
@@ -2700,6 +2702,8 @@ void CanvasWidget::start_move_commit_job(const QRegion& document_region) {
   auto promise = std::make_shared<std::promise<std::vector<RenderedDocumentPatch>>>();
   MoveCommitJob job;
   job.generation = generation;
+  job.chain_start = chain_start != 0 ? chain_start : generation;
+  job.lands_superseded = lands_superseded;
   job.region = region;
   job.result = promise->get_future().share();
   move_commit_job_ = std::move(job);
@@ -2711,7 +2715,8 @@ void CanvasWidget::start_move_commit_job(const QRegion& document_region) {
   const auto state = move_commit_worker_;
   {
     std::lock_guard lock(state->mutex);
-    if (state->current_cancel) {
+    // A nudge lets the render in flight finish: it lands as an earlier frame of the hold.
+    if (state->current_cancel && !lands_superseded) {
       state->current_cancel->store(true);
     }
     if (state->pending) {
@@ -2758,19 +2763,38 @@ void CanvasWidget::start_move_commit_job(const QRegion& document_region) {
       } catch (...) {
         patches.clear();
       }
+      // The images are shared, so this second owner costs no pixels.
+      auto rendered = std::make_shared<const std::vector<RenderedDocumentPatch>>(patches);
       request.promise->set_value(std::move(patches));
       if (app != nullptr) {
-        QMetaObject::invokeMethod(app, [widget, completed = request.generation] {
-          if (widget != nullptr) widget->finish_move_commit_job(completed);
+        QMetaObject::invokeMethod(app, [widget, completed = request.generation, rendered = std::move(rendered)] {
+          if (widget != nullptr) widget->finish_move_commit_job(completed, rendered);
         }, Qt::QueuedConnection);
       }
     }
   });
 }
 
-void CanvasWidget::finish_move_commit_job(std::uint64_t generation) {
-  if (!move_commit_job_.has_value() || move_commit_job_->generation != generation) {
-    return;  // cancelled or superseded; a later completion owns the cache
+void CanvasWidget::finish_move_commit_job(std::uint64_t generation,
+                                          std::shared_ptr<const std::vector<RenderedDocumentPatch>> rendered) {
+  if (!move_commit_job_.has_value()) {
+    return;  // cancelled
+  }
+  if (move_commit_job_->generation != generation) {
+    // Superseded; a later completion owns the cache. A held arrow key still shows this
+    // render: every change since its snapshot was a further nudge of this chain, the
+    // pending job covers its whole region, and no hold is drawn over the cache.
+    if (move_commit_job_->lands_superseded && generation >= move_commit_job_->chain_start &&
+        generation < move_commit_job_->generation && rendered != nullptr && !rendered->empty() &&
+        move_commit_hold_base_.isNull() && !render_cache_dirty_ && document_ != nullptr && !render_cache_.isNull() &&
+        render_cache_.size() == QSize(document_->width(), document_->height()) &&
+        patch_render_cache_patches(*rendered)) {
+      ++render_cache_diagnostics_.move_intermediate_patches;
+      if (isVisible()) {
+        update();
+      }
+    }
+    return;
   }
   auto job = std::move(*move_commit_job_);
   move_commit_job_.reset();

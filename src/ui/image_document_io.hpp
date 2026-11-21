@@ -94,6 +94,11 @@ void rekey_style_masks(std::uint64_t revision_before, const Layer& layer);
 // Group silhouettes a stroke's patch render took from a cached base and patched under the
 // dab, instead of flattening the group (StrokePatchWindows::GroupBase; tests and perf runs).
 [[nodiscard]] std::uint64_t group_silhouette_patches();
+// Region patches under the full-render size (0.5 to 4 Mpx) that composited in strips across
+// the workers, and those that fell back to one pass because the render read an effect mask
+// windowed to its clip (tests and perf runs).
+[[nodiscard]] std::uint64_t patch_strip_renders();
+[[nodiscard]] std::uint64_t patch_strip_fallbacks();
 // Renders one layer alone at the document's size, so opacity/blend/styles come out
 // exactly as the compositor draws them against an empty backdrop (sprite-sheet and
 // image-sequence exports share this).

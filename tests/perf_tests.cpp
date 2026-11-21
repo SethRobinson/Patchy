@@ -6893,6 +6893,8 @@ void layer_conditions_perf() {
   };
   // Median Brush move per condition, for the budget at the end.
   std::vector<std::pair<std::string, double>> brush_medians;
+  // Median handler time of every other timed case, as "condition/case".
+  std::vector<std::pair<std::string, double>> case_medians;
   for (const auto& condition : conditions) {
     if (!only_conditions.isEmpty() && !only_conditions.contains(QLatin1String(condition.name))) {
       continue;
@@ -7065,6 +7067,9 @@ void layer_conditions_perf() {
     const auto widget_at = [canvas](QPoint document_point) {
       return canvas->widget_position_for_document_point(document_point);
     };
+    // Patch strips since the last reported case.
+    auto strips_before = patchy::ui::patch_strip_renders();
+    auto fallbacks_before = patchy::ui::patch_strip_fallbacks();
     const auto report = [&](const char* name, std::vector<double> handler, std::vector<double> paint,
                             double release_ms, double settle_ms,
                             const patchy::ui::CanvasWidget::RenderCacheDiagnostics& before,
@@ -7075,6 +7080,8 @@ void layer_conditions_perf() {
       std::sort(paint.begin(), paint.end());
       if (std::string_view(name) == "brush" && !handler.empty()) {
         brush_medians.emplace_back(condition.name, handler[handler.size() / 2]);
+      } else if (!handler.empty()) {
+        case_medians.emplace_back(std::string(condition.name) + "/" + name, handler[handler.size() / 2]);
       }
       const auto at = [](const std::vector<double>& values, std::size_t index) {
         return values.empty() ? 0.0 : values[std::min(index, values.size() - 1)];
@@ -7088,7 +7095,11 @@ void layer_conditions_perf() {
                 << " full_refreshes=" << after.full_refreshes - before.full_refreshes
                 << " awaited=" << after.awaited_renders - before.awaited_renders
                 << " dirty_mpx=" << static_cast<double>(after.dirty_region_pixels - before.dirty_region_pixels) / 1.0e6
-                << " masks=" << patchy::ui::style_mask_cache_misses() - masks_before << std::endl;
+                << " masks=" << patchy::ui::style_mask_cache_misses() - masks_before
+                << " strips=" << patchy::ui::patch_strip_renders() - strips_before
+                << " strip_fallbacks=" << patchy::ui::patch_strip_fallbacks() - fallbacks_before << std::endl;
+      strips_before = patchy::ui::patch_strip_renders();
+      fallbacks_before = patchy::ui::patch_strip_fallbacks();
     };
     constexpr int kMoves = 20;
     // Press at `from`, kMoves moves toward `to` (handler and repaint timed apart), release.
@@ -7131,6 +7142,7 @@ void layer_conditions_perf() {
       QApplication::processEvents();
       settle();
       const auto before = canvas->render_cache_diagnostics();
+      const auto masks_before = patchy::ui::style_mask_cache_misses();
       std::vector<double> keys;
       const auto started = Clock::now();
       for (int press = 0; press < 30; ++press) {
@@ -7144,12 +7156,21 @@ void layer_conditions_perf() {
       const auto during = canvas->render_cache_diagnostics();
       const auto settle_ms = elapsed_ms(settle);
       std::sort(keys.begin(), keys.end());
+      case_medians.emplace_back(std::string(condition.name) + "/nudge_hold", keys[keys.size() / 2]);
       std::cout << std::fixed << std::setprecision(2) << "[PERF] layerconditions condition=" << condition.name
                 << " case=nudge_hold presses=30 hold_ms=" << hold_ms << " key_median_ms=" << keys[keys.size() / 2]
                 << " key_max_ms=" << keys.back()
                 << " full_refreshes_during_hold=" << during.full_refreshes - before.full_refreshes
                 << " patches_during_hold=" << during.partial_patches - before.partial_patches
-                << " settle_after_ms=" << settle_ms << std::endl;
+                << " frames_landed_during_hold="
+                << (during.move_intermediate_patches - before.move_intermediate_patches) +
+                       (during.move_precommit_patches - before.move_precommit_patches)
+                << " deferred=" << during.move_deferred_commits - before.move_deferred_commits
+                << " settle_after_ms=" << settle_ms << " masks=" << patchy::ui::style_mask_cache_misses() - masks_before
+                << " strips=" << patchy::ui::patch_strip_renders() - strips_before
+                << " strip_fallbacks=" << patchy::ui::patch_strip_fallbacks() - fallbacks_before << std::endl;
+      strips_before = patchy::ui::patch_strip_renders();
+      fallbacks_before = patchy::ui::patch_strip_fallbacks();
     };
     using patchy::ui::CanvasTool;
     const auto a = widget_at(QPoint(800, 1400));
@@ -7253,6 +7274,29 @@ void layer_conditions_perf() {
                   << std::endl;
         CHECK(within);
       }
+    }
+  }
+  // A point drag, a nudge and a held arrow key on a shape layer with effects stay near
+  // what they cost without the effects: the drag drafts them, and the nudge's patch
+  // renders off the key handler. Before, they cost 10 to 15 times as much.
+  const auto case_median = [&case_medians](const std::string& key) -> std::optional<double> {
+    for (const auto& [name, median] : case_medians) {
+      if (name == key) {
+        return median;
+      }
+    }
+    return std::nullopt;
+  };
+  for (const char* name : {"anchor_drag", "nudge", "nudge_hold"}) {
+    const auto plain = case_median(std::string("shape_plain/") + name);
+    const auto styled = case_median(std::string("shape_styled/") + name);
+    if (plain.has_value() && styled.has_value()) {
+      const auto budget = 3.0 * std::max(*plain, 10.0) * patchy::test::test_time_scale();
+      const bool within = *styled <= budget;
+      std::cout << std::fixed << std::setprecision(2) << "[PERF] layerconditions budget condition=shape_styled case="
+                << name << " median_ms=" << *styled << " budget_ms=" << budget << (within ? " ok" : " OVER")
+                << std::endl;
+      CHECK(within);
     }
   }
 }

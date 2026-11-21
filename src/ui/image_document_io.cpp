@@ -66,6 +66,7 @@
 #include <QObject>
 #include <QPainter>
 #include <QSaveFile>
+#include <QScopedValueRollback>
 #include <QString>
 #include <QTemporaryDir>
 #include <QtGlobal>
@@ -656,12 +657,27 @@ public:
   [[nodiscard]] bool full_domain_allowed(const Layer& layer, Rect gate) const override {
     // A brush patch consumes this mask once before the next pixel edit.
     // Keep the other layers' reusable masks available to the same render.
-    if (windowed(layer)) return false;
+    if (windowed(layer)) {
+      clip_windowed_masks_.store(true, std::memory_order_relaxed);
+      return false;
+    }
     // Byte-stability gate: with the gate rect inside the canvas, the legacy
     // full-render mask window already equals the full domain, so cached masks
     // reproduce full-render bytes exactly (see style_mask_for_render).
-    return gate.x >= canvas_.x && gate.y >= canvas_.y && gate.x + gate.width <= canvas_.x + canvas_.width &&
-           gate.y + gate.height <= canvas_.y + canvas_.height;
+    const bool allowed = gate.x >= canvas_.x && gate.y >= canvas_.y &&
+                         gate.x + gate.width <= canvas_.x + canvas_.width &&
+                         gate.y + gate.height <= canvas_.y + canvas_.height;
+    if (!allowed) {
+      clip_windowed_masks_.store(true, std::memory_order_relaxed);
+    }
+    return allowed;
+  }
+
+  // True once this render read an effect mask windowed to its clip. Such a mask's
+  // float blur can differ by 1/255 between two windows, so strips of that render are
+  // not the bytes of one pass (render_document_rect's patch strips).
+  [[nodiscard]] bool clip_windowed_masks() const noexcept {
+    return clip_windowed_masks_.load(std::memory_order_relaxed);
   }
 
   [[nodiscard]] std::shared_ptr<const render_detail::StyleMaskEntry> fetch(
@@ -702,7 +718,13 @@ public:
                             std::move(entry)});
   }
 
-  [[nodiscard]] bool group_masks_windowed(const Layer& group) const override { return windowed(group); }
+  [[nodiscard]] bool group_masks_windowed(const Layer& group) const override {
+    const bool group_windowed = windowed(group);
+    if (group_windowed) {
+      clip_windowed_masks_.store(true, std::memory_order_relaxed);
+    }
+    return group_windowed;
+  }
 
   [[nodiscard]] std::optional<GroupSilhouetteBase> group_silhouette_base(const Layer& group, Rect bounds) override {
     const auto base = std::find_if(windows_.groups.begin(), windows_.groups.end(),
@@ -761,7 +783,65 @@ private:
   Rect canvas_;
   // The caller's, which outlives the render.
   const StrokePatchWindows& windows_;
+  // Strips of one render share the provider.
+  mutable std::atomic<bool> clip_windowed_masks_{false};
 };
+
+// A region patch from this size up composites in strips across the workers, like a full
+// render from kFullStripMinArea up. Below 4 Mpx every patch used to composite on the
+// calling thread: nudging a 3.4 Mpx layer with five effects took 300 ms a key on 32
+// threads while the whole 8.7 Mpx canvas rendered in 77 ms.
+constexpr std::int64_t kPatchStripMinArea = 500'000;
+constexpr std::int64_t kFullStripMinArea = 4'000'000;
+
+// Set on the workers of render_document_rects_parallel: the rects are the fan-out there,
+// so a rect keeps to its worker unless it is large enough for a full render's strips.
+thread_local bool t_rect_pool_worker = false;
+
+std::atomic<std::uint64_t> g_patch_strip_renders{0};
+std::atomic<std::uint64_t> g_patch_strip_fallbacks{0};
+
+// Whether a visible layer whose effects reach `clip` has effect bounds past the canvas.
+// Its masks are then windowed to each render's clip (DocumentStyleMaskProvider::
+// full_domain_allowed), which strips would window differently. An estimate from the
+// layer's padded bounds; the provider reports what the render really read.
+template <typename Layers>
+bool clip_reads_windowed_effect_masks(const Layers& layers, Rect clip, Rect canvas) {
+  for (const Layer& layer : layers) {
+    if (!layer.visible()) {
+      continue;
+    }
+    if (layer.kind() == LayerKind::Group) {
+      if (clip_reads_windowed_effect_masks(layer.children(), clip, canvas)) {
+        return true;
+      }
+      continue;
+    }
+    const auto& style = layer.layer_style();
+    if (!style.effects_visible || style.empty()) {
+      continue;
+    }
+    const auto reach = layer_bounds_with_effects(layer, layer.bounds());
+    if (intersect_rect(clip, reach).empty()) {
+      continue;
+    }
+    if (reach.x < canvas.x || reach.y < canvas.y || reach.x + reach.width > canvas.x + canvas.width ||
+        reach.y + reach.height > canvas.y + canvas.height) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Whether a patch of `clip` may composite in strips below the full-render size: every
+// effect mask it reads has to be a cached full-layer one, so each strip reads the bytes
+// one pass would. The caller still checks clip_windowed_masks() after the strips.
+bool patch_strips_allowed(const Document& document, Rect clip, const StrokePatchWindows& windows) {
+  return !t_rect_pool_worker && windows.layers.empty() && windows.groups.empty() &&
+         render_detail::raster_view_context == nullptr && DocumentStyleMaskProvider::enabled() &&
+         !clip_reads_windowed_effect_masks(document.layers(), clip,
+                                           Rect::from_size(document.width(), document.height()));
+}
 
 bool layer_can_affect_clip(const Layer& layer, Rect clip,
                            const std::vector<render_detail::LayerBoundsOverride>* overrides, Rect* draw_rect) {
@@ -1033,6 +1113,14 @@ std::uint64_t group_silhouette_patches() {
   return g_group_silhouette_patches.load(std::memory_order_relaxed);
 }
 
+std::uint64_t patch_strip_renders() {
+  return g_patch_strip_renders.load(std::memory_order_relaxed);
+}
+
+std::uint64_t patch_strip_fallbacks() {
+  return g_patch_strip_fallbacks.load(std::memory_order_relaxed);
+}
+
 namespace {
 thread_local bool g_document_depth_render = false;
 }  // namespace
@@ -1159,7 +1247,13 @@ QImage render_document_rect_deep(const Document& document, Rect clip, bool prese
   const auto clip_area = static_cast<std::int64_t>(clip.width) * static_cast<std::int64_t>(clip.height);
   const auto strips = max_blocking_fanout_workers(
       std::clamp(std::min(clip.height / 128, patchy::hardware_worker_threads()), 1, 16));
-  if (render_detail::raster_view_context != nullptr || strips < 2 || clip_area < 4'000'000 ||
+  // A patch under the full-render size takes strips only while its effect masks are
+  // full-layer ones (patch_strips_allowed, as in render_document_rect below).
+  const bool patch_strips = masks != nullptr && clip_area >= kPatchStripMinArea && clip_area < kFullStripMinArea &&
+                            !render_trace_enabled() && !render_profile_enabled() &&
+                            patch_strips_allowed(document, clip, windows);
+  if (render_detail::raster_view_context != nullptr || strips < 2 ||
+      (clip_area < kFullStripMinArea && !patch_strips) ||
       qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED")) {
     return render_strip(clip);
   }
@@ -1177,6 +1271,13 @@ QImage render_document_rect_deep(const Document& document, Rect clip, bool prese
   strip_images.reserve(jobs.size());
   for (auto& job : jobs) {
     strip_images.push_back(job.image.get());
+  }
+  if (patch_strips) {
+    if (mask_provider.clip_windowed_masks()) {
+      g_patch_strip_fallbacks.fetch_add(1, std::memory_order_relaxed);
+      return render_strip(clip);
+    }
+    g_patch_strip_renders.fetch_add(1, std::memory_order_relaxed);
   }
   QImage image(clip.width, clip.height, strip_images.front().format());
   for (std::size_t index = 0; index < jobs.size(); ++index) {
@@ -1262,11 +1363,14 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
   const auto target_preserves_alpha = preserve_alpha || logical_alpha_render;
   QImage image(clip.width, clip.height,
                target_preserves_alpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888);
-  if (target_preserves_alpha) {
-    image.fill(Qt::transparent);
-  } else {
-    image.fill(Qt::white);
-  }
+  const auto clear_backdrop = [&image, target_preserves_alpha] {
+    if (target_preserves_alpha) {
+      image.fill(Qt::transparent);
+    } else {
+      image.fill(Qt::white);
+    }
+  };
+  clear_backdrop();
 
   // Large renders split into horizontal strips composited concurrently. Clip
   // rendering is exactly equivalent to full rendering (the dirty-rect patch
@@ -1283,10 +1387,27 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
   // deadlocks the tab (fewer strips render the same bytes, just slower).
   const auto parallel_strips = max_blocking_fanout_workers(
       std::clamp(std::min(clip.height / 128, hardware_threads), 1, 16));
-  const bool parallel_render = render_detail::raster_view_context == nullptr && !timed_render && parallel_strips >= 2 && clip_area >= 4'000'000 &&
+  const bool strips_possible = render_detail::raster_view_context == nullptr && !timed_render && parallel_strips >= 2 &&
                                !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED");
   DocumentStyleMaskProvider mask_provider(Rect::from_size(document.width(), document.height()), windows);
   auto* masks = render_detail::raster_view_context == nullptr && DocumentStyleMaskProvider::enabled() ? &mask_provider : nullptr;
+  // A patch under the full-render size takes strips only while every effect mask it reads
+  // is a cached full-layer one: a mask windowed to its clip is not the same bytes in a
+  // strip's window (docs/performance.md, "Parallel strip rendering"). The estimate comes
+  // first, and the provider's own record below settles it.
+  const bool patch_strips = strips_possible && masks != nullptr && clip_area >= kPatchStripMinArea &&
+                            clip_area < kFullStripMinArea && patch_strips_allowed(document, clip, windows);
+  const bool parallel_render = strips_possible && (clip_area >= kFullStripMinArea || patch_strips);
+  const auto composite_in_one_pass = [&] {
+    QImageCompositeTarget target(image, target_preserves_alpha, clip.x, clip.y);
+    render_detail::composite_sibling_layers(
+        target, document.layers(), clip, overrides, false, masks,
+        [&](QImageCompositeTarget& layer_target, const Layer& layer) {
+          composite_document_layer(layer_target, layer, clip, overrides, masks, profiling ? &profile : nullptr,
+                                   {}, &document.metadata().patterns);
+        },
+        &document.metadata().patterns);
+  };
   if (parallel_render) {
     struct StripJob {
       Rect clip{};
@@ -1327,15 +1448,18 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
         std::memcpy(image.scanLine(strip.clip.y - clip.y + row), strip_image.constScanLine(row), row_bytes);
       }
     }
+    if (patch_strips) {
+      if (mask_provider.clip_windowed_masks()) {
+        // The estimate missed a windowed mask: this patch keeps the one-pass bytes.
+        g_patch_strip_fallbacks.fetch_add(1, std::memory_order_relaxed);
+        clear_backdrop();
+        composite_in_one_pass();
+      } else {
+        g_patch_strip_renders.fetch_add(1, std::memory_order_relaxed);
+      }
+    }
   } else {
-    QImageCompositeTarget target(image, target_preserves_alpha, clip.x, clip.y);
-    render_detail::composite_sibling_layers(
-        target, document.layers(), clip, overrides, false, masks,
-        [&](QImageCompositeTarget& layer_target, const Layer& layer) {
-          composite_document_layer(layer_target, layer, clip, overrides, masks, profiling ? &profile : nullptr,
-                                   {}, &document.metadata().patterns);
-        },
-        &document.metadata().patterns);
+    composite_in_one_pass();
   }
   if (logical_alpha_render) {
     QImage matted(image.width(), image.height(), QImage::Format_RGB888);
@@ -1392,6 +1516,8 @@ std::vector<QImage> render_document_rects_parallel(const Document& document, con
     jobs.push_back(
         std::async(std::launch::async, [&document, &rects, &images, &next_rect, preserve_alpha, overrides, &windows] {
           const ThreadFanoutBudgetScope no_nested_fanout(0);
+          // Pool threads are reused: put the flag back.
+          const QScopedValueRollback rect_pool_worker(t_rect_pool_worker, true);
           while (true) {
             const auto index = next_rect.fetch_add(1, std::memory_order_relaxed);
             if (index >= rects.size()) {
@@ -1463,6 +1589,49 @@ std::vector<RenderedDocumentPatch> render_document_region(
                  patchy::hardware_worker_threads()));
   const bool parallel =
       rects.size() >= 2U && worker_budget >= 2 && (banded || total_area >= 1'000'000) && may_fan_out;
+  // A rect large enough for patch strips renders here, where it may use every worker: in
+  // the pool it holds one. An arrow-key nudge of a large layer is one such rect plus a
+  // one-pixel sliver, and the pool gave the layer a single thread. The bytes are the
+  // same either way, since each rect is the same render_document_rect call.
+  const auto strip_rect = [](const QRect& rect) {
+    const auto area = static_cast<std::int64_t>(rect.width()) * static_cast<std::int64_t>(rect.height());
+    return area >= kPatchStripMinArea && area < kFullStripMinArea;
+  };
+  const auto region_box = document_region.boundingRect().intersected(canvas_rect);
+  if (parallel && !banded && std::any_of(rects.begin(), rects.end(), strip_rect) &&
+      patch_strips_allowed(document, Rect{region_box.x(), region_box.y(), region_box.width(), region_box.height()},
+                           windows)) {
+    std::vector<QImage> images(rects.size());
+    std::vector<QRect> pooled;
+    std::vector<std::size_t> pooled_index;
+    std::int64_t pooled_area = 0;
+    for (std::size_t index = 0; index < rects.size(); ++index) {
+      if (strip_rect(rects[index])) {
+        images[index] = render_document_rect(document, rects[index], preserve_alpha, overrides, windows);
+      } else {
+        pooled.push_back(rects[index]);
+        pooled_index.push_back(index);
+        pooled_area += static_cast<std::int64_t>(rects[index].width()) * rects[index].height();
+      }
+    }
+    auto pooled_images =
+        pooled.size() >= 2U && pooled_area >= 1'000'000
+            ? render_document_rects_parallel(document, pooled, preserve_alpha, overrides,
+                                             std::min(worker_budget, static_cast<int>(pooled.size())), windows)
+            : std::vector<QImage>{};
+    for (std::size_t slot = 0; slot < pooled.size(); ++slot) {
+      images[pooled_index[slot]] = slot < pooled_images.size()
+                                       ? std::move(pooled_images[slot])
+                                       : render_document_rect(document, pooled[slot], preserve_alpha, overrides, windows);
+    }
+    patches.reserve(rects.size());
+    for (std::size_t index = 0; index < rects.size(); ++index) {
+      if (!images[index].isNull()) {
+        patches.push_back(RenderedDocumentPatch{rects[index], std::move(images[index])});
+      }
+    }
+    return patches;
+  }
   if (parallel) {
     auto images = render_document_rects_parallel(document, rects, preserve_alpha, overrides, worker_budget, windows);
     patches.reserve(rects.size());

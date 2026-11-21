@@ -5178,7 +5178,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       begin_processing_operation();
       tick_processing_operation();
       const auto dirty = move_active_layer_by(delta, layer_nudge_hold_token_);
-      if (!dirty.isEmpty()) {
+      if (!dirty.isEmpty() && !defer_nudge_patches(dirty, movable_ids)) {
         document_changed_effect_bounds(dirty);
       }
       end_processing_operation();
@@ -5571,6 +5571,7 @@ void CanvasWidget::cancel_pointer_gestures() {
   path_transform_drag_handle_ = TransformHandle::None;
   path_drag_mode_ = PathEditDrag::None;
   finish_path_drag_rasters();  // a cancelled Path Select drag still ends on a fresh bake
+  restore_path_drag_effects();  // and with the effects the drag drafted
   pen_handle_dragging_ = false;
   pen_session_drag_anchor_ = -1;
   crop_dragging_out_ = crop_rotating_ = crop_straightening_ = false;

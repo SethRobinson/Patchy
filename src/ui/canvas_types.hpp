@@ -512,8 +512,12 @@ struct CanvasRenderCacheDiagnostics {
   // brush stroke adds none (GitHub issue 165).
   int display_mip_rebuilds{0};
   int move_precommit_patches{0};
-  // Move releases whose accurate patches rendered on a worker behind a hold.
+  // Move releases whose accurate patches rendered on a worker behind a hold, and
+  // arrow-key nudges that deferred theirs (defer_nudge_patches).
   int move_deferred_commits{0};
+  // Renders of an earlier nudge that landed while a later nudge's render was still owed:
+  // the frames a held arrow key shows.
+  int move_intermediate_patches{0};
   // Background passes that redrew a painted layer's silhouette after a dab
   // moved its aligned gradient (BrushRealignJob).
   int brush_realign_jobs{0};
