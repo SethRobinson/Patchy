@@ -3,6 +3,15 @@
 Older Patchy release notes are collected here. The most recent release
 remains in [README.md](README.md#whats-new).
 
+## 1.40 - November 21, 2026
+
+- **Canvas and selections.** View > Show > Content Outside Canvas previews off-canvas artwork. The Select menu saves soft selections as alpha channels and can replace, add to, subtract from or intersect a selection when loading one. Help > About has a more compact layout. ([Issue 739](https://github.com/SethRobinson/Patchy/issues/739), [issue 740](https://github.com/SethRobinson/Patchy/issues/740))
+- **Aseprite.** Embedded tilemaps open as editable pixels with their tile flips and placement. Linked cels keep their frame's palette, position and opacity. Sprites retain layer locks, embedded RGB profiles and native 8-bit cel blending. Layered PSD and TIFF saves offer Keep the Look or Keep layers. Saving a tilemap asks for a new file.
+- **GIMP and Krita.** XCF imports retain HDR values from older floating-point files and open linked layers from their stored pixels. Curves, Apply Canvas, Shift and cropped filter selections render more accurately. Krita imports Pixelize filters as pixels, default linear fills as editable gradients, and linked shadow and bevel lighting. Windows GEGL filter names follow Patchy's selected language.
+- **Photoshop color and text.** Gradient Maps read RGB, grayscale, CMYK and Lab stops. Channel Mixer uses all four CMYK inks. Supported Levels and Curves adjustments use the original Lab channels. Untagged 32-bit grayscale and several HDR adjustments preserve negative shadows and bright highlights. Paragraph text updates handle thin punctuation more accurately.
+- **Photoshop filters and styles.** Smart Filter masks survive layered saves between 8 and 16 bits. A 32-bit PSD save bakes a converted filter stack into its layer while leaving the working stack editable. Gradient Outer Glows and Precise Inner Glows more closely match Photoshop. Opening a PSD with missing timeline audio identifies the missing file.
+- **Testing and packaging.** Testy checks native Aseprite, GIMP, Krita and OpenRaster files against reference images, layer properties and animation frames. Photoshop tests can compare 32-bit float samples and repeat inconsistent renders. Desktop packages include third-party license notices, also linked from the web loading page.
+
 ## 1.39 - November 19, 2026
 
 - Layer Style: Use Global Light on Drop Shadow, Inner Shadow and Bevel & Emboss links their angle, and the bevel's altitude, across every layer in the document, read from and saved to Photoshop files; a pasted style takes the light of the document it lands in. Inner Shadow, Inner Glow, Outer Glow and Satin have a Contour picker with the contour editor and Anti-aliased, drawn to match Photoshop ([issue 735](https://github.com/SethRobinson/Patchy/issues/735))

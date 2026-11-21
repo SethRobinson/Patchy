@@ -147,6 +147,16 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.41" date="2026-11-22">
+      <description>
+        <ul>
+          <li>Add Noise to shadows and glows, gradient Outer Glows, pattern offsets, and the Smooth and Stripes gradient methods.</li>
+          <li>Fill with a pattern from Edit &gt; Fill and import large style and pattern libraries with progress.</li>
+          <li>Paint, nudge and edit shapes faster on layers with effects.</li>
+          <li>Rotate, move and transform large documents without the window freezing.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.40" date="2026-11-21">
       <description>
         <ul>
