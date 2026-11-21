@@ -334,6 +334,22 @@
         <source>Fill with the color that leaves the image unchanged in this blend mode</source>
         <translation>Wypełnij kolorem, który w tym trybie mieszania nie zmienia obrazu</translation>
     </message>
+    <message>
+        <source>Pattern</source>
+        <translation>Wzorek</translation>
+    </message>
+    <message>
+        <source>A pattern fills a layer&apos;s pixels, not a mask or a channel</source>
+        <translation>Wzorek wypełnia piksele warstwy, a nie maskę ani kanał</translation>
+    </message>
+    <message>
+        <source>Add a pattern in the Pattern Manager first</source>
+        <translation>Najpierw dodaj wzorek w Menedżerze wzorków</translation>
+    </message>
+    <message>
+        <source>Pattern:</source>
+        <translation>Wzorek:</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

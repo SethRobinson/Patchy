@@ -3,6 +3,7 @@
 #include "core/blend_math.hpp"
 #include "core/hdr_color.hpp"
 #include "core/layer_render_utils.hpp"
+#include "core/pattern_sampler.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/pixel_shape_style.hpp"
 #include "core/pixel_tools_internal.hpp"
@@ -3532,6 +3533,15 @@ Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOption
     return {};
   }
 
+  // Pattern contents (GitHub issue 743): a direct lookup into one static tile repeated from the
+  // document origin. Never read the destination to shade, adapt or synthesize the pattern here
+  // (docs/legal-constraints.md, Pattern Stamp).
+  const auto* tile = options.fill_pattern_tile;
+  if (tile != nullptr &&
+      (tile->empty() || tile->format().bit_depth != BitDepth::UInt8 || tile->format().channels < 3)) {
+    return {};
+  }
+
   auto affected = intersect_rect(normalized_rect(rect), canvas_rect(document));
   if (options.selection.has_value()) {
     affected = intersect_rect(affected, *options.selection);
@@ -3562,6 +3572,18 @@ Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOption
         band);
   }
 
+  // The tile's pixel becomes the paint color of a copy of the options, so every write below
+  // (depth, transparency lock, palette snap, Mode) is the color fill's.
+  std::optional<PatternTileSampler> tile_sampler;
+  std::optional<EditOptions> tile_options;
+  if (tile != nullptr) {
+    tile_sampler.emplace(*tile, std::as_const(*layer), 1.0F, 0.0F, false, 0.0F, 0.0F);
+    tile_options.emplace(options);
+    tile_options->deep_primary.reset();
+    tile_options->primary_gain = 1.0F;
+  }
+  const auto fill_alpha = static_cast<float>(std::clamp<int>(options.primary.a, 1, 255));
+
   for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
     auto row = pixels.row(y - bounds.y);
     for (std::int32_t x = affected.x; x < affected.x + affected.width; ++x) {
@@ -3577,11 +3599,22 @@ Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOption
           continue;
         }
       }
+      const auto* pixel_options = &options;
+      if (tile_sampler.has_value()) {
+        const auto sample = tile_sampler->sample(x, y);
+        const auto alpha = std::lround(sample.alpha * fill_alpha);
+        if (alpha <= 0) {
+          continue;  // a clear tile pixel leaves the layer as it is
+        }
+        tile_options->primary = EditColor{sample.color.red, sample.color.green, sample.color.blue,
+                                          static_cast<std::uint8_t>(std::min(alpha, 255L))};
+        pixel_options = &*tile_options;
+      }
       auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * pixel_bytes;
       if (normal_mode) {
-        write_pixel(pixels, px, options, false, coverage);
+        write_pixel(pixels, px, *pixel_options, false, coverage);
       } else {
-        (void)write_pixel_paint_mode(pixels, px, options, coverage, x, y);
+        (void)write_pixel_paint_mode(pixels, px, *pixel_options, coverage, x, y);
       }
     }
     report_edit_progress(options);

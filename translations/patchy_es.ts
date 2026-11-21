@@ -334,6 +334,22 @@
         <source>Fill with the color that leaves the image unchanged in this blend mode</source>
         <translation>Rellenar con el color que deja la imagen sin cambios en este modo de fusión</translation>
     </message>
+    <message>
+        <source>Pattern</source>
+        <translation>Motivo</translation>
+    </message>
+    <message>
+        <source>A pattern fills a layer&apos;s pixels, not a mask or a channel</source>
+        <translation>Un motivo rellena los píxeles de una capa, no una máscara ni un canal</translation>
+    </message>
+    <message>
+        <source>Add a pattern in the Pattern Manager first</source>
+        <translation>Añada primero un motivo en el Gestor de motivos</translation>
+    </message>
+    <message>
+        <source>Pattern:</source>
+        <translation>Motivo:</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

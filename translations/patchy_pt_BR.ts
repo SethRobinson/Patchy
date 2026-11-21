@@ -334,6 +334,22 @@
         <source>Fill with the color that leaves the image unchanged in this blend mode</source>
         <translation>Preencher com a cor que deixa a imagem inalterada neste modo de mesclagem</translation>
     </message>
+    <message>
+        <source>Pattern</source>
+        <translation>Padrão</translation>
+    </message>
+    <message>
+        <source>A pattern fills a layer&apos;s pixels, not a mask or a channel</source>
+        <translation>Um padrão preenche os pixels de uma camada, não uma máscara nem um canal</translation>
+    </message>
+    <message>
+        <source>Add a pattern in the Pattern Manager first</source>
+        <translation>Adicione primeiro um padrão no Gerenciador de padrões</translation>
+    </message>
+    <message>
+        <source>Pattern:</source>
+        <translation>Padrão:</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

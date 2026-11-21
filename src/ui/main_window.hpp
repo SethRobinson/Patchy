@@ -2972,10 +2972,13 @@ private:
   void fill_active_layer();
   // Edit > Fill...'s blending (GitHub issue 530). Set, it replaces the Fill tool's Opacity and
   // Soft for a pixel layer fill; mask, channel and Quick Mask fills ignore it like Opacity.
+  // `pattern_tile` (GitHub issue 743), when not empty, fills a pixel layer with that tile
+  // repeated from the document origin instead of the color.
   struct FillCommandBlend {
     int opacity{100};
     patchy::PaintMode mode{};
     bool preserve_transparency{false};
+    patchy::PixelBuffer pattern_tile{};
   };
   // `intensity_stops` scales the color in linear light on 32-bit layers (the foreground's or
   // background's Intensity; core/hdr_color.hpp).

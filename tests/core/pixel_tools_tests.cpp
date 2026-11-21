@@ -1572,6 +1572,138 @@ void tool_fill_rect_paint_modes_multiply_behind_and_clear() {
   }
 }
 
+// Edit > Fill's Pattern (GitHub issue 743): fill_rect repeats one static tile from the document
+// origin, inside the selection only, at the layer's depth; the tile's alpha and the fill's
+// Opacity scale it, Mode and Lock Transparent Pixels apply as for a color, and the result does
+// not depend on what the layer held (a direct tile lookup, docs/legal-constraints.md).
+void tool_fill_rect_repeats_a_pattern_tile() {
+  // A 3x2 tile: red, green, blue over yellow, clear, white.
+  patchy::PixelBuffer tile(3, 2, patchy::PixelFormat::rgba8());
+  const std::array<std::array<std::uint8_t, 4>, 6> texels{{{255, 0, 0, 255},
+                                                           {0, 255, 0, 255},
+                                                           {0, 0, 255, 255},
+                                                           {255, 255, 0, 255},
+                                                           {9, 9, 9, 0},
+                                                           {255, 255, 255, 255}}};
+  for (std::int32_t y = 0; y < 2; ++y) {
+    for (std::int32_t x = 0; x < 3; ++x) {
+      std::memcpy(tile.pixel(x, y), texels[static_cast<std::size_t>(y * 3 + x)].data(), 4U);
+    }
+  }
+  const auto texel = [&texels](std::int32_t x, std::int32_t y) {
+    return texels[static_cast<std::size_t>((y % 2) * 3 + (x % 3))];
+  };
+  const auto make = [](patchy::Document& document, patchy::BitDepth depth, std::uint8_t gray) {
+    patchy::PixelBuffer pixels(10, 6, patchy::PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < 6; ++y) {
+      for (std::int32_t x = 0; x < 10; ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = px[1] = px[2] = gray;
+        px[3] = x < 8 ? 255 : 0;  // the last two columns are transparent
+      }
+    }
+    const auto id = document.add_pixel_layer("Paper", std::move(pixels)).id();
+    if (depth != patchy::BitDepth::UInt8) {
+      patchy::convert_document_depth(document, depth);
+    }
+    return id;
+  };
+  const auto pixel = [](const patchy::Document& document, patchy::LayerId id, std::int32_t x, std::int32_t y) {
+    const auto& pixels = document.find_layer(id)->pixels();
+    return patchy::load_pixel(pixels.format(), pixels.pixel(x, y));
+  };
+  const auto near = [](std::array<float, 4> value, std::array<float, 4> expected) {
+    for (std::size_t c = 0; c < 4U; ++c) {
+      if (std::abs(value[c] - expected[c]) > 1.5F) {
+        return false;
+      }
+    }
+    return true;
+  };
+  const auto as_floats = [](std::array<std::uint8_t, 4> value) {
+    return std::array<float, 4>{static_cast<float>(value[0]), static_cast<float>(value[1]),
+                                static_cast<float>(value[2]), static_cast<float>(value[3])};
+  };
+
+  for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16}) {
+    // Normal at 100%: every pixel is its tile texel, the clear texel leaves the layer alone, and
+    // the fill is the same over a light and a dark layer.
+    for (const std::uint8_t gray : {std::uint8_t{40}, std::uint8_t{220}}) {
+      patchy::Document document(10, 6, patchy::PixelFormat::rgba8());
+      const auto id = make(document, depth, gray);
+      auto options = tool_options(0, 0, 0);
+      options.fill_pattern_tile = &tile;
+      CHECK(patchy::fill_rect(document, id, patchy::Rect{0, 0, 10, 6}, options) == (patchy::Rect{0, 0, 10, 6}));
+      for (std::int32_t y = 0; y < 6; ++y) {
+        for (std::int32_t x = 0; x < 10; ++x) {
+          const auto expected = texel(x, y);
+          if (expected[3] == 0) {
+            const float alpha = x < 8 ? 255.0F : 0.0F;
+            CHECK(std::abs(pixel(document, id, x, y)[3] - alpha) <= 1.5F);
+            if (x < 8) {
+              CHECK(near(pixel(document, id, x, y), {static_cast<float>(gray), static_cast<float>(gray),
+                                                    static_cast<float>(gray), 255.0F}));
+            }
+          } else {
+            CHECK(near(pixel(document, id, x, y), as_floats(expected)));
+          }
+        }
+      }
+    }
+    {
+      // The selection bounds the fill; outside it the layer keeps its pixels.
+      patchy::Document document(10, 6, patchy::PixelFormat::rgba8());
+      const auto id = make(document, depth, 40);
+      auto options = tool_options(0, 0, 0);
+      options.fill_pattern_tile = &tile;
+      options.selection = patchy::Rect{2, 1, 4, 3};
+      CHECK(patchy::fill_rect(document, id, patchy::Rect{0, 0, 10, 6}, options) == (patchy::Rect{2, 1, 4, 3}));
+      CHECK(near(pixel(document, id, 2, 2), as_floats(texel(2, 2))));  // blue, anchored at the origin
+      CHECK(near(pixel(document, id, 5, 3), as_floats(texel(5, 3))));
+      CHECK(near(pixel(document, id, 1, 2), {40.0F, 40.0F, 40.0F, 255.0F}));
+      CHECK(near(pixel(document, id, 6, 2), {40.0F, 40.0F, 40.0F, 255.0F}));
+      CHECK(near(pixel(document, id, 2, 0), {40.0F, 40.0F, 40.0F, 255.0F}));
+      CHECK(near(pixel(document, id, 2, 4), {40.0F, 40.0F, 40.0F, 255.0F}));
+    }
+    {
+      // Opacity 50%: halfway from the layer's gray to the texel.
+      patchy::Document document(10, 6, patchy::PixelFormat::rgba8());
+      const auto id = make(document, depth, 40);
+      auto options = tool_options(0, 0, 0);
+      options.primary.a = 128;
+      options.fill_pattern_tile = &tile;
+      (void)patchy::fill_rect(document, id, patchy::Rect{0, 0, 10, 6}, options);
+      CHECK(near(pixel(document, id, 0, 0), {148.0F, 20.0F, 20.0F, 255.0F}));  // red over 40 gray
+      CHECK(near(pixel(document, id, 1, 1), {40.0F, 40.0F, 40.0F, 255.0F}));   // the clear texel
+    }
+    {
+      // Multiply with Lock Transparent Pixels: red times 200 gray, and the clear columns stay clear.
+      patchy::Document document(10, 6, patchy::PixelFormat::rgba8());
+      const auto id = make(document, depth, 200);
+      auto options = tool_options(0, 0, 0);
+      options.fill_pattern_tile = &tile;
+      options.fill_paint_mode = patchy::PaintMode::of(patchy::BlendMode::Multiply);
+      options.lock_transparent_pixels = true;
+      (void)patchy::fill_rect(document, id, patchy::Rect{0, 0, 10, 6}, options);
+      CHECK(near(pixel(document, id, 0, 0), {200.0F, 0.0F, 0.0F, 255.0F}));
+      CHECK(near(pixel(document, id, 3, 1), {200.0F, 200.0F, 0.0F, 255.0F}));  // yellow
+      CHECK(pixel(document, id, 8, 0)[3] <= 0.0F);
+      CHECK(pixel(document, id, 9, 5)[3] <= 0.0F);
+    }
+  }
+  {
+    // A tile that is not 8-bit RGB or RGBA fills nothing.
+    patchy::Document document(10, 6, patchy::PixelFormat::rgba8());
+    const auto id = make(document, patchy::BitDepth::UInt8, 40);
+    patchy::PixelBuffer gray_tile(2, 2, patchy::PixelFormat::gray8());
+    gray_tile.clear(255);
+    auto options = tool_options(0, 0, 0);
+    options.fill_pattern_tile = &gray_tile;
+    CHECK(patchy::fill_rect(document, id, patchy::Rect{0, 0, 10, 6}, options).empty());
+    CHECK(near(pixel(document, id, 0, 0), {40.0F, 40.0F, 40.0F, 255.0F}));
+  }
+}
+
 void tool_gradient_draws_foreground_to_background_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -2997,6 +3129,7 @@ std::vector<patchy::test::TestCase> pixel_tools_tests() {
       {"tool_gradient_and_fill_rect_grow_a_layer_smaller_than_the_canvas",
        tool_gradient_and_fill_rect_grow_a_layer_smaller_than_the_canvas},
       {"tool_fill_rect_paint_modes_multiply_behind_and_clear", tool_fill_rect_paint_modes_multiply_behind_and_clear},
+      {"tool_fill_rect_repeats_a_pattern_tile", tool_fill_rect_repeats_a_pattern_tile},
       {"tool_gradient_draws_foreground_to_background_and_writes_artifact",
        tool_gradient_draws_foreground_to_background_and_writes_artifact},
       {"tool_gradient_supports_custom_stops_radial_reverse_and_alpha",

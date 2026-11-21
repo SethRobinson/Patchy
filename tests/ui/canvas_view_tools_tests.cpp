@@ -12,6 +12,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/fill_dialog.hpp"
+#include "ui/pattern_library.hpp"
 #include "ui/curved_slider.hpp"
 #include "ui/gradient_library.hpp"
 #include "ui/main_window.hpp"
@@ -8949,7 +8950,7 @@ void accept_edit_fill_dialog(const QString& contents, const QString& mode, int o
       dialog->reject();
       return;
     }
-    CHECK(contents_combo->count() == 9);  // seven entries and two separators (issue 575)
+    CHECK(contents_combo->count() == 10);  // eight entries and two separators (issues 575, 743)
     if (color.has_value()) {
       swatch->setProperty("fillColor", *color);
     }
@@ -9194,17 +9195,18 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
         auto* label = item != nullptr ? qobject_cast<QLabel*>(item->widget()) : nullptr;
         return label != nullptr ? label->text() : QString();
       };
-      CHECK(fill_form->rowCount() == 2 && blending_form->rowCount() == 3);
+      CHECK(fill_form->rowCount() == 3 && blending_form->rowCount() == 3);
       CHECK(label_text(fill_form, 0) == QStringLiteral("Contents:"));
+      CHECK(label_text(fill_form, 1) == QStringLiteral("Pattern:"));
       CHECK(label_text(blending_form, 0) == QStringLiteral("Mode:"));
       CHECK(label_text(blending_form, 1) == QStringLiteral("Opacity:"));
       int row = -1;
       QFormLayout::ItemRole role{};
       fill_form->getWidgetPosition(parts.new_layer, &row, &role);
-      CHECK(row == 1 && role == QFormLayout::FieldRole);
+      CHECK(row == 2 && role == QFormLayout::FieldRole);
       blending_form->getWidgetPosition(parts.preserve, &row, &role);
       CHECK(row == 2 && role == QFormLayout::FieldRole);
-      CHECK(fill_form->itemAt(1, QFormLayout::LabelRole) == nullptr);
+      CHECK(fill_form->itemAt(2, QFormLayout::LabelRole) == nullptr);
       CHECK(blending_form->itemAt(2, QFormLayout::LabelRole) == nullptr);
       const auto left = [dialog](QWidget* widget) { return widget->mapTo(dialog, QPoint(0, 0)).x(); };
       CHECK(left(parts.contents) == left(parts.mode));
@@ -9219,7 +9221,8 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
     CHECK(patchy::ui::is_blend_mode_separator(parts.mode, 5));
     const QStringList expected{QStringLiteral("foreground"), QStringLiteral("background"), QStringLiteral("color"),
                                QString(),                    QStringLiteral("black"),      QStringLiteral("gray50"),
-                               QStringLiteral("white"),      QString(),                    QStringLiteral("contentAware")};
+                               QStringLiteral("white"),      QString(),                    QStringLiteral("pattern"),
+                               QStringLiteral("contentAware")};
     CHECK(parts.contents->count() == expected.size());
     for (int index = 0; index < std::min<int>(parts.contents->count(), expected.size()); ++index) {
       const bool separator = parts.contents->itemData(index, Qt::AccessibleDescriptionRole).toString() ==
@@ -9227,8 +9230,8 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
       CHECK(separator == expected[index].isEmpty());
       CHECK(parts.contents->itemData(index).toString() == expected[index]);
     }
-    CHECK(parts.contents->itemText(8) == QStringLiteral("Content-Aware"));
-    CHECK(!item_enabled(parts.contents, 8));
+    CHECK(parts.contents->itemText(9) == QStringLiteral("Content-Aware"));
+    CHECK(!item_enabled(parts.contents, 9));
     CHECK(item_enabled(parts.contents, 0));
     // Every entry fits: the combo is at least as wide as its widest item needs.
     CHECK(parts.contents->width() >= parts.contents->sizeHint().width());
@@ -9284,7 +9287,7 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
       // A chosen Behind gives way to Normal once the new layer's modes apply.
       parts.mode->setCurrentIndex(behind);
       const auto index = parts.contents->findData(QStringLiteral("contentAware"));
-      CHECK(index == 8);
+      CHECK(index == 9);
       CHECK(item_enabled(parts.contents, index));
       parts.new_layer->setChecked(false);
       parts.contents->setCurrentIndex(index);
@@ -9419,6 +9422,271 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
   }));
   fill->trigger();
   QApplication::processEvents();
+  patchy::ui::save_fill_dialog_settings(patchy::ui::FillDialogSettings{});
+}
+
+// Edit > Fill's Pattern (GitHub issue 743): the entry in the Contents list with its Pattern list
+// under it, a library tile repeated from the document origin inside an elliptical selection
+// only, as one undo step; the tile's own alpha; Mode, Opacity and Preserve Transparency; the
+// whole layer with no selection; the choice and the pattern remembered; Pattern off for Quick
+// Mask. New Layer's list stays as ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode
+// pins it.
+void ui_edit_fill_dialog_fills_with_pattern() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  patchy::ui::save_fill_dialog_settings(patchy::ui::FillDialogSettings{});
+  const QString pattern_id = QStringLiteral("patchy-test-edit-fill-pattern");
+  // A 16x16 diamond tile: a clear middle, an orange and a teal ring, half-clear navy corners.
+  constexpr int kTile = 16;
+  const auto texel = [](int x, int y) {
+    const int distance = std::abs((x % kTile) - 8) + std::abs((y % kTile) - 8);
+    if (distance < 4) {
+      return std::array<std::uint8_t, 4>{0, 0, 0, 0};
+    }
+    if (distance < 8) {
+      return std::array<std::uint8_t, 4>{230, 120, 30, 255};
+    }
+    if (distance < 12) {
+      return std::array<std::uint8_t, 4>{20, 130, 140, 255};
+    }
+    return std::array<std::uint8_t, 4>{25, 40, 90, 128};
+  };
+  patchy::PixelBuffer tile(kTile, kTile, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < kTile; ++y) {
+    for (int x = 0; x < kTile; ++x) {
+      std::memcpy(tile.pixel(x, y), texel(x, y).data(), 4U);
+    }
+  }
+  // Normal at 100% over opaque white: the texel at its own alpha.
+  const auto over_white = [&texel](int x, int y) {
+    const auto source = texel(x, y);
+    const auto mix = [&source](std::uint8_t value) {
+      return static_cast<int>(std::lround((value * source[3] + 255.0 * (255 - source[3])) / 255.0));
+    };
+    return QColor(mix(source[0]), mix(source[1]), mix(source[2]));
+  };
+
+  constexpr int kWidth = 160;
+  constexpr int kHeight = 120;
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  const auto layer_id =
+      document.add_pixel_layer("Paper", solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), Qt::white)).id();
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Pattern Fill"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(4.0);
+  auto* fill = require_action(window, "editFillAction");
+  auto& library = window.pattern_library();
+  if (const auto* stale = library.find_entry_by_pattern_id(pattern_id); stale != nullptr) {
+    CHECK(library.remove_pattern(stale->storage_id));
+  }
+  const auto storage_id = library.add_pattern(QStringLiteral("Diamonds"), tile, QStringLiteral("Tests"), pattern_id);
+  CHECK(!storage_id.isEmpty());
+
+  patchy::PixelBuffer selection(kWidth, kHeight, patchy::PixelFormat::gray8());
+  selection.clear(0);
+  const auto selected = [](int x, int y) {
+    const double dx = (x + 0.5 - 80.0) / 56.0;
+    const double dy = (y + 0.5 - 60.0) / 40.0;
+    return dx * dx + dy * dy <= 1.0;
+  };
+  for (int y = 0; y < kHeight; ++y) {
+    for (int x = 0; x < kWidth; ++x) {
+      if (selected(x, y)) {
+        *selection.pixel(x, y) = 255U;
+      }
+    }
+  }
+  canvas->replace_selection_from_grayscale(selection, QStringLiteral("Ellipse"));
+  QApplication::processEvents();
+
+  const auto layer_pixel = [&window, layer_id](int x, int y) {
+    const auto& doc = std::as_const(Access::document(window));
+    const auto* px = doc.find_layer(layer_id)->pixels().pixel(x, y);
+    return QColor(px[0], px[1], px[2], px[3]);
+  };
+  const auto item_enabled = [](QComboBox* combo, int index) {
+    return (combo->model()->flags(combo->model()->index(index, combo->modelColumn())) & Qt::ItemIsEnabled) != 0;
+  };
+  struct Parts {
+    QComboBox* contents{};
+    QComboBox* pattern{};
+    QLabel* pattern_label{};
+    QPushButton* swatch{};
+    QComboBox* mode{};
+    QSpinBox* opacity{};
+    QCheckBox* preserve{};
+    QCheckBox* new_layer{};
+    [[nodiscard]] bool complete() const {
+      return contents != nullptr && pattern != nullptr && pattern_label != nullptr && swatch != nullptr &&
+             mode != nullptr && opacity != nullptr && preserve != nullptr && new_layer != nullptr;
+    }
+  };
+  const auto parts_of = [](QDialog& dialog) {
+    Parts parts;
+    parts.contents = dialog.findChild<QComboBox*>(QStringLiteral("editFillContentsCombo"));
+    parts.pattern = dialog.findChild<QComboBox*>(QStringLiteral("editFillPatternCombo"));
+    parts.swatch = dialog.findChild<QPushButton*>(QStringLiteral("editFillColorSwatch"));
+    parts.mode = dialog.findChild<QComboBox*>(QStringLiteral("editFillModeCombo"));
+    parts.opacity = dialog.findChild<QSpinBox*>(QStringLiteral("editFillOpacitySpin"));
+    parts.preserve = dialog.findChild<QCheckBox*>(QStringLiteral("editFillPreserveTransparencyCheck"));
+    parts.new_layer = dialog.findChild<QCheckBox*>(QStringLiteral("editFillContentAwareNewLayerCheck"));
+    if (parts.pattern != nullptr) {
+      if (auto* form = qobject_cast<QFormLayout*>(parts.pattern->parentWidget()->layout()); form != nullptr) {
+        parts.pattern_label = qobject_cast<QLabel*>(form->labelForField(parts.pattern));
+      }
+    }
+    CHECK(parts.complete());
+    return parts;
+  };
+  // Answers the dialog with Pattern and this test's tile. `remembered` is what the dialog must
+  // open with: Pattern and the tile once a pattern fill was accepted.
+  const auto accept_pattern = [&](const QString& mode, int opacity, bool preserve, bool remembered,
+                                  const char* artifact) {
+    when_dialog_visible(QStringLiteral("patchyFillDialog"), [=](QDialog& dialog) {
+      const auto parts = parts_of(dialog);
+      if (!parts.complete()) {
+        dialog.reject();
+        return;
+      }
+      CHECK(parts.pattern_label->text() == QStringLiteral("Pattern:"));
+      if (remembered) {
+        CHECK(parts.contents->currentData().toString() == QStringLiteral("pattern"));
+        CHECK(parts.pattern->currentData().toString() == pattern_id);
+        CHECK(parts.pattern->isEnabled() && parts.pattern_label->isEnabled());
+      } else {
+        // Off until Pattern is chosen, and in place either way.
+        CHECK(parts.contents->currentData().toString() == QStringLiteral("foreground"));
+        CHECK(!parts.pattern->isEnabled() && !parts.pattern_label->isEnabled());
+        CHECK(parts.pattern->isVisibleTo(&dialog));
+        CHECK(parts.pattern->count() >= 1);
+      }
+      const int index = parts.contents->findData(QStringLiteral("pattern"));
+      CHECK(index == 8);
+      CHECK(parts.contents->itemText(index) == QStringLiteral("Pattern"));
+      CHECK(item_enabled(parts.contents, index));
+      parts.contents->setCurrentIndex(index);
+      CHECK(parts.pattern->isEnabled() && parts.pattern_label->isEnabled());
+      CHECK(parts.swatch->isHidden());
+      CHECK(!parts.new_layer->isEnabled());
+      CHECK(parts.mode->isEnabled() && parts.opacity->isEnabled() && parts.preserve->isEnabled());
+      const int pattern_index = parts.pattern->findData(pattern_id);
+      CHECK(pattern_index >= 0);
+      parts.pattern->setCurrentIndex(pattern_index);
+      CHECK(parts.pattern->itemText(pattern_index) == QStringLiteral("Diamonds"));
+      CHECK(!parts.pattern->itemIcon(pattern_index).isNull());
+      patchy::PaintMode paint_mode;
+      CHECK(patchy::ui::script_paint_mode_from_id(mode, &paint_mode));
+      parts.mode->setCurrentIndex(parts.mode->findData(patchy::ui::paint_mode_item_data(paint_mode)));
+      parts.opacity->setValue(opacity);
+      parts.preserve->setChecked(preserve);
+      QApplication::processEvents();
+      if (artifact != nullptr) {
+        save_widget_artifact(artifact, dialog);
+      }
+      dialog.accept();
+    });
+    fill->trigger();
+    QApplication::processEvents();
+  };
+  const auto count_wrong = [&](const std::function<QColor(int, int)>& expected) {
+    int wrong = 0;
+    for (int y = 0; y < kHeight; ++y) {
+      for (int x = 0; x < kWidth; ++x) {
+        wrong += color_close(layer_pixel(x, y), expected(x, y), 1) ? 0 : 1;
+      }
+    }
+    return wrong;
+  };
+
+  // Normal at 100%: the tile inside the ellipse, the paper outside it, one undo step.
+  save_widget_artifact("issue_743_pattern_fill_canvas_before", *canvas);
+  {
+    const auto undo_before = Access::active_session_undo_depth(window);
+    accept_pattern(QStringLiteral("normal"), 100, false, false, "issue_743_fill_dialog_pattern");
+    CHECK(count_wrong([&](int x, int y) { return selected(x, y) ? over_white(x, y) : QColor(Qt::white); }) == 0);
+    // Whole tiles repeat: one period right and one down holds the same pixel.
+    CHECK(layer_pixel(60, 50) == layer_pixel(60 + kTile, 50));
+    CHECK(layer_pixel(60, 50) == layer_pixel(60, 50 + kTile));
+    CHECK(layer_pixel(70, 54) == QColor(230, 120, 30));  // tile (6, 6): the orange ring
+    CHECK(layer_pixel(72, 56) == QColor(Qt::white));     // tile (8, 8): the clear middle
+    CHECK(Access::active_session_undo_depth(window) == undo_before + 1);
+    QApplication::processEvents();
+    save_widget_artifact("issue_743_pattern_fill_canvas_after", *canvas);
+    const auto remembered = patchy::ui::load_fill_dialog_settings();
+    CHECK(remembered.contents == patchy::ui::FillContents::Pattern);
+    CHECK(remembered.pattern_id == pattern_id);
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/editFillContents")).toString() ==
+          QStringLiteral("pattern"));
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/editFillPatternId")).toString() == pattern_id);
+    Access::undo(window);
+    QApplication::processEvents();
+    CHECK(count_wrong([](int, int) { return QColor(Qt::white); }) == 0);
+  }
+
+  // Multiply at 50% with Preserve Transparency: white times the texel, halfway; a transparent
+  // pixel stays as it was. The dialog opens on Pattern and the tile it used last.
+  {
+    auto* hole = Access::document(window).find_layer(layer_id)->pixels().pixel(84, 60);
+    hole[3] = 0;
+    const auto undo_before = Access::active_session_undo_depth(window);
+    accept_pattern(QStringLiteral("multiply"), 50, true, true, nullptr);
+    CHECK(layer_pixel(84, 60).alpha() == 0);
+    CHECK(color_close(layer_pixel(100, 60), QColor(137, 192, 197), 2));  // tile (4, 12): teal
+    CHECK(color_close(layer_pixel(70, 54), QColor(242, 187, 142), 2));   // tile (6, 6): orange
+    CHECK(layer_pixel(72, 56) == QColor(Qt::white));                    // the clear middle
+    CHECK(layer_pixel(4, 4) == QColor(Qt::white));                      // outside the selection
+    CHECK(Access::active_session_undo_depth(window) == undo_before + 1);
+    Access::undo(window);
+    QApplication::processEvents();
+    Access::document(window).find_layer(layer_id)->pixels().pixel(84, 60)[3] = 255;
+  }
+
+  // No selection: the whole layer, tiles anchored at the document's corner.
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  {
+    accept_pattern(QStringLiteral("normal"), 100, false, true, nullptr);
+    CHECK(count_wrong(over_white) == 0);
+    CHECK(layer_pixel(0, 0) == over_white(0, 0));
+    CHECK(layer_pixel(kWidth - 1, kHeight - 1) == QColor(20, 130, 140));  // tile (15, 7)
+    Access::undo(window);
+    QApplication::processEvents();
+  }
+
+  // Quick Mask takes no pattern: the entry is off with its reason, and the remembered Pattern
+  // opens as Foreground Color.
+  canvas->set_quick_mask_active(true);
+  QApplication::processEvents();
+  when_dialog_visible(QStringLiteral("patchyFillDialog"), [&](QDialog& dialog) {
+    const auto parts = parts_of(dialog);
+    if (parts.complete()) {
+      const int index = parts.contents->findData(QStringLiteral("pattern"));
+      CHECK(index == 8 && !item_enabled(parts.contents, index));
+      CHECK(!parts.contents->itemData(index, Qt::ToolTipRole).toString().isEmpty());
+      CHECK(parts.contents->currentData().toString() == QStringLiteral("foreground"));
+      CHECK(!parts.pattern->isEnabled());
+    }
+    dialog.reject();
+  });
+  fill->trigger();
+  QApplication::processEvents();
+  canvas->set_quick_mask_active(false);
+  QApplication::processEvents();
+
+  // No library: Pattern is listed but off, and its list is empty.
+  when_dialog_visible(QStringLiteral("patchyFillDialog"), [&](QDialog& dialog) {
+    const auto parts = parts_of(dialog);
+    if (parts.complete()) {
+      const int index = parts.contents->findData(QStringLiteral("pattern"));
+      CHECK(index == 8 && !item_enabled(parts.contents, index));
+      CHECK(parts.pattern->count() == 0 && !parts.pattern->isEnabled());
+    }
+    dialog.reject();
+  });
+  CHECK(!patchy::ui::request_fill_settings(&window, QColor(Qt::black), QColor(Qt::white)).has_value());
+
+  CHECK(library.remove_pattern(storage_id));
   patchy::ui::save_fill_dialog_settings(patchy::ui::FillDialogSettings{});
 }
 
@@ -14052,6 +14320,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_edit_fill_dialog_fills_contents_with_mode_and_opacity},
       {"ui_edit_fill_dialog_ok_matches_cancel_width", ui_edit_fill_dialog_ok_matches_cancel_width},
       {"ui_edit_fill_dialog_content_aware_fills_selection", ui_edit_fill_dialog_content_aware_fills_selection},
+      {"ui_edit_fill_dialog_fills_with_pattern", ui_edit_fill_dialog_fills_with_pattern},
       {"ui_fill_tool_click_honors_tolerance_contiguous_and_opacity",
        ui_fill_tool_click_honors_tolerance_contiguous_and_opacity},
       {"ui_fill_of_wand_selection_with_many_spans_is_fast", ui_fill_of_wand_selection_with_many_spans_is_fast},

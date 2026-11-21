@@ -334,6 +334,22 @@
         <source>Fill with the color that leaves the image unchanged in this blend mode</source>
         <translation>用在此混合模式下不改變影像的顏色填色</translation>
     </message>
+    <message>
+        <source>Pattern</source>
+        <translation>圖樣</translation>
+    </message>
+    <message>
+        <source>A pattern fills a layer&apos;s pixels, not a mask or a channel</source>
+        <translation>圖樣只能填滿圖層的像素，不能填滿遮色片或色版</translation>
+    </message>
+    <message>
+        <source>Add a pattern in the Pattern Manager first</source>
+        <translation>請先在圖樣管理員中新增圖樣</translation>
+    </message>
+    <message>
+        <source>Pattern:</source>
+        <translation>圖樣:</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

@@ -16,6 +16,7 @@
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/new_layer_dialog.hpp"
+#include "ui/pattern_library.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
@@ -42,12 +43,25 @@ void report(const std::vector<std::string>& problems) {
   }
 }
 
-// GitHub issue 655: Edit > Fill's Contents list and Mode list show every entry whole, closed
-// and open, in English and the longer German and Russian. Captures the open Contents list.
+// GitHub issue 655: Edit > Fill's Contents list, Pattern list (GitHub issue 743) and Mode list
+// show every entry whole, closed and open, in English and the longer German and Russian.
+// Captures the open Contents list.
 void ui_fill_dialog_contents_fit_their_entries() {
   LanguageRestorer language_restorer;
   patchy::ui::MainWindow window;
   show_window(window);
+  // A library pattern of this test's own, so Pattern and its list are live whatever the
+  // profile's library holds.
+  const QString pattern_id = QStringLiteral("patchy-test-fill-fit-pattern");
+  patchy::PixelBuffer tile(8, 8, patchy::PixelFormat::rgba8());
+  tile.clear(200);
+  auto& library = window.pattern_library();
+  if (const auto* stale = library.find_entry_by_pattern_id(pattern_id); stale != nullptr) {
+    CHECK(library.remove_pattern(stale->storage_id));
+  }
+  const auto storage_id =
+      library.add_pattern(QStringLiteral("Fit Test Pattern With a Long Name"), tile, QString(), pattern_id);
+  CHECK(!storage_id.isEmpty());
   std::vector<std::string> problems;
   int checked = 0;
   for (const auto* language : {"en", "de", "ru"}) {
@@ -56,13 +70,23 @@ void ui_fill_dialog_contents_fit_their_entries() {
     when_dialog_visible(QStringLiteral("patchyFillDialog"), [&problems, &checked, language](QDialog& shown) {
       auto* dialog = &shown;
       settle_combo_layout();
-      for (const auto* name : {"editFillContentsCombo", "editFillModeCombo"}) {
+      for (const auto* name : {"editFillContentsCombo", "editFillPatternCombo", "editFillModeCombo"}) {
         auto* combo = dialog->findChild<QComboBox*>(QLatin1String(name));
         CHECK(combo != nullptr);
         if (combo == nullptr) {
           continue;
         }
         ++checked;
+        if (std::string(name) == "editFillPatternCombo") {
+          // The Pattern list opens only while Contents is Pattern.
+          auto* contents = dialog->findChild<QComboBox*>(QStringLiteral("editFillContentsCombo"));
+          CHECK(contents != nullptr && contents->findData(QStringLiteral("pattern")) >= 0);
+          if (contents != nullptr) {
+            contents->setCurrentIndex(contents->findData(QStringLiteral("pattern")));
+            settle_combo_layout();
+          }
+          CHECK(combo->isEnabled() && combo->count() > 0);
+        }
         QImage open_list;
         const bool capture = std::string(name) == "editFillContentsCombo" && std::string(language) != "ru";
         const auto found = combo_entry_fit_problems(*combo, std::string(language) + " / " + name, true, dialog,
@@ -74,12 +98,14 @@ void ui_fill_dialog_contents_fit_their_entries() {
       }
       dialog->reject();
     });
-    const auto settings = patchy::ui::request_fill_settings(&window, QColor(Qt::black), QColor(Qt::white));
+    const auto settings = patchy::ui::request_fill_settings(&window, QColor(Qt::black), QColor(Qt::white), false,
+                                                            patchy::ui::FillPatternSource{&library, true});
     CHECK(!settings.has_value());
   }
+  CHECK(library.remove_pattern(storage_id));
   report(problems);
   CHECK(problems.empty());
-  CHECK(checked == 6);
+  CHECK(checked == 9);
 }
 
 // GitHub issue 654: the New Layer dialog's Fill list (Edit > Fill's, with Transparent and the

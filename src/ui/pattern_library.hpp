@@ -14,6 +14,8 @@
 #include <utility>
 #include <vector>
 
+class QComboBox;
+
 namespace patchy::ui {
 
 // Bump when new built-in patterns ship. MainWindow stores this in
@@ -196,6 +198,11 @@ private:
 // key resolved to its English default (GitHub issue 271). Empty when the pattern has no
 // name. The resource keeps the raw name, which files and descriptors write back.
 [[nodiscard]] QString document_pattern_display_name(const PatternResource& resource);
+
+// Appends every library pattern to a picker list (the Pattern Stamp's, Edit > Fill's): its
+// thumbnail, its display name, the pattern id as the item data, and a tooltip with its folder
+// and size.
+void add_pattern_library_items(QComboBox& combo, const PatternLibrary& library);
 
 // Checkerboard-backed, repeated-tile preview shared by pickers and the manager.
 [[nodiscard]] QPixmap pattern_thumbnail(const PixelBuffer& tile, int extent = 48);

@@ -55,6 +55,12 @@ struct EditOptions {
   // fill_rect only: the Edit > Fill dialog's Mode (GitHub issue 530). Normal keeps the
   // ordinary write_pixel path bit for bit; any other mode composites through paint_mode.
   PaintMode fill_paint_mode{};
+  // fill_rect only: Edit > Fill's Pattern contents (GitHub issue 743). When set, each pixel takes
+  // its color and alpha from this 8-bit RGB or RGBA tile, repeated from the document origin
+  // (PatternTileSampler's 100% lookup), instead of `primary`; `primary.a` still scales the fill
+  // as its Opacity. A direct lookup into one static tile: it never reads the destination to
+  // adapt the pattern (docs/legal-constraints.md, Pattern Stamp). Non-owning.
+  const PixelBuffer* fill_pattern_tile{nullptr};
   // flood_fill only. Tolerance is the Magic Wand's metric (color_within_tolerance), so Fill
   // tolerance N accepts exactly the pixels Wand tolerance N selects; 0 is an exact match.
   // Contiguous limits the fill to pixels connected to the click; off fills every matching
@@ -366,7 +372,9 @@ struct FloodSampleImage {
 // before it erases to transparency. A layer that has alpha is left alone.
 void ensure_layer_alpha_for_erase(Layer& layer);
 // Fills `rect` (clipped to the canvas and options.selection, weighted by selection coverage)
-// with options.primary at its alpha, composited by options.fill_paint_mode.
+// with options.primary at its alpha, composited by options.fill_paint_mode. With
+// options.fill_pattern_tile the color and alpha of each pixel come from the repeated tile
+// instead, scaled by options.primary.a; a tile that is not 8-bit RGB or RGBA fills nothing.
 [[nodiscard]] Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOptions& options);
 [[nodiscard]] Rect clear_rect_change_bounds(const Document& document, LayerId layer_id, Rect rect,
                                             const EditOptions& options);
