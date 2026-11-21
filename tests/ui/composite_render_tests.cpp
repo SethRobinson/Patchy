@@ -19,6 +19,7 @@
 #include "core/document_depth.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
+#include "core/layer_render_utils.hpp"
 #include "core/psd_source_colors.hpp"
 #include "core/vector_raster.hpp"
 #include "render/compositor.hpp"
@@ -27,6 +28,7 @@
 #include "ui/qt_paths.hpp"
 #include "ui/smart_object_render.hpp"
 #include <QImage>
+#include <QMouseEvent>
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
@@ -307,7 +309,12 @@ void ui_styled_brush_damage_matches_full_render() {
   const auto before = canvas.render_cache_diagnostics().partial_patches;
   const auto send = [&](QEvent::Type type, QPoint point, Qt::MouseButton button, Qt::MouseButtons held) {
     patchy::test::ui::send_mouse(canvas, type, canvas.widget_position_for_document_point(point), button, held);
+    // A dab that moves the gradient anchor redraws the silhouette on a worker.
     canvas.repaint();
+    while (!canvas.render_settled()) {
+      QApplication::processEvents();
+      canvas.repaint();
+    }
     compare();
   };
   send(QEvent::MouseButtonPress, {198, 160}, Qt::LeftButton, Qt::LeftButton);
@@ -326,6 +333,170 @@ void ui_styled_brush_damage_matches_full_render() {
   CHECK(after_repaint.partial_patches > before_repaint.partial_patches);
   CHECK(after_repaint.dirty_region_pixels - before_repaint.dirty_region_pixels < 480U * 320U / 4U);
   send(QEvent::MouseButtonRelease, {400, 170}, Qt::LeftButton, Qt::NoButton);
+}
+
+// A stroke that leaves the painted bounds moves a layer-aligned gradient across
+// the whole silhouette on every move. Art over half the canvas used to turn
+// each of those moves into a full refresh, and smaller art into a redraw of
+// the silhouette with full-layer masks inside the mouse handler.
+void ui_styled_brush_growth_redraws_silhouette_in_background() {
+  constexpr int kWidth = 1600;
+  constexpr int kHeight = 1000;
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer paint(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  paint.clear(0);
+  // A soft left edge, a hole and a notch near the stroke give the bands of
+  // the redraw contours whose shading must match the full render.
+  for (int y = 60; y < 940; ++y) {
+    for (int x = 100; x < 1000; ++x) {
+      const bool hole = x >= 500 && x < 600 && y >= 300 && y < 520;
+      const bool notch = x >= 900 && y >= 430 && y < 470;
+      if (hole || notch) {
+        continue;
+      }
+      auto* pixel = paint.pixel(x, y);
+      pixel[0] = 180;
+      pixel[1] = static_cast<std::uint8_t>(60 + (y % 97));
+      pixel[3] = static_cast<std::uint8_t>(x < 108 ? 32 * (x - 100) + 16 : 255);
+    }
+  }
+  auto& layer = document.add_pixel_layer("Paint", std::move(paint));
+  auto& style = layer.layer_style();
+  auto& satin = style.satins.emplace_back();
+  satin.enabled = true;
+  satin.distance = 28;
+  satin.size = 11;
+  auto& bevel = style.bevels.emplace_back();
+  bevel.enabled = true;
+  bevel.size = 27;
+  bevel.soften = 3;
+  auto& glow = style.outer_glows.emplace_back();
+  glow.enabled = true;
+  glow.size = 9;
+  auto& stroke = style.strokes.emplace_back();
+  stroke.enabled = true;
+  stroke.size = 3;
+  auto& gradient = style.gradient_fills.emplace_back();
+  gradient.enabled = true;
+  gradient.gradient.angle_degrees = 0;
+  gradient.gradient.color_stops = {{0.0F, {20, 30, 40}}, {1.0F, {240, 200, 150}}};
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(900, 700);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_brush_size(61);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.show();
+  canvas.fit_to_view();
+  QApplication::processEvents();
+  canvas.repaint();
+  const auto layer_id = layer.id();
+  const auto settle = [&] {
+    canvas.repaint();
+    while (!canvas.render_settled()) {
+      QApplication::processEvents();
+      canvas.repaint();
+    }
+  };
+  const auto compare = [&] {
+    const auto actual = canvas.current_composite();
+    CHECK(!actual.isNull());
+    // The reference has its own revision, so it shares no cached mask or
+    // bounds with the stroke.
+    patchy::Document fresh = std::as_const(document);
+    static_cast<void>(fresh.find_layer(layer_id)->pixels());
+    CHECK(actual == patchy::ui::qimage_from_document(std::as_const(fresh), true).convertToFormat(actual.format()));
+  };
+  const auto alpha_bounds = [&] {
+    const auto& painted = *std::as_const(document).find_layer(layer_id);
+    return patchy::layer_visible_alpha_bounds(painted, painted.bounds()).value_or(patchy::Rect{});
+  };
+  // Sent without the event loop a finished pass lands from, so the test decides
+  // when one may land.
+  const auto send = [&](QEvent::Type type, QPoint point, Qt::MouseButton button, Qt::MouseButtons held) {
+    const auto position = canvas.widget_position_for_document_point(point);
+    QMouseEvent event(type, position, canvas.mapToGlobal(position), button, held, Qt::NoModifier);
+    QApplication::sendEvent(&canvas, &event);
+  };
+  settle();
+  compare();
+  CHECK(alpha_bounds() == (patchy::Rect{100, 60, 900, 880}));
+  send(QEvent::MouseButtonPress, {880, 500}, Qt::LeftButton, Qt::LeftButton);
+  send(QEvent::MouseMove, {905, 504}, Qt::NoButton, Qt::LeftButton);
+  CHECK(alpha_bounds().width == 900);
+  CHECK(canvas.render_settled());
+  compare();
+
+  // These moves widen the painted bounds (the smoothed path trails the pointer,
+  // so the first may not). The mouse handler patches the brush area alone; the
+  // silhouette, over half this canvas, follows from a background pass.
+  auto width = 900;
+  int widened = 0;
+  for (const int x : {1040, 1160, 1280}) {
+    const auto before = canvas.render_cache_diagnostics();
+    send(QEvent::MouseMove, {x, 500 + (x - 880) / 8}, Qt::NoButton, Qt::LeftButton);
+    const auto after = canvas.render_cache_diagnostics();
+    const bool wider = alpha_bounds().width > width;
+    width = alpha_bounds().width;
+    widened += wider ? 1 : 0;
+    CHECK(after.full_refreshes == before.full_refreshes);
+    CHECK(after.dirty_region_pixels - before.dirty_region_pixels < 150'000U);
+    CHECK(after.brush_realign_jobs == before.brush_realign_jobs + (wider ? 1 : 0));
+    CHECK(canvas.render_settled() == !wider);
+    settle();
+    CHECK(canvas.render_cache_diagnostics().full_refreshes == before.full_refreshes);
+    compare();
+  }
+  CHECK(widened >= 2);
+
+  // Moves that arrive while a pass is still rendering: one that turns back,
+  // whose brush area the pass must not cover with its older picture, and
+  // others that move the anchor again, which the next pass has to pick up.
+  {
+    const auto before = canvas.render_cache_diagnostics();
+    send(QEvent::MouseMove, {1380, 560}, Qt::NoButton, Qt::LeftButton);
+    send(QEvent::MouseMove, {1450, 600}, Qt::NoButton, Qt::LeftButton);
+    CHECK(canvas.render_cache_diagnostics().brush_realign_jobs == before.brush_realign_jobs + 1);
+    send(QEvent::MouseMove, {1330, 640}, Qt::NoButton, Qt::LeftButton);
+    send(QEvent::MouseMove, {1480, 700}, Qt::NoButton, Qt::LeftButton);
+    send(QEvent::MouseMove, {1540, 760}, Qt::NoButton, Qt::LeftButton);
+    // Still the first pass: the later moves joined it instead of starting their own.
+    CHECK(canvas.render_cache_diagnostics().brush_realign_jobs == before.brush_realign_jobs + 1);
+    CHECK(!canvas.render_settled());
+    send(QEvent::MouseButtonRelease, {1540, 760}, Qt::LeftButton, Qt::NoButton);
+    settle();
+    const auto after = canvas.render_cache_diagnostics();
+    CHECK(after.brush_realign_jobs == before.brush_realign_jobs + 2);
+    CHECK(after.full_refreshes == before.full_refreshes);
+    CHECK(alpha_bounds().width > width);
+    compare();
+  }
+
+  // Back inside the bounds, a stroke redraws only the brush area again.
+  const auto before_inside = canvas.render_cache_diagnostics();
+  send(QEvent::MouseButtonPress, {400, 500}, Qt::LeftButton, Qt::LeftButton);
+  send(QEvent::MouseMove, {440, 506}, Qt::NoButton, Qt::LeftButton);
+  send(QEvent::MouseMove, {480, 512}, Qt::NoButton, Qt::LeftButton);
+  send(QEvent::MouseButtonRelease, {480, 512}, Qt::LeftButton, Qt::NoButton);
+  const auto after_inside = canvas.render_cache_diagnostics();
+  CHECK(canvas.render_settled());
+  CHECK(after_inside.full_refreshes == before_inside.full_refreshes);
+  CHECK(after_inside.brush_realign_jobs == before_inside.brush_realign_jobs);
+  CHECK(after_inside.dirty_region_pixels - before_inside.dirty_region_pixels < 200'000U);
+  compare();
+
+  // Another change while a pass is pending, as an undo would make, takes over
+  // the pass's region.
+  send(QEvent::MouseButtonPress, {1300, 850}, Qt::LeftButton, Qt::LeftButton);
+  send(QEvent::MouseMove, {1300, 950}, Qt::NoButton, Qt::LeftButton);
+  send(QEvent::MouseMove, {1300, 990}, Qt::NoButton, Qt::LeftButton);
+  CHECK(!canvas.render_settled());
+  send(QEvent::MouseButtonRelease, {1300, 990}, Qt::LeftButton, Qt::NoButton);
+  canvas.document_changed_effect_bounds(QRegion(QRect(0, 0, 10, 10)));
+  settle();
+  compare();
 }
 
 void backglass_group_clipped_invert_preview_matches_photoshop_if_available() {
@@ -563,6 +734,8 @@ std::vector<patchy::test::TestCase> composite_render_tests() {
       {"group_isolation_override_bounds_match_actual_layer_move",
        group_isolation_override_bounds_match_actual_layer_move},
       {"ui_styled_brush_damage_matches_full_render", ui_styled_brush_damage_matches_full_render},
+      {"ui_styled_brush_growth_redraws_silhouette_in_background",
+       ui_styled_brush_growth_redraws_silhouette_in_background},
       {"styled_group_partial_render_and_child_edit_match_full_render", styled_group_partial_render_and_child_edit_match_full_render},
       {"styled_group_parallel_strips_match_single_threaded", styled_group_parallel_strips_match_single_threaded},
       {"knockout_preview_preserves_alpha_depth_and_partial_bounds", knockout_preview_preserves_alpha_depth_and_partial_bounds},

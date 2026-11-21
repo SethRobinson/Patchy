@@ -1267,12 +1267,36 @@ std::vector<RenderedDocumentPatch> render_document_region(
   const QRect canvas_rect(0, 0, document.width(), document.height());
   std::vector<QRect> rects;
   std::int64_t total_area = 0;
+  // A brush patch computes the painted layer's masks per rect and keeps none
+  // of them, so a large rect splits into row bands for the workers below.
+  // Each band pays for its own mask apron, which sets the minimum band height.
+  // The bands take half the workers: the stroke goes on painting on the GUI
+  // thread while a background pass renders them (BrushRealignJob), and with
+  // every core busy its moves ran four times slower.
+  constexpr int kBrushBandMinRows = 96;
+  constexpr std::int64_t kBrushBandMinArea = 400'000;
+  // Tracing/profiling stay sequential so per-render instrumentation remains
+  // readable.
+  const bool may_fan_out = !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED") && !render_trace_enabled() &&
+                           !render_profile_enabled();
+  const auto band_workers =
+      windowed_layer && may_fan_out
+          ? std::max(1, max_blocking_fanout_workers(patchy::hardware_worker_threads()) / 2)
+          : 1;
+  bool banded = false;
   for (const auto& rect : document_region.intersected(canvas_rect)) {
     if (rect.isEmpty()) {
       continue;
     }
-    rects.push_back(rect);
-    total_area += static_cast<std::int64_t>(rect.width()) * static_cast<std::int64_t>(rect.height());
+    const auto area = static_cast<std::int64_t>(rect.width()) * static_cast<std::int64_t>(rect.height());
+    total_area += area;
+    const int bands =
+        area >= kBrushBandMinArea ? std::clamp(std::min(band_workers, rect.height() / kBrushBandMinRows), 1, 16) : 1;
+    banded = banded || bands > 1;
+    const int rows = (rect.height() + bands - 1) / bands;
+    for (int top = rect.top(); top <= rect.bottom(); top += rows) {
+      rects.push_back(QRect(rect.left(), top, rect.width(), std::min(rows, rect.bottom() + 1 - top)));
+    }
   }
 
   // Multi-rect regions (move previews and release patches emit one or two
@@ -1281,14 +1305,11 @@ std::vector<RenderedDocumentPatch> render_document_region(
   // patch is the same render_document_rect call with the same arguments, and
   // order is preserved by index. Single-rect regions keep the plain call so a
   // large rect still strip-splits inside render_document_rect.
-  // Tracing/profiling stay sequential so per-render instrumentation remains
-  // readable.
   const auto worker_budget = max_blocking_fanout_workers(
       std::clamp(static_cast<int>(rects.size()), 1,
                  patchy::hardware_worker_threads()));
-  const bool parallel = rects.size() >= 2U && worker_budget >= 2 && total_area >= 1'000'000 &&
-                        !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED") && !render_trace_enabled() &&
-                        !render_profile_enabled();
+  const bool parallel =
+      rects.size() >= 2U && worker_budget >= 2 && (banded || total_area >= 1'000'000) && may_fan_out;
   if (parallel) {
     auto images = render_document_rects_parallel(document, rects, preserve_alpha, overrides, worker_budget, windowed_layer);
     patches.reserve(rects.size());

@@ -111,6 +111,9 @@ constexpr std::int64_t kDragRegionRefreshMaxPixels = 20'000'000;
 constexpr int kProcessingOverlayDelayMs = 1000;
 constexpr int kProcessingAnimationIntervalMs = 80;
 constexpr int kMaxDirtyRegionRects = 64;
+// The smallest silhouette, beyond the brush area, that a brush realign job renders in the
+// background. Below it the mouse handler redraws the silhouette itself.
+constexpr std::int64_t kBrushRealignBackgroundMinPixels = 65'536;
 // A full recomposite can take seconds on a document with hundreds of layers
 // even when its pixel area is small (the 622-layer Affinity card template is
 // under 1 Mpx but composites in ~5 s cold: dozens of styled layers each
@@ -262,12 +265,16 @@ QRect brush_gradient_bounds(const Layer& layer) {
   return alpha ? to_qrect(*alpha) : QRect{};
 }
 
+// `silhouette` receives the painted layer's old and new extents when a dab
+// moves the anchor of a gradient aligned to that layer: every pixel it has
+// painted changes color, however far from the dab.
 const Layer* expand_brush_damage(const std::vector<Layer>& layers, LayerId painted_id, QRegion& region,
-                                 std::optional<QRect>& previous_gradient_bounds) {
+                                 QRegion& silhouette, std::optional<QRect>& previous_gradient_bounds) {
   for (const auto& layer : layers) {
-    const auto* painted = layer.id() == painted_id
-                              ? &layer
-                              : expand_brush_damage(layer.children(), painted_id, region, previous_gradient_bounds);
+    const auto* painted =
+        layer.id() == painted_id
+            ? &layer
+            : expand_brush_damage(layer.children(), painted_id, region, silhouette, previous_gradient_bounds);
     if (painted == nullptr) continue;
     const auto& style = layer.layer_style();
     if (style.effects_visible && !style.empty()) {
@@ -279,13 +286,15 @@ const Layer* expand_brush_damage(const std::vector<Layer>& layers, LayerId paint
           // unchanged. Redraw distant ink only when the anchor actually moves.
           const auto bounds = brush_gradient_bounds(layer);
           if (previous_gradient_bounds != bounds) {
-            region += bounds;
-            if (previous_gradient_bounds) region += *previous_gradient_bounds;
+            silhouette += bounds;
+            if (previous_gradient_bounds) silhouette += *previous_gradient_bounds;
             previous_gradient_bounds = bounds;
           }
         }
       }
-      region = outset_region(region, brush_style_reach(style));
+      const auto reach = brush_style_reach(style);
+      region = outset_region(region, reach);
+      silhouette = outset_region(silhouette, reach);
     }
     return painted;
   }
@@ -321,7 +330,7 @@ CanvasWidget::RenderCacheDiagnostics CanvasWidget::render_cache_diagnostics() co
 
 bool CanvasWidget::render_settled() const noexcept {
   return !render_cache_dirty_ && !async_render_cache_in_flight_ && !move_commit_job_.has_value() &&
-         !move_preview_in_flight_ &&
+         !brush_realign_job_.has_value() && !move_preview_in_flight_ &&
          vector_preview_settled();
 }
 
@@ -515,6 +524,7 @@ void CanvasWidget::notify_document_changed(DocumentChangeReason reason) {
 void CanvasWidget::document_changed() {
   clear_transform_commit_hold();
   cancel_move_commit_job();
+  cancel_brush_realign_job();
   cancel_async_render_cache_refresh();
   render_cache_dirty_ = true;
   // This overload bypasses document_changed_impl, so drop the preview-scaled
@@ -557,6 +567,7 @@ void CanvasWidget::layer_visibility_changed(LayerId id) {
 void CanvasWidget::document_changed_async_preview_impl(bool preserve_scaled_document) {
   clear_transform_commit_hold();
   cancel_move_commit_job();
+  cancel_brush_realign_job();
   if (document_ == nullptr || render_cache_.isNull() ||
       render_cache_.size() != QSize(document_->width(), document_->height())) {
     document_changed();
@@ -603,6 +614,7 @@ void CanvasWidget::force_refresh() {
 
   clear_transform_commit_hold();
   cancel_move_commit_job();
+  cancel_brush_realign_job();
   cancel_async_render_cache_refresh();
   // Bypasses document_changed_impl: see the invalidation note in
   // document_changed().
@@ -802,6 +814,21 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
     }
     cancel_move_commit_job();
   }
+  const bool brush_update = !includes_effect_bounds &&
+                            (reason == DocumentChangeReason::BrushStrokePreview ||
+                             reason == DocumentChangeReason::BrushStrokeFinished) &&
+                            layer_edit_target_ == LayerEditTarget::Content && document_ != nullptr &&
+                            document_->active_layer_id().has_value();
+  if (brush_realign_job_.has_value() &&
+      !(brush_update && *document_->active_layer_id() == brush_realign_job_->layer)) {
+    // Only further dabs on the same layer can share the cache with the job
+    // (it leaves their areas out when it lands). Any other change takes over
+    // the region the job would have refreshed.
+    const auto stale = cancel_brush_realign_job();
+    if (!document_region.isEmpty()) {
+      document_region += stale;
+    }
+  }
   if (layer_edit_target_ == LayerEditTarget::SmartFilterMask && !editing_smart_filter_mask()) {
     // Layer deletion can occur without replacing the Document object. Drop the
     // canvas-owned buffer before another layer can become active and inherit it.
@@ -836,6 +863,7 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
     }
   }
   const auto mark_full_dirty = [this, reason] {
+    cancel_brush_realign_job();
     render_cache_dirty_ = true;
     if (!stale_frame_stays_on_screen()) {
       invalidate_display_mip_cache();
@@ -860,19 +888,37 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
   }
 
   std::optional<LayerId> windowed_layer;
+  QRegion background_silhouette;
   if (document_ != nullptr) {
     const Layer* painted = nullptr;
-    const bool paint_update = reason == DocumentChangeReason::BrushStrokePreview ||
-                              reason == DocumentChangeReason::BrushStrokeFinished;
-    if (!includes_effect_bounds && paint_update && layer_edit_target_ == LayerEditTarget::Content &&
-        document_->active_layer_id()) {
+    QRegion silhouette;
+    if (brush_update) {
       painted = expand_brush_damage(std::as_const(*document_).layers(), *document_->active_layer_id(), document_region,
-                                    brush_gradient_bounds_);
+                                    silhouette, brush_gradient_bounds_);
     }
     if (!includes_effect_bounds && !painted) {
       document_region = outset_region(document_region, document_effect_padding(*document_));
     }
-    document_region = document_region.intersected(QRect(0, 0, document_->width(), document_->height()));
+    const QRect canvas_rect(0, 0, document_->width(), document_->height());
+    document_region = document_region.intersected(canvas_rect);
+    silhouette = silhouette.intersected(canvas_rect);
+    // A dab that moves the gradient anchor changes the whole silhouette, and
+    // the next dab moves it again. Redrawing it in the mouse handler made each
+    // of those moves cost the whole layer's effects, and a full refresh
+    // restarts on every move and shows nothing until the pointer rests. The
+    // brush area patches here as on any other move; the silhouette renders in
+    // the background (start_brush_realign_job). Without workers, or for a
+    // small silhouette, it renders here with mask windows.
+    bool realigned_here = false;
+    if (!silhouette.isEmpty()) {
+      if (brush_realign_job_.has_value() ||
+          brush_realign_runs_in_background(region_area(silhouette.subtracted(document_region)))) {
+        background_silhouette = silhouette;
+      } else {
+        document_region += silhouette;
+        realigned_here = region_area(document_region) <= kDragRegionRefreshMaxPixels;
+      }
+    }
     if (document_region.isEmpty()) {
       notify_document_changed(reason);
       return;
@@ -882,17 +928,26 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
     if (painted && painted->layer_style().effects_visible && !painted->layer_style().empty()) {
       const auto bounds = layer_pixel_bounds(*painted);
       const auto layer_area = static_cast<std::int64_t>(bounds.width) * bounds.height;
-      if (area < kProcessingOverlayDirtyAreaThreshold && area < layer_area / 4) {
+      // Masks cached for a frame of the stroke would serve that frame alone.
+      if (realigned_here || (area < kProcessingOverlayDirtyAreaThreshold && area < layer_area / 4)) {
         windowed_layer = painted->id();
       }
     }
-    if (canvas_area > 0 && area * 2 > canvas_area && !region_refresh_any_area_) {
+    if (canvas_area > 0 && area * 2 > canvas_area && !region_refresh_any_area_ && !realigned_here) {
       mark_full_dirty();
       return;
     }
     if (document_region.rectCount() > kMaxDirtyRegionRects) {
       mark_full_dirty();
       return;
+    }
+    if (brush_realign_job_.has_value()) {
+      // The job's snapshot predates this dab: its result must not cover the
+      // area patched below, and an anchor that moved again needs another pass.
+      brush_realign_job_->newer += document_region;
+      brush_realign_job_->again += background_silhouette;
+    } else if (!background_silhouette.isEmpty()) {
+      start_brush_realign_job(painted->id(), background_silhouette, document_region);
     }
   }
 
@@ -1714,6 +1769,7 @@ void CanvasWidget::ensure_render_cache() {
   }
 
   cancel_async_render_cache_refresh();
+  cancel_brush_realign_job();  // its patches would land on this newer frame
   render_cache_ = render_document_image_with_processing();
   quantize_image_for_palette_display(render_cache_);
   render_cache_dirty_ = false;
@@ -1989,6 +2045,7 @@ void CanvasWidget::start_async_render_cache_refresh() {
           // completion always matches the current document. The retained move
           // base/proxy derive from that same content, so this must NOT call
           // invalidate_retained_move_caches().
+          widget->cancel_brush_realign_job();  // its patches would land on this newer frame
           widget->install_async_frame(std::move(frame->image), std::move(frame->mips), document_snapshot);
           widget->render_cache_dirty_ = false;
           widget->async_render_cache_explicit_hold_ = false;
@@ -2642,7 +2699,128 @@ void CanvasWidget::cancel_move_commit_job() noexcept {
   note_background_refresh_state();
 }
 
+bool CanvasWidget::brush_realign_runs_in_background(std::int64_t silhouette_area) const noexcept {
+  if constexpr (kBackgroundWorkRunsInline) {
+    return false;
+  }
+  return silhouette_area >= kBrushRealignBackgroundMinPixels;
+}
+
+void CanvasWidget::start_brush_realign_job(LayerId layer, const QRegion& silhouette, const QRegion& patched_here) {
+  const auto generation = ++brush_realign_generation_;
+  auto snapshot = std::make_shared<const Document>(*document_);
+  auto promise = std::make_shared<std::promise<std::vector<RenderedDocumentPatch>>>();
+  BrushRealignJob job;
+  job.generation = generation;
+  job.layer = layer;
+  job.region = silhouette;
+  job.newer = patched_here;
+  job.result = promise->get_future().share();
+  brush_realign_job_ = std::move(job);
+  ++render_cache_diagnostics_.brush_realign_jobs;
+  auto* app = QApplication::instance();
+  QPointer<CanvasWidget> widget(this);
+  run_tracked_background_worker([app, widget, generation, layer, silhouette, snapshot = std::move(snapshot), promise] {
+    std::vector<RenderedDocumentPatch> patches;
+    try {
+      if (const auto delay = processing_render_test_delay_ms(); delay > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+      }
+      // Mask windows for the painted layer, as in the mouse handler: the next
+      // dab changes the layer again, so a cached full-layer mask would serve
+      // this one result. The region renders in row bands across the workers.
+      patches = qimage_patches_from_document_region(*snapshot, silhouette, true, layer);
+      for (auto& patch : patches) {
+        patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
+      }
+    } catch (...) {
+      patches.clear();
+    }
+    promise->set_value(std::move(patches));
+    if (app != nullptr) {
+      QMetaObject::invokeMethod(app, [widget, generation] {
+        if (widget != nullptr) widget->finish_brush_realign_job(generation);
+      }, Qt::QueuedConnection);
+    }
+  });
+}
+
+void CanvasWidget::finish_brush_realign_job(std::uint64_t generation) {
+  if (!brush_realign_job_.has_value() || brush_realign_job_->generation != generation) {
+    return;  // cancelled: whatever cancelled it owns the region
+  }
+  auto job = std::move(*brush_realign_job_);
+  brush_realign_job_.reset();
+  std::vector<RenderedDocumentPatch> patches;
+  try {
+    patches = job.result.get();
+  } catch (...) {
+    patches.clear();
+  }
+  bool landed = !patches.empty() && !render_cache_dirty_ && document_ != nullptr && !render_cache_.isNull() &&
+                render_cache_.size() == QSize(document_->width(), document_->height());
+  if (landed) {
+    // The stroke went on while the worker rendered: what it patched since the
+    // snapshot is newer than this result.
+    std::vector<RenderedDocumentPatch> older;
+    older.reserve(patches.size());
+    for (auto& patch : patches) {
+      if (!job.newer.intersects(patch.document_rect)) {
+        older.push_back(std::move(patch));
+        continue;
+      }
+      for (const auto& rect : QRegion(patch.document_rect).subtracted(job.newer)) {
+        older.push_back(
+            RenderedDocumentPatch{rect, patch.image.copy(rect.translated(-patch.document_rect.topLeft()))});
+      }
+    }
+    landed = older.empty() || patch_render_cache_patches(older);
+  }
+  if (!landed) {
+    // The region is stale either way; a normal refresh repairs it.
+    render_cache_dirty_ = true;
+    invalidate_display_mip_cache();
+  } else if (!job.again.isEmpty() && document_->find_layer(job.layer) != nullptr) {
+    // The anchor moved after the snapshot. The dabs patched since then were
+    // drawn for anchors in between, so the next pass takes them along.
+    start_brush_realign_job(job.layer,
+                            (job.again + job.newer).intersected(QRect(0, 0, document_->width(), document_->height())),
+                            QRegion());
+  }
+  if (isVisible()) {
+    update();
+  }
+}
+
+QRegion CanvasWidget::cancel_brush_realign_job() {
+  if (!brush_realign_job_.has_value()) {
+    return {};
+  }
+  // The worker finishes on its snapshot; its queued completion finds no job
+  // with its generation and does nothing.
+  const auto stale = brush_realign_job_->region + brush_realign_job_->again + brush_realign_job_->newer;
+  brush_realign_job_.reset();
+  return stale;
+}
+
+void CanvasWidget::wait_for_brush_realign_job(bool process_events) {
+  // A pass that finds the anchor moved again starts the next one as it lands.
+  while (brush_realign_job_.has_value()) {
+    const auto generation = brush_realign_job_->generation;
+    auto result = brush_realign_job_->result;
+    if (process_events) {
+      wait_for_processing_operation(
+          [&result] { return result.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready; }, true);
+    } else {
+      result.wait();
+    }
+    finish_brush_realign_job(generation);
+  }
+}
+
 void CanvasWidget::wait_for_move_commit_job() {
+  // Callers want exact pixels, which a brush realign job also still owes.
+  wait_for_brush_realign_job(true);
   while (move_commit_job_.has_value()) {
     const auto generation = move_commit_job_->generation;
     auto result = move_commit_job_->result;

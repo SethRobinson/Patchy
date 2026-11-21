@@ -514,6 +514,9 @@ struct CanvasRenderCacheDiagnostics {
   int move_precommit_patches{0};
   // Move releases whose accurate patches rendered on a worker behind a hold.
   int move_deferred_commits{0};
+  // Background passes that redrew a painted layer's silhouette after a dab
+  // moved its aligned gradient (BrushRealignJob).
+  int brush_realign_jobs{0};
   int forced_refreshes{0};
   int dirty_region_batches{0};
   int dirty_region_rects{0};

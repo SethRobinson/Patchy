@@ -424,6 +424,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   gradient_drag_hold_.reset();
   gradient_pending_commit_.reset();
   cancel_move_commit_job();
+  cancel_brush_realign_job();
   active_document_path_.reset();
   last_saved_path_target_.reset();
   path_selected_anchors_.clear();

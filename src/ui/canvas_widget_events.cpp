@@ -3742,6 +3742,9 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     // the same selection.
     bool retain_move_caches = false;
     if (!dirty_region.isEmpty()) {
+      // A brush realign pass that is still pending would land its older picture
+      // over the patches this commit puts in the cache.
+      wait_for_brush_realign_job(false);
       if (defer_accurate_patches) {
         start_move_commit_job(patched_region);
         retain_move_caches = true;

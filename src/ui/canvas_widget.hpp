@@ -2379,6 +2379,15 @@ private:
   void finish_move_commit_job(std::uint64_t generation);
   void cancel_move_commit_job() noexcept;
   void wait_for_move_commit_job();
+  // Brush realign job (see the BrushRealignJob members).
+  [[nodiscard]] bool brush_realign_runs_in_background(std::int64_t silhouette_area) const noexcept;
+  void start_brush_realign_job(LayerId layer, const QRegion& silhouette, const QRegion& patched_here);
+  void finish_brush_realign_job(std::uint64_t generation);
+  // Returns the regions the job would have refreshed.
+  QRegion cancel_brush_realign_job();
+  // `process_events` waits as wait_for_move_commit_job does, behind the processing
+  // overlay; without it the call blocks, for callers that are mid-change.
+  void wait_for_brush_realign_job(bool process_events);
   void clear_move_base_cache() noexcept;
   // Builds the once-per-drag snapshot of ONLY the moving subtree (intra-set
   // blending, clip runs, and styled ancestor folders baked in), downscaled to
@@ -5395,6 +5404,27 @@ private:
     std::shared_future<std::vector<RenderedDocumentPatch>> result{};
   };
   std::optional<MoveCommitJob> move_commit_job_{};
+  // Brush realign job (document_changed_impl, November 2026): a dab that moves
+  // the anchor of a gradient aligned to the painted layer changes that layer's
+  // whole silhouette. The brush area still patches in the mouse handler; the
+  // silhouette renders on a worker from a document snapshot and a queued
+  // completion lands it. Areas the stroke patched after the snapshot (`newer`)
+  // are left out of the landing, and an anchor that moved again (`again`)
+  // starts the next pass over both when this one lands. Like the Move commit
+  // job, the cache is stale inside the job's regions but never dirty:
+  // wait_for_move_commit_job() waits for it too, a full refresh drops it, and
+  // any change other than a further dab on the same layer cancels it and folds
+  // its regions into that change's invalidation.
+  struct BrushRealignJob {
+    std::uint64_t generation{0};
+    LayerId layer{0};
+    QRegion region{};
+    QRegion newer{};
+    QRegion again{};
+    std::shared_future<std::vector<RenderedDocumentPatch>> result{};
+  };
+  std::optional<BrushRealignJob> brush_realign_job_{};
+  std::uint64_t brush_realign_generation_{0};
   struct MoveCommitWorker;
   std::shared_ptr<MoveCommitWorker> move_commit_worker_{};
   std::uint64_t move_commit_job_generation_{0};
