@@ -3592,7 +3592,7 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
 }
 
 bool MainWindow::apply_layer_effect_row_edit(LayerId layer_id, const QString& undo_text, const QString& status_text,
-                                             const std::function<bool(LayerStyle&)>& edit,
+                                             const std::function<bool(LayerStyle&)>& edit, LayerEffectRowEdit kind,
                                              std::uint64_t edit_run_token, const QString& run_undo_text) {
   if (!has_active_document() || canvas_ == nullptr) {
     return false;
@@ -3628,9 +3628,17 @@ bool MainWindow::apply_layer_effect_row_edit(LayerId layer_id, const QString& un
     refresh_history_panel();
   }
   auto* target = doc.find_layer(layer_id);
+  // Read here, after the snapshot: taking it can commit a pending edit into this layer.
+  const auto masks_revision_before = style_mask_cache_revision(std::as_const(*target));
+  const auto pixels_before = std::as_const(*target).pixel_revision();
   target->layer_style() = std::move(next);
   // The preserved lfx2 bytes no longer describe the style; the writer regenerates it.
   clear_layer_psd_style_source(*target);
+  if (kind == LayerEffectRowEdit::Visibility && std::as_const(*target).pixel_revision() == pixels_before) {
+    // Every mask the layer's effects need is already computed; only which of them are
+    // drawn changed. Without this each eye click recomputed them all (local-063).
+    carry_style_masks_across_effect_visibility_edit(masks_revision_before, std::as_const(*target));
+  }
   canvas_->document_changed();
   refresh_layer_list();
   refresh_layer_thumbnails();
@@ -3648,7 +3656,7 @@ void MainWindow::set_layer_effects_visible(LayerId layer_id, bool visible) {
     }
     style.effects_visible = visible;
     return true;
-  });
+  }, LayerEffectRowEdit::Visibility);
 }
 
 void MainWindow::set_layer_effect_enabled(LayerId layer_id, LayerStyleEffect effect, std::size_t index,
@@ -3670,7 +3678,8 @@ void MainWindow::sweep_layer_effect_enabled(LayerId layer_id, LayerStyleEffect e
     }
     *flag = enabled;
     return true;
-  }, gesture != 0 ? (kEffectSweepRun | gesture) : 0, enabled ? tr("Show Effects") : tr("Hide Effects"));
+  }, LayerEffectRowEdit::Visibility, gesture != 0 ? (kEffectSweepRun | gesture) : 0,
+     enabled ? tr("Show Effects") : tr("Hide Effects"));
 }
 
 void MainWindow::delete_layer_effect(LayerId layer_id, LayerStyleEffect effect, std::size_t index) {

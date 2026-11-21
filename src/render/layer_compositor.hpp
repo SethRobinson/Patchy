@@ -1045,7 +1045,12 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
   // Contour/texture parameters fold INTO the cached height mask. That is safe
   // because style edits go through the revision-bumping mutable layer_style()
   // accessor, so the provider's content_revision-keyed entries can never serve
-  // a stale sub-option state.
+  // a stale sub-option state. The one edit that keeps cached masks across a
+  // revision change is an effect eye (carry_style_masks_across_effect_visibility_edit,
+  // ui/image_document_io.hpp): it may only carry masks that read no other
+  // effect's `enabled` switch. A Stroke Emboss height field reads the strokes'
+  // (below), so that function leaves this mask out; a new mask that reads another
+  // effect's switch must be left out there too.
   const auto [entry, mask_bounds] = style_mask_for_render(
       masks, layer, StyleMaskKind::BevelHeight, effect_index, full_domain, effect_bounds, legacy_mask_bounds, bounds,
       layer_mask_bounds, [&](Rect domain) {

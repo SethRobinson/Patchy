@@ -477,10 +477,53 @@ public:
         return found->second->value;
       }
       if (in_flight_.insert(key).second) {
+        ++misses_;
         return std::nullopt;
       }
       in_flight_done_.wait(lock);
     }
+  }
+
+  // Files every mask stored under `from` under `to` as well, sharing the planes: the
+  // layer's revision moved without changing what those masks are made from
+  // (carry_style_masks_across_effect_visibility_edit). The old keys stay, so an undo back
+  // to `from` finds its masks too. Each copy counts its full size against the budget
+  // although the planes are shared, which only makes the stale copies leave sooner.
+  void carry(std::uint64_t from, std::uint64_t to, bool skip_bevel_height) {
+    if (from == to) {
+      return;
+    }
+    const std::size_t kMaxBytes = style_mask_cache_budget_bytes();
+    const std::lock_guard lock(mutex_);
+    std::vector<Node> copies;
+    for (const auto& node : entries_) {
+      if (node.key.content_revision != from ||
+          (skip_bevel_height && node.key.kind == render_detail::StyleMaskKind::BevelHeight)) {
+        continue;
+      }
+      auto key = node.key;
+      key.content_revision = to;
+      if (!index_.contains(key) && !in_flight_.contains(key)) {
+        copies.push_back(Node{key, node.value});
+      }
+    }
+    for (auto& copy : copies) {
+      const auto bytes = value_bytes(copy.value);
+      while (total_bytes_ + bytes > kMaxBytes && !entries_.empty()) {
+        total_bytes_ -= value_bytes(entries_.back().value);
+        index_.erase(entries_.back().key);
+        entries_.pop_back();
+      }
+      const auto key = copy.key;
+      entries_.push_front(std::move(copy));
+      index_[key] = entries_.begin();
+      total_bytes_ += bytes;
+    }
+  }
+
+  [[nodiscard]] std::uint64_t misses() const {
+    const std::lock_guard lock(mutex_);
+    return misses_;
   }
 
   void abandon(const StyleMaskCacheKey& key) {
@@ -534,17 +577,34 @@ private:
            (value.entry->group_pixels == nullptr ? 0U : value.entry->group_pixels->data().size());
   }
 
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::condition_variable in_flight_done_;
   std::list<Node> entries_;
   std::unordered_map<StyleMaskCacheKey, std::list<Node>::iterator, StyleMaskCacheKeyHash> index_;
   std::unordered_set<StyleMaskCacheKey, StyleMaskCacheKeyHash> in_flight_;
   std::size_t total_bytes_{0};
+  std::uint64_t misses_{0};
 };
 
 StyleMaskLruCache& style_mask_lru_cache() {
   static StyleMaskLruCache cache;
   return cache;
+}
+
+// What the cache calls a layer's revision: its content revision, and for a group every
+// descendant's render revision too (the silhouette its masks are made from).
+std::uint64_t style_mask_revision(const Layer& layer) noexcept {
+  auto revision = layer.content_revision();
+  if (layer.kind() == LayerKind::Group) {
+    const auto include_children = [&](auto&& self, const Layer& parent) -> void {
+      for (const auto& child : parent.children()) {
+        revision ^= child.render_revision() + 0x9e3779b97f4a7c15ULL + (revision << 6U) + (revision >> 2U);
+        self(self, child);
+      }
+    };
+    include_children(include_children, layer);
+  }
+  return revision;
 }
 
 class DocumentStyleMaskProvider final : public render_detail::StyleMaskProvider {
@@ -614,17 +674,7 @@ private:
                                                    std::uint32_t effect_index, Rect bounds,
                                                    std::optional<Rect> mask_bounds) noexcept {
     StyleMaskCacheKey key;
-    key.content_revision = layer.content_revision();
-    if (layer.kind() == LayerKind::Group) {
-      const auto include_children = [&](auto&& self, const Layer& parent) -> void {
-        for (const auto& child : parent.children()) {
-          key.content_revision ^= child.render_revision() + 0x9e3779b97f4a7c15ULL +
-                                  (key.content_revision << 6U) + (key.content_revision >> 2U);
-          self(self, child);
-        }
-      };
-      include_children(include_children, layer);
-    }
+    key.content_revision = style_mask_revision(layer);
     key.effect_index = effect_index;
     key.kind = kind;
     if (mask_bounds.has_value()) {
@@ -881,6 +931,24 @@ void apply_document_resolution(QImage& image, const Document& document) {
 }
 
 }  // namespace
+
+std::uint64_t style_mask_cache_revision(const Layer& layer) noexcept {
+  return style_mask_revision(layer);
+}
+
+void carry_style_masks_across_effect_visibility_edit(std::uint64_t revision_before, const Layer& layer) {
+  // One mask reads other effects' switches: a Stroke Emboss bevel's height field is built
+  // from the strokes that are on. It is left behind, so the next render computes it.
+  const auto& bevels = layer.layer_style().bevels;
+  const bool stroke_emboss = std::any_of(bevels.begin(), bevels.end(), [](const LayerBevelEmboss& bevel) {
+    return bevel.style == BevelEmbossStyleKind::StrokeEmboss;
+  });
+  style_mask_lru_cache().carry(revision_before, style_mask_revision(layer), stroke_emboss);
+}
+
+std::uint64_t style_mask_cache_misses() {
+  return style_mask_lru_cache().misses();
+}
 
 namespace {
 thread_local bool g_document_depth_render = false;

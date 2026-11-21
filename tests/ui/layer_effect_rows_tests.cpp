@@ -10,6 +10,7 @@
 #include "ui/layer_thumbnail_size.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/image_document_io.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/main_window.hpp"
@@ -1646,6 +1647,235 @@ void ui_layer_effect_eye_sweep_handles_queued_moves() {
   CHECK(undo_depth() == undo_before + 1);
 }
 
+// local-063: an effect eye changes which effects are drawn, never what an effect's mask is
+// made from, so the frame after a click computes no mask anew and is still, pixel for pixel,
+// what a render with no cached mask draws.
+//
+// A white 400x300 document with a red 120x100 "Paint Layer" at (140,100) whose effects all
+// stay inside the canvas (their masks are then cacheable): Bevel & Emboss, a 4 px outside
+// Stroke, Inner Glow, Satin and a Drop Shadow. `stroke_emboss` swaps in a Stroke Emboss
+// bevel over two strokes, the one mask that reads other effects' switches.
+patchy::Document mask_reuse_document(bool stroke_emboss) {
+  patchy::Document document(400, 300, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(400, 300, patchy::PixelFormat::rgb8(), QColor(255, 255, 255)));
+  patchy::Layer paint(document.allocate_layer_id(), "Paint Layer",
+                      solid_pixels(120, 100, patchy::PixelFormat::rgba8(), QColor(220, 40, 40)));
+  paint.set_bounds(patchy::Rect{140, 100, 120, 100});
+  auto& style = paint.layer_style();
+  patchy::LayerBevelEmboss bevel;
+  bevel.enabled = true;
+  bevel.size = 8.0F;
+  if (stroke_emboss) {
+    bevel.style = patchy::BevelEmbossStyleKind::StrokeEmboss;
+  }
+  style.bevels.push_back(bevel);
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.size = stroke_emboss ? 10.0F : 4.0F;
+  stroke.position = patchy::LayerStrokePosition::Outside;
+  stroke.color = patchy::RgbColor{20, 40, 220};
+  stroke.opacity = 1.0F;
+  style.strokes.push_back(stroke);
+  if (stroke_emboss) {
+    stroke.size = 4.0F;
+    stroke.color = patchy::RgbColor{240, 200, 40};
+    style.strokes.push_back(stroke);
+    const auto paint_id = paint.id();
+    document.add_layer(std::move(paint));
+    document.set_active_layer(paint_id);
+    return document;
+  }
+  patchy::LayerInnerGlow inner_glow;
+  inner_glow.enabled = true;
+  inner_glow.size = 12.0F;
+  style.inner_glows.push_back(inner_glow);
+  patchy::LayerSatin satin;
+  satin.enabled = true;
+  style.satins.push_back(satin);
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.distance = 10.0F;
+  shadow.size = 8.0F;
+  style.drop_shadows.push_back(shadow);
+  const auto paint_id = paint.id();
+  document.add_layer(std::move(paint));
+  document.set_active_layer(paint_id);
+  return document;
+}
+
+// The frame the canvas shows once its render has settled.
+QImage settled_canvas_frame(patchy::ui::MainWindow& window) {
+  auto* canvas = require_canvas(window);
+  QImage frame;
+  CHECK(process_events_until([&] {
+    frame = canvas->current_composite();
+    return canvas->render_settled() && !frame.isNull();
+  }));
+  return frame.convertToFormat(QImage::Format_RGBA8888);
+}
+
+// The document rendered with no cached mask to lean on: the copy's style accessor gives
+// its layer new revisions, so every mask is computed anew.
+QImage cold_document_render(const patchy::Document& document, patchy::LayerId styled_layer) {
+  auto copy = document;
+  static_cast<void>(copy.find_layer(styled_layer)->layer_style());
+  return patchy::ui::qimage_from_document(std::as_const(copy), true).convertToFormat(QImage::Format_RGBA8888);
+}
+
+void ui_layer_effect_eye_toggle_reuses_style_masks_and_matches_cold_render() {
+  using patchy::ui::MainWindowTestAccess;
+  using patchy::ui::style_mask_cache_misses;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
+  const auto misses_at_start = style_mask_cache_misses();
+  window.add_document_session(mask_reuse_document(false), QStringLiteral("Effect Eye Masks"));
+  QApplication::processEvents();
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(list != nullptr);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto paint_id = *doc.active_layer_id();
+  const auto style = [&]() -> const patchy::LayerStyle& {
+    return std::as_const(doc).find_layer(paint_id)->layer_style();
+  };
+  expand_effects(*list, QStringLiteral("Paint Layer"));
+  const std::array<const char*, 5> names{"Bevel & Emboss", "Stroke", "Inner Glow", "Satin", "Drop Shadow"};
+  for (const auto* name : names) {
+    CHECK(swept_effect_eye(*list, name) != nullptr);
+  }
+
+  // The first frame computed this layer's masks through the cache (the checks below would
+  // pass emptily otherwise), and it is what a cold render draws.
+  const auto first_frame = settled_canvas_frame(window);
+  CHECK(style_mask_cache_misses() > misses_at_start);
+  CHECK(first_frame == cold_document_render(doc, paint_id));
+  // A cold render is counted, so the counter does see this document's masks.
+  const auto misses_before_cold = style_mask_cache_misses();
+  static_cast<void>(cold_document_render(doc, paint_id));
+  CHECK(style_mask_cache_misses() > misses_before_cold);
+
+  // Each eye off and on again: the frame is exact both times and no mask is computed, the
+  // returning effect's own included.
+  const auto frame_is_exact_and_reused = [&](std::uint64_t misses_before) {
+    const auto frame = settled_canvas_frame(window);
+    const auto misses_after = style_mask_cache_misses();
+    if (misses_after != misses_before) {
+      std::cout << "  the frame computed " << (misses_after - misses_before) << " mask(s)\n";
+    }
+    CHECK(misses_after == misses_before);
+    CHECK(frame == cold_document_render(doc, paint_id));
+    return frame;
+  };
+  for (const auto* name : names) {
+    auto misses = style_mask_cache_misses();
+    click_row_child(*list, *swept_effect_eye(*list, name));
+    const auto hidden = frame_is_exact_and_reused(misses);
+    CHECK(hidden != first_frame);  // the effect did leave the canvas
+    misses = style_mask_cache_misses();
+    click_row_child(*list, *swept_effect_eye(*list, name));
+    CHECK(frame_is_exact_and_reused(misses) == first_frame);
+  }
+
+  // The Layer Styles eye hides and shows the whole list the same way.
+  auto misses = style_mask_cache_misses();
+  auto* row = list->itemWidget(require_layer_item(*list, QStringLiteral("Paint Layer")));
+  click_row_child(*list, *row->findChild<QToolButton*>(QStringLiteral("layerEffectsVisibilityButton")));
+  CHECK(!style().effects_visible);
+  static_cast<void>(frame_is_exact_and_reused(misses));
+  misses = style_mask_cache_misses();
+  row = list->itemWidget(require_layer_item(*list, QStringLiteral("Paint Layer")));
+  click_row_child(*list, *row->findChild<QToolButton*>(QStringLiteral("layerEffectsVisibilityButton")));
+  CHECK(style().effects_visible);
+  CHECK(frame_is_exact_and_reused(misses) == first_frame);
+
+  // A sweep down every eye (one undo step), its undo and its redo.
+  misses = style_mask_cache_misses();
+  const auto undo_before = MainWindowTestAccess::active_session_undo_depth(window);
+  sweep_effect_eyes_like_a_user(window, *list, "Bevel & Emboss", {"Drop Shadow"});
+  CHECK(!style().bevels.front().enabled && !style().strokes.front().enabled && !style().inner_glows.front().enabled &&
+        !style().satins.front().enabled && !style().drop_shadows.front().enabled);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+  const auto swept = frame_is_exact_and_reused(misses);
+  misses = style_mask_cache_misses();
+  MainWindowTestAccess::undo(window);
+  settle_effect_rows();
+  CHECK(style().bevels.front().enabled && style().drop_shadows.front().enabled);
+  CHECK(frame_is_exact_and_reused(misses) == first_frame);
+  misses = style_mask_cache_misses();
+  MainWindowTestAccess::redo(window);
+  settle_effect_rows();
+  CHECK(frame_is_exact_and_reused(misses) == swept);
+  MainWindowTestAccess::undo(window);
+  settle_effect_rows();
+
+  // Quick clicks with no frame awaited between them: the last state is the one drawn.
+  misses = style_mask_cache_misses();
+  for (const auto* name : {"Satin", "Stroke", "Satin", "Bevel & Emboss", "Stroke", "Drop Shadow"}) {
+    auto* eye = swept_effect_eye(*list, name);
+    CHECK(eye != nullptr);
+    const auto global = eye->mapToGlobal(eye->rect().center());
+    click_widget_like_a_user(*list->viewport(), list->viewport()->mapFromGlobal(global));
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+  }
+  CHECK(style().satins.front().enabled && style().strokes.front().enabled && !style().bevels.front().enabled &&
+        !style().drop_shadows.front().enabled && style().inner_glows.front().enabled);
+  static_cast<void>(frame_is_exact_and_reused(misses));
+}
+
+// The exception: a Stroke Emboss bevel's height field is built from the strokes that are on,
+// so hiding or showing a stroke must compute that mask again. The frame stays exact.
+void ui_layer_effect_eye_toggle_recomputes_stroke_emboss_bevel() {
+  using patchy::ui::MainWindowTestAccess;
+  using patchy::ui::style_mask_cache_misses;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("colorDock"), false);
+  window.add_document_session(mask_reuse_document(true), QStringLiteral("Effect Eye Stroke Emboss"));
+  QApplication::processEvents();
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(list != nullptr);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto paint_id = *doc.active_layer_id();
+  const auto style = [&]() -> const patchy::LayerStyle& {
+    return std::as_const(doc).find_layer(paint_id)->layer_style();
+  };
+  expand_effects(*list, QStringLiteral("Paint Layer"));
+  const auto stroke_eye = [&](int which) -> QToolButton* {
+    auto* row = list->itemWidget(require_layer_item(*list, QStringLiteral("Paint Layer")));
+    QList<QToolButton*> eyes;
+    for (auto* entry : row->findChildren<QWidget*>(QStringLiteral("layerEffectEntryRow"))) {
+      auto* label = entry->findChild<QLabel*>(QStringLiteral("layerEffectEntryLabel"));
+      if (label != nullptr && label->text() == QStringLiteral("Stroke")) {
+        eyes.push_back(entry->findChild<QToolButton*>(QStringLiteral("layerEffectVisibilityButton")));
+      }
+    }
+    return which < eyes.size() ? eyes[which] : nullptr;
+  };
+  CHECK(stroke_eye(0) != nullptr && stroke_eye(1) != nullptr);
+  const auto first_frame = settled_canvas_frame(window);
+  CHECK(first_frame == cold_document_render(doc, paint_id));
+
+  // The wide stroke off, on, then the narrow one off and on: every frame exact, and each
+  // one computed the bevel's mask again.
+  for (const int which : {0, 0, 1, 1}) {
+    const auto misses = style_mask_cache_misses();
+    click_row_child(*list, *stroke_eye(which));
+    const auto frame = settled_canvas_frame(window);
+    CHECK(style_mask_cache_misses() > misses);
+    CHECK(frame == cold_document_render(doc, paint_id));
+  }
+  CHECK(style().strokes[0].enabled && style().strokes[1].enabled);
+  CHECK(settled_canvas_frame(window) == first_frame);
+
+  // The bevel's own eye changes no stroke, yet its mask is still left behind (the rule is
+  // by layer, not by which eye was clicked); the frames stay exact.
+  click_row_child(*list, *swept_effect_eye(*list, "Bevel & Emboss"));
+  CHECK(!style().bevels.front().enabled);
+  CHECK(settled_canvas_frame(window) == cold_document_render(doc, paint_id));
+  click_row_child(*list, *swept_effect_eye(*list, "Bevel & Emboss"));
+  CHECK(settled_canvas_frame(window) == first_frame);
+}
+
 // local-063 pictures (Dark): the window with every effect on, then after one press on the
 // Bevel & Emboss eye dragged down the eye column to Outer Glow. No checks on the outcome,
 // so the same run on the code before the change gives the BEFORE picture.
@@ -1679,6 +1909,10 @@ std::vector<patchy::test::TestCase> layer_effect_rows_tests() {
        ui_layer_effect_eye_sweep_sets_crossed_effects_to_first_state},
       {"ui_layer_effect_eye_sweep_handles_queued_moves", ui_layer_effect_eye_sweep_handles_queued_moves},
       {"ui_layer_effect_eye_sweep_local_063_shots", ui_layer_effect_eye_sweep_local_063_shots},
+      {"ui_layer_effect_eye_toggle_reuses_style_masks_and_matches_cold_render",
+       ui_layer_effect_eye_toggle_reuses_style_masks_and_matches_cold_render},
+      {"ui_layer_effect_eye_toggle_recomputes_stroke_emboss_bevel",
+       ui_layer_effect_eye_toggle_recomputes_stroke_emboss_bevel},
       {"ui_layer_rows_with_every_badge_fit_narrow_and_wide", ui_layer_rows_with_every_badge_fit_narrow_and_wide},
       {"ui_layer_advanced_blending_badge_names_settings_and_opens_blending_options",
        ui_layer_advanced_blending_badge_names_settings_and_opens_blending_options},

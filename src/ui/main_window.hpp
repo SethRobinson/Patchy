@@ -2228,10 +2228,14 @@ private:
   // The Smart Filter rows' disclosure state (issue 361): open by default; adding a filter opens it.
   void toggle_layer_smart_filters_expanded(LayerId layer_id);
   // A nonzero `edit_run_token` folds the edit into the undo step that token opened; the
-  // step is then renamed `run_undo_text`.
+  // step is then renamed `run_undo_text`. `Visibility` is an edit that only shows or hides
+  // effects: the layer's cached effect masks stay in use (image_document_io.hpp,
+  // carry_style_masks_across_effect_visibility_edit), so the next frame recomputes none.
+  enum class LayerEffectRowEdit { Structure, Visibility };
   bool apply_layer_effect_row_edit(LayerId layer_id, const QString& undo_text, const QString& status_text,
-                                   const std::function<bool(LayerStyle&)>& edit, std::uint64_t edit_run_token = 0,
-                                   const QString& run_undo_text = QString());
+                                   const std::function<bool(LayerStyle&)>& edit,
+                                   LayerEffectRowEdit kind = LayerEffectRowEdit::Structure,
+                                   std::uint64_t edit_run_token = 0, const QString& run_undo_text = QString());
   void copy_active_layer_style();
   void paste_layer_style_to_selected_layers();
   void delete_selected_layer_styles();

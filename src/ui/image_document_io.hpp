@@ -72,6 +72,20 @@ private:
   bool previous_;
 };
 [[nodiscard]] QImage qimage_from_document(const Document& document, bool preserve_alpha);
+// The style-mask cache (docs/performance.md) keys a layer's effect masks on its content
+// revision, which every style edit changes, so an edit normally leaves all of them to be
+// computed again. An edit that only shows or hides effects (an effect eye, the Layer Styles
+// eye) changes none of them: each mask is made from the layer's pixels and masks and its
+// own effect's settings. Take style_mask_cache_revision before such an edit and hand it to
+// carry_style_masks_across_effect_visibility_edit after it: the masks cached under the old
+// revision are filed under the new one as well, so the next render reuses them and an undo
+// still finds the old ones. Never call it for an edit that changes a setting, adds, removes
+// or reorders an effect, or touches pixels or masks. The one mask that reads other effects'
+// switches (a Stroke Emboss bevel's) is left out.
+[[nodiscard]] std::uint64_t style_mask_cache_revision(const Layer& layer) noexcept;
+void carry_style_masks_across_effect_visibility_edit(std::uint64_t revision_before, const Layer& layer);
+// Masks the cache has had to compute since the process started (tests: a reuse adds none).
+[[nodiscard]] std::uint64_t style_mask_cache_misses();
 // Renders one layer alone at the document's size, so opacity/blend/styles come out
 // exactly as the compositor draws them against an empty backdrop (sprite-sheet and
 // image-sequence exports share this).

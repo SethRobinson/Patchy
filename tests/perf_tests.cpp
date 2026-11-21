@@ -11,6 +11,7 @@
 #include "filters/smart_filter_renderer.hpp"
 #include "formats/pdf_document_io.hpp"
 #include "psd/psd_document_io.hpp"
+#include "support/path_utils.hpp"
 #include "render/native_cmyk.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/app_settings.hpp"
@@ -24,6 +25,7 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/liquify_dialog.hpp"
 #include "ui/main_window.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/pdf_export.hpp"
 #include "ui/pdf_import.hpp"
 
@@ -61,6 +63,7 @@
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QTimer>
+#include <QToolButton>
 
 #include <algorithm>
 #include <array>
@@ -124,6 +127,15 @@ class MainWindowTestAccess {
   static void refresh_layer_list(MainWindow& window) { window.refresh_layer_list(); }
   static void edit_active_layer_style(MainWindow& window) { window.edit_active_layer_style(); }
   static void undo(MainWindow& window) { window.undo(); }
+  static void redo(MainWindow& window) { window.redo(); }
+  // The effect rows (effecteye): the handler behind an effect eye, and the rows' disclosure.
+  static void set_layer_effect_enabled(MainWindow& window, patchy::LayerId id, LayerStyleEffect effect,
+                                       std::size_t index, bool enabled) {
+    window.set_layer_effect_enabled(id, effect, index, enabled);
+  }
+  static void toggle_layer_effects_expanded(MainWindow& window, patchy::LayerId id) {
+    window.toggle_layer_effects_expanded(id);
+  }
   static void duplicate_active_layer(MainWindow& window) { window.duplicate_active_layer(); }
   static void add_text_at(MainWindow& window, QPoint document_point) { window.add_text_at(document_point, QRect()); }
   // The parts of one text Size step, for the textscrub scenario (GitHub #700).
@@ -4697,6 +4709,351 @@ void duplicate_layer_perf() {
         initial_layers + static_cast<std::size_t>(count));
 }
 
+// Records when a widget starts each paint, for effecteye's "first paint after the click" of
+// the canvas and of the eye (a filter sees the paint's start; the pixels are on screen a
+// little later).
+class WidgetPaintClock final : public QObject {
+ public:
+  explicit WidgetPaintClock(QWidget& widget) { widget.installEventFilter(this); }
+  [[nodiscard]] std::optional<Clock::time_point> first_after(Clock::time_point moment) const {
+    for (const auto paint : paints_) {
+      if (paint > moment) {
+        return paint;
+      }
+    }
+    return std::nullopt;
+  }
+  void reset() { paints_.clear(); }
+
+ protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Paint) {
+      paints_.push_back(Clock::now());
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+ private:
+  std::vector<Clock::time_point> paints_;
+};
+
+// local-063: one effect eye of a styled layer, off and on, through the Layers panel's real
+// eye button, on a document where every render is a background full refresh. Per toggle:
+// `flag_ms` is the click until the document holds the new state (the handler: undo
+// snapshot, row rebuild, invalidation), `eye_ms` the click until the rebuilt eye paints its
+// new state, `paint_ms` the click until the canvas next starts a paint, `frame_ms` the
+// click until the finished frame is in the canvas, and `masks` the effect masks that frame
+// had to compute. `call_ms` times the handler alone,
+// called directly. The fixture is Seth's A4 300 ppi page with one full-canvas layer
+// carrying Bevel & Emboss, Stroke, Satin, Gradient Overlay and Outer Glow
+// (local-test-fixtures/local-063); PATCHY_PERF_EFFECTEYE_PSD points at another file and
+// PATCHY_PERF_EFFECTEYE_ROUNDS sets the off/on rounds per effect (default 3).
+void layer_effect_eye_toggle_perf_if_available() {
+  const auto env_path = qgetenv("PATCHY_PERF_EFFECTEYE_PSD");
+  const auto path = env_path.isEmpty()
+                        ? patchy::test::local_fixtures_root() / "local-063" / "local-063-slow-layer-effects.psd"
+                        : patchy::ui::to_filesystem_path(env_path);
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] effect-eye fixture missing: " << patchy::path_to_utf8(path) << '\n';
+    return;
+  }
+  isolate_perf_settings();
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+    window.showMaximized();
+  } else {
+    window.show();
+  }
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(path));
+  QApplication::processEvents();
+  auto* canvas = active_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(canvas != nullptr && layer_list != nullptr);
+  if (canvas == nullptr || layer_list == nullptr) {
+    return;
+  }
+  const auto wait_until = [&](const std::function<bool()>& done, double seconds) {
+    const auto started = Clock::now();
+    while (!done() && std::chrono::duration<double>(Clock::now() - started).count() < seconds) {
+      QApplication::processEvents();
+    }
+    return done();
+  };
+  const auto settle = [&] {
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    const auto started = Clock::now();
+    while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 120.0) {
+      canvas->repaint();
+      QApplication::processEvents();
+    }
+    QApplication::processEvents();
+  };
+  settle();
+
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  // The topmost layer that lists effects.
+  patchy::LayerId target_id = 0;
+  for (const auto& layer : std::as_const(doc).layers()) {
+    if (!patchy::ui::layer_effect_rows(layer.layer_style()).empty()) {
+      target_id = layer.id();
+    }
+  }
+  CHECK(target_id != 0);
+  if (target_id == 0) {
+    return;
+  }
+  const auto target = [&]() -> const patchy::Layer& { return *std::as_const(doc).find_layer(target_id); };
+  const auto rows = [&] { return patchy::ui::layer_effect_rows(target().layer_style()); };
+  const auto row_widget = [&]() -> QWidget* {
+    for (int row = 0; row < layer_list->count(); ++row) {
+      auto* item = layer_list->item(row);
+      if (static_cast<patchy::LayerId>(item->data(patchy::ui::kLayerIdRole).toULongLong()) == target_id) {
+        return layer_list->itemWidget(item);
+      }
+    }
+    return nullptr;
+  };
+  const auto eye = [&](std::size_t row) -> QToolButton* {
+    auto* widget = row_widget();
+    if (widget == nullptr) {
+      return nullptr;
+    }
+    const auto entries = widget->findChildren<QWidget*>(QStringLiteral("layerEffectEntryRow"));
+    return row < static_cast<std::size_t>(entries.size())
+               ? entries[static_cast<qsizetype>(row)]->findChild<QToolButton*>(
+                     QStringLiteral("layerEffectVisibilityButton"))
+               : nullptr;
+  };
+  if (eye(0) == nullptr) {
+    patchy::ui::MainWindowTestAccess::toggle_layer_effects_expanded(window, target_id);
+    settle();
+  }
+  CHECK(eye(0) != nullptr);
+  if (eye(0) == nullptr) {
+    return;
+  }
+  const auto bounds = target().bounds();
+  std::cout << std::fixed << std::setprecision(1) << "[PERF_EFFECT_EYE] document=" << doc.width() << "x"
+            << doc.height() << " layer=\"" << clean_name(target().name()) << "\" layer_bounds=" << bounds.width
+            << "x" << bounds.height << " zoom_percent=" << canvas->zoom() * 100.0
+            << " canvas_widget=" << canvas->width() << "x" << canvas->height()
+            << " worker_threads=" << patchy::hardware_worker_threads() << " effects=";
+  for (const auto& row : rows()) {
+    std::cout << '[' << patchy::ui::layer_effect_display_name(row.effect).toStdString() << (row.enabled ? " on" : " off")
+              << ']';
+  }
+  std::cout << '\n';
+
+  WidgetPaintClock paints(*canvas);
+  // The frame the canvas shows against a render that shares no cached mask with it: the
+  // copy's style accessor gives its layer new revisions, so every mask is computed anew.
+  const auto frame_matches_cold_render = [&] {
+    auto copy = std::as_const(doc);
+    static_cast<void>(copy.find_layer(target_id)->layer_style());
+    const auto reference = patchy::ui::qimage_from_document(std::as_const(copy), true);
+    const auto shown = canvas->current_composite();
+    return !shown.isNull() && images_equal_rgba(shown, reference);
+  };
+  // What a whole-document render costs with every style mask computed anew, and again
+  // with the masks the first pass left in the cache: the most a toggle could save.
+  {
+    auto copy = std::as_const(doc);
+    static_cast<void>(copy.find_layer(target_id)->layer_style());
+    const auto cold_ms = elapsed_ms([&] {
+      CHECK(!patchy::ui::qimage_from_document(std::as_const(copy), true).isNull());
+    });
+    const auto warm_ms = elapsed_ms([&] {
+      CHECK(!patchy::ui::qimage_from_document(std::as_const(copy), true).isNull());
+    });
+    std::cout << "[PERF_EFFECT_EYE] full_render cold_masks_ms=" << cold_ms << " warm_masks_ms=" << warm_ms << '\n';
+  }
+  struct Toggle {
+    double flag_ms{0.0};
+    double eye_ms{0.0};
+    double paint_ms{0.0};
+    double frame_ms{0.0};
+    std::uint64_t masks{0};
+  };
+  // A real click: the press goes to the eye, the release to the viewport that holds the
+  // sweep's grab.
+  const auto click = [&](std::size_t row) {
+    auto* button = eye(row);
+    CHECK(button != nullptr);
+    if (button == nullptr) {
+      return;
+    }
+    const auto center = button->rect().center();
+    const auto viewport_point = layer_list->viewport()->mapFromGlobal(button->mapToGlobal(center));
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(center), QPointF(button->mapToGlobal(center)), Qt::LeftButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(button, &press);
+    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(viewport_point),
+                        QPointF(layer_list->viewport()->mapToGlobal(viewport_point)), Qt::LeftButton, Qt::NoButton,
+                        Qt::NoModifier);
+    QApplication::sendEvent(layer_list->viewport(), &release);
+  };
+  const auto timed_click = [&](std::size_t row) {
+    Toggle toggle;
+    const bool was_enabled = rows()[row].enabled;
+    paints.reset();
+    const auto masks_before = patchy::ui::style_mask_cache_misses();
+    const auto started = Clock::now();
+    const auto since = [&](Clock::time_point moment) {
+      return std::chrono::duration<double, std::milli>(moment - started).count();
+    };
+    click(row);
+    CHECK(wait_until([&] { return rows()[row].enabled != was_enabled; }, 30.0));
+    const auto flagged = Clock::now();
+    toggle.flag_ms = since(flagged);
+    // The handler rebuilt the rows: the new eye already holds the new state, and paints it
+    // with the next paint pass.
+    if (auto* rebuilt_eye = eye(row); rebuilt_eye != nullptr) {
+      CHECK(rebuilt_eye->isChecked() != was_enabled);
+      WidgetPaintClock eye_paints(*rebuilt_eye);
+      CHECK(wait_until([&] { return eye_paints.first_after(flagged).has_value(); }, 5.0));
+      toggle.eye_ms = since(eye_paints.first_after(flagged).value_or(Clock::now()));
+    }
+    CHECK(wait_until([&] { return paints.first_after(flagged).has_value(); }, 30.0));
+    toggle.paint_ms = since(paints.first_after(flagged).value_or(Clock::now()));
+    // No forced repaint here: the frame has to arrive the way it does for a user.
+    CHECK(wait_until([&] { return canvas->render_settled(); }, 120.0));
+    toggle.frame_ms = since(Clock::now());
+    toggle.masks = patchy::ui::style_mask_cache_misses() - masks_before;
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QApplication::processEvents();
+    return toggle;
+  };
+
+  const auto rounds = qEnvironmentVariableIsSet("PATCHY_PERF_EFFECTEYE_ROUNDS")
+                          ? std::max(1, qEnvironmentVariableIntValue("PATCHY_PERF_EFFECTEYE_ROUNDS"))
+                          : 3;
+#ifdef Q_OS_WIN
+  std::unique_ptr<MainThreadSampler> sampler;
+  const bool sampling = qEnvironmentVariableIsSet("PATCHY_PERF_SAMPLER");
+#endif
+  std::vector<double> all_flag;
+  std::vector<double> all_frame;
+  const auto median = [](std::vector<double> values) {
+    std::sort(values.begin(), values.end());
+    return values.empty() ? 0.0 : values[values.size() / 2];
+  };
+  const auto effect_count = rows().size();
+  for (std::size_t row = 0; row < effect_count; ++row) {
+    const auto name = patchy::ui::layer_effect_display_name(rows()[row].effect).toStdString();
+    for (int round = 1; round <= rounds; ++round) {
+      for (int step = 0; step < 2; ++step) {
+        const bool to_enabled = !rows()[row].enabled;
+        const auto before = canvas->render_cache_diagnostics();
+#ifdef Q_OS_WIN
+        if (sampling) {
+          sampler = std::make_unique<MainThreadSampler>();
+        }
+#endif
+        const auto toggle = timed_click(row);
+#ifdef Q_OS_WIN
+        if (sampler) {
+          std::cout << "[SAMPLER_PHASE] effecteye " << name << (to_enabled ? " on" : " off") << '\n';
+          sampler.reset();
+        }
+#endif
+        const auto after = canvas->render_cache_diagnostics();
+        const bool exact = frame_matches_cold_render();
+        CHECK(rows()[row].enabled == to_enabled);
+        CHECK(exact);
+        all_flag.push_back(toggle.flag_ms);
+        all_frame.push_back(toggle.frame_ms);
+        std::cout << "[PERF_EFFECT_EYE] effect=\"" << name << "\" to=" << (to_enabled ? "on" : "off")
+                  << " round=" << round << " flag_ms=" << toggle.flag_ms << " eye_ms=" << toggle.eye_ms
+                  << " paint_ms=" << toggle.paint_ms << " frame_ms=" << toggle.frame_ms << " masks=" << toggle.masks
+                  << " full_refreshes=" << after.full_refreshes - before.full_refreshes
+                  << " awaited_renders=" << after.awaited_renders - before.awaited_renders
+                  << " overlays=" << after.processing_overlays_shown - before.processing_overlays_shown
+                  << " frame_exact=" << (exact ? 1 : 0) << '\n';
+      }
+    }
+  }
+  std::cout << "[PERF_EFFECT_EYE] summary toggles=" << all_flag.size() << " median_flag_ms=" << median(all_flag)
+            << " median_frame_ms=" << median(all_frame)
+            << " worst_frame_ms=" << (all_frame.empty() ? 0.0 : *std::max_element(all_frame.begin(), all_frame.end()))
+            << '\n';
+
+  // The handler alone, called the way the eye calls it.
+  for (std::size_t row = 0; row < effect_count; ++row) {
+    const auto entry = rows()[row];
+    const auto off_ms = elapsed_ms([&] {
+      patchy::ui::MainWindowTestAccess::set_layer_effect_enabled(window, target_id, entry.effect, entry.index,
+                                                                 !entry.enabled);
+    });
+    settle();
+    const auto on_ms = elapsed_ms([&] {
+      patchy::ui::MainWindowTestAccess::set_layer_effect_enabled(window, target_id, entry.effect, entry.index,
+                                                                 entry.enabled);
+    });
+    settle();
+    std::cout << "[PERF_EFFECT_EYE] handler effect=\""
+              << patchy::ui::layer_effect_display_name(entry.effect).toStdString() << "\" first_call_ms=" << off_ms
+              << " back_call_ms=" << on_ms << '\n';
+  }
+
+  // Rapid clicks: every eye off and on again without waiting for a frame in between, then
+  // undo and redo of the last step. The final frame has to be the document's.
+  const auto initial_flags = rows();
+  const auto rapid_started = Clock::now();
+  for (int pass = 0; pass < 2; ++pass) {
+    for (std::size_t row = 0; row < effect_count; ++row) {
+      const bool was_enabled = rows()[row].enabled;
+      click(row);
+      CHECK(wait_until([&] { return rows()[row].enabled != was_enabled; }, 30.0));
+      QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
+  }
+  const auto rapid_handlers_ms = std::chrono::duration<double, std::milli>(Clock::now() - rapid_started).count();
+  CHECK(wait_until([&] { return canvas->render_settled(); }, 120.0));
+  const auto rapid_ms = std::chrono::duration<double, std::milli>(Clock::now() - rapid_started).count();
+  bool rapid_state_restored = rows().size() == initial_flags.size();
+  for (std::size_t row = 0; rapid_state_restored && row < initial_flags.size(); ++row) {
+    rapid_state_restored = rows()[row].enabled == initial_flags[row].enabled;
+  }
+  const bool rapid_exact = frame_matches_cold_render();
+  CHECK(rapid_state_restored);
+  CHECK(rapid_exact);
+  std::cout << "[PERF_EFFECT_EYE] rapid clicks=" << effect_count * 2 << " handlers_ms=" << rapid_handlers_ms
+            << " settled_ms=" << rapid_ms << " state_restored=" << (rapid_state_restored ? 1 : 0)
+            << " frame_exact=" << (rapid_exact ? 1 : 0) << '\n';
+
+  // Undo and redo of that last click: `call_ms` is the command, `frame_ms` the finished frame.
+  const auto timed_history_step = [&](const char* name, const std::function<void()>& step) {
+#ifdef Q_OS_WIN
+    if (sampling) {
+      sampler = std::make_unique<MainThreadSampler>();
+    }
+#endif
+    const auto masks_before = patchy::ui::style_mask_cache_misses();
+    const auto started = Clock::now();
+    step();
+    const auto call_ms = std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+    CHECK(wait_until([&] { return canvas->render_settled(); }, 120.0));
+    const auto frame_ms = std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+    const auto masks = patchy::ui::style_mask_cache_misses() - masks_before;
+#ifdef Q_OS_WIN
+    if (sampler) {
+      std::cout << "[SAMPLER_PHASE] effecteye " << name << '\n';
+      sampler.reset();
+    }
+#endif
+    const bool exact = frame_matches_cold_render();
+    CHECK(exact);
+    std::cout << "[PERF_EFFECT_EYE] " << name << " call_ms=" << call_ms << " frame_ms=" << frame_ms
+              << " masks=" << masks << " frame_exact=" << (exact ? 1 : 0) << '\n';
+  };
+  for (int round = 1; round <= 2; ++round) {
+    timed_history_step("undo", [&] { patchy::ui::MainWindowTestAccess::undo(window); });
+    timed_history_step("redo", [&] { patchy::ui::MainWindowTestAccess::redo(window); });
+  }
+}
+
 // One stroke per brush size and hardness on a fresh A5 300 ppi document (GitHub issue
 // 135: lag grew with the brush size). Moves are 12 widget px apart, a brisk stroke, or 3 px
 // apart ("slow"), the short steps a high-rate mouse delivers.
@@ -7094,6 +7451,10 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "duplicate") {
       run_scenario("duplicate", duplicate_layer_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "effecteye") {
+      run_scenario("effecteye", layer_effect_eye_toggle_perf_if_available);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "manylayers") {
