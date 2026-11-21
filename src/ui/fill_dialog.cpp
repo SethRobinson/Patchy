@@ -1,4 +1,4 @@
-// Edit > Fill... (GitHub issues 530, 575, 655; docs/fill-command.md) and the Contents list it
+// Edit > Fill... (GitHub issues 530, 575, 655, 743; docs/fill-command.md) and the Contents list it
 // shares with Layer > New > New Layer (GitHub issue 654).
 #include "ui/fill_dialog.hpp"
 
@@ -6,6 +6,7 @@
 #include "ui/blend_mode_ui.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/pattern_library.hpp"
 #include "ui/script_api.hpp"
 #include "ui/theme_qss.hpp"
 
@@ -32,16 +33,23 @@ namespace {
 
 const QString kFillContentsKey = QStringLiteral("tools/editFillContents");
 const QString kFillColorKey = QStringLiteral("tools/editFillColor");
+const QString kFillPatternKey = QStringLiteral("tools/editFillPatternId");
 const QString kFillModeKey = QStringLiteral("tools/editFillMode");
 const QString kFillOpacityKey = QStringLiteral("tools/editFillOpacity");
 const QString kFillPreserveTransparencyKey = QStringLiteral("tools/editFillPreserveTransparency");
 const QString kFillContentAwareNewLayerKey = QStringLiteral("tools/editFillContentAwareNewLayer");
 const char* const kFillSwatchColorProperty = "fillColor";
 
-// The Contents list in order; a separator goes before Black and before Content-Aware (issue 575).
-constexpr std::array<FillContents, 7> kFillContentsOrder{
-    FillContents::Foreground, FillContents::Background, FillContents::Color,       FillContents::Black,
-    FillContents::Gray50,     FillContents::White,      FillContents::ContentAware};
+// The Contents list in order; a separator goes before Black and before Pattern, which shares
+// the last group with Content-Aware (issues 575, 743).
+constexpr std::array<FillContents, 8> kFillContentsOrder{
+    FillContents::Foreground, FillContents::Background, FillContents::Color,   FillContents::Black,
+    FillContents::Gray50,     FillContents::White,      FillContents::Pattern, FillContents::ContentAware};
+
+// Pattern and Content-Aware fill from a source, not a color: one group in the list.
+constexpr bool fills_from_a_source(FillContents contents) noexcept {
+  return contents == FillContents::Pattern || contents == FillContents::ContentAware;
+}
 
 QString fill_contents_name(FillContents contents) {
   switch (contents) {
@@ -63,16 +71,18 @@ QString fill_contents_name(FillContents contents) {
       return QCoreApplication::translate("FillDialog", "Transparent");
     case FillContents::Neutral:
       return QCoreApplication::translate("FillDialog", "Neutral Color for This Mode");
+    case FillContents::Pattern:
+      return QCoreApplication::translate("FillDialog", "Pattern");
   }
   return {};
 }
 
 // Every Contents value, for reading a list entry's token back (fill_contents_from_token reads
 // only Edit > Fill's).
-constexpr std::array<FillContents, 9> kAllFillContents{
-    FillContents::Foreground,   FillContents::Background,  FillContents::Color,
-    FillContents::Black,        FillContents::Gray50,      FillContents::White,
-    FillContents::ContentAware, FillContents::Transparent, FillContents::Neutral};
+constexpr std::array<FillContents, 10> kAllFillContents{
+    FillContents::Foreground, FillContents::Background,   FillContents::Color,       FillContents::Black,
+    FillContents::Gray50,     FillContents::White,        FillContents::ContentAware, FillContents::Transparent,
+    FillContents::Neutral,    FillContents::Pattern};
 
 FillContents any_fill_contents_from_token(const QString& token, FillContents fallback) {
   for (const auto contents : kAllFillContents) {
@@ -120,6 +130,8 @@ const char* fill_contents_token(FillContents contents) noexcept {
       return "transparent";
     case FillContents::Neutral:
       return "neutral";
+    case FillContents::Pattern:
+      return "pattern";
   }
   return "foreground";
 }
@@ -150,6 +162,7 @@ QColor fill_contents_color(const FillDialogSettings& settings, QColor foreground
     case FillContents::ContentAware:
     case FillContents::Transparent:
     case FillContents::Neutral:
+    case FillContents::Pattern:
       return foreground;
   }
   return foreground;
@@ -168,7 +181,7 @@ FillContentsField::FillContentsField(QWidget* parent, QHBoxLayout* row, const Fi
     }
     if (combo_->count() > 0 &&
         (options.choices[at - 1] == FillContents::Transparent || contents == FillContents::Black ||
-         contents == FillContents::ContentAware)) {
+         (fills_from_a_source(contents) && !fills_from_a_source(options.choices[at - 1])))) {
       combo_->insertSeparator(combo_->count());
     }
     combo_->addItem(fill_contents_name(contents), fill_contents_data(contents));
@@ -225,6 +238,7 @@ QColor FillContentsField::fill_color() const {
   switch (contents()) {
     case FillContents::Transparent:
     case FillContents::ContentAware:
+    case FillContents::Pattern:
       return {};
     case FillContents::Neutral:
       return neutral_.value_or(QColor());
@@ -296,7 +310,7 @@ void FillContentsField::pick_color() {
   QColor initial;
   if (before == FillContents::Neutral) {
     initial = neutral_.value_or(QColor());
-  } else if (before != FillContents::Transparent && before != FillContents::ContentAware) {
+  } else if (before != FillContents::Transparent && !fills_from_a_source(before)) {
     FillDialogSettings shown;
     shown.contents = before;
     shown.color = original;
@@ -332,6 +346,7 @@ FillDialogSettings load_fill_dialog_settings() {
   if (color.isValid()) {
     loaded.color = color;
   }
+  loaded.pattern_id = settings.value(kFillPatternKey).toString();
   PaintMode mode;
   if (script_paint_mode_from_id(settings.value(kFillModeKey).toString(), &mode)) {
     loaded.mode = mode;
@@ -346,6 +361,7 @@ void save_fill_dialog_settings(const FillDialogSettings& chosen) {
   auto settings = app_settings();
   settings.setValue(kFillContentsKey, QString::fromLatin1(fill_contents_token(chosen.contents)));
   settings.setValue(kFillColorKey, chosen.color.name(QColor::HexRgb));
+  settings.setValue(kFillPatternKey, chosen.pattern_id);
   settings.setValue(kFillModeKey, script_paint_mode_id(chosen.mode));
   settings.setValue(kFillOpacityKey, chosen.opacity);
   settings.setValue(kFillPreserveTransparencyKey, chosen.preserve_transparency);
@@ -353,8 +369,11 @@ void save_fill_dialog_settings(const FillDialogSettings& chosen) {
 }
 
 std::optional<FillDialogSettings> request_fill_settings(QWidget* parent, QColor foreground, QColor background,
-                                                        bool content_aware_available) {
+                                                        bool content_aware_available,
+                                                        const FillPatternSource& patterns) {
   const auto remembered = load_fill_dialog_settings();
+  const bool library_has_patterns = patterns.library != nullptr && !patterns.library->entries().empty();
+  const bool pattern_available = library_has_patterns && patterns.target_takes_pattern;
 
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyFillDialog"));
@@ -367,9 +386,10 @@ std::optional<FillDialogSettings> request_fill_settings(QWidget* parent, QColor 
   auto* contents_form = new QFormLayout(contents_box);
   contents_form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
   auto* contents_row = new QHBoxLayout();
-  const auto initial_contents =
-      remembered.contents == FillContents::ContentAware && !content_aware_available ? FillContents::Foreground
-                                                                                    : remembered.contents;
+  const auto initial_contents = (remembered.contents == FillContents::ContentAware && !content_aware_available) ||
+                                        (remembered.contents == FillContents::Pattern && !pattern_available)
+                                    ? FillContents::Foreground
+                                    : remembered.contents;
   FillContentsFieldOptions field_options;
   field_options.choices.assign(kFillContentsOrder.begin(), kFillContentsOrder.end());
   field_options.initial = initial_contents;
@@ -385,7 +405,26 @@ std::optional<FillDialogSettings> request_fill_settings(QWidget* parent, QColor 
         FillContents::ContentAware, false,
         QCoreApplication::translate("FillDialog", "Make a selection to fill it from its surroundings"));
   }
+  if (!pattern_available) {
+    field->set_choice_enabled(
+        FillContents::Pattern, false,
+        !patterns.target_takes_pattern
+            ? QCoreApplication::translate("FillDialog", "A pattern fills a layer's pixels, not a mask or a channel")
+            : QCoreApplication::translate("FillDialog", "Add a pattern in the Pattern Manager first"));
+  }
   contents_form->addRow(QCoreApplication::translate("FillDialog", "Contents:"), contents_row);
+  // Pattern's list (GitHub issue 743): the pattern library, as the Pattern Stamp lists it. The
+  // row stays in place, enabled while Pattern is chosen, so nothing shifts.
+  auto* pattern_combo = new QComboBox(contents_box);
+  pattern_combo->setObjectName(QStringLiteral("editFillPatternCombo"));
+  pattern_combo->setIconSize(QSize(24, 24));
+  use_scrolling_list_popup(*pattern_combo);
+  if (library_has_patterns) {
+    add_pattern_library_items(*pattern_combo, *patterns.library);
+    pattern_combo->setCurrentIndex(std::max(0, pattern_combo->findData(remembered.pattern_id)));
+  }
+  fit_combo_to_entries(*pattern_combo);
+  contents_form->addRow(QCoreApplication::translate("FillDialog", "Pattern:"), pattern_combo);
   auto* new_layer_check = new QCheckBox(QCoreApplication::translate("FillDialog", "Add to New Layer"), contents_box);
   new_layer_check->setObjectName(QStringLiteral("editFillContentAwareNewLayerCheck"));
   new_layer_check->setToolTip(QCoreApplication::translate(
@@ -438,8 +477,13 @@ std::optional<FillDialogSettings> request_fill_settings(QWidget* parent, QColor 
   };
   const auto update_content_aware = [current_contents, new_layer_check, blending_box, mode_combo,
                                      opacity_row, preserve_check, set_enabled_with_label, behind_data,
-                                     clear_data] {
+                                     clear_data, pattern_combo, contents_form] {
     const bool content_aware = current_contents() == FillContents::ContentAware;
+    const bool pattern = current_contents() == FillContents::Pattern;
+    pattern_combo->setEnabled(pattern);
+    if (auto* label = contents_form->labelForField(pattern_combo); label != nullptr) {
+      label->setEnabled(pattern);
+    }
     const bool layer_modes_only = content_aware && new_layer_check->isChecked();
     new_layer_check->setEnabled(content_aware);
     set_enabled_with_label(mode_combo, !content_aware || layer_modes_only);
@@ -486,6 +530,7 @@ std::optional<FillDialogSettings> request_fill_settings(QWidget* parent, QColor 
   if (!chosen.color.isValid()) {
     chosen.color = remembered.color;
   }
+  chosen.pattern_id = pattern_combo->count() > 0 ? pattern_combo->currentData().toString() : remembered.pattern_id;
   chosen.mode = paint_mode_from_item_data(mode_combo->currentData().toInt());
   chosen.opacity = opacity_spin->value();
   chosen.preserve_transparency = preserve_check->isChecked();

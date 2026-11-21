@@ -5778,14 +5778,30 @@ void MainWindow::edit_fill_dialog() {
       return;
     }
   }
-  // Content-Aware fills a selection on a layer's own pixels (not a mask, channel or Quick Mask).
-  const bool content_aware_available = canvas_->has_selection() && !canvas_->quick_mask_active() &&
-                                       !canvas_->editing_smart_filter_mask() &&
-                                       edit_target == CanvasWidget::LayerEditTarget::Content;
+  // Content-Aware fills a selection on a layer's own pixels (not a mask, channel or Quick Mask);
+  // Pattern fills a layer's own pixels, with or without a selection.
+  const auto fills_layer_pixels = [this] {
+    return !canvas_->quick_mask_active() && !canvas_->editing_smart_filter_mask() &&
+           canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Content;
+  };
+  const bool content_aware_available = canvas_->has_selection() && fills_layer_pixels();
   auto* const document_before = &document();
   const auto chosen =
-      request_fill_settings(this, canvas_->primary_color(), canvas_->secondary_color(), content_aware_available);
+      request_fill_settings(this, canvas_->primary_color(), canvas_->secondary_color(), content_aware_available,
+                            FillPatternSource{&pattern_library(), fills_layer_pixels()});
   if (!chosen.has_value() || canvas_ == nullptr || !has_active_document() || &document() != document_before) {
+    return;
+  }
+  if (chosen->contents == FillContents::Pattern) {
+    // One static library tile, repeated by fill_rect (docs/fill-command.md, "Pattern").
+    auto pattern = fills_layer_pixels() ? pattern_library().resource(chosen->pattern_id) : std::nullopt;
+    if (!pattern.has_value() || pattern->tile.empty()) {
+      show_status_error(tr("Choose a pattern to fill with"));
+      return;
+    }
+    fill_active_layer_with_color(
+        QColor(Qt::black), tr("Fill"),
+        FillCommandBlend{chosen->opacity, chosen->mode, chosen->preserve_transparency, std::move(pattern->tile)});
     return;
   }
   if (chosen->contents == FillContents::ContentAware) {
@@ -5799,7 +5815,7 @@ void MainWindow::edit_fill_dialog() {
                          : chosen->contents == FillContents::Background ? canvas_->paint_intensity().background
                                                                         : 0.0;
   fill_active_layer_with_color(color, tr("Fill"),
-                               FillCommandBlend{chosen->opacity, chosen->mode, chosen->preserve_transparency},
+                               FillCommandBlend{chosen->opacity, chosen->mode, chosen->preserve_transparency, {}},
                                intensity);
 }
 
@@ -5908,6 +5924,9 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label, std::
         std::lround(static_cast<double>(options.primary.a) * std::clamp(blend->opacity, 0, 100) / 100.0), 1L, 255L));
     options.fill_paint_mode = blend->mode;
     options.fill_softness_feather = 0.0;
+    if (!blend->pattern_tile.empty()) {
+      options.fill_pattern_tile = &blend->pattern_tile;
+    }
   } else {
     apply_fill_settings(options, *canvas_);
   }

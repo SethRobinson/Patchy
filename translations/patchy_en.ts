@@ -334,6 +334,22 @@
         <source>Fill with the color that leaves the image unchanged in this blend mode</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Pattern</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A pattern fills a layer&apos;s pixels, not a mask or a channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add a pattern in the Pattern Manager first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pattern:</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

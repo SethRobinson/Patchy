@@ -334,6 +334,22 @@
         <source>Fill with the color that leaves the image unchanged in this blend mode</source>
         <translation>Залить цветом, который не меняет изображение в этом режиме наложения</translation>
     </message>
+    <message>
+        <source>Pattern</source>
+        <translation>Узор</translation>
+    </message>
+    <message>
+        <source>A pattern fills a layer&apos;s pixels, not a mask or a channel</source>
+        <translation>Узор заполняет пиксели слоя, а не маску или канал</translation>
+    </message>
+    <message>
+        <source>Add a pattern in the Pattern Manager first</source>
+        <translation>Сначала добавьте узор в Менеджере узоров</translation>
+    </message>
+    <message>
+        <source>Pattern:</source>
+        <translation>Узор:</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

@@ -4242,16 +4242,7 @@ void MainWindow::refresh_pattern_stamp_pattern_combo() {
   }
   const QSignalBlocker blocker(pattern_stamp_pattern_combo_);
   pattern_stamp_pattern_combo_->clear();
-  for (const auto& entry : pattern_library().entries()) {
-    pattern_stamp_pattern_combo_->addItem(QIcon(entry.thumbnail),
-                                          pattern_library_entry_display_name(entry), entry.id);
-    const auto index = pattern_stamp_pattern_combo_->count() - 1;
-    auto detail = QStringLiteral("%1 x %2").arg(entry.size.width()).arg(entry.size.height());
-    if (!entry.folder.isEmpty()) {
-      detail = entry.folder + QStringLiteral(" - ") + detail;
-    }
-    pattern_stamp_pattern_combo_->setItemData(index, detail, Qt::ToolTipRole);
-  }
+  add_pattern_library_items(*pattern_stamp_pattern_combo_, pattern_library());
   auto index = pattern_stamp_pattern_combo_->findData(current_pattern_stamp_pattern_id_);
   if (index < 0 && pattern_stamp_pattern_combo_->count() > 0) {
     index = 0;

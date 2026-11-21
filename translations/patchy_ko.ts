@@ -334,6 +334,22 @@
         <source>Fill with the color that leaves the image unchanged in this blend mode</source>
         <translation>이 혼합 모드에서 이미지를 바꾸지 않는 색상으로 채웁니다</translation>
     </message>
+    <message>
+        <source>Pattern</source>
+        <translation>패턴</translation>
+    </message>
+    <message>
+        <source>A pattern fills a layer&apos;s pixels, not a mask or a channel</source>
+        <translation>패턴은 레이어의 픽셀을 채웁니다. 마스크나 채널은 채울 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Add a pattern in the Pattern Manager first</source>
+        <translation>먼저 패턴 관리자에서 패턴을 추가하세요.</translation>
+    </message>
+    <message>
+        <source>Pattern:</source>
+        <translation>패턴:</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

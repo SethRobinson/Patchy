@@ -334,6 +334,22 @@
         <source>Fill with the color that leaves the image unchanged in this blend mode</source>
         <translation>この描画モードで画像を変えない色で塗りつぶします</translation>
     </message>
+    <message>
+        <source>Pattern</source>
+        <translation>パターン</translation>
+    </message>
+    <message>
+        <source>A pattern fills a layer&apos;s pixels, not a mask or a channel</source>
+        <translation>パターンで塗りつぶせるのはレイヤーのピクセルです。マスクやチャンネルは塗りつぶせません</translation>
+    </message>
+    <message>
+        <source>Add a pattern in the Pattern Manager first</source>
+        <translation>先にパターンマネージャーでパターンを追加してください</translation>
+    </message>
+    <message>
+        <source>Pattern:</source>
+        <translation>パターン:</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

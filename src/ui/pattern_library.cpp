@@ -6,6 +6,7 @@
 #include "ui/photo_pattern_presets.hpp"
 #include "ui/localization.hpp"
 
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -115,6 +116,17 @@ QString pattern_library_entry_display_name(const PatternLibraryEntry& entry) {
     return translate_data_text(canonical_english);
   }
   return entry.name;
+}
+
+void add_pattern_library_items(QComboBox& combo, const PatternLibrary& library) {
+  for (const auto& entry : library.entries()) {
+    combo.addItem(QIcon(entry.thumbnail), pattern_library_entry_display_name(entry), entry.id);
+    auto detail = QStringLiteral("%1 x %2").arg(entry.size.width()).arg(entry.size.height());
+    if (!entry.folder.isEmpty()) {
+      detail = entry.folder + QStringLiteral(" - ") + detail;
+    }
+    combo.setItemData(combo.count() - 1, detail, Qt::ToolTipRole);
+  }
 }
 
 QPixmap pattern_thumbnail(const PixelBuffer& tile, int extent) {
