@@ -37,6 +37,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QGridLayout>
 #include <QImage>
 #include <QLabel>
 #include <QMainWindow>
@@ -1607,6 +1608,9 @@ void ui_about_dialog_compact_folder_layout_fits_a_modest_screen() {
       auto* close = dialog->findChild<QPushButton*>(QStringLiteral("splashCloseButton"));
       CHECK(close != nullptr && dialog->rect().contains(close->geometry()));
 
+      // Each folder is one group: its path and button 4 px apart, and 8 to 10 px between a
+      // button and the caption of the folder below it (GitHub issue 740).
+      const QPushButton* button_above = nullptr;
       const auto check_row = [&](const QString& name) {
         auto* caption = dialog->findChild<QLabel*>(QStringLiteral("splash%1Caption").arg(name));
         auto* path = dialog->findChild<QLabel*>(QStringLiteral("splash%1Path").arg(name));
@@ -1615,15 +1619,25 @@ void ui_about_dialog_compact_folder_layout_fits_a_modest_screen() {
         CHECK(caption->y() == path->y());
         CHECK(caption->geometry().right() < path->x());
         CHECK(open->x() == path->x());
-        CHECK(open->y() > path->geometry().bottom());
+        CHECK(open->y() - (path->y() + path->height()) == 4);
         CHECK(dialog->rect().contains(path->geometry()));
+        CHECK(dialog->rect().contains(open->geometry()));
         CHECK(path->height() >= path->heightForWidth(path->width()));
+        if (button_above != nullptr) {
+          const int group_gap = caption->y() - (button_above->y() + button_above->height());
+          CHECK(group_gap >= 8 && group_gap <= 10);
+        }
+        button_above = open;
       };
       check_row(QStringLiteral("Settings"));
       check_row(QStringLiteral("Data"));
 #ifdef Q_OS_WIN
       check_row(QStringLiteral("Plugins"));
 #endif
+      // No gap is added below the last folder's button.
+      const auto* folders = dialog->findChild<QGridLayout*>(QStringLiteral("splashFoldersLayout"));
+      CHECK(folders != nullptr && button_above != nullptr);
+      CHECK(folders->geometry().bottom() == button_above->geometry().bottom());
       const auto* path = dialog->findChild<QLabel*>(QStringLiteral("splashSettingsPath"));
       CHECK(path->height() >= 2 * path->fontMetrics().height());
       inspected = true;
@@ -1684,7 +1698,20 @@ void ui_about_dialog_lists_shared_settings_and_data_folder_once() {
     CHECK(caption->y() == path->y());
     CHECK(caption->geometry().right() < path->x());
     CHECK(open_folder->x() == path->x());
-    CHECK(open_folder->y() > path->geometry().bottom());
+    CHECK(open_folder->y() - (path->y() + path->height()) == 4);
+    const auto* folders = dialog->findChild<QGridLayout*>(QStringLiteral("splashFoldersLayout"));
+    CHECK(folders != nullptr);
+    const QPushButton* last_button = open_folder;
+#ifdef Q_OS_WIN
+    // The plug-ins row keeps the same distance below the shared row's button (GitHub issue 740).
+    auto* plugins_caption = dialog->findChild<QLabel*>(QStringLiteral("splashPluginsCaption"));
+    last_button = dialog->findChild<QPushButton*>(QStringLiteral("splashOpenPluginsFolderButton"));
+    CHECK(plugins_caption != nullptr && last_button != nullptr);
+    const int group_gap = plugins_caption->y() - (open_folder->y() + open_folder->height());
+    CHECK(group_gap >= 8 && group_gap <= 10);
+#endif
+    // No gap is added below the last folder's button.
+    CHECK(folders->geometry().bottom() == last_button->geometry().bottom());
     CHECK(dialog->height() >= dialog->layout()->totalHeightForWidth(dialog->width()));
     save_widget_artifact("ui_about_dialog_shared_folder", *dialog);
     inspected = true;

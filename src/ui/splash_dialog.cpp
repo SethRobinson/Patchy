@@ -296,9 +296,15 @@ public:
     // Each row: bold caption, selectable path, and a button that opens the folder
     // (creating it first, since the data folder only appears once something is saved).
     add_divider();
+    // A path and its own button sit kFolderRowSpacing apart; the next folder's caption starts
+    // kFolderGroupSpacing below that button, so each caption, path and button reads as one
+    // group (GitHub issue 740).
+    constexpr int kFolderRowSpacing = 4;
+    constexpr int kFolderGroupSpacing = 10;
     auto* folders = new QGridLayout();
+    folders->setObjectName(QStringLiteral("splashFoldersLayout"));
     folders->setHorizontalSpacing(12);
-    folders->setVerticalSpacing(4);
+    folders->setVerticalSpacing(kFolderRowSpacing);
     folders->setColumnStretch(1, 1);
     layout->addLayout(folders);
     const auto add_folder_row = [this, folders](const QString& caption_text, const QString& path_text,
@@ -309,7 +315,15 @@ public:
       auto* caption = new QLabel(caption_text, this);
       caption->setObjectName(QString::fromLatin1(caption_name));
       caption->setTextFormat(Qt::PlainText);
-      const int row = folders->count() == 0 ? 0 : folders->rowCount();
+      int row = 0;
+      if (folders->count() > 0) {
+        // The gap goes above every folder but the first, so nothing follows the last button.
+        // An empty grid row adds its height and no spacing of its own: the row spacing after
+        // the button above it completes the group gap.
+        const int gap_row = folders->rowCount();
+        folders->setRowMinimumHeight(gap_row, kFolderGroupSpacing - kFolderRowSpacing);
+        row = gap_row + 1;
+      }
       folders->addWidget(caption, row, 0, Qt::AlignTop);
 
       auto* path = new QLabel(QDir::toNativeSeparators(path_text), this);
