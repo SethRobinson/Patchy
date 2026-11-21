@@ -41,6 +41,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <utility>
 
@@ -723,6 +724,261 @@ void grayscale_smart_object_fallback_preserves_alpha_and_source() {
   CHECK(source.pixelColor(0, 0) == QColor(255, 0, 0, 128));
 }
 
+// A paint stroke whose dabs change more effects than the painted layer's own: the layer
+// sits in groups that have effects (or in a folder that is a clipping base), or the stroke
+// paints the layer's mask. Every frame must equal a fresh full render, with no full
+// refresh, and the state before the stroke must keep its cached masks for Undo.
+struct StrokeScene {
+  const char* name{""};
+  patchy::Document document{480, 320, patchy::PixelFormat::rgba8()};
+  patchy::LayerId painted{0};
+  // A pixel layer whose revision the reference render bumps, so it shares no cached mask
+  // or silhouette with the stroke.
+  patchy::LayerId reference_layer{0};
+  bool mask_target{false};
+  bool eraser{false};
+  bool patches_silhouette{false};
+  // The stroke moves a layer-aligned gradient, which redraws the layer's whole silhouette.
+  bool moves_gradient{false};
+};
+
+patchy::PixelBuffer stroke_scene_ink() {
+  patchy::PixelBuffer ink(480, 320, patchy::PixelFormat::rgba8());
+  ink.clear(0);
+  // A soft left edge and a hole: contours close to the stroke.
+  for (int y = 60; y < 260; ++y) {
+    for (int x = 70; x < 400; ++x) {
+      if (x >= 200 && x < 240 && y >= 120 && y < 180) {
+        continue;
+      }
+      auto* pixel = ink.pixel(x, y);
+      pixel[0] = 200;
+      pixel[1] = static_cast<std::uint8_t>(60 + (y % 90));
+      pixel[2] = 50;
+      pixel[3] = static_cast<std::uint8_t>(x < 78 ? 32 * (x - 70) + 16 : 255);
+    }
+  }
+  return ink;
+}
+
+void add_stroke_scene_effects(patchy::Layer& layer, bool exterior, bool interior) {
+  auto& style = layer.layer_style();
+  if (exterior) {
+    auto& shadow = style.drop_shadows.emplace_back();
+    shadow.enabled = true;
+    shadow.distance = 9;
+    shadow.size = 7;
+    auto& glow = style.outer_glows.emplace_back();
+    glow.enabled = true;
+    glow.size = 9;
+    auto& stroke = style.strokes.emplace_back();
+    stroke.enabled = true;
+    stroke.size = 4;
+    stroke.color = {20, 20, 60};
+  }
+  if (interior) {
+    auto& bevel = style.bevels.emplace_back();
+    bevel.enabled = true;
+    bevel.size = 9;
+    bevel.soften = 2;
+    auto& satin = style.satins.emplace_back();
+    satin.enabled = true;
+    satin.distance = 12;
+    satin.size = 7;
+    auto& inner = style.inner_shadows.emplace_back();
+    inner.enabled = true;
+  }
+}
+
+StrokeScene make_stroke_scene(const char* name) {
+  StrokeScene scene;
+  scene.name = name;
+  auto& document = scene.document;
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Backdrop", solid_rgba(480, 320, 225, 228, 235, 255)));
+  const std::string_view kind = name;
+  patchy::Layer ink(document.allocate_layer_id(), "Ink", stroke_scene_ink());
+  scene.painted = ink.id();
+  scene.reference_layer = ink.id();
+  if (kind == "layer_mask") {
+    add_stroke_scene_effects(ink, true, true);
+    patchy::PixelBuffer mask(480, 320, patchy::PixelFormat::gray8());
+    mask.clear(255);
+    ink.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 480, 320}, std::move(mask), 255, false});
+    scene.mask_target = true;
+    document.add_layer(std::move(ink));
+    return scene;
+  }
+  patchy::Layer group(document.allocate_layer_id(), "Group", patchy::LayerKind::Group);
+  patchy::Layer chip(document.allocate_layer_id(), "Chip", solid_rgba(90, 70, 60, 150, 90, 255));
+  chip.set_bounds({330, 210, 90, 70});
+  scene.patches_silhouette = true;
+  if (kind == "clip_base_folder") {
+    // No effects: the folder's merged children are the clipping shape.
+    group.add_child(std::move(chip));
+    group.add_child(std::move(ink));
+    document.add_layer(std::move(group));
+    patchy::Layer member(document.allocate_layer_id(), "Member", solid_rgba(480, 320, 40, 60, 200, 140));
+    member.set_clipped(true);
+    document.add_layer(std::move(member));
+    return scene;
+  }
+  if (kind == "nested_groups") {
+    add_stroke_scene_effects(ink, false, true);
+    patchy::Layer inner(document.allocate_layer_id(), "Inner", patchy::LayerKind::Group);
+    add_stroke_scene_effects(inner, false, true);
+    auto& glow = inner.layer_style().outer_glows.emplace_back();
+    glow.enabled = true;
+    glow.size = 6;
+    inner.add_child(std::move(ink));
+    add_stroke_scene_effects(group, true, false);
+    group.add_child(std::move(chip));
+    group.add_child(std::move(inner));
+    document.add_layer(std::move(group));
+    return scene;
+  }
+  add_stroke_scene_effects(group, true, true);
+  if (kind == "isolated_group") {
+    group.set_blend_mode(patchy::BlendMode::Normal);
+    group.set_opacity(0.8F);
+  }
+  if (kind == "group_mask") {
+    patchy::PixelBuffer mask(480, 320, patchy::PixelFormat::gray8());
+    mask.clear(255);
+    group.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 480, 320}, std::move(mask), 255, false});
+    scene.painted = group.id();
+    scene.mask_target = true;
+  }
+  scene.eraser = kind == "group_eraser";
+  if (kind == "gradient_in_group") {
+    // The painted layer's own gradient follows its bounds, which the second stroke
+    // widens: the group's children then change over the layer's whole silhouette.
+    auto& fill = ink.layer_style().gradient_fills.emplace_back();
+    fill.enabled = true;
+    fill.gradient.angle_degrees = 0;
+    fill.gradient.color_stops = {{0.0F, {20, 30, 40}}, {1.0F, {240, 200, 150}}};
+    scene.moves_gradient = true;
+  }
+  group.add_child(std::move(chip));
+  group.add_child(std::move(ink));
+  document.add_layer(std::move(group));
+  if (kind == "deep_group") {
+    patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
+  }
+  return scene;
+}
+
+void check_stroke_scene(StrokeScene scene) {
+  auto& document = scene.document;
+  document.set_active_layer(scene.painted);
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 360);
+  canvas.set_document(&document);
+  if (scene.mask_target) {
+    canvas.set_layer_edit_target(patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+    CHECK(canvas.layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+  }
+  canvas.set_tool(scene.eraser ? patchy::ui::CanvasTool::Eraser : patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(scene.mask_target ? QColor(Qt::black) : QColor(40, 90, 220));
+  canvas.set_brush_size(31);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(30);
+  canvas.show();
+  QApplication::processEvents();
+  canvas.repaint();
+  const auto settle = [&] {
+    canvas.repaint();
+    while (!canvas.render_settled()) {
+      QApplication::processEvents();
+      canvas.repaint();
+    }
+  };
+  int frame = 0;
+  const auto compare = [&] {
+    ++frame;
+    const auto actual = canvas.current_composite();
+    CHECK(!actual.isNull());
+    patchy::Document fresh = std::as_const(document);
+    static_cast<void>(fresh.find_layer(scene.reference_layer)->pixels());
+    const auto expected = patchy::ui::qimage_from_document(std::as_const(fresh), true).convertToFormat(actual.format());
+    const bool equal = actual == expected;
+    CHECK(equal);
+    if (!equal && actual.size() == expected.size()) {
+      int worst = 0;
+      int count = 0;
+      QRect where;
+      for (int y = 0; y < actual.height(); ++y) {
+        const auto* a = actual.constScanLine(y);
+        const auto* b = expected.constScanLine(y);
+        for (int x = 0; x < actual.width() * 4; ++x) {
+          const auto delta = std::abs(static_cast<int>(a[x]) - static_cast<int>(b[x]));
+          if (delta != 0) {
+            ++count;
+            worst = std::max(worst, delta);
+            where |= QRect(x / 4, y, 1, 1);
+          }
+        }
+      }
+      std::cout << "[stroke scene] " << scene.name << " frame " << frame << ": " << count
+                << " channel values differ, worst " << worst << ", inside " << where.x() << ',' << where.y() << ' '
+                << where.width() << 'x' << where.height() << '\n';
+    }
+  };
+  const auto send = [&](QEvent::Type type, QPoint point, Qt::MouseButton button, Qt::MouseButtons held) {
+    patchy::test::ui::send_mouse(canvas, type, canvas.widget_position_for_document_point(point), button, held);
+    settle();
+    compare();
+  };
+  settle();
+  compare();
+  // The state Undo returns to, with the revisions its masks are cached under.
+  const patchy::Document before = std::as_const(document);
+  const auto before_image = canvas.current_composite();
+  const auto diagnostics = canvas.render_cache_diagnostics();
+  const auto silhouette_patches = patchy::ui::group_silhouette_patches();
+
+  // Across the hole and the soft edge, then out over the transparent margin.
+  send(QEvent::MouseButtonPress, {150, 150}, Qt::LeftButton, Qt::LeftButton);
+  int moves = 0;
+  for (const auto point : {QPoint(178, 156), QPoint(214, 168), QPoint(262, 176), QPoint(300, 150)}) {
+    send(QEvent::MouseMove, point, Qt::NoButton, Qt::LeftButton);
+    ++moves;
+  }
+  send(QEvent::MouseButtonRelease, {300, 150}, Qt::LeftButton, Qt::NoButton);
+  // A second stroke starts from what the first left cached.
+  send(QEvent::MouseButtonPress, {95, 230}, Qt::LeftButton, Qt::LeftButton);
+  for (const auto point : {QPoint(80, 200), QPoint(64, 170), QPoint(96, 130)}) {
+    send(QEvent::MouseMove, point, Qt::NoButton, Qt::LeftButton);
+    ++moves;
+  }
+  send(QEvent::MouseButtonRelease, {96, 130}, Qt::LeftButton, Qt::NoButton);
+
+  const auto after = canvas.render_cache_diagnostics();
+  CHECK(after.full_refreshes == diagnostics.full_refreshes);
+  CHECK(after.partial_patches >= diagnostics.partial_patches + moves);
+  if (!scene.moves_gradient) {
+    // The patches stayed near the dabs: no move redrew a quarter of the canvas.
+    CHECK(after.dirty_region_pixels - diagnostics.dirty_region_pixels <
+          static_cast<std::uint64_t>(after.partial_patches - diagnostics.partial_patches) * (480U * 320U / 4U));
+  }
+  if (scene.patches_silhouette) {
+    // One patched silhouette for each move and each press at least (the second press
+    // starts from the first stroke's last one); a full flatten adds none.
+    CHECK(patchy::ui::group_silhouette_patches() >= silhouette_patches + static_cast<std::uint64_t>(moves) + 2U);
+  }
+
+  // Undo renders the earlier state: its silhouette and masks are still cached.
+  const auto misses = patchy::ui::style_mask_cache_misses();
+  CHECK(patchy::ui::qimage_from_document(before, true).convertToFormat(before_image.format()) == before_image);
+  CHECK(patchy::ui::style_mask_cache_misses() == misses);
+}
+
+void ui_styled_group_and_mask_strokes_match_full_render() {
+  for (const char* name : {"layer_mask", "pass_through_group", "isolated_group", "nested_groups", "clip_base_folder",
+                           "group_mask", "group_eraser", "deep_group", "gradient_in_group"}) {
+    check_stroke_scene(make_stroke_scene(name));
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> composite_render_tests() {
@@ -736,6 +992,7 @@ std::vector<patchy::test::TestCase> composite_render_tests() {
       {"ui_styled_brush_damage_matches_full_render", ui_styled_brush_damage_matches_full_render},
       {"ui_styled_brush_growth_redraws_silhouette_in_background",
        ui_styled_brush_growth_redraws_silhouette_in_background},
+      {"ui_styled_group_and_mask_strokes_match_full_render", ui_styled_group_and_mask_strokes_match_full_render},
       {"styled_group_partial_render_and_child_edit_match_full_render", styled_group_partial_render_and_child_edit_match_full_render},
       {"styled_group_parallel_strips_match_single_threaded", styled_group_parallel_strips_match_single_threaded},
       {"knockout_preview_preserves_alpha_depth_and_partial_bounds", knockout_preview_preserves_alpha_depth_and_partial_bounds},

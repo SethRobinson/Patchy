@@ -14,7 +14,15 @@ std::pair<std::shared_ptr<const StyleMaskEntry>, Rect> style_mask_for_render(
     StyleMaskProvider* provider, const Layer& layer, StyleMaskKind kind, std::uint32_t effect_index,
     Rect full_domain, Rect gate_rect, Rect legacy_domain, Rect bounds, std::optional<Rect> mask_bounds,
     ComputeFn&& compute) {
-  if (provider != nullptr && (layer.kind() == LayerKind::Group || provider->full_domain_allowed(layer, gate_rect))) {
+  const bool group = layer.kind() == LayerKind::Group;
+  // A stroke's patch windows the effect masks of the groups it paints inside, as it does
+  // the painted layer's. The silhouette itself always covers the whole group.
+  const bool windowed_group =
+      group && kind != StyleMaskKind::GroupSilhouette && provider != nullptr && provider->group_masks_windowed(layer);
+  if (windowed_group) {
+    return {std::make_shared<StyleMaskEntry>(compute(legacy_domain)), legacy_domain};
+  }
+  if (provider != nullptr && (group || provider->full_domain_allowed(layer, gate_rect))) {
     if (auto cached = provider->fetch(layer, kind, effect_index, full_domain, bounds, mask_bounds);
         cached != nullptr) {
       return {std::move(cached), full_domain};

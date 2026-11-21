@@ -6814,6 +6814,441 @@ void tool_budgets_perf() {
 // handler time per move and the repaint after it, on a 3600x5400 noisy photo with a pentagon
 // shape layer. `burst` lines post 60 moves at once and time the drain with the coalescing off
 // and on. PATCHY_PERF_DRAGAUDIT_CASES=name,name runs only those cases ("bursts" is one).
+// The same art under different layer conditions (plain, layer effects, inside a plain or a
+// styled group, under adjustment layers, its layer mask as the paint target, a shape layer
+// with effects), with one stroke of each paint tool, a run of arrow-key nudges, a held
+// arrow key and a Move drag timed per mouse move or key press. dragaudit times every drag
+// on a plain photo; this varies the layer instead (November 21, 2026: a Brush move cost
+// 0.9 ms on a plain layer, 1.2 to 2.0 s inside a group with effects and 1.8 s on the mask
+// of a layer with effects, and no scenario had either). It fails when a Brush move in a
+// styled group or on a styled layer's mask costs over four times one on the styled layer
+// itself. PATCHY_PERF_CONDITIONS=name,... and PATCHY_PERF_CONDITION_CASES=name,... pick rows.
+void layer_conditions_perf() {
+  constexpr int kWidth = 2480;
+  constexpr int kHeight = 3508;
+  const auto only_conditions =
+      qEnvironmentVariable("PATCHY_PERF_CONDITIONS").split(QLatin1Char(','), Qt::SkipEmptyParts);
+  const auto only_cases =
+      qEnvironmentVariable("PATCHY_PERF_CONDITION_CASES").split(QLatin1Char(','), Qt::SkipEmptyParts);
+  const auto wanted_case = [&only_cases](const char* name) {
+    return only_cases.isEmpty() || only_cases.contains(QLatin1String(name));
+  };
+  struct Condition {
+    const char* name;
+    bool styled;
+    bool gradient;
+    bool group;
+    bool group_styled;
+    bool mask_target;
+    bool adjustments;
+    bool shape;
+  };
+  const std::array<Condition, 10> conditions{{
+      {"plain", false, false, false, false, false, false, false},
+      {"styled", true, false, false, false, false, false, false},
+      {"styled_gradient", true, true, false, false, false, false, false},
+      {"group_plain", false, false, true, false, false, false, false},
+      {"group_styled", false, false, true, true, false, false, false},
+      {"under_adjustments", false, false, false, false, false, true, false},
+      {"mask_plain", false, false, false, false, true, false, false},
+      {"mask_styled", true, false, false, false, true, false, false},
+      {"shape_plain", false, false, false, false, false, false, true},
+      {"shape_styled", true, false, false, false, false, false, true},
+  }};
+  const auto add_effects = [](patchy::Layer& layer, bool gradient) {
+    auto& style = layer.layer_style();
+    auto& satin = style.satins.emplace_back();
+    satin.enabled = true;
+    satin.distance = 28;
+    satin.size = 20;
+    auto& bevel = style.bevels.emplace_back();
+    bevel.enabled = true;
+    bevel.size = 27;
+    bevel.soften = 3;
+    auto& glow = style.outer_glows.emplace_back();
+    glow.enabled = true;
+    glow.size = 30;
+    auto& stroke = style.strokes.emplace_back();
+    stroke.enabled = true;
+    stroke.size = 12;
+    stroke.color = {20, 20, 20};
+    auto& shadow = style.drop_shadows.emplace_back();
+    shadow.enabled = true;
+    shadow.distance = 30;
+    shadow.size = 30;
+    if (gradient) {
+      auto& fill = style.gradient_fills.emplace_back();
+      fill.enabled = true;
+      fill.gradient.angle_degrees = 0;
+      fill.gradient.color_stops = {{0.0F, {20, 30, 40}}, {1.0F, {240, 200, 150}}};
+    }
+  };
+  // Median Brush move per condition, for the budget at the end.
+  std::vector<std::pair<std::string, double>> brush_medians;
+  for (const auto& condition : conditions) {
+    if (!only_conditions.isEmpty() && !only_conditions.contains(QLatin1String(condition.name))) {
+      continue;
+    }
+    patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+    {
+      patchy::PixelBuffer photo(kWidth, kHeight, patchy::PixelFormat::rgba8());
+      std::uint64_t state = 0x2480;
+      for (int y = 0; y < kHeight; ++y) {
+        auto* row = photo.pixel(0, y);
+        for (int x = 0; x < kWidth; ++x) {
+          state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+          const auto noise = static_cast<int>((state >> 59U) & 31U);
+          row[x * 4 + 0] = static_cast<std::uint8_t>(90 + x * 60 / kWidth + noise);
+          row[x * 4 + 1] = static_cast<std::uint8_t>(110 + y * 60 / kHeight + noise);
+          row[x * 4 + 2] = static_cast<std::uint8_t>(130 + noise);
+          row[x * 4 + 3] = 255;
+        }
+      }
+      document.add_layer(patchy::Layer(document.allocate_layer_id(), "Background", std::move(photo)));
+    }
+    patchy::LayerId target_id = 0;
+    QPoint shape_anchor;
+    if (condition.shape) {
+      patchy::LiveShapeParams params;
+      params.kind = patchy::LiveShapeKind::Polygon;
+      params.left = kWidth * 0.2;
+      params.top = kHeight * 0.25;
+      params.right = kWidth * 0.8;
+      params.bottom = kHeight * 0.75;
+      params.polygon_sides = 5;
+      patchy::populate_live_shape_box_corners(params);
+      patchy::VectorShapeContent shape;
+      shape.path.subpaths = patchy::generate_live_shape_subpaths(params);
+      shape.origination.push_back(params);
+      shape.fill.kind = patchy::VectorFillKind::Solid;
+      shape.fill.color = {200, 70, 60};
+      const auto& first = shape.path.subpaths.front().anchors.front();
+      shape_anchor = QPoint(static_cast<int>(std::lround(first.anchor_x)), static_cast<int>(std::lround(first.anchor_y)));
+      patchy::Layer shape_layer(document.allocate_layer_id(), "Polygon 1", patchy::LayerKind::Pixel);
+      shape_layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+      shape_layer.set_vector_shape(std::move(shape));
+      patchy::update_vector_shape_raster(shape_layer, patchy::Rect::from_size(kWidth, kHeight),
+                                         &std::as_const(document).metadata().patterns);
+      if (condition.styled) {
+        add_effects(shape_layer, false);
+      }
+      target_id = shape_layer.id();
+      document.add_layer(std::move(shape_layer));
+    } else {
+      // An opaque ellipse over about a third of the canvas: the strokes stay inside it.
+      patchy::PixelBuffer ink(kWidth, kHeight, patchy::PixelFormat::rgba8());
+      ink.clear(0);
+      const double cx = kWidth / 2.0;
+      const double cy = kHeight / 2.0;
+      const double rx = kWidth * 0.36;
+      const double ry = kHeight * 0.33;
+      for (int y = 0; y < kHeight; ++y) {
+        auto* row = ink.pixel(0, y);
+        const double dy = (y - cy) / ry;
+        for (int x = 0; x < kWidth; ++x) {
+          const double dx = (x - cx) / rx;
+          if (dx * dx + dy * dy <= 1.0) {
+            row[x * 4 + 0] = 210;
+            row[x * 4 + 1] = static_cast<std::uint8_t>(60 + (x / 16 + y / 16) % 40);
+            row[x * 4 + 2] = 50;
+            row[x * 4 + 3] = 255;
+          }
+        }
+      }
+      patchy::Layer ink_layer(document.allocate_layer_id(), "Ink", std::move(ink));
+      if (condition.styled) {
+        add_effects(ink_layer, condition.gradient);
+      }
+      target_id = ink_layer.id();
+      if (condition.group) {
+        patchy::Layer group(document.allocate_layer_id(), "Group", patchy::LayerKind::Group);
+        if (condition.group_styled) {
+          add_effects(group, false);
+        }
+        patchy::PixelBuffer chip(300, 300, patchy::PixelFormat::rgba8());
+        chip.clear(255);
+        patchy::Layer chip_layer(document.allocate_layer_id(), "Chip", std::move(chip));
+        chip_layer.set_bounds({100, 100, 300, 300});
+        group.add_child(std::move(chip_layer));
+        group.add_child(std::move(ink_layer));
+        document.add_layer(std::move(group));
+      } else {
+        document.add_layer(std::move(ink_layer));
+      }
+    }
+    if (condition.adjustments) {
+      patchy::AdjustmentSettings hue;
+      hue.kind = patchy::AdjustmentKind::HueSaturation;
+      hue.hue_saturation.hue_shift = 40;
+      hue.hue_saturation.saturation_delta = 10;
+      patchy::Layer hue_layer(document.allocate_layer_id(), "Hue", patchy::LayerKind::Adjustment);
+      patchy::configure_adjustment_layer(hue_layer, hue);
+      document.add_layer(std::move(hue_layer));
+      patchy::AdjustmentSettings contrast;
+      contrast.kind = patchy::AdjustmentKind::BrightnessContrast;
+      contrast.brightness_contrast.brightness = 20;
+      contrast.brightness_contrast.contrast = 15;
+      patchy::Layer contrast_layer(document.allocate_layer_id(), "Contrast", patchy::LayerKind::Adjustment);
+      patchy::configure_adjustment_layer(contrast_layer, contrast);
+      document.add_layer(std::move(contrast_layer));
+    }
+
+    patchy::ui::MainWindow window;
+    window.resize(1600, 1000);
+    if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+      window.showMaximized();
+    } else {
+      window.show();
+    }
+    QApplication::processEvents();
+    window.add_document_session(std::move(document), QStringLiteral("Layer conditions"));
+    QApplication::processEvents();
+    auto* canvas = active_canvas(window);
+    CHECK(canvas != nullptr);
+    if (canvas == nullptr) {
+      return;
+    }
+    canvas->fit_to_view();
+    const auto settle = [canvas] {
+      QApplication::processEvents();
+      const auto started = Clock::now();
+      while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 120.0) {
+        canvas->repaint();
+        QApplication::processEvents();
+      }
+    };
+    const auto cold_ms = elapsed_ms(settle);
+    // Select the target through the Layers panel, as a user would.
+    bool selected = false;
+    if (auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList")); layer_list != nullptr) {
+      for (int row = 0; row < layer_list->count(); ++row) {
+        auto* item = layer_list->item(row);
+        if (static_cast<patchy::LayerId>(item->data(patchy::ui::kLayerIdRole).toULongLong()) == target_id) {
+          layer_list->clearSelection();
+          layer_list->setCurrentItem(item);
+          item->setSelected(true);
+          selected = true;
+        }
+      }
+    }
+    QApplication::processEvents();
+    auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+    const bool active_ok = selected && std::as_const(doc).active_layer_id() == std::optional<patchy::LayerId>(target_id);
+    if (condition.mask_target) {
+      if (auto* add_mask = window.findChild<QAction*>(QStringLiteral("layerAddMaskAction")); add_mask != nullptr) {
+        add_mask->trigger();
+        QApplication::processEvents();
+      }
+    }
+    const bool mask_ok = !condition.mask_target ||
+                         canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask;
+    settle();
+    // A second full frame with every cache warm: what a full refresh costs here.
+    const auto warm_ms = elapsed_ms([&] {
+      canvas->force_refresh();
+      settle();
+    });
+    std::cout << std::fixed << std::setprecision(1) << "[PERF] layerconditions condition=" << condition.name
+              << " zoom=" << std::setprecision(3) << canvas->zoom() << std::setprecision(1)
+              << " threads=" << patchy::hardware_worker_threads() << " active_ok=" << active_ok
+              << " mask_ok=" << mask_ok << " cold_frame_ms=" << cold_ms << " warm_full_refresh_ms=" << warm_ms
+              << '\n';
+
+    const auto widget_at = [canvas](QPoint document_point) {
+      return canvas->widget_position_for_document_point(document_point);
+    };
+    const auto report = [&](const char* name, std::vector<double> handler, std::vector<double> paint,
+                            double release_ms, double settle_ms,
+                            const patchy::ui::CanvasWidget::RenderCacheDiagnostics& before,
+                            std::uint64_t masks_before) {
+      const auto after = canvas->render_cache_diagnostics();
+      const auto first = handler.empty() ? 0.0 : handler.front();
+      std::sort(handler.begin(), handler.end());
+      std::sort(paint.begin(), paint.end());
+      if (std::string_view(name) == "brush" && !handler.empty()) {
+        brush_medians.emplace_back(condition.name, handler[handler.size() / 2]);
+      }
+      const auto at = [](const std::vector<double>& values, std::size_t index) {
+        return values.empty() ? 0.0 : values[std::min(index, values.size() - 1)];
+      };
+      std::cout << std::fixed << std::setprecision(2) << "[PERF] layerconditions condition=" << condition.name
+                << " case=" << name << " first_ms=" << first << " median_ms=" << at(handler, handler.size() / 2)
+                << " p90_ms=" << at(handler, handler.size() * 9 / 10) << " max_ms=" << at(handler, handler.size())
+                << " paint_median_ms=" << at(paint, paint.size() / 2) << " paint_max_ms=" << at(paint, paint.size())
+                << " release_ms=" << release_ms << " settle_ms=" << settle_ms
+                << " patches=" << after.partial_patches - before.partial_patches
+                << " full_refreshes=" << after.full_refreshes - before.full_refreshes
+                << " awaited=" << after.awaited_renders - before.awaited_renders
+                << " dirty_mpx=" << static_cast<double>(after.dirty_region_pixels - before.dirty_region_pixels) / 1.0e6
+                << " masks=" << patchy::ui::style_mask_cache_misses() - masks_before << std::endl;
+    };
+    constexpr int kMoves = 20;
+    // Press at `from`, kMoves moves toward `to` (handler and repaint timed apart), release.
+    const auto drag = [&](const char* name, QPoint from, QPoint to) {
+      settle();
+      const auto before = canvas->render_cache_diagnostics();
+      const auto masks_before = patchy::ui::style_mask_cache_misses();
+      std::vector<double> handler;
+      std::vector<double> paint;
+      handler.push_back(elapsed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+      }));
+      paint.push_back(elapsed_ms([&] { canvas->repaint(); }));
+      QApplication::processEvents();
+      for (int move = 1; move <= kMoves; ++move) {
+        const auto point = from + (to - from) * move / kMoves;
+        // The pump is inside the timing: Path and Direct Select queue their apply.
+        handler.push_back(elapsed_ms([&] {
+          send_mouse(*canvas, QEvent::MouseMove, point, Qt::NoButton, Qt::LeftButton);
+          QApplication::processEvents();
+        }));
+        paint.push_back(elapsed_ms([&] { canvas->repaint(); }));
+        QApplication::processEvents();
+      }
+      const auto release_ms = elapsed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+        QApplication::processEvents();
+        canvas->repaint();
+      });
+      const auto settle_ms = elapsed_ms(settle);
+      report(name, std::move(handler), std::move(paint), release_ms, settle_ms, before, masks_before);
+    };
+    // A held arrow key: 30 repeats 33 ms apart with the event loop running in between, and
+    // how many frames reached the screen before the key came up.
+    const auto nudge_hold = [&] {
+      canvas->set_layer_edit_target(patchy::ui::CanvasWidget::LayerEditTarget::Content);
+      canvas->set_tool(patchy::ui::CanvasTool::Move);
+      canvas->set_auto_select_layer(false);
+      canvas->setFocus();
+      QApplication::processEvents();
+      settle();
+      const auto before = canvas->render_cache_diagnostics();
+      std::vector<double> keys;
+      const auto started = Clock::now();
+      for (int press = 0; press < 30; ++press) {
+        const auto due = started + std::chrono::milliseconds(33 * (press + 1));
+        keys.push_back(elapsed_ms([&] { send_key(*canvas, Qt::Key_Right); }));
+        do {
+          QApplication::processEvents();
+        } while (Clock::now() < due);
+      }
+      const auto hold_ms = std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+      const auto during = canvas->render_cache_diagnostics();
+      const auto settle_ms = elapsed_ms(settle);
+      std::sort(keys.begin(), keys.end());
+      std::cout << std::fixed << std::setprecision(2) << "[PERF] layerconditions condition=" << condition.name
+                << " case=nudge_hold presses=30 hold_ms=" << hold_ms << " key_median_ms=" << keys[keys.size() / 2]
+                << " key_max_ms=" << keys.back()
+                << " full_refreshes_during_hold=" << during.full_refreshes - before.full_refreshes
+                << " patches_during_hold=" << during.partial_patches - before.partial_patches
+                << " settle_after_ms=" << settle_ms << std::endl;
+    };
+    using patchy::ui::CanvasTool;
+    const auto a = widget_at(QPoint(800, 1400));
+    const auto b = widget_at(QPoint(1700, 2100));
+
+    if (condition.shape) {
+      if (wanted_case("anchor_drag")) {
+        canvas->set_tool(CanvasTool::DirectSelect);
+        QApplication::processEvents();
+        const auto start = widget_at(shape_anchor);
+        // A click selects the path, the drag then moves the anchor.
+        send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+        send_mouse(*canvas, QEvent::MouseButtonRelease, start, Qt::LeftButton, Qt::NoButton);
+        QApplication::processEvents();
+        drag("anchor_drag", start, start + QPoint(90, 60));
+        const auto* moved = std::as_const(doc).find_layer(target_id);
+        const bool anchor_moved =
+            moved != nullptr && moved->vector_shape() != nullptr &&
+            std::abs(moved->vector_shape()->path.subpaths.front().anchors.front().anchor_x - shape_anchor.x()) > 10.0;
+        std::cout << "[PERF] layerconditions condition=" << condition.name << " case=anchor_drag anchor_moved="
+                  << anchor_moved << '\n';
+      }
+    } else {
+      canvas->set_primary_color(condition.mask_target ? QColor(Qt::black) : QColor(30, 90, 200));
+      canvas->set_brush_opacity(100);
+      canvas->set_brush_softness(50);
+      const std::array<std::pair<const char*, CanvasTool>, 5> tools{{{"brush", CanvasTool::Brush},
+                                                                     {"clone", CanvasTool::Clone},
+                                                                     {"smudge", CanvasTool::Smudge},
+                                                                     {"dodge", CanvasTool::Dodge},
+                                                                     {"eraser", CanvasTool::Eraser}}};
+      int lane = 0;
+      for (const auto& [name, tool] : tools) {
+        // The mask rows time the mask brush only.
+        if (!wanted_case(name) || (condition.mask_target && tool != CanvasTool::Brush)) {
+          continue;
+        }
+        canvas->set_tool(tool);
+        canvas->set_brush_size(100);
+        QApplication::processEvents();
+        if (tool == CanvasTool::Clone) {
+          const auto source = widget_at(QPoint(1240, 1000));
+          send_mouse(*canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+          send_mouse(*canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+          QApplication::processEvents();
+        }
+        // Each tool paints its own lane, so no stroke starts on another's pixels.
+        const auto offset = widget_at(QPoint(0, 220 * lane)) - widget_at(QPoint(0, 0));
+        drag(name, a + offset, b + offset);
+        ++lane;
+      }
+    }
+    if (wanted_case("nudge")) {
+      canvas->set_layer_edit_target(patchy::ui::CanvasWidget::LayerEditTarget::Content);
+      canvas->set_tool(CanvasTool::Move);
+      canvas->set_auto_select_layer(false);
+      canvas->setFocus();
+      QApplication::processEvents();
+      settle();
+      const auto before = canvas->render_cache_diagnostics();
+      const auto masks_before = patchy::ui::style_mask_cache_misses();
+      std::vector<double> handler;
+      std::vector<double> paint;
+      for (int press = 0; press < 15; ++press) {
+        handler.push_back(elapsed_ms([&] { send_key(*canvas, Qt::Key_Right); }));
+        paint.push_back(elapsed_ms([&] { canvas->repaint(); }));
+        QApplication::processEvents();
+      }
+      const auto settle_ms = elapsed_ms(settle);
+      report("nudge", std::move(handler), std::move(paint), 0.0, settle_ms, before, masks_before);
+    }
+    if (wanted_case("nudge_hold")) {
+      nudge_hold();
+    }
+    if (wanted_case("move_drag")) {
+      canvas->set_layer_edit_target(patchy::ui::CanvasWidget::LayerEditTarget::Content);
+      canvas->set_tool(CanvasTool::Move);
+      canvas->set_auto_select_layer(false);
+      QApplication::processEvents();
+      const auto from = widget_at(QPoint(kWidth / 2, kHeight / 2));
+      drag("move_drag", from, from + QPoint(120, 60));
+    }
+    std::cout << std::flush;
+  }
+  const auto brush_median = [&brush_medians](std::string_view condition) -> std::optional<double> {
+    for (const auto& [name, median] : brush_medians) {
+      if (name == condition) {
+        return median;
+      }
+    }
+    return std::nullopt;
+  };
+  if (const auto styled = brush_median("styled"); styled.has_value()) {
+    // The floor keeps a fast machine's noise out of the ratio.
+    const auto budget = 4.0 * std::max(*styled, 10.0) * patchy::test::test_time_scale();
+    for (const char* condition : {"group_styled", "mask_styled"}) {
+      if (const auto median = brush_median(condition); median.has_value()) {
+        const bool within = *median <= budget;
+        std::cout << std::fixed << std::setprecision(2) << "[PERF] layerconditions budget condition=" << condition
+                  << " brush_median_ms=" << *median << " budget_ms=" << budget << (within ? " ok" : " OVER")
+                  << std::endl;
+        CHECK(within);
+      }
+    }
+  }
+}
+
 void drag_audit_perf() {
   constexpr int kWidth = 3600;
   constexpr int kHeight = 5400;
@@ -7393,6 +7828,10 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "canvasdrag_live") {
       run_scenario("canvasdrag_live", canvas_live_drag_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "layerconditions") {
+      run_scenario("layerconditions", layer_conditions_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "dragaudit") {

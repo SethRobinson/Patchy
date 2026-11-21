@@ -2337,10 +2337,11 @@ private:
   [[nodiscard]] bool first_render_spinner_active() const noexcept;
   [[nodiscard]] std::vector<RenderedDocumentPatch> render_document_patches_with_processing(
       const QRegion& document_region, const std::vector<std::pair<LayerId, Rect>>& layer_bounds,
-      bool force_processing_wait, std::optional<LayerId> windowed_layer = std::nullopt);
+      bool force_processing_wait, const StrokePatchWindows& windows = kNoStrokePatchWindows);
   [[nodiscard]] bool dirty_region_should_use_processing_wait(const QRegion& document_region) const noexcept;
   void refresh_render_cache_rect(QRect document_rect);
-  void refresh_render_cache_region(const QRegion& document_region, std::optional<LayerId> windowed_layer = std::nullopt);
+  void refresh_render_cache_region(const QRegion& document_region,
+                                   const StrokePatchWindows& windows = kNoStrokePatchWindows);
   bool patch_render_cache_rect(QRect document_rect, const QImage& partial);
   bool patch_render_cache_patches(const std::vector<RenderedDocumentPatch>& patches);
   void invalidate_display_mip_cache() noexcept;
@@ -2381,7 +2382,8 @@ private:
   void wait_for_move_commit_job();
   // Brush realign job (see the BrushRealignJob members).
   [[nodiscard]] bool brush_realign_runs_in_background(std::int64_t silhouette_area) const noexcept;
-  void start_brush_realign_job(LayerId layer, const QRegion& silhouette, const QRegion& patched_here);
+  void start_brush_realign_job(LayerId layer, const QRegion& silhouette, const QRegion& patched_here,
+                               std::vector<StrokePatchWindows::GroupBase> group_bases = {});
   void finish_brush_realign_job(std::uint64_t generation);
   // Returns the regions the job would have refreshed.
   QRegion cancel_brush_realign_job();
@@ -5704,6 +5706,24 @@ private:
   bool paint_stroke_history_armed_{false};
   PaintStrokeHistoryEvent paint_stroke_history_event_{};
   std::optional<QRect> brush_gradient_bounds_;
+  // The groups around the layer a stroke paints on (and that layer, when it is a group whose
+  // mask is painted), each with the style-mask revision of the state the canvas last
+  // rendered: the press, then every patch of the stroke. A dab changes a group's flattened
+  // children under the dab only, so the next patch hands these to the render as bases
+  // (StrokePatchWindows::GroupBase) and the group's silhouette is patched, not flattened
+  // again. `own` marks a base one of the stroke's patches made: no undo state has it, so the
+  // next patch may take it out of the cache. Anything but a further dab on the same layer
+  // clears the list (cancel_brush_realign_job's callers), and the next patch then flattens
+  // the whole group once.
+  struct BrushGroupBase {
+    LayerId group{0};
+    std::uint64_t revision{0};
+    bool own{false};
+  };
+  std::vector<BrushGroupBase> brush_group_bases_;
+  LayerId brush_group_bases_layer_{0};
+  void capture_brush_group_bases(bool own);
+  [[nodiscard]] bool active_mask_is_feathered() const;
   // The painting tool's theme id while a stroke's "stroke-start" awaits its "stroke-end".
   QString theme_stroke_tool_;
   std::optional<patchy::LayerGrowthReserve> stroke_growth_reserve_{};

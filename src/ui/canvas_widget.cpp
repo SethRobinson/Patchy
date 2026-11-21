@@ -407,7 +407,10 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   painting_ = false;
   sync_stroke_input_compression();
   // An armed stroke ends with the outgoing document (the host validates the
-  // entry before shrinking it).
+  // entry before shrinking it). Its group silhouettes are not carried over: the
+  // document under them may already be another state (a history restore).
+  brush_group_bases_.clear();
+  brush_group_bases_layer_ = 0;
   finish_paint_stroke_history();
   clear_brush_stroke_tracking();
   reset_brush_smoothing();
@@ -1699,6 +1702,7 @@ void CanvasWidget::close_stroke_growth_reserve() {
 
 void CanvasWidget::arm_paint_stroke_history() {
   capture_brush_gradient_bounds();
+  capture_brush_group_bases(false);
   open_stroke_growth_reserve();
   paint_stroke_history_armed_ = false;
   if (theme_stroke_tool_.isEmpty()) {
@@ -1722,6 +1726,20 @@ void CanvasWidget::arm_paint_stroke_history() {
 
 void CanvasWidget::finish_paint_stroke_history() {
   brush_gradient_bounds_.reset();
+  // The stroke's last patch left each group's silhouette cached under the revision it
+  // drew. Ending a stroke can move a revision again without a pixel changing (a mutable
+  // accessor reached on the way out), and the next stroke's press would then find no
+  // silhouette for the state it starts from and flatten the whole group once.
+  if (document_ != nullptr) {
+    for (const auto& base : brush_group_bases_) {
+      if (const auto* group = base.own ? std::as_const(*document_).find_layer(base.group) : nullptr;
+          group != nullptr) {
+        rekey_style_masks(base.revision, *group);
+      }
+    }
+  }
+  brush_group_bases_.clear();
+  brush_group_bases_layer_ = 0;
   close_stroke_growth_reserve();
   if (!theme_stroke_tool_.isEmpty()) {
     const auto tool = std::exchange(theme_stroke_tool_, QString());

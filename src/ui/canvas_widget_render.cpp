@@ -265,17 +265,31 @@ QRect brush_gradient_bounds(const Layer& layer) {
   return alpha ? to_qrect(*alpha) : QRect{};
 }
 
+// A group around the painted layer, or the painted group itself (a stroke on its mask),
+// and where its flattened children changed: the dab grown by the effects below the group.
+struct BrushGroupDamage {
+  const Layer* group{nullptr};
+  QRegion changed;
+};
+
 // `silhouette` receives the painted layer's old and new extents when a dab
 // moves the anchor of a gradient aligned to that layer: every pixel it has
-// painted changes color, however far from the dab.
+// painted changes color, however far from the dab. `groups` lists the groups
+// on the way down to the painted layer, innermost first.
 const Layer* expand_brush_damage(const std::vector<Layer>& layers, LayerId painted_id, QRegion& region,
-                                 QRegion& silhouette, std::optional<QRect>& previous_gradient_bounds) {
+                                 QRegion& silhouette, std::optional<QRect>& previous_gradient_bounds,
+                                 std::vector<BrushGroupDamage>& groups) {
   for (const auto& layer : layers) {
-    const auto* painted =
-        layer.id() == painted_id
-            ? &layer
-            : expand_brush_damage(layer.children(), painted_id, region, silhouette, previous_gradient_bounds);
+    const auto* painted = layer.id() == painted_id
+                              ? &layer
+                              : expand_brush_damage(layer.children(), painted_id, region, silhouette,
+                                                    previous_gradient_bounds, groups);
     if (painted == nullptr) continue;
+    if (layer.kind() == LayerKind::Group) {
+      // Before this group's own effects widen the region: they read the children, they
+      // are not part of them. A stroke on the group's own mask changes no child.
+      groups.push_back(BrushGroupDamage{&layer, &layer == painted ? QRegion() : region + silhouette});
+    }
     const auto& style = layer.layer_style();
     if (style.effects_visible && !style.empty()) {
       if (uses_alpha_aligned_gradient(style)) {
@@ -683,10 +697,56 @@ void CanvasWidget::grayscale_target_changed(QRect document_rect, DocumentChangeR
 
 void CanvasWidget::capture_brush_gradient_bounds() {
   brush_gradient_bounds_.reset();
-  if (quick_mask_active_ || layer_edit_target_ != LayerEditTarget::Content) return;
+  // A mask stroke never moves the anchor (the pixels' alpha sets it), and with the
+  // bounds captured its first dab finds them unchanged.
+  if (quick_mask_active_ ||
+      (layer_edit_target_ != LayerEditTarget::Content && layer_edit_target_ != LayerEditTarget::Mask)) {
+    return;
+  }
   const auto* layer = active_pixel_layer();
   if (layer && uses_alpha_aligned_gradient(layer->layer_style())) {
     brush_gradient_bounds_ = brush_gradient_bounds(*layer);
+  }
+}
+
+bool CanvasWidget::active_mask_is_feathered() const {
+  // A dab on a feathered mask changes the layer as far as the feather reaches, which the
+  // effects' reach does not cover: such a stroke keeps the plain region refresh.
+  if (document_ == nullptr || !document_->active_layer_id().has_value()) {
+    return false;
+  }
+  const auto* layer = std::as_const(*document_).find_layer(*document_->active_layer_id());
+  return layer != nullptr && layer->mask().has_value() && layer->mask()->feather > 0.0;
+}
+
+void CanvasWidget::capture_brush_group_bases(bool own) {
+  brush_group_bases_.clear();
+  brush_group_bases_layer_ = 0;
+  if (document_ == nullptr || quick_mask_active_ ||
+      (layer_edit_target_ != LayerEditTarget::Content && layer_edit_target_ != LayerEditTarget::Mask)) {
+    return;
+  }
+  const auto active = document_->active_layer_id();
+  if (!active.has_value()) {
+    return;
+  }
+  // Const walk: a mutable one would bump every revision this records.
+  const auto collect = [this, own, id = *active](auto&& self, const std::vector<Layer>& layers) -> bool {
+    for (const auto& layer : layers) {
+      if (layer.id() != id && (layer.kind() != LayerKind::Group || !self(self, layer.children()))) {
+        continue;
+      }
+      if (layer.kind() == LayerKind::Group) {
+        brush_group_bases_.push_back(BrushGroupBase{layer.id(), style_mask_cache_revision(layer), own});
+      }
+      return true;
+    }
+    return false;
+  };
+  if (collect(collect, std::as_const(*document_).layers())) {
+    brush_group_bases_layer_ = *active;
+  } else {
+    brush_group_bases_.clear();
   }
 }
 
@@ -814,11 +874,25 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
     }
     cancel_move_commit_job();
   }
+  // A stroke on the layer's pixels or on its mask: either changes the layer's silhouette
+  // under the dab, so both take the effects' reach and the mask windows below. A mask
+  // stroke used to fall through to whole-layer masks on every move (1.8 s a move on a
+  // 2480 x 3508 layer with five effects, 6 cores).
   const bool brush_update = !includes_effect_bounds &&
                             (reason == DocumentChangeReason::BrushStrokePreview ||
                              reason == DocumentChangeReason::BrushStrokeFinished) &&
-                            layer_edit_target_ == LayerEditTarget::Content && document_ != nullptr &&
-                            document_->active_layer_id().has_value();
+                            (layer_edit_target_ == LayerEditTarget::Content ||
+                             (layer_edit_target_ == LayerEditTarget::Mask && !active_mask_is_feathered())) &&
+                            document_ != nullptr && document_->active_layer_id().has_value();
+  // The bases describe the state before this dab. They are taken out here and written
+  // back only by the patch below, so every path that does not render that patch (a full
+  // refresh, a hidden widget, a background preview) leaves none, and the next patch
+  // flattens the group once.
+  auto group_bases = std::exchange(brush_group_bases_, {});
+  if (!brush_update || std::exchange(brush_group_bases_layer_, 0) != *document_->active_layer_id()) {
+    group_bases.clear();
+    brush_group_bases_layer_ = 0;
+  }
   if (brush_realign_job_.has_value() &&
       !(brush_update && *document_->active_layer_id() == brush_realign_job_->layer)) {
     // Only further dabs on the same layer can share the cache with the job
@@ -887,14 +961,15 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
     return;
   }
 
-  std::optional<LayerId> windowed_layer;
+  StrokePatchWindows windows;
   QRegion background_silhouette;
   if (document_ != nullptr) {
     const Layer* painted = nullptr;
     QRegion silhouette;
+    std::vector<BrushGroupDamage> group_damage;
     if (brush_update) {
       painted = expand_brush_damage(std::as_const(*document_).layers(), *document_->active_layer_id(), document_region,
-                                    silhouette, brush_gradient_bounds_);
+                                    silhouette, brush_gradient_bounds_, group_damage);
     }
     if (!includes_effect_bounds && !painted) {
       document_region = outset_region(document_region, document_effect_padding(*document_));
@@ -925,12 +1000,24 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
     }
     const auto area = region_area(document_region);
     const auto canvas_area = static_cast<std::int64_t>(document_->width()) * static_cast<std::int64_t>(document_->height());
-    if (painted && painted->layer_style().effects_visible && !painted->layer_style().empty()) {
-      const auto bounds = layer_pixel_bounds(*painted);
+    // Masks cached for a frame of the stroke would serve that frame alone: the painted
+    // layer and the styled groups around it take mask windows while the patch is small
+    // beside them.
+    const auto wants_windows = [&](const Layer& layer) {
+      if (!layer.layer_style().effects_visible || layer.layer_style().empty()) {
+        return false;
+      }
+      const auto bounds = layer.kind() == LayerKind::Group ? layer_render_bounds(layer) : layer_pixel_bounds(layer);
       const auto layer_area = static_cast<std::int64_t>(bounds.width) * bounds.height;
-      // Masks cached for a frame of the stroke would serve that frame alone.
-      if (realigned_here || (area < kProcessingOverlayDirtyAreaThreshold && area < layer_area / 4)) {
-        windowed_layer = painted->id();
+      return area < kProcessingOverlayDirtyAreaThreshold && area < layer_area / 4;
+    };
+    if (painted && painted->layer_style().effects_visible && !painted->layer_style().empty() &&
+        (realigned_here || wants_windows(*painted))) {
+      windows.layers.push_back(painted->id());
+    }
+    for (const auto& damage : group_damage) {
+      if (damage.group != painted && wants_windows(*damage.group)) {
+        windows.layers.push_back(damage.group->id());
       }
     }
     if (canvas_area > 0 && area * 2 > canvas_area && !region_refresh_any_area_ && !realigned_here) {
@@ -941,13 +1028,36 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
       mark_full_dirty();
       return;
     }
+    // A background pass renders from a snapshot of an earlier step and may still want
+    // that step's silhouette, so nothing is taken out of the cache while one runs or starts.
+    const bool background_pass = brush_realign_job_.has_value() || !background_silhouette.isEmpty();
+    for (const auto& damage : group_damage) {
+      const auto base = std::find_if(group_bases.begin(), group_bases.end(),
+                                     [&damage](const BrushGroupBase& candidate) {
+                                       return candidate.group == damage.group->id();
+                                     });
+      if (base == group_bases.end()) {
+        continue;
+      }
+      StrokePatchWindows::GroupBase group_base;
+      group_base.group = base->group;
+      group_base.base_revision = base->revision;
+      group_base.consume = base->own && !background_pass;
+      for (const auto& rect : damage.changed) {
+        group_base.changed.push_back(Rect{rect.x(), rect.y(), rect.width(), rect.height()});
+      }
+      windows.groups.push_back(std::move(group_base));
+    }
     if (brush_realign_job_.has_value()) {
       // The job's snapshot predates this dab: its result must not cover the
       // area patched below, and an anchor that moved again needs another pass.
       brush_realign_job_->newer += document_region;
       brush_realign_job_->again += background_silhouette;
     } else if (!background_silhouette.isEmpty()) {
-      start_brush_realign_job(painted->id(), background_silhouette, document_region);
+      // The pass snapshots this same state and may ask for a group's silhouette before
+      // the patch below has made it: with the bases it patches too, instead of
+      // flattening the group while the mouse handler waits on that mask's latch.
+      start_brush_realign_job(painted->id(), background_silhouette, document_region, windows.groups);
     }
   }
 
@@ -955,7 +1065,12 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
   if (started_render_operation) {
     begin_processing_operation();
   }
-  refresh_render_cache_region(document_region, windowed_layer);
+  refresh_render_cache_region(document_region, windows);
+  if (brush_update) {
+    // That render left each group's silhouette cached at the state it drew: the next
+    // dab's base.
+    capture_brush_group_bases(true);
+  }
   if (started_render_operation) {
     end_processing_operation();
   }
@@ -2106,7 +2221,7 @@ void CanvasWidget::cancel_async_render_cache_refresh() noexcept {
 
 std::vector<RenderedDocumentPatch> CanvasWidget::render_document_patches_with_processing(
     const QRegion& document_region, const std::vector<std::pair<LayerId, Rect>>& layer_bounds,
-    bool force_processing_wait, std::optional<LayerId> windowed_layer) {
+    bool force_processing_wait, const StrokePatchWindows& windows) {
   if (document_ == nullptr) {
     return {};
   }
@@ -2114,7 +2229,7 @@ std::vector<RenderedDocumentPatch> CanvasWidget::render_document_patches_with_pr
                                    dirty_region_should_use_processing_wait(document_region);
   if (!use_processing_wait) {
     return layer_bounds.empty()
-               ? qimage_patches_from_document_region(*document_, document_region, true, windowed_layer)
+               ? qimage_patches_from_document_region(*document_, document_region, true, windows)
                : qimage_patches_from_document_region_with_layer_bounds(*document_, document_region, true, layer_bounds);
   }
 
@@ -2126,7 +2241,7 @@ std::vector<RenderedDocumentPatch> CanvasWidget::render_document_patches_with_pr
   const auto idle_pool = patchy::idle_prespawned_pool_workers();
   if (paintingActive() || idle_pool < 1) {
     return layer_bounds.empty()
-               ? qimage_patches_from_document_region(*document_, document_region, true, windowed_layer)
+               ? qimage_patches_from_document_region(*document_, document_region, true, windows)
                : qimage_patches_from_document_region_with_layer_bounds(*document_, document_region, true, layer_bounds);
   }
   const patchy::BlockingFanoutBudgetScope fanout_budget(std::max(0, idle_pool - 3));
@@ -2135,12 +2250,12 @@ std::vector<RenderedDocumentPatch> CanvasWidget::render_document_patches_with_pr
   auto* document = document_;
   auto region = document_region;
   auto bounds = layer_bounds;
-  auto future = launch_async([document, region = std::move(region), bounds = std::move(bounds), windowed_layer] {
+  auto future = launch_async([document, region = std::move(region), bounds = std::move(bounds), windows] {
     if (const auto delay = processing_render_test_delay_ms(); delay > 0) {
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     }
     return bounds.empty()
-               ? qimage_patches_from_document_region(*document, region, true, windowed_layer)
+               ? qimage_patches_from_document_region(*document, region, true, windows)
                : qimage_patches_from_document_region_with_layer_bounds(*document, region, true, bounds);
   });
   const auto overlay_shown = wait_for_processing_operation(
@@ -2256,7 +2371,7 @@ void CanvasWidget::refresh_render_cache_rect(QRect document_rect) {
   refresh_render_cache_region(QRegion(document_rect));
 }
 
-void CanvasWidget::refresh_render_cache_region(const QRegion& document_region, std::optional<LayerId> windowed_layer) {
+void CanvasWidget::refresh_render_cache_region(const QRegion& document_region, const StrokePatchWindows& windows) {
   if (document_ == nullptr || render_cache_.isNull()) {
     return;
   }
@@ -2266,7 +2381,7 @@ void CanvasWidget::refresh_render_cache_region(const QRegion& document_region, s
     return;
   }
 
-  auto patches = render_document_patches_with_processing(clipped, {}, false, windowed_layer);
+  auto patches = render_document_patches_with_processing(clipped, {}, false, windows);
   for (auto& patch : patches) {
     patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
   }
@@ -2706,7 +2821,8 @@ bool CanvasWidget::brush_realign_runs_in_background(std::int64_t silhouette_area
   return silhouette_area >= kBrushRealignBackgroundMinPixels;
 }
 
-void CanvasWidget::start_brush_realign_job(LayerId layer, const QRegion& silhouette, const QRegion& patched_here) {
+void CanvasWidget::start_brush_realign_job(LayerId layer, const QRegion& silhouette, const QRegion& patched_here,
+                                           std::vector<StrokePatchWindows::GroupBase> group_bases) {
   const auto generation = ++brush_realign_generation_;
   auto snapshot = std::make_shared<const Document>(*document_);
   auto promise = std::make_shared<std::promise<std::vector<RenderedDocumentPatch>>>();
@@ -2720,7 +2836,8 @@ void CanvasWidget::start_brush_realign_job(LayerId layer, const QRegion& silhoue
   ++render_cache_diagnostics_.brush_realign_jobs;
   auto* app = QApplication::instance();
   QPointer<CanvasWidget> widget(this);
-  run_tracked_background_worker([app, widget, generation, layer, silhouette, snapshot = std::move(snapshot), promise] {
+  run_tracked_background_worker([app, widget, generation, layer, silhouette, snapshot = std::move(snapshot), promise,
+                                 group_bases = std::move(group_bases)]() mutable {
     std::vector<RenderedDocumentPatch> patches;
     try {
       if (const auto delay = processing_render_test_delay_ms(); delay > 0) {
@@ -2729,7 +2846,10 @@ void CanvasWidget::start_brush_realign_job(LayerId layer, const QRegion& silhoue
       // Mask windows for the painted layer, as in the mouse handler: the next
       // dab changes the layer again, so a cached full-layer mask would serve
       // this one result. The region renders in row bands across the workers.
-      patches = qimage_patches_from_document_region(*snapshot, silhouette, true, layer);
+      StrokePatchWindows windows;
+      windows.layers.push_back(layer);
+      windows.groups = std::move(group_bases);
+      patches = qimage_patches_from_document_region(*snapshot, silhouette, true, windows);
       for (auto& patch : patches) {
         patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
       }
@@ -2793,6 +2913,11 @@ void CanvasWidget::finish_brush_realign_job(std::uint64_t generation) {
 }
 
 QRegion CanvasWidget::cancel_brush_realign_job() {
+  // Every caller is a change the stroke's own dabs did not make, or a frame they did not
+  // patch: the group silhouettes the stroke left cached no longer describe "the state
+  // before the next dab".
+  brush_group_bases_.clear();
+  brush_group_bases_layer_ = 0;
   if (!brush_realign_job_.has_value()) {
     return {};
   }

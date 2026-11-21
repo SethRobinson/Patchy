@@ -84,8 +84,16 @@ private:
 // switches (a Stroke Emboss bevel's) is left out.
 [[nodiscard]] std::uint64_t style_mask_cache_revision(const Layer& layer) noexcept;
 void carry_style_masks_across_effect_visibility_edit(std::uint64_t revision_before, const Layer& layer);
+// Moves what the cache holds for `layer` under `revision_before` to its revision now, for a
+// revision that moved while the pixels, masks and effects those entries were made from did
+// not (the end of a paint stroke: the release reaches the painted layer through mutable
+// accessors after the last patch was rendered). The caller vouches for that.
+void rekey_style_masks(std::uint64_t revision_before, const Layer& layer);
 // Masks the cache has had to compute since the process started (tests: a reuse adds none).
 [[nodiscard]] std::uint64_t style_mask_cache_misses();
+// Group silhouettes a stroke's patch render took from a cached base and patched under the
+// dab, instead of flattening the group (StrokePatchWindows::GroupBase; tests and perf runs).
+[[nodiscard]] std::uint64_t group_silhouette_patches();
 // Renders one layer alone at the document's size, so opacity/blend/styles come out
 // exactly as the compositor draws them against an empty backdrop (sprite-sheet and
 // image-sequence exports share this).
@@ -100,10 +108,30 @@ void carry_style_masks_across_effect_visibility_edit(std::uint64_t revision_befo
 // Native child coverage used to anchor paints in a clipped viewport render.
 // The caller budgets the native silhouette and compositor workspace first.
 [[nodiscard]] Rect group_visible_alpha_bounds(const Layer& group, Rect bounds, const PatternStore& patterns);
-[[nodiscard]] std::vector<RenderedDocumentPatch> qimage_patches_from_document_region(const Document& document,
-                                                                                     const QRegion& document_region,
-                                                                                     bool preserve_alpha,
-                                                                                     std::optional<LayerId> windowed_layer = std::nullopt);
+// What a paint stroke's patch render knows that an ordinary render does not
+// (docs/performance.md, "Smart invalidation and style-mask caching").
+struct StrokePatchWindows {
+  // The painted layer and the styled groups around it: their effect masks are computed
+  // over the patch's own draw-clipped windows and none is cached, since the next dab
+  // changes them again.
+  std::vector<LayerId> layers;
+  // A group around the painted layer (or the painted group itself, for its mask) whose
+  // flattened children differ from the silhouette cached under `base_revision`
+  // (style_mask_cache_revision before the edits) only inside `changed`: the render patches
+  // that silhouette instead of flattening every child over the whole group. `consume`
+  // takes the base out of the cache, for a base that was one of this stroke's own steps.
+  struct GroupBase {
+    LayerId group{};
+    std::uint64_t base_revision{0};
+    bool consume{false};
+    std::vector<Rect> changed;
+  };
+  std::vector<GroupBase> groups;
+};
+inline const StrokePatchWindows kNoStrokePatchWindows{};
+[[nodiscard]] std::vector<RenderedDocumentPatch> qimage_patches_from_document_region(
+    const Document& document, const QRegion& document_region, bool preserve_alpha,
+    const StrokePatchWindows& windows = kNoStrokePatchWindows);
 // The region split into row bands rendered across workers. PREVIEW-ONLY (the
 // canvas's region preview refreshes under a dialog, GitHub #601 follow-up): a
 // band's windowed style masks can differ slightly from the unbanded render, so

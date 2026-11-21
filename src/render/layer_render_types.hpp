@@ -66,6 +66,25 @@ public:
                                                                     std::optional<Rect> mask_bounds) = 0;
   virtual void store(const Layer& layer, StyleMaskKind kind, std::uint32_t effect_index, Rect domain, Rect bounds,
                      std::optional<Rect> mask_bounds, std::shared_ptr<const StyleMaskEntry> entry) = 0;
+
+  // A paint stroke's patch render (docs/performance.md, "Smart invalidation"): this group's
+  // effect masks are computed over the draw-clipped windows a pixel layer's are, and none
+  // is cached. The next dab changes the group again, so a whole-group mask would serve one
+  // patch. Everywhere else a group's masks cover its whole content.
+  [[nodiscard]] virtual bool group_masks_windowed(const Layer& /*group*/) const { return false; }
+
+  // The flattened children of `group` as they were before the edits that touched only
+  // `changed` (document space): the silhouette over `bounds` is then `pixels` with those
+  // rects flattened again, instead of every child over the whole group. nullopt when no
+  // such base is known, or it does not cover exactly `bounds`.
+  struct GroupSilhouetteBase {
+    PixelBuffer pixels;
+    std::vector<Rect> changed;
+  };
+  [[nodiscard]] virtual std::optional<GroupSilhouetteBase> group_silhouette_base(const Layer& /*group*/,
+                                                                               Rect /*bounds*/) {
+    return std::nullopt;
+  }
 };
 
 }  // namespace patchy::render_detail

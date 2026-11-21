@@ -521,9 +521,48 @@ public:
     }
   }
 
+  // Files what is stored under `from` under `to` instead: the revision moved and what the
+  // entries were made from did not (rekey_style_masks).
+  void rekey(std::uint64_t from, std::uint64_t to) {
+    if (from == to) {
+      return;
+    }
+    const std::lock_guard lock(mutex_);
+    for (auto node = entries_.begin(); node != entries_.end(); ++node) {
+      if (node->key.content_revision != from) {
+        continue;
+      }
+      auto key = node->key;
+      key.content_revision = to;
+      if (index_.contains(key) || in_flight_.contains(key)) {
+        continue;
+      }
+      index_.erase(node->key);
+      node->key = key;
+      index_[key] = node;
+    }
+  }
+
   [[nodiscard]] std::uint64_t misses() const {
     const std::lock_guard lock(mutex_);
     return misses_;
+  }
+
+  // The entry stored under `key`, without latching a miss; `remove` takes it out of the
+  // cache (a stroke's own intermediate silhouette, StrokePatchWindows::GroupBase).
+  [[nodiscard]] std::optional<StyleMaskCacheValue> find(const StyleMaskCacheKey& key, bool remove) {
+    const std::lock_guard lock(mutex_);
+    const auto found = index_.find(key);
+    if (found == index_.end()) {
+      return std::nullopt;
+    }
+    auto value = found->second->value;
+    if (remove) {
+      total_bytes_ -= value_bytes(value);
+      entries_.erase(found->second);
+      index_.erase(found);
+    }
+    return value;
   }
 
   void abandon(const StyleMaskCacheKey& key) {
@@ -591,6 +630,8 @@ StyleMaskLruCache& style_mask_lru_cache() {
   return cache;
 }
 
+std::atomic<std::uint64_t> g_group_silhouette_patches{0};
+
 // What the cache calls a layer's revision: its content revision, and for a group every
 // descendant's render revision too (the silhouette its masks are made from).
 std::uint64_t style_mask_revision(const Layer& layer) noexcept {
@@ -609,13 +650,13 @@ std::uint64_t style_mask_revision(const Layer& layer) noexcept {
 
 class DocumentStyleMaskProvider final : public render_detail::StyleMaskProvider {
 public:
-  DocumentStyleMaskProvider(Rect canvas, std::optional<LayerId> windowed_layer) noexcept
-      : canvas_(canvas), windowed_layer_(windowed_layer) {}
+  DocumentStyleMaskProvider(Rect canvas, const StrokePatchWindows& windows) noexcept
+      : canvas_(canvas), windows_(windows) {}
 
   [[nodiscard]] bool full_domain_allowed(const Layer& layer, Rect gate) const override {
     // A brush patch consumes this mask once before the next pixel edit.
     // Keep the other layers' reusable masks available to the same render.
-    if (layer.id() == windowed_layer_) return false;
+    if (windowed(layer)) return false;
     // Byte-stability gate: with the gate rect inside the canvas, the legacy
     // full-render mask window already equals the full domain, so cached masks
     // reproduce full-render bytes exactly (see style_mask_for_render).
@@ -661,6 +702,35 @@ public:
                             std::move(entry)});
   }
 
+  [[nodiscard]] bool group_masks_windowed(const Layer& group) const override { return windowed(group); }
+
+  [[nodiscard]] std::optional<GroupSilhouetteBase> group_silhouette_base(const Layer& group, Rect bounds) override {
+    const auto base = std::find_if(windows_.groups.begin(), windows_.groups.end(),
+                                   [&group](const auto& candidate) { return candidate.group == group.id(); });
+    if (base == windows_.groups.end()) {
+      return std::nullopt;
+    }
+    StyleMaskCacheKey key;
+    key.content_revision = base->base_revision;
+    key.kind = render_detail::StyleMaskKind::GroupSilhouette;
+    auto cached = style_mask_lru_cache().find(key, base->consume);
+    // A silhouette is stored over the group's own bounds, so only its size can differ: a
+    // layer that grew under the stroke gives the group new bounds, and a full flatten.
+    if (!cached.has_value() || cached->entry == nullptr || cached->entry->group_pixels == nullptr ||
+        cached->relative_x != 0 || cached->relative_y != 0 || cached->width != bounds.width ||
+        cached->height != bounds.height) {
+      return std::nullopt;
+    }
+    GroupSilhouetteBase result;
+    // Shares the bytes until the first write. Once `cached` lets go of a consumed entry
+    // nothing else holds them, so that write is in place.
+    result.pixels = *cached->entry->group_pixels;
+    cached.reset();
+    result.changed = base->changed;
+    g_group_silhouette_patches.fetch_add(1, std::memory_order_relaxed);
+    return result;
+  }
+
 public:
   [[nodiscard]] static bool enabled() noexcept {
     // Escape hatch mirroring PATCHY_RENDER_SINGLE_THREADED: byte-stable
@@ -684,8 +754,13 @@ private:
     return key;
   }
 
+  [[nodiscard]] bool windowed(const Layer& layer) const noexcept {
+    return std::find(windows_.layers.begin(), windows_.layers.end(), layer.id()) != windows_.layers.end();
+  }
+
   Rect canvas_;
-  std::optional<LayerId> windowed_layer_;
+  // The caller's, which outlives the render.
+  const StrokePatchWindows& windows_;
 };
 
 bool layer_can_affect_clip(const Layer& layer, Rect clip,
@@ -946,8 +1021,16 @@ void carry_style_masks_across_effect_visibility_edit(std::uint64_t revision_befo
   style_mask_lru_cache().carry(revision_before, style_mask_revision(layer), stroke_emboss);
 }
 
+void rekey_style_masks(std::uint64_t revision_before, const Layer& layer) {
+  style_mask_lru_cache().rekey(revision_before, style_mask_revision(layer));
+}
+
 std::uint64_t style_mask_cache_misses() {
   return style_mask_lru_cache().misses();
+}
+
+std::uint64_t group_silhouette_patches() {
+  return g_group_silhouette_patches.load(std::memory_order_relaxed);
 }
 
 namespace {
@@ -1038,8 +1121,8 @@ QImage deep_target_to_image(const render_detail::DeepCompositeTarget& target, bo
 
 QImage render_document_rect_deep(const Document& document, Rect clip, bool preserve_alpha,
                                  const std::vector<render_detail::LayerBoundsOverride>* overrides,
-                                 std::optional<LayerId> windowed_layer = std::nullopt) {
-  DocumentStyleMaskProvider mask_provider(Rect::from_size(document.width(), document.height()), windowed_layer);
+                                 const StrokePatchWindows& windows = kNoStrokePatchWindows) {
+  DocumentStyleMaskProvider mask_provider(Rect::from_size(document.width(), document.height()), windows);
   auto* masks = render_detail::raster_view_context == nullptr && DocumentStyleMaskProvider::enabled()
                     ? &mask_provider
                     : nullptr;
@@ -1120,7 +1203,7 @@ bool layer_has_visible_knockout(const Layer& layer,
 
 QImage render_document_rect(const Document& document, QRect document_rect, bool preserve_alpha,
                             const std::vector<render_detail::LayerBoundsOverride>* overrides,
-                            std::optional<LayerId> windowed_layer = std::nullopt) {
+                            const StrokePatchWindows& windows = kNoStrokePatchWindows) {
   const auto native_rect = document_rect.normalized();
   const Rect native_clip{native_rect.x(), native_rect.y(), native_rect.width(), native_rect.height()};
   auto native = render_native_cmyk8(document, native_clip, overrides);
@@ -1148,7 +1231,7 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
     if (clip.empty()) {
       return {};
     }
-    return render_document_rect_deep(document, clip, preserve_alpha, overrides, windowed_layer);
+    return render_document_rect_deep(document, clip, preserve_alpha, overrides, windows);
   }
   const auto tracing = render_trace_enabled();
   const auto profiling = render_profile_enabled();
@@ -1202,7 +1285,7 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
       std::clamp(std::min(clip.height / 128, hardware_threads), 1, 16));
   const bool parallel_render = render_detail::raster_view_context == nullptr && !timed_render && parallel_strips >= 2 && clip_area >= 4'000'000 &&
                                !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED");
-  DocumentStyleMaskProvider mask_provider(Rect::from_size(document.width(), document.height()), windowed_layer);
+  DocumentStyleMaskProvider mask_provider(Rect::from_size(document.width(), document.height()), windows);
   auto* masks = render_detail::raster_view_context == nullptr && DocumentStyleMaskProvider::enabled() ? &mask_provider : nullptr;
   if (parallel_render) {
     struct StripJob {
@@ -1298,7 +1381,8 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
 std::vector<QImage> render_document_rects_parallel(const Document& document, const std::vector<QRect>& rects,
                                                    bool preserve_alpha,
                                                    const std::vector<render_detail::LayerBoundsOverride>* overrides,
-                                                   int worker_budget, std::optional<LayerId> windowed_layer = std::nullopt) {
+                                                   int worker_budget,
+                                                   const StrokePatchWindows& windows = kNoStrokePatchWindows) {
   std::vector<QImage> images(rects.size());
   std::atomic<std::size_t> next_rect{0};
   const auto worker_count = std::min<std::size_t>(static_cast<std::size_t>(std::max(1, worker_budget)), rects.size());
@@ -1306,14 +1390,14 @@ std::vector<QImage> render_document_rects_parallel(const Document& document, con
   jobs.reserve(worker_count);
   for (std::size_t worker = 0; worker < worker_count; ++worker) {
     jobs.push_back(
-        std::async(std::launch::async, [&document, &rects, &images, &next_rect, preserve_alpha, overrides, windowed_layer] {
+        std::async(std::launch::async, [&document, &rects, &images, &next_rect, preserve_alpha, overrides, &windows] {
           const ThreadFanoutBudgetScope no_nested_fanout(0);
           while (true) {
             const auto index = next_rect.fetch_add(1, std::memory_order_relaxed);
             if (index >= rects.size()) {
               return;
             }
-            images[index] = render_document_rect(document, rects[index], preserve_alpha, overrides, windowed_layer);
+            images[index] = render_document_rect(document, rects[index], preserve_alpha, overrides, windows);
           }
         }));
   }
@@ -1326,7 +1410,7 @@ std::vector<QImage> render_document_rects_parallel(const Document& document, con
 std::vector<RenderedDocumentPatch> render_document_region(
     const Document& document, const QRegion& document_region, bool preserve_alpha,
     const std::vector<render_detail::LayerBoundsOverride>* overrides,
-    std::optional<LayerId> windowed_layer = std::nullopt) {
+    const StrokePatchWindows& windows = kNoStrokePatchWindows) {
   std::vector<RenderedDocumentPatch> patches;
   if (document_region.isEmpty()) {
     return patches;
@@ -1349,7 +1433,7 @@ std::vector<RenderedDocumentPatch> render_document_region(
   const bool may_fan_out = !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED") && !render_trace_enabled() &&
                            !render_profile_enabled();
   const auto band_workers =
-      windowed_layer && may_fan_out
+      !windows.layers.empty() && may_fan_out
           ? std::max(1, max_blocking_fanout_workers(patchy::hardware_worker_threads()) / 4)
           : 1;
   bool banded = false;
@@ -1380,7 +1464,7 @@ std::vector<RenderedDocumentPatch> render_document_region(
   const bool parallel =
       rects.size() >= 2U && worker_budget >= 2 && (banded || total_area >= 1'000'000) && may_fan_out;
   if (parallel) {
-    auto images = render_document_rects_parallel(document, rects, preserve_alpha, overrides, worker_budget, windowed_layer);
+    auto images = render_document_rects_parallel(document, rects, preserve_alpha, overrides, worker_budget, windows);
     patches.reserve(rects.size());
     for (std::size_t index = 0; index < rects.size(); ++index) {
       if (!images[index].isNull()) {
@@ -1391,7 +1475,7 @@ std::vector<RenderedDocumentPatch> render_document_region(
   }
 
   for (const auto& rect : rects) {
-    auto image = render_document_rect(document, rect, preserve_alpha, overrides, windowed_layer);
+    auto image = render_document_rect(document, rect, preserve_alpha, overrides, windows);
     if (image.isNull()) {
       continue;
     }
@@ -1755,8 +1839,8 @@ QImage render_layers_isolated(const Document& document, std::vector<Layer> stack
 std::vector<RenderedDocumentPatch> qimage_patches_from_document_region(const Document& document,
                                                                        const QRegion& document_region,
                                                                        bool preserve_alpha,
-                                                                       std::optional<LayerId> windowed_layer) {
-  return render_document_region(document, document_region, preserve_alpha, nullptr, windowed_layer);
+                                                                       const StrokePatchWindows& windows) {
+  return render_document_region(document, document_region, preserve_alpha, nullptr, windows);
 }
 
 std::vector<RenderedDocumentPatch> qimage_patches_from_document_region_banded(const Document& document,

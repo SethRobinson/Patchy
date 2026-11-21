@@ -24,6 +24,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -4008,22 +4009,61 @@ PixelBuffer group_silhouette_for_render(const Layer& layer, Rect bounds,
   const auto prepared = style_mask_for_render(
       cache, layer, StyleMaskKind::GroupSilhouette, 0, bounds, bounds, bounds, bounds, std::nullopt,
       [&](Rect rect) {
-        IsolatedClipGroupTargetT<Color> isolated(rect, false, domain);
-        const KnockoutBackdropT<Color> isolated_backdrops;
-        auto child_clip = rect;
-        if (const auto& artboard = layer.artboard(); artboard.has_value()) {
-          // A styled artboard: its paper and clipped children are the styled content.
-          child_clip = intersect_rect(rect, artboard->rect);
-          if (const auto paper = artboard_background_rgba(*artboard); paper.has_value() && !child_clip.empty()) {
-            paint_artboard_paper(isolated, child_clip, *paper, 1.0F);
+        // The children flattened over `window`, a part of `rect` or all of it. Clip
+        // rendering equals full rendering, so a part is that part of the whole.
+        const auto flatten = [&](Rect window) {
+          IsolatedClipGroupTargetT<Color> isolated(window, false, domain);
+          const KnockoutBackdropT<Color> isolated_backdrops;
+          auto child_clip = window;
+          if (const auto& artboard = layer.artboard(); artboard.has_value()) {
+            // A styled artboard: its paper and clipped children are the styled content.
+            child_clip = intersect_rect(window, artboard->rect);
+            if (const auto paper = artboard_background_rgba(*artboard); paper.has_value() && !child_clip.empty()) {
+              paint_artboard_paper(isolated, child_clip, *paper, 1.0F);
+            }
+          }
+          if (!child_clip.empty()) {
+            composite_layers(isolated, layer.children(), child_clip, overrides,
+                             throw_on_unsupported_pixel_format, masks, patterns, &isolated_backdrops);
+          }
+          return isolated.to_pixel_buffer();
+        };
+        StyleMaskEntry result;
+        // A paint stroke changes the children under its dabs only: the silhouette of the
+        // state before them, with those rects flattened again, is this one. Flattening
+        // every child over the whole group for each dab cost a second or more a move.
+        if (auto base = cache != nullptr ? cache->group_silhouette_base(layer, rect) : std::nullopt;
+            base.has_value() && base->pixels.width() == rect.width && base->pixels.height() == rect.height) {
+          bool patched = true;
+          for (const auto& changed : base->changed) {
+            const auto window = intersect_rect(rect, changed);
+            if (window.empty()) {
+              continue;
+            }
+            const auto part = flatten(window);
+            if (part.format() != base->pixels.format() || part.width() != window.width ||
+                part.height() != window.height) {
+              patched = false;
+              break;
+            }
+            const auto pixel_bytes = bytes_per_pixel(part.format());
+            const auto row_bytes = part.stride_bytes();
+            const auto stride = base->pixels.stride_bytes();
+            // One detach here, on this thread, before the rows are written.
+            auto* target = base->pixels.data().data();
+            const auto* source = std::as_const(part).data().data();
+            for (std::int32_t row = 0; row < window.height; ++row) {
+              std::memcpy(target + static_cast<std::size_t>(window.y - rect.y + row) * stride +
+                              static_cast<std::size_t>(window.x - rect.x) * pixel_bytes,
+                          source + static_cast<std::size_t>(row) * row_bytes, row_bytes);
+            }
+          }
+          if (patched) {
+            result.group_pixels = std::make_shared<const PixelBuffer>(std::move(base->pixels));
+            return result;
           }
         }
-        if (!child_clip.empty()) {
-          composite_layers(isolated, layer.children(), child_clip, overrides,
-                           throw_on_unsupported_pixel_format, masks, patterns, &isolated_backdrops);
-        }
-        StyleMaskEntry result;
-        result.group_pixels = std::make_shared<const PixelBuffer>(isolated.to_pixel_buffer());
+        result.group_pixels = std::make_shared<const PixelBuffer>(flatten(rect));
         return result;
       });
   return *prepared.first->group_pixels;
