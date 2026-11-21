@@ -3098,7 +3098,15 @@ private:
   void rotate_canvas_180();
   void flip_canvas_horizontal();
   void flip_canvas_vertical();
-  void transform_whole_canvas(const char* undo_name, const QString& status, void (*apply)(Document&));
+  // `recenter` for the quarter turns: swapped dimensions make the old pan stale.
+  void transform_whole_canvas(const char* undo_name, const QString& status, void (*apply)(Document&),
+                              bool recenter = false);
+  // Runs `change` on a private copy of the active document on a worker while the canvas
+  // shows its delayed Processing overlay (the resize_document_image pattern: the displayed
+  // document stays whole during the wait), and returns the copy, or nullopt when `change`
+  // refused. The caller takes the undo snapshot and assigns the result.
+  [[nodiscard]] std::optional<Document> changed_document_with_processing(
+      const std::function<bool(Document&)>& change);
   void rotate_active_layers(const char* undo_name, const QString& status, Rect (*turn)(Document&, LayerId));
   // Image > Rotate Arbitrary...: asks for an angle and direction, rotates the whole
   // canvas about its center, and enlarges it to fit (main_window_document_dialogs.cpp).

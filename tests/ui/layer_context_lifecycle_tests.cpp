@@ -6,6 +6,8 @@
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pixel_depth.hpp"
+#include "core/pixel_tools.hpp"
+#include "ui/image_document_io.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/new_document_dialog.hpp"
@@ -3068,6 +3070,102 @@ void ui_rotate_canvas_arbitrary_dialog_rotates_and_expands_canvas() {
   QApplication::processEvents();
   CHECK(info->text().contains(QStringLiteral("1267 x 1267 px")));
   save_widget_artifact("ui_rotate_canvas_result", window);
+}
+
+// Image > Rotate and Flip turn the document on a worker behind the canvas's Processing
+// overlay (a quarter turn of a 32000 px canvas takes seconds and used to freeze the window
+// with nothing on screen to say so). The worker is slowed so the overlay shows on a small
+// document; the result must equal the core turn exactly, as one undo step.
+void ui_rotate_canvas_runs_behind_the_processing_overlay() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::create_document(window, 97, 41);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  if (canvas == nullptr) {
+    return;
+  }
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  {
+    // Off-center and asymmetric, so every turn and flip gives a different picture.
+    patchy::PixelBuffer marks(60, 25, patchy::PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < marks.height(); ++y) {
+      for (std::int32_t x = 0; x < marks.width(); ++x) {
+        auto* pixel = marks.pixel(x, y);
+        pixel[0] = static_cast<std::uint8_t>(x * 4);
+        pixel[1] = static_cast<std::uint8_t>(y * 9);
+        pixel[2] = static_cast<std::uint8_t>(x ^ y);
+        pixel[3] = 255;
+      }
+    }
+    patchy::Layer layer(doc.allocate_layer_id(), "Marks", std::move(marks));
+    layer.set_bounds(patchy::Rect{11, 7, 60, 25});
+    doc.add_layer(std::move(layer));
+  }
+  canvas->set_document(&doc);
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  CHECK(process_events_until([&] { return canvas->render_settled(); }));
+
+  EnvironmentVariableRestorer restore_overlay_delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
+  EnvironmentVariableRestorer restore_worker_delay("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", "0");
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", "250");
+
+  struct Turn {
+    const char* action;
+    void (*apply)(patchy::Document&);
+  };
+  const std::array<Turn, 5> turns{{
+      {"imageRotateClockwiseAction", &patchy::rotate_document_clockwise},
+      {"imageRotateCounterclockwiseAction", &patchy::rotate_document_counterclockwise},
+      {"imageRotate180Action", &patchy::rotate_document_180},
+      {"imageFlipHorizontalAction", &patchy::flip_document_horizontal},
+      {"imageFlipVerticalAction", &patchy::flip_document_vertical},
+  }};
+  for (const auto& turn : turns) {
+    auto expected = std::as_const(doc);
+    turn.apply(expected);
+    const auto before_image = patchy::ui::qimage_from_document(std::as_const(doc), true);
+    const auto expected_image = patchy::ui::qimage_from_document(std::as_const(expected), true);
+    CHECK(!images_equal_rgba(before_image, expected_image));
+    const auto undo_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+    bool saw_overlay = false;
+    bool document_whole_during_wait = false;
+    QTimer observer;
+    QObject::connect(&observer, &QTimer::timeout, &window, [&] {
+      if (canvas->processing_overlay_visible()) {
+        saw_overlay = true;
+        // The displayed document is untouched until the worker's copy is swapped in.
+        document_whole_during_wait =
+            canvas->processing_operation_active() &&
+            images_equal_rgba(patchy::ui::qimage_from_document(std::as_const(doc), true), before_image);
+        observer.stop();
+      }
+    });
+    observer.start(5);
+    require_action(window, turn.action)->trigger();
+    observer.stop();
+    CHECK(saw_overlay);
+    CHECK(document_whole_during_wait);
+    CHECK(!canvas->processing_overlay_visible());
+    CHECK(!canvas->processing_operation_active());
+    CHECK(doc.width() == expected.width());
+    CHECK(doc.height() == expected.height());
+    CHECK(images_equal_rgba(patchy::ui::qimage_from_document(std::as_const(doc), true), expected_image));
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth + 1);
+    patchy::ui::MainWindowTestAccess::undo(window);
+    CHECK(images_equal_rgba(patchy::ui::qimage_from_document(std::as_const(doc), true), before_image));
+  }
+
+  // The canvas shows the turned document once it settles.
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", "0");
+  require_action(window, "imageRotateClockwiseAction")->trigger();
+  CHECK(doc.width() == 41);
+  CHECK(doc.height() == 97);
+  CHECK(process_events_until([&] { return canvas->render_settled(); }));
+  const auto settled = render_widget_image(*canvas);
+  canvas->force_refresh();
+  CHECK(images_equal_rgba(settled, render_widget_image(*canvas)));
 }
 
 void ui_new_document_presets_and_clipboard_work() {
@@ -6178,5 +6276,6 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_document_tab_context_menu_file_actions", ui_document_tab_context_menu_file_actions},
       {"ui_rotate_canvas_arbitrary_dialog_rotates_and_expands_canvas",
        ui_rotate_canvas_arbitrary_dialog_rotates_and_expands_canvas},
+      {"ui_rotate_canvas_runs_behind_the_processing_overlay", ui_rotate_canvas_runs_behind_the_processing_overlay},
   };
 }

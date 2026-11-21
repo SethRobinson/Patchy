@@ -154,6 +154,7 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 
 
@@ -7434,37 +7435,53 @@ void MainWindow::refresh_ruler_readout() {
   }
 }
 
+std::optional<Document> MainWindow::changed_document_with_processing(const std::function<bool(Document&)>& change) {
+  auto& target = session();
+  auto edit_lock = lock_preview_dialog_edits();
+  // The displayed document stays whole during the wait, so the Processing overlay can paint
+  // without racing the canvas, thumbnails or an in-flight renderer against half-turned data.
+  const auto* source = &std::as_const(target.document);
+  // The tests' slow-worker hook, shared with the canvas's background renders.
+  const int test_delay_ms = std::max(0, qEnvironmentVariableIntValue("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS"));
+  auto future = launch_async([source, &change, test_delay_ms]() -> std::optional<Document> {
+    if (test_delay_ms > 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(test_delay_ms));
+    }
+    auto changed = *source;
+    if (!change(changed)) {
+      return std::nullopt;
+    }
+    return changed;
+  });
+  if (target.canvas) {
+    target.canvas->wait_for_processing_operation(
+        [&future] { return future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready; });
+  }
+  return future.get();
+}
+
 void MainWindow::rotate_canvas_clockwise() {
+  transform_whole_canvas(QT_TR_NOOP("Rotate canvas"), tr("Rotated canvas clockwise"),
+                         &patchy::rotate_document_clockwise, true);
+}
+
+// Image > Rotate / Flip (GitHub issue 139). The turn runs on a worker behind the
+// Processing overlay: a quarter turn of a very large canvas takes seconds.
+void MainWindow::transform_whole_canvas(const char* undo_name, const QString& status, void (*apply)(Document&),
+                                        bool recenter) {
   auto& doc = document();
   if (refuse_document_geometry_change()) {
     return;
   }
-  push_undo_snapshot(tr("Rotate canvas"));
-  patchy::rotate_document_clockwise(doc);
-  canvas_->clear_selection();
-  const auto previous_channel_target = canvas_->layer_edit_target();
-  const auto previous_channel_id = canvas_->active_document_channel_id();
-  const auto previous_channel_display = canvas_->mask_display_mode();
-  canvas_->set_document(&doc);
-  restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
-                                              previous_channel_display);
-  // Swapped dimensions make the old pan stale, so recenter at the current zoom.
-  canvas_->center_document_in_view();
-  refresh_layer_list();
-  refresh_layer_controls();
-  refresh_document_info();
-  statusBar()->showMessage(tr("Rotated canvas clockwise"));
-}
-
-// Image > Rotate 180 / Flip (GitHub issue 139): the canvas keeps its size, so
-// unlike the quarter turns nothing needs recentering.
-void MainWindow::transform_whole_canvas(const char* undo_name, const QString& status, void (*apply)(Document&)) {
-  auto& doc = document();
-  if (refuse_document_geometry_change()) {
+  auto changed = changed_document_with_processing([apply](Document& copy) {
+    apply(copy);
+    return true;
+  });
+  if (!changed.has_value()) {
     return;
   }
   push_undo_snapshot(QCoreApplication::translate(kMainWindowTranslationContext, undo_name));
-  apply(doc);
+  doc = std::move(*changed);
   canvas_->clear_selection();
   const auto previous_channel_target = canvas_->layer_edit_target();
   const auto previous_channel_id = canvas_->active_document_channel_id();
@@ -7472,6 +7489,9 @@ void MainWindow::transform_whole_canvas(const char* undo_name, const QString& st
   canvas_->set_document(&doc);
   restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
                                               previous_channel_display);
+  if (recenter) {
+    canvas_->center_document_in_view();
+  }
   refresh_layer_list();
   refresh_layer_controls();
   refresh_document_info();
@@ -7492,25 +7512,8 @@ void MainWindow::flip_canvas_vertical() {
 }
 
 void MainWindow::rotate_canvas_counterclockwise() {
-  auto& doc = document();
-  if (refuse_document_geometry_change()) {
-    return;
-  }
-  push_undo_snapshot(tr("Rotate canvas"));
-  patchy::rotate_document_counterclockwise(doc);
-  canvas_->clear_selection();
-  const auto previous_channel_target = canvas_->layer_edit_target();
-  const auto previous_channel_id = canvas_->active_document_channel_id();
-  const auto previous_channel_display = canvas_->mask_display_mode();
-  canvas_->set_document(&doc);
-  restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
-                                              previous_channel_display);
-  // Swapped dimensions make the old pan stale, so recenter at the current zoom.
-  canvas_->center_document_in_view();
-  refresh_layer_list();
-  refresh_layer_controls();
-  refresh_document_info();
-  statusBar()->showMessage(tr("Rotated canvas counterclockwise"));
+  transform_whole_canvas(QT_TR_NOOP("Rotate canvas"), tr("Rotated canvas counterclockwise"),
+                         &patchy::rotate_document_counterclockwise, true);
 }
 
 void MainWindow::toggle_tile_seam_offset() {

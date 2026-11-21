@@ -1452,8 +1452,90 @@ void layer_quarter_turns_keep_the_layer_center() {
   CHECK(patchy::rotate_layer_clockwise(document, patchy::LayerId{999999U}).empty());
 }
 
+// The quarter turn walks its buffers in tiles (document_geometry.cpp): every pixel must
+// land where the plain mapping puts it, on sizes around the tile edges and at every pixel
+// width the copy is specialized for or falls back on.
+void layer_quarter_turns_move_every_pixel_across_tile_edges() {
+  struct Size {
+    std::int32_t width;
+    std::int32_t height;
+  };
+  const std::array<Size, 6> sizes{{{131, 67}, {64, 64}, {65, 1}, {1, 200}, {200, 3}, {128, 129}}};
+  // 4, 1, 6, 12, 8 and 16 bytes a pixel.
+  const std::array<patchy::PixelFormat, 6> formats{
+      patchy::PixelFormat::rgba8(),
+      patchy::PixelFormat::gray8(),
+      patchy::PixelFormat::rgb16(),
+      patchy::PixelFormat::rgbf32(),
+      patchy::PixelFormat{patchy::ColorMode::RGB, patchy::BitDepth::UInt16, 4},
+      patchy::PixelFormat{patchy::ColorMode::RGB, patchy::BitDepth::Float32, 4}};
+  for (const auto& format : formats) {
+    const auto pixel_bytes = patchy::bytes_per_pixel(format);
+    for (const auto size : sizes) {
+      patchy::PixelBuffer pixels(size.width, size.height, format);
+      {
+        auto bytes = pixels.data();
+        std::uint32_t state = 0x9e3779b9U;
+        for (auto& byte : bytes) {
+          state = state * 1664525U + 1013904223U;
+          byte = static_cast<std::uint8_t>(state >> 24U);
+        }
+      }
+      const patchy::PixelBuffer original = pixels;
+      patchy::Document document(size.width, size.height, patchy::PixelFormat::rgba8());
+      const auto layer_id = document.add_pixel_layer("Turned", solid_rgba(size.width, size.height, 0, 0, 0, 0)).id();
+      document.find_layer(layer_id)->set_pixels(std::move(pixels));
+      document.find_layer(layer_id)->set_bounds(patchy::Rect{0, 0, size.width, size.height});
+      const auto same_pixel = [pixel_bytes](const std::uint8_t* left, const std::uint8_t* right) {
+        return std::equal(left, left + pixel_bytes, right);
+      };
+
+      patchy::rotate_document_clockwise(document);
+      bool clockwise_ok = true;
+      {
+        const auto& turned = std::as_const(document).find_layer(layer_id)->pixels();
+        CHECK(turned.width() == size.height && turned.height() == size.width);
+        for (std::int32_t y = 0; y < size.height && clockwise_ok; ++y) {
+          for (std::int32_t x = 0; x < size.width; ++x) {
+            if (!same_pixel(original.pixel(x, y), turned.pixel(size.height - 1 - y, x))) {
+              clockwise_ok = false;
+              break;
+            }
+          }
+        }
+      }
+      CHECK(clockwise_ok);
+
+      // Back, then the other way from the original.
+      patchy::rotate_document_counterclockwise(document);
+      {
+        const auto restored = std::as_const(document).find_layer(layer_id)->pixels().data();
+        const auto expected = original.data();
+        CHECK(std::equal(restored.begin(), restored.end(), expected.begin(), expected.end()));
+      }
+      patchy::rotate_document_counterclockwise(document);
+      bool counterclockwise_ok = true;
+      {
+        const auto& turned = std::as_const(document).find_layer(layer_id)->pixels();
+        CHECK(turned.width() == size.height && turned.height() == size.width);
+        for (std::int32_t y = 0; y < size.height && counterclockwise_ok; ++y) {
+          for (std::int32_t x = 0; x < size.width; ++x) {
+            if (!same_pixel(original.pixel(x, y), turned.pixel(y, size.width - 1 - x))) {
+              counterclockwise_ok = false;
+              break;
+            }
+          }
+        }
+      }
+      CHECK(counterclockwise_ok);
+    }
+  }
+}
+
 std::vector<patchy::test::TestCase> document_model_tests() {
   return {
+      {"layer_quarter_turns_move_every_pixel_across_tile_edges",
+       layer_quarter_turns_move_every_pixel_across_tile_edges},
       {"layer_shared_ancestor_groups_find_the_enclosing_folders", layer_shared_ancestor_groups_find_the_enclosing_folders},
       {"document_flips_and_half_turn_mirror_every_layer_and_channel",
        document_flips_and_half_turn_mirror_every_layer_and_channel},

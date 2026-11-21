@@ -24,6 +24,7 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
 #include <numbers>
 #include <optional>
@@ -51,28 +52,69 @@ PixelBuffer copy_buffer_region(const PixelBuffer& source, std::int32_t x, std::i
   return region;
 }
 
-PixelBuffer rotated_buffer_clockwise(const PixelBuffer& source) {
-  PixelBuffer rotated(source.height(), source.width(), source.format());
-  const auto pixel_bytes = bytes_per_pixel(source.format());
-  for (std::int32_t y = 0; y < source.height(); ++y) {
-    for (std::int32_t x = 0; x < source.width(); ++x) {
-      const auto* src = source.pixel(x, y);
-      std::copy(src, src + pixel_bytes, rotated.pixel(source.height() - 1 - y, x));
+// A quarter turn sends every pixel of a source row to a different destination row, so a
+// plain row walk writes one whole destination column per source row: on a wide buffer each
+// write misses the cache and the TLB (a 32000x4000 RGBA layer took 2.8 s). Walking both
+// buffers in small tiles keeps the rows a tile touches in cache. kPixelBytes fixes the copy
+// size at compile time for the common formats; 0 copies `pixel_bytes` bytes.
+template <std::size_t kPixelBytes>
+void rotate_quarter_turn_tiles(const std::uint8_t* source, std::uint8_t* rotated, std::int32_t width,
+                               std::int32_t height, std::size_t pixel_bytes, bool clockwise) {
+  constexpr std::int32_t kTile = 64;
+  const auto bytes = kPixelBytes != 0 ? kPixelBytes : pixel_bytes;
+  const auto source_stride = static_cast<std::size_t>(width) * bytes;
+  const auto rotated_stride = static_cast<std::size_t>(height) * bytes;
+  for (std::int32_t tile_y = 0; tile_y < height; tile_y += kTile) {
+    const auto y_end = std::min(height, tile_y + kTile);
+    for (std::int32_t tile_x = 0; tile_x < width; tile_x += kTile) {
+      const auto x_end = std::min(width, tile_x + kTile);
+      for (std::int32_t y = tile_y; y < y_end; ++y) {
+        const auto* from = source + static_cast<std::size_t>(y) * source_stride + static_cast<std::size_t>(tile_x) * bytes;
+        // Clockwise: (x, y) -> (height - 1 - y, x). Counterclockwise: (x, y) -> (y, width - 1 - x).
+        const auto to_x = static_cast<std::size_t>(clockwise ? height - 1 - y : y) * bytes;
+        for (std::int32_t x = tile_x; x < x_end; ++x, from += bytes) {
+          const auto to_y = static_cast<std::size_t>(clockwise ? x : width - 1 - x);
+          std::memcpy(rotated + to_y * rotated_stride + to_x, from, bytes);
+        }
+      }
     }
+  }
+}
+
+PixelBuffer rotated_buffer_quarter_turn(const PixelBuffer& source, bool clockwise) {
+  PixelBuffer rotated(source.height(), source.width(), source.format());
+  if (source.empty() || source.width() <= 0 || source.height() <= 0) {
+    return rotated;
+  }
+  const auto pixel_bytes = bytes_per_pixel(source.format());
+  const auto* from = source.data().data();
+  auto* to = rotated.data().data();
+  switch (pixel_bytes) {
+    case 1:
+      rotate_quarter_turn_tiles<1>(from, to, source.width(), source.height(), pixel_bytes, clockwise);
+      break;
+    case 4:
+      rotate_quarter_turn_tiles<4>(from, to, source.width(), source.height(), pixel_bytes, clockwise);
+      break;
+    case 8:
+      rotate_quarter_turn_tiles<8>(from, to, source.width(), source.height(), pixel_bytes, clockwise);
+      break;
+    case 16:
+      rotate_quarter_turn_tiles<16>(from, to, source.width(), source.height(), pixel_bytes, clockwise);
+      break;
+    default:
+      rotate_quarter_turn_tiles<0>(from, to, source.width(), source.height(), pixel_bytes, clockwise);
+      break;
   }
   return rotated;
 }
 
+PixelBuffer rotated_buffer_clockwise(const PixelBuffer& source) {
+  return rotated_buffer_quarter_turn(source, true);
+}
+
 PixelBuffer rotated_buffer_counterclockwise(const PixelBuffer& source) {
-  PixelBuffer rotated(source.height(), source.width(), source.format());
-  const auto pixel_bytes = bytes_per_pixel(source.format());
-  for (std::int32_t y = 0; y < source.height(); ++y) {
-    for (std::int32_t x = 0; x < source.width(); ++x) {
-      const auto* src = source.pixel(x, y);
-      std::copy(src, src + pixel_bytes, rotated.pixel(y, source.width() - 1 - x));
-    }
-  }
-  return rotated;
+  return rotated_buffer_quarter_turn(source, false);
 }
 
 // Every sample of a single-channel buffer set to `value` (0..255 coverage) at its depth.

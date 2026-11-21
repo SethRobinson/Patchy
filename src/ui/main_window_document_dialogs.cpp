@@ -1901,11 +1901,18 @@ void MainWindow::rotate_canvas_arbitrary() {
     return;
   }
 
-  push_undo_snapshot(tr("Rotate canvas"));
   // Exposed corners take the background color under a Background layer, transparent elsewhere.
-  if (!patchy::rotate_document_arbitrary(doc, settings->clockwise_degrees, edit_color(canvas_->secondary_color()))) {
+  // The rotation resamples every raster, on a worker behind the Processing overlay.
+  const auto clockwise_degrees = settings->clockwise_degrees;
+  const auto extension_color = edit_color(canvas_->secondary_color());
+  auto rotated = changed_document_with_processing([clockwise_degrees, extension_color](Document& copy) {
+    return patchy::rotate_document_arbitrary(copy, clockwise_degrees, extension_color);
+  });
+  if (!rotated.has_value()) {
     return;
   }
+  push_undo_snapshot(tr("Rotate canvas"));
+  doc = std::move(*rotated);
   // The rotation resampled every raster; text layers re-render crisp through the composed
   // matrix, exactly as after Image Size.
   rerender_text_layers_through_transforms(session());
