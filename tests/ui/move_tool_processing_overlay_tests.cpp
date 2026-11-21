@@ -5776,6 +5776,174 @@ void ui_move_short_drag_keeps_its_background_preview_for_the_next_drag() {
   CHECK(images_equal_rgba(render_widget_image(*scene.canvas), scene.reference_image()));
 }
 
+// Free Transform on a large document keeps its two slow renders off the UI thread
+// (November 2026, the 4000x2781 pinball poster: the first grab of a handle froze 2.5 s for
+// the session base, and every release blocked 1.3 s for the exact patches). The base is
+// requested when the session opens; the canvas keeps the document as it is until it lands.
+// A release leaves the drag's last frame up while a worker renders the exact one.
+void ui_free_transform_large_document_renders_in_the_background() {
+  DeferredMoveScene scene;
+  auto& doc = patchy::ui::MainWindowTestAccess::document(scene.window);
+  // Content above the layer makes its preview a composite, and 200 layers is the
+  // production threshold for background work.
+  patchy::Layer above(doc.allocate_layer_id(), "Above",
+                      solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(220, 40, 40)));
+  above.set_bounds(patchy::Rect{340, 20, 20, 20});
+  doc.add_layer(std::move(above));
+  for (int i = 0; i < 200; ++i) {
+    doc.add_layer(patchy::Layer(doc.allocate_layer_id(), "Empty", patchy::PixelBuffer()));
+  }
+  doc.set_active_layer(scene.layer_id);
+  scene.canvas->document_changed();
+  scene.settle();
+  scene.canvas->set_selected_layer_ids({scene.layer_id});
+  scene.canvas->set_rulers_visible(false);
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(scene.window);
+  constexpr int kWorkerDelayMs = 700;
+  const QColor ink(20, 90, 235);
+  const auto diagnostics = [&] { return scene.canvas->render_cache_diagnostics(); };
+  const auto elapsed_ms = [](auto&& step) {
+    const auto started = std::chrono::steady_clock::now();
+    step();
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+  };
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray::number(kWorkerDelayMs));
+  const auto before = diagnostics();
+
+  // 1. Opening the session and grabbing the box return at once; the base is still rendering.
+  auto* transform_action = require_action(scene.window, "editFreeTransformAction");
+  const auto open_ms = elapsed_ms([&] {
+    transform_action->trigger();
+    QApplication::processEvents();
+  });
+  CHECK(scene.canvas->free_transform_active());
+  CHECK(open_ms < kWorkerDelayMs / 2.0);
+  CHECK(!scene.canvas->render_settled());
+  const auto start = scene.canvas->widget_position_for_document_point(QPoint(70, 70));
+  const auto grab_ms = elapsed_ms([&] {
+    send_mouse(*scene.canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*scene.canvas, QEvent::MouseMove, start + QPoint(20, 0), Qt::NoButton, Qt::LeftButton);
+  });
+  CHECK(grab_ms < kWorkerDelayMs / 2.0);
+  CHECK(diagnostics().transform_background_bases == before.transform_background_bases);
+  CHECK(diagnostics().awaited_renders == before.awaited_renders);
+  // No base yet: the canvas still shows the document, the layer where it was.
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(45, 70)), ink, 8));
+
+  // 2. The base lands with the button still down and the layer follows the pointer.
+  scene.settle();
+  CHECK(diagnostics().transform_background_bases == before.transform_background_bases + 1);
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(110, 70)), ink, 8));
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(45, 70)), QColor(Qt::white), 8));
+  send_mouse(*scene.canvas, QEvent::MouseMove, start + QPoint(40, 0), Qt::NoButton, Qt::LeftButton);
+  CHECK(diagnostics().transform_proxy_previews == before.transform_proxy_previews + 1);
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(130, 70)), ink, 8));
+
+  // 3. The release does not wait for the exact patches; the proxy stays up meanwhile.
+  const auto release_ms = elapsed_ms([&] {
+    send_mouse(*scene.canvas, QEvent::MouseButtonRelease, start + QPoint(50, 0), Qt::LeftButton, Qt::NoButton);
+  });
+  CHECK(release_ms < kWorkerDelayMs / 2.0);
+  CHECK(!scene.canvas->render_settled());
+  CHECK(diagnostics().awaited_renders == before.awaited_renders);
+  CHECK(diagnostics().transform_background_rest_renders == before.transform_background_rest_renders);
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(140, 70)), ink, 8));
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(60, 70)), QColor(Qt::white), 8));
+  scene.settle();
+  CHECK(diagnostics().transform_background_rest_renders == before.transform_background_rest_renders + 1);
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(140, 70)), ink, 8));
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(60, 70)), QColor(Qt::white), 8));
+
+  // 4. A second drag started while a release render is in flight drops that render and
+  //    keeps the proxy on screen; its own release renders the frame that counts.
+  auto again = scene.canvas->widget_position_for_document_point(QPoint(120, 70));
+  send_mouse(*scene.canvas, QEvent::MouseButtonPress, again, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*scene.canvas, QEvent::MouseMove, again + QPoint(20, 0), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*scene.canvas, QEvent::MouseMove, again + QPoint(40, 0), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*scene.canvas, QEvent::MouseButtonRelease, again + QPoint(50, 0), Qt::LeftButton, Qt::NoButton);
+  CHECK(!scene.canvas->render_settled());
+  again = scene.canvas->widget_position_for_document_point(QPoint(170, 70));
+  send_mouse(*scene.canvas, QEvent::MouseButtonPress, again, Qt::LeftButton, Qt::LeftButton);
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(190, 70)), ink, 8));
+  send_mouse(*scene.canvas, QEvent::MouseMove, again + QPoint(30, 0), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*scene.canvas, QEvent::MouseButtonRelease, again + QPoint(50, 0), Qt::LeftButton, Qt::NoButton);
+  const auto rest_renders = diagnostics().transform_background_rest_renders;
+  scene.settle();
+  CHECK(diagnostics().transform_background_rest_renders == rest_renders + 1);
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(240, 70)), ink, 8));
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(160, 70)), QColor(Qt::white), 8));
+
+  // 5. Enter commits what the preview showed: 40 -> 90 -> 140 -> 190, exact pixels.
+  send_key(*scene.canvas, Qt::Key_Return);
+  scene.settle();
+  CHECK(!scene.canvas->free_transform_active());
+  CHECK(scene.layer_x() == 190);
+  CHECK(images_equal_rgba(render_widget_image(*scene.canvas), scene.reference_image()));
+
+  // 6. Escape while the base is still rendering leaves nothing behind.
+  scene.canvas->set_selected_layer_ids({scene.layer_id});
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray::number(kWorkerDelayMs));
+  const auto before_cancel = diagnostics();
+  transform_action->trigger();
+  QApplication::processEvents();
+  CHECK(scene.canvas->free_transform_active());
+  CHECK(!scene.canvas->render_settled());
+  send_key(*scene.canvas, Qt::Key_Escape);
+  CHECK(!scene.canvas->free_transform_active());
+  scene.settle();
+  CHECK(diagnostics().transform_background_bases == before_cancel.transform_background_bases);
+  CHECK(scene.layer_x() == 190);
+  CHECK(images_equal_rgba(render_widget_image(*scene.canvas), scene.reference_image()));
+}
+
+// An untouched session's first preview is the canvas's own pixels (no render of the layer's
+// whole area at the first grab): a grab that does not move must leave the composite as it
+// was, blend mode included.
+void ui_free_transform_untouched_grab_keeps_the_composite() {
+  DeferredMoveScene scene;
+  auto& doc = patchy::ui::MainWindowTestAccess::document(scene.window);
+  doc.find_layer(scene.layer_id)->set_blend_mode(patchy::BlendMode::Multiply);
+  patchy::Layer below(doc.allocate_layer_id(), "Below",
+                      solid_pixels(400, 300, patchy::PixelFormat::rgba8(), QColor(255, 200, 100)));
+  const auto below_id = below.id();
+  doc.add_layer(std::move(below));
+  // Under the blue layer, over the white background.
+  auto& layers = doc.layers();
+  const auto found = std::find_if(layers.begin(), layers.end(), [&](const patchy::Layer& layer) { return layer.id() == below_id; });
+  std::rotate(layers.begin() + 1, found, found + 1);
+  doc.set_active_layer(scene.layer_id);
+  scene.canvas->document_changed();
+  scene.settle();
+  scene.canvas->set_selected_layer_ids({scene.layer_id});
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(scene.window);
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("0"));
+  // Live frames, not the scene's instant proxy latch: the drag below must show the blend.
+  qputenv("PATCHY_MOVE_LIVE_LATCH_MS", QByteArray("100000"));
+  // Off the box's center mark, which the session draws over the layer.
+  const auto multiplied = canvas_pixel(*scene.canvas, QPoint(55, 58));
+  CHECK(color_close(multiplied, QColor(20, 71, 92), 8));
+
+  require_action(scene.window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(scene.canvas->free_transform_active());
+  const auto start = scene.canvas->widget_position_for_document_point(QPoint(70, 70));
+  send_mouse(*scene.canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  CHECK(canvas_pixel(*scene.canvas, QPoint(55, 58)) == multiplied);
+  CHECK(canvas_pixel(*scene.canvas, QPoint(60, 85)) == multiplied);
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(200, 150)), QColor(255, 200, 100), 8));
+  send_mouse(*scene.canvas, QEvent::MouseButtonRelease, start, Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas_pixel(*scene.canvas, QPoint(55, 58)) == multiplied);
+  // The first move renders the real preview, still multiplied.
+  send_mouse(*scene.canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*scene.canvas, QEvent::MouseMove, start + QPoint(100, 0), Qt::NoButton, Qt::LeftButton);
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(155, 58)), multiplied, 8));
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(55, 58)), QColor(255, 200, 100), 8));
+  send_mouse(*scene.canvas, QEvent::MouseButtonRelease, start + QPoint(100, 0), Qt::LeftButton, Qt::NoButton);
+  send_key(*scene.canvas, Qt::Key_Escape);
+  scene.settle();
+  CHECK(!scene.canvas->free_transform_active());
+}
+
 void ui_move_rapid_commits_keep_latest_region_and_exact_pixels() {
   DeferredMoveScene scene;
   for (int i = 0; i < 5; ++i) {
@@ -5796,6 +5964,9 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
       {"ui_move_rapid_commits_keep_latest_region_and_exact_pixels", ui_move_rapid_commits_keep_latest_region_and_exact_pixels},
       {"ui_move_short_drag_keeps_its_background_preview_for_the_next_drag",
        ui_move_short_drag_keeps_its_background_preview_for_the_next_drag},
+      {"ui_free_transform_large_document_renders_in_the_background",
+       ui_free_transform_large_document_renders_in_the_background},
+      {"ui_free_transform_untouched_grab_keeps_the_composite", ui_free_transform_untouched_grab_keeps_the_composite},
       {"ui_move_preview_preserves_layer_order", ui_move_preview_preserves_layer_order},
       {"ui_move_tool_moves_selected_layers_together", ui_move_tool_moves_selected_layers_together},
       {"ui_move_auto_select_hover_outlines_with_multi_selection",

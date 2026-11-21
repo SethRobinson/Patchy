@@ -39,11 +39,13 @@
 #include "ui/smart_object_render.hpp"
 #include "ui/tool_cursors.hpp"
 
+#include <QApplication>
 #include <QColor>
 #include <QCoreApplication>
 #include <QImage>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPointer>
 #include <QPen>
 #include <QPoint>
 #include <QPointF>
@@ -75,6 +77,7 @@
 #include <optional>
 #include <ratio>
 #include <span>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -1421,6 +1424,10 @@ bool CanvasWidget::begin_free_transform() {
       transform_floating_.has_value() || transform_preview_needs_compositing(*document_, *layer);
   transform_clip_group_preview_possible_ =
       !transform_floating_.has_value() && transform_clip_group_preview_possible(*document_, *layer);
+  // A large document starts its base now, so it is usually there by the first grab.
+  if (transform_background_renders_allowed() && !transform_floating_.has_value()) {
+    request_transform_base_async();
+  }
   setCursor(Qt::ArrowCursor);
   update();
   notify_transform_controls_changed();
@@ -1942,6 +1949,8 @@ void CanvasWidget::reset_free_transform_session_state() {
   transform_scale_y_sign_ = 1.0;
   transform_drag_start_scale_x_sign_ = 1.0;
   transform_drag_start_scale_y_sign_ = 1.0;
+  cancel_transform_base_async();
+  cancel_transform_rest_render();
   transform_base_cache_ = QImage();
   transform_base_cache_scale_level_ = 0;
   transform_base_display_mip_cache_.clear();
@@ -2216,7 +2225,9 @@ bool CanvasWidget::prepare_free_transform_source() {
     return false;
   }
   if (!transform_source_image_.isNull()) {
-    if (transform_requires_composited_preview_ && transform_preview_patches_.empty()) {
+    // A pending base or release render brings the patches itself; a latched preview needs none.
+    if (transform_requires_composited_preview_ && transform_preview_patches_.empty() && !transform_base_pending_ &&
+        !transform_rest_pending_ && !transform_drag_uses_proxy_preview_ && !transform_drag_uses_clip_group_preview_) {
       refresh_transform_composited_preview_cache();
     }
     return true;
@@ -2230,9 +2241,254 @@ bool CanvasWidget::prepare_free_transform_source() {
       transform_floating_.has_value()
           ? transform_floating_->floating
           : qimage_from_pixel_buffer(std::as_const(*layer).pixels()).copy(transform_source_local_rect_);
-  rebuild_transform_base_cache();
+  if (transform_source_image_.isNull()) {
+    return false;
+  }
+  if (transform_base_pending_) {
+    return true;  // requested when the session opened; the base and first picture land together
+  }
+  if (transform_base_cache_.isNull()) {
+    rebuild_transform_base_cache();
+  }
+  show_transform_resting_preview();
+  return true;
+}
+
+bool CanvasWidget::transform_background_renders_allowed() const noexcept {
+  if constexpr (kBackgroundWorkRunsInline) {
+    return false;
+  }
+  return document_ != nullptr && transform_targets_.empty() && !transform_selection_only_ &&
+         should_prepare_move_preview_async();
+}
+
+void CanvasWidget::show_transform_resting_preview() {
+  if (!transform_requires_composited_preview_ || !transform_preview_patches_.empty() || !transform_targets_.empty()) {
+    return;
+  }
+  if (transform_identity_patches_from_render_cache()) {
+    return;
+  }
+  if (transform_background_renders_allowed() && !transform_floating_.has_value()) {
+    refresh_transform_composited_preview_cache(true, true);
+    if (transform_rest_pending_) {
+      return;
+    }
+  }
   refresh_transform_composited_preview_cache();
-  return !transform_source_image_.isNull();
+}
+
+// An untouched session's exact preview is the document as rendered: the patch a compositor
+// pass would produce over the hidden-layer base is what the render cache already holds
+// there. Rendering it took as long again as the base on a styled poster (1.3 s of a 2.5 s
+// first grab at 4000x2781).
+bool CanvasWidget::transform_identity_patches_from_render_cache() {
+  if (!transform_requires_composited_preview_ || !transforming_layer_ || document_ == nullptr ||
+      !transform_layer_id_.has_value() || !transform_targets_.empty() || transform_floating_.has_value() ||
+      transform_source_image_.isNull() || transform_is_distorted()) {
+    return false;
+  }
+  if (render_cache_dirty_ || render_cache_.isNull() || async_render_cache_in_flight_ || move_commit_job_.has_value() ||
+      render_cache_.size() != QSize(document_->width(), document_->height()) ||
+      std::as_const(*document_).color_state().bit_depth != BitDepth::UInt8 || palette_snap_context() != nullptr) {
+    return false;
+  }
+  if (transform_current_rect_ != transform_original_rect_ || transform_angle_ != 0.0 ||
+      transform_scale_x_sign_ != 1.0 || transform_scale_y_sign_ != 1.0 || !transform_session_delta().isIdentity()) {
+    return false;
+  }
+  const auto* layer = std::as_const(*document_).find_layer(*transform_layer_id_);
+  if (layer == nullptr) {
+    return false;
+  }
+  const auto patch_rect = to_qrect(layer_bounds_with_effects(*layer, layer->bounds()))
+                              .intersected(QRect(0, 0, document_->width(), document_->height()));
+  if (patch_rect.isEmpty()) {
+    return false;
+  }
+  transform_preview_patches_.clear();
+  transform_preview_patches_.push_back(RenderedDocumentPatch{patch_rect, render_cache_.copy(patch_rect)});
+  transform_preview_patches_rect_ = patch_rect;
+  transform_preview_patches_banded_ = false;
+  return true;
+}
+
+void CanvasWidget::cancel_transform_base_async() noexcept {
+  ++transform_base_generation_;
+  if (transform_base_pending_) {
+    transform_base_pending_ = false;
+    end_preview_render();
+  }
+}
+
+void CanvasWidget::cancel_transform_rest_render() noexcept {
+  ++transform_rest_generation_;
+  if (transform_rest_pending_) {
+    transform_rest_pending_ = false;
+    end_preview_render();
+  }
+}
+
+void CanvasWidget::wait_for_transform_base_async() {
+  if (!transform_base_pending_) {
+    return;
+  }
+  // The completion is a queued call, so the wait has to pump; input stays excluded.
+  wait_for_processing_operation([this] { return !transform_base_pending_; }, false);
+}
+
+bool CanvasWidget::request_transform_base_async() {
+  if (!transform_background_renders_allowed() || !transform_layer_id_.has_value() || transform_floating_.has_value()) {
+    return false;
+  }
+  const auto* layer = std::as_const(*document_).find_layer(*transform_layer_id_);
+  if (layer == nullptr) {
+    return false;
+  }
+  cancel_transform_base_async();
+  transform_base_cache_ = QImage();
+  transform_base_cache_scale_level_ = 0;
+  transform_base_display_mip_cache_.clear();
+  transform_base_display_mip_source_key_ = 0;
+
+  const auto level = preview_composite_level_for_zoom(view_zoom());
+  if (level < 1) {
+    wait_for_move_commit_job();  // the full-size base patches the render cache, which must be exact
+  }
+  const auto generation = transform_base_generation_;
+  transform_base_pending_ = true;
+  begin_preview_render();
+  auto snapshot = std::make_shared<const Document>(*document_);
+  const std::vector<LayerId> hidden{*transform_layer_id_};
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  const auto layer_rect = to_qrect(layer_bounds_with_effects(*layer, layer->bounds())).intersected(canvas_rect);
+  auto scaled = std::make_shared<std::optional<Document>>();
+  if (level >= 1 && preview_scaled_document_.has_value() && preview_scaled_document_level_ == level) {
+    scaled->emplace(*preview_scaled_document_);
+  }
+  auto scale_cache = preview_scale_cache_ ? std::make_shared<PreviewScaleCache>(*preview_scale_cache_)
+                                        : std::make_shared<PreviewScaleCache>();
+  const auto scale_cache_epoch = preview_scale_cache_epoch_;
+  // The same picture rebuild_transform_base_cache makes: the scaled canvas when zoomed out,
+  // else the render cache with the layer's own region re-rendered without it.
+  QImage frame;
+  if (level < 1 && !render_cache_dirty_ && !render_cache_.isNull() && render_cache_.size() == canvas_rect.size()) {
+    frame = render_cache_;
+  }
+  const int delay = std::max(0, qEnvironmentVariableIntValue("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS"));
+  auto* app = QApplication::instance();
+  const QPointer<CanvasWidget> widget(this);
+  run_tracked_background_worker([widget, app, generation, level, snapshot, hidden, canvas_rect, layer_rect, scaled,
+                                 scale_cache, scale_cache_epoch, delay, frame = std::move(frame)]() mutable {
+    QImage base;
+    bool scaled_built = false;
+    try {
+      if (delay > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+      }
+      if (level >= 1) {
+        if (!scaled->has_value()) {
+          scaled->emplace(build_preview_scaled_document(*snapshot, level, scale_cache.get()));
+          scaled_built = true;
+        }
+        const auto& source = **scaled;
+        base = qimage_from_document_rect_with_hidden_layers_banded(source, QRect(0, 0, source.width(), source.height()),
+                                                                   true, hidden)
+                   .convertToFormat(QImage::Format_RGBA8888);
+      } else if (frame.isNull()) {
+        base = qimage_from_document_rect_with_hidden_layers(*snapshot, canvas_rect, true, hidden)
+                   .convertToFormat(QImage::Format_RGBA8888);
+      } else {
+        base = frame.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        frame = QImage();
+        if (!layer_rect.isEmpty()) {
+          const auto cleared = qimage_from_document_rect_with_hidden_layers(*snapshot, layer_rect, true, hidden);
+          if (!cleared.isNull()) {
+            QPainter painter(&base);
+            painter.setCompositionMode(QPainter::CompositionMode_Source);
+            painter.drawImage(layer_rect.topLeft(), cleared.convertToFormat(QImage::Format_ARGB32_Premultiplied));
+          }
+        }
+      }
+    } catch (...) {
+      base = {};
+    }
+    QMetaObject::invokeMethod(
+        app,
+        [widget, generation, level, scaled, scaled_built, scale_cache, scale_cache_epoch,
+         base = std::move(base)]() mutable {
+          if (widget) {
+            widget->finish_transform_base_async(generation, std::move(base), level, std::move(scaled), scaled_built,
+                                                std::move(scale_cache), scale_cache_epoch);
+          }
+        },
+        Qt::QueuedConnection);
+  });
+  return true;
+}
+
+void CanvasWidget::finish_transform_base_async(std::uint64_t generation, QImage base, int level,
+                                               std::shared_ptr<std::optional<Document>> scaled, bool scaled_built,
+                                               std::shared_ptr<PreviewScaleCache> scale_cache,
+                                               std::uint64_t scale_cache_epoch) {
+  const bool current = generation == transform_base_generation_ && transform_base_pending_ && transforming_layer_ &&
+                       document_ != nullptr;
+  if (!current) {
+    // The scaled surfaces stay useful whatever ended the request (as for a Move preview).
+    if (scaled_built && document_ != nullptr && scale_cache_epoch == preview_scale_cache_epoch_ &&
+        level == preview_composite_level_for_zoom(view_zoom())) {
+      preview_scale_cache_ = std::move(scale_cache);
+    }
+    return;
+  }
+  transform_base_pending_ = false;
+  end_preview_render();
+  if (base.isNull()) {
+    rebuild_transform_base_cache();
+  } else {
+    if (level >= 1 && scaled != nullptr && scaled->has_value() &&
+        (!preview_scaled_document_.has_value() || preview_scaled_document_level_ != level)) {
+      move_nest_preview_document_.reset();
+      preview_scaled_document_ = std::move(*scaled);
+      preview_scaled_document_level_ = level;
+      preview_scale_cache_ = std::move(scale_cache);
+    }
+    transform_base_cache_ = std::move(base);
+    transform_base_cache_scale_level_ = level >= 1 ? level : 0;
+    transform_base_display_mip_cache_.clear();
+    transform_base_display_mip_source_key_ = 0;
+    if (level >= 1) {
+      ++render_cache_diagnostics_.transform_scaled_bases;
+    }
+  }
+  ++render_cache_diagnostics_.transform_background_bases;
+  if (!transform_source_image_.isNull()) {
+    if (dragging_transform_) {
+      refresh_transform_preview_for_drag();
+    } else {
+      show_transform_resting_preview();
+    }
+  }
+  update();
+}
+
+void CanvasWidget::finish_transform_rest_render(std::uint64_t generation, std::vector<RenderedDocumentPatch> patches,
+                                                QRect patches_rect) {
+  if (generation != transform_rest_generation_ || !transform_rest_pending_) {
+    return;
+  }
+  transform_rest_pending_ = false;
+  end_preview_render();
+  if (!transforming_layer_ || document_ == nullptr) {
+    return;
+  }
+  transform_preview_patches_ = std::move(patches);
+  transform_preview_patches_rect_ = patches_rect;
+  transform_preview_patches_banded_ = false;
+  transform_drag_uses_proxy_preview_ = false;
+  transform_drag_uses_clip_group_preview_ = false;
+  ++render_cache_diagnostics_.transform_background_rest_renders;
+  update();
 }
 
 const QImage& CanvasWidget::transform_preview_source_image() const {
@@ -2256,6 +2512,7 @@ const QImage& CanvasWidget::transform_preview_source_image() const {
 // its effects) occupies, with the layer hidden via a visibility override so
 // no revision-bumping visibility toggle is needed.
 void CanvasWidget::rebuild_transform_base_cache() {
+  cancel_transform_base_async();  // this build is the newer one
   wait_for_move_commit_job();  // the base patches the render cache, which must be exact
   transform_base_cache_ = QImage();
   transform_base_cache_scale_level_ = 0;
@@ -2608,18 +2865,28 @@ void CanvasWidget::refresh_transform_multi_preview_cache(bool processing_wait) {
   transform_preview_patches_rect_ = result.second;
 }
 
-void CanvasWidget::refresh_transform_composited_preview_cache(bool processing_wait) {
-  transform_preview_patches_banded_ = false;
+void CanvasWidget::refresh_transform_composited_preview_cache(bool processing_wait, bool background) {
+  cancel_transform_rest_render();  // every refresh is newer than a render still in flight
   if (!transform_targets_.empty()) {
+    transform_preview_patches_banded_ = false;
     refresh_transform_multi_preview_cache(processing_wait);
     return;
   }
-  transform_preview_patches_.clear();
-  transform_preview_patches_rect_ = QRect();
+  background = background && processing_wait && transform_background_renders_allowed() &&
+               transform_requires_composited_preview_ && transforming_layer_ && transform_layer_id_.has_value() &&
+               !transform_source_image_.isNull();
+  if (!background) {
+    transform_preview_patches_banded_ = false;
+    transform_preview_patches_.clear();
+    transform_preview_patches_rect_ = QRect();
+  }
   if (!transform_requires_composited_preview_ || !transforming_layer_ || document_ == nullptr ||
       !transform_layer_id_.has_value() || transform_source_image_.isNull()) {
     return;
   }
+  // A worker reads an immutable snapshot; the waits below keep the live document still.
+  const std::shared_ptr<const Document> snapshot =
+      background ? std::make_shared<const Document>(*document_) : std::shared_ptr<const Document>();
   const auto* layer = std::as_const(*document_).find_layer(*transform_layer_id_);
   if (layer == nullptr) {
     return;
@@ -2652,7 +2919,15 @@ void CanvasWidget::refresh_transform_composited_preview_cache(bool processing_wa
   // holds the final composite. Re-rendering the full canvas here on every
   // mouse-move was the transform preview's dominant cost on large documents.
   const bool live_drag = dragging_transform_ && !processing_wait;
-  const auto compute = [document = document_, layer, layer_id = *transform_layer_id_,
+  // Owning for a worker's snapshot, a plain pointer to the live document otherwise.
+  const std::shared_ptr<const Document> render_document_source =
+      snapshot != nullptr ? snapshot : std::shared_ptr<const Document>(std::shared_ptr<const Document>(), document_);
+  const Layer* render_layer = snapshot != nullptr ? snapshot->find_layer(*transform_layer_id_) : layer;
+  if (render_layer == nullptr) {
+    return;
+  }
+  const auto compute = [document = render_document_source, layer = render_layer,
+                        layer_id = *transform_layer_id_,
                         source = transform_source_image_, mask_source, floating_preview,
                         source_to_document =
                             transform_session_source_to_document(transform_source_image_.size()),
@@ -2714,6 +2989,35 @@ void CanvasWidget::refresh_transform_composited_preview_cache(bool processing_wa
                                    transformed_result.bounds);
     return {std::move(patches), patch_rect};
   };
+
+  if (background) {
+    const auto generation = transform_rest_generation_;
+    transform_rest_pending_ = true;
+    begin_preview_render();
+    const int delay = std::max(0, qEnvironmentVariableIntValue("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS"));
+    auto* app = QApplication::instance();
+    const QPointer<CanvasWidget> widget(this);
+    run_tracked_background_worker([widget, app, generation, delay, compute]() mutable {
+      std::pair<std::vector<RenderedDocumentPatch>, QRect> rendered;
+      try {
+        if (delay > 0) {
+          std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+        }
+        rendered = compute();
+      } catch (...) {
+        rendered = {};
+      }
+      QMetaObject::invokeMethod(
+          app,
+          [widget, generation, rendered = std::move(rendered)]() mutable {
+            if (widget) {
+              widget->finish_transform_rest_render(generation, std::move(rendered.first), rendered.second);
+            }
+          },
+          Qt::QueuedConnection);
+    });
+    return;
+  }
 
   std::pair<std::vector<RenderedDocumentPatch>, QRect> result;
   bool run_inline = !processing_wait;
@@ -2958,6 +3262,11 @@ void CanvasWidget::draw_transform_clip_group_preview(QPainter& painter) const {
 // three update_free_transform_preview branches route here, so numeric edits,
 // nudges, interpolation changes, and Layer Style live edits can never latch.
 void CanvasWidget::refresh_transform_preview_for_drag() {
+  if (transform_targets_.empty() && transform_base_pending_) {
+    // Nothing drawn over a missing base can show: the canvas keeps the document as it is
+    // under the moving box until finish_transform_base_async calls back in here.
+    return;
+  }
   if (!transform_targets_.empty()) {
     // Multi-target drags always blit the subtree snapshot (the move-proxy
     // contract). Setting the latch flag routes the shared release path through
@@ -3069,7 +3378,16 @@ void CanvasWidget::refresh_free_transform_preview_caches() {
     }
     return;
   }
-  if (!transform_layer_id_.has_value() || transform_source_image_.isNull()) {
+  if (!transform_layer_id_.has_value()) {
+    return;
+  }
+  if (transform_source_image_.isNull()) {
+    // Not grabbed yet, but a base requested when the session opened predates this change.
+    if (transform_base_pending_ || !transform_base_cache_.isNull()) {
+      cancel_transform_base_async();
+      transform_base_cache_ = QImage();
+      request_transform_base_async();
+    }
     return;
   }
   auto* layer = document_->find_layer(*transform_layer_id_);
@@ -5261,6 +5579,7 @@ void CanvasWidget::commit_free_transform() {
     commit_transform_selection();
     return;
   }
+  wait_for_transform_base_async();  // the commit hold is composed over the base
   // Photoshop warns before transforming type whose font is missing (GitHub issue 185); the
   // owner asks before anything is written, and a refusal cancels the session untouched.
   if (transforming_layer_ && document_ != nullptr && missing_font_transform_confirm_callback_) {

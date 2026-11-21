@@ -924,8 +924,18 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         return;
       }
       dragging_transform_ = true;
-      transform_drag_uses_proxy_preview_ = false;
-      transform_drag_uses_clip_group_preview_ = false;
+      // A release render still in flight left the drag's proxy or clip-group blit on
+      // screen; the new drag keeps it instead of falling back to the bare source blit.
+      const bool keep_latched_preview = transform_rest_pending_ && transform_preview_patches_.empty();
+      cancel_transform_rest_render();
+      if (keep_latched_preview && transform_drag_uses_proxy_preview_) {
+        ++render_cache_diagnostics_.transform_proxy_previews;
+      } else if (keep_latched_preview && transform_drag_uses_clip_group_preview_) {
+        ++render_cache_diagnostics_.transform_clip_group_previews;
+      } else {
+        transform_drag_uses_proxy_preview_ = false;
+        transform_drag_uses_clip_group_preview_ = false;
+      }
       transform_drag_handle_ = handle;
       transform_drag_start_point_ = document_position_f(event->position());
       transform_drag_start_rect_ = transform_current_rect_;
@@ -3347,18 +3357,24 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       return;
     }
     record_transform_session_step(transform_session_step_at_press_);
-    if (transform_drag_uses_proxy_preview_ || transform_drag_uses_clip_group_preview_) {
+    if (transform_base_pending_) {
+      // Released before the session base landed: finish_transform_base_async shows the
+      // resting preview over it.
+    } else if (transform_drag_uses_proxy_preview_ || transform_drag_uses_clip_group_preview_) {
       // The latched drag skipped the composited patches; render them once at
       // the final geometry so the resting preview is accurate. The latch stays
-      // set until the patches exist so paints during the overlay wait keep
-      // showing the proxy (or the clip-group blit) rather than the raw source.
-      refresh_transform_composited_preview_cache(true);
-      transform_drag_uses_proxy_preview_ = false;
-      transform_drag_uses_clip_group_preview_ = false;
+      // set until the patches exist so paints meanwhile keep showing the proxy
+      // (or the clip-group blit) rather than the raw source: through the overlay
+      // wait, or on a large document until the worker's patches land.
+      refresh_transform_composited_preview_cache(true, true);
+      if (!transform_rest_pending_) {
+        transform_drag_uses_proxy_preview_ = false;
+        transform_drag_uses_clip_group_preview_ = false;
+      }
     } else if (transform_preview_patches_banded_) {
       // Live drag frames render in preview-only bands; the resting preview
       // (and the commit hold built from it) gets the exact render.
-      refresh_transform_composited_preview_cache(true);
+      refresh_transform_composited_preview_cache(true, true);
     }
     update_tool_cursor();
     update();

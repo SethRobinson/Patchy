@@ -3875,7 +3875,32 @@ private:
   bool ensure_transform_multi_snapshot();
   void refresh_transform_multi_preview_cache(bool processing_wait);
   void commit_free_transform_multi();
-  void refresh_transform_composited_preview_cache(bool processing_wait = false);
+  // `background` (single-layer sessions): the exact patches render on a worker from a
+  // snapshot and land through finish_transform_rest_render; what is on screen (the proxy,
+  // the clip-group blit or the banded drag patches) stays up until they do.
+  void refresh_transform_composited_preview_cache(bool processing_wait = false, bool background = false);
+  // Free Transform on a large document (should_prepare_move_preview_async) keeps two renders
+  // off the UI thread: the session base (the document with the layer hidden), requested when
+  // the session opens, and the exact patches a handle release shows. Until the base lands
+  // the canvas keeps the document as it is with the box over it; until the patches land it
+  // keeps the drag's last frame. Any synchronous rebuild or refresh, a new drag and the end
+  // of the session drop the pending result (the generations).
+  [[nodiscard]] bool transform_background_renders_allowed() const noexcept;
+  bool request_transform_base_async();
+  void finish_transform_base_async(std::uint64_t generation, QImage base, int level,
+                                   std::shared_ptr<std::optional<Document>> scaled, bool scaled_built,
+                                   std::shared_ptr<PreviewScaleCache> scale_cache, std::uint64_t scale_cache_epoch);
+  void cancel_transform_base_async() noexcept;
+  // Blocks (pumping non-input events) until a pending base has landed: the commit hold is
+  // composed from it.
+  void wait_for_transform_base_async();
+  void finish_transform_rest_render(std::uint64_t generation, std::vector<RenderedDocumentPatch> patches,
+                                    QRect patches_rect);
+  void cancel_transform_rest_render() noexcept;
+  // The first picture over a fresh base, cheapest first: at the identity transform the
+  // exact patch is the render cache's own pixels; otherwise a background or inline render.
+  void show_transform_resting_preview();
+  bool transform_identity_patches_from_render_cache();
   [[nodiscard]] const TransformLinkedMaskSource* transform_linked_mask_source(const Layer& layer);
   void refresh_transform_preview_for_drag();
   [[nodiscard]] bool transform_drag_should_use_proxy_preview() const;
@@ -5566,6 +5591,10 @@ private:
   // the rest of the drag; the proxy image persists across drags in a session.
   bool transform_drag_uses_proxy_preview_{false};
   bool transform_preview_patches_banded_{false};  // drag frames; release re-renders exactly
+  std::uint64_t transform_base_generation_{0};
+  bool transform_base_pending_{false};
+  std::uint64_t transform_rest_generation_{0};
+  bool transform_rest_pending_{false};
   // A live composited-preview refresh ran over the latch threshold; the next
   // drag move latches the proxy. Persists across drags within the session
   // (the layer stays expensive) and resets with the session state.

@@ -561,6 +561,10 @@ struct CanvasRenderCacheDiagnostics {
   // (the transformed base plus the cached clipped members, GitHub #398)
   // instead of compositing patches per mouse-move. At most once per drag.
   int transform_clip_group_previews{0};
+  // Free Transform renders that ran on a worker on a large document: session bases, and
+  // the exact patches shown after a handle release.
+  int transform_background_bases{0};
+  int transform_background_rest_renders{0};
   // Times a transform session built its base cache from the preview-scaled
   // document (display-resolution compositing at zoom <= 50%).
   int transform_scaled_bases{0};
