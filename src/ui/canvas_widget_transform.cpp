@@ -3014,7 +3014,9 @@ void CanvasWidget::refresh_transform_composited_preview_cache(bool processing_wa
         }
         rendered = compute();
       } catch (...) {
-        rendered = {};
+        // Spelled out: `rendered = {}` is ambiguous for a pair under the web toolchain's libc++.
+        rendered.first.clear();
+        rendered.second = QRect();
       }
       QMetaObject::invokeMethod(
           app,
