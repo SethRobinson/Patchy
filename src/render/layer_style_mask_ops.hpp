@@ -141,8 +141,11 @@ int layer_style_falloff_radius(float size) noexcept;
 
 void blur_layer_style_mask_in_place(std::vector<float>& mask, int width, int height, float size);
 
+// `source_strengths` (here and below): the component strengths of the matte's pixels when
+// the caller has them from more of the layer than this buffer holds (see
+// layer_style_source_strengths); null computes them from the buffer.
 void expand_layer_style_mask_in_place(std::vector<float>& mask, int width, int height, float radius,
-                                      float pixels_per_unit);
+                                      float pixels_per_unit, const std::vector<float>* source_strengths = nullptr);
 
 int layer_style_mask_supersample_scale(int width, int height, float size) noexcept;
 
@@ -156,10 +159,16 @@ std::vector<float> supersampled_layer_style_mask(const std::vector<float>& mask,
 void downsample_layer_style_mask(const std::vector<float>& scaled, std::vector<float>& mask, int width,
                                  int height, int scale);
 
-void prepare_layer_style_soft_mask(std::vector<float>& mask, int width, int height, float size, float spread);
+void prepare_layer_style_soft_mask(std::vector<float>& mask, int width, int height, float size, float spread,
+                                   const std::vector<float>* source_strengths = nullptr);
 
 void prepare_outer_glow_softer_mask(std::vector<float>& mask, int width, int height, float size, float spread,
-                                    float range);
+                                    float range, const std::vector<float>* source_strengths = nullptr);
+
+// True when the soft exterior mask at this size and spread expands its matte with the
+// component-strength band (a spread radius past the exact dilation's limit), the one step
+// of that pipeline that reads more than its neighborhood.
+[[nodiscard]] bool soft_effect_mask_reads_source_strengths(float size, float spread) noexcept;
 
 void prepare_photoshop_interior_soft_mask(std::vector<float>& mask, int width, int height, float size,
                                           float choke);
@@ -177,13 +186,20 @@ float layer_style_falloff_alpha(float distance, float size, float spread) noexce
 void relax_distance(float& distance, float& strength, float candidate_distance,
                     float candidate_strength) noexcept;
 
+// Per painted pixel, the largest alpha of its 8-connected component. A component is as
+// large as the shape it belongs to, so the answer for a pixel depends on the whole matte:
+// a buffer that holds only a window of the layer sees a different component (a wide grid
+// that fades along its length gave each render window its own glow, up to 36/255 apart).
+// Callers that window the matte pass strengths computed from the whole layer instead.
 std::vector<float> layer_style_source_strengths(const std::vector<float>& input, int width, int height);
 
 void chamfer_distance_and_strengths(const std::vector<float>& input, int width, int height,
-                                    std::vector<float>& distances, std::vector<float>& strengths);
+                                    std::vector<float>& distances, std::vector<float>& strengths,
+                                    const std::vector<float>* source_strengths = nullptr);
 
 std::vector<float> distance_falloff_mask(const std::vector<float>& input, int width, int height,
-                                         float size, float spread);
+                                         float size, float spread,
+                                         const std::vector<float>* source_strengths = nullptr);
 
 std::vector<float> bevel_technique_height_mask(const std::vector<float>& alpha_mask, int width, int height,
                                                const LayerBevelEmboss& bevel);

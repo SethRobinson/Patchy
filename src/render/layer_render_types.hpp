@@ -37,6 +37,10 @@ enum class StyleMaskKind : std::uint8_t {
   Stroke,
   Satin,
   GroupSilhouette,
+  // The component strengths of a layer's whole matte (layer_style_source_strengths over
+  // its visible alpha bounds): what a windowed Drop Shadow or Outer Glow mask reads so
+  // that every window sees the same components.
+  SourceStrengths,
 };
 
 struct StyleMaskEntry {

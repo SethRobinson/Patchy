@@ -410,7 +410,7 @@ void blur_layer_style_mask_in_place(std::vector<float>& mask, int width, int hei
 }
 
 void expand_layer_style_mask_in_place(std::vector<float>& mask, int width, int height, float radius,
-                                             float pixels_per_unit);
+                                             float pixels_per_unit, const std::vector<float>* source_strengths);
 
 int layer_style_mask_supersample_scale(int width, int height, float size) noexcept {
   if (size <= 0.0F || width <= 0 || height <= 0) {
@@ -503,11 +503,13 @@ namespace {
 // historical behavior; its binarization error is proportionally small at such
 // radii. Shared by the exterior spread and the interior choke, arithmetic and
 // iteration order verbatim from the pinned exterior pipeline.
-void dilate_layer_style_mask_by_radius(std::vector<float>& mask, int width, int height, int radius) {
+constexpr int kExactDilationRadiusLimit = 8;
+
+void dilate_layer_style_mask_by_radius(std::vector<float>& mask, int width, int height, int radius,
+                                       const std::vector<float>* source_strengths = nullptr) {
   if (radius <= 0 || width <= 0 || height <= 0 || mask.empty()) {
     return;
   }
-  constexpr int kExactDilationRadiusLimit = 8;
   if (radius <= kExactDilationRadiusLimit) {
     const int reach = radius + 1;
     std::vector<float> weights;
@@ -549,16 +551,19 @@ void dilate_layer_style_mask_by_radius(std::vector<float>& mask, int width, int 
     }
     mask.swap(dilated);
   } else {
-    expand_layer_style_mask_in_place(mask, width, height, static_cast<float>(radius), 1.0F);
+    expand_layer_style_mask_in_place(mask, width, height, static_cast<float>(radius), 1.0F, source_strengths);
   }
 }
 
+int soft_effect_spread_radius(float size, float spread) noexcept {
+  return static_cast<int>(std::lround(std::max(0.0F, size) * clamp_unit(spread / 100.0F)));
+}
+
 void prepare_photoshop_soft_effect_mask(std::vector<float>& mask, int width, int height, float size,
-                                        float spread) {
+                                        float spread, const std::vector<float>* source_strengths) {
   const auto rounded_size = std::lround(std::max(0.0F, size));
-  const auto spread_radius =
-      static_cast<int>(std::lround(std::max(0.0F, size) * clamp_unit(spread / 100.0F)));
-  dilate_layer_style_mask_by_radius(mask, width, height, spread_radius);
+  const auto spread_radius = soft_effect_spread_radius(size, spread);
+  dilate_layer_style_mask_by_radius(mask, width, height, spread_radius, source_strengths);
   if (rounded_size > 0) {
     const auto tent_peak = std::max<long>(2, rounded_size) - spread_radius;
     if (tent_peak >= 2) {
@@ -677,8 +682,13 @@ void sweep_layer_style_mask_in_place(std::vector<float>& mask, int width, int he
 // above (re-calibrated July 2026: 'dsdw' probes at sizes 5/10/12/17 and
 // spreads 0/8/18 matched the tent byte-for-byte where the historical
 // triple-box blur was visibly hotter near the contour on thin shapes).
-void prepare_layer_style_soft_mask(std::vector<float>& mask, int width, int height, float size, float spread) {
-  prepare_photoshop_soft_effect_mask(mask, width, height, size, spread);
+void prepare_layer_style_soft_mask(std::vector<float>& mask, int width, int height, float size, float spread,
+                                   const std::vector<float>* source_strengths) {
+  prepare_photoshop_soft_effect_mask(mask, width, height, size, spread, source_strengths);
+}
+
+bool soft_effect_mask_reads_source_strengths(float size, float spread) noexcept {
+  return soft_effect_spread_radius(size, spread) > kExactDilationRadiusLimit;
 }
 
 // Photoshop's outer-glow "Softer" technique (COM-probed July 2026 with square,
@@ -690,8 +700,8 @@ void prepare_layer_style_soft_mask(std::vector<float>& mask, int width, int heig
 // probes matched within 1.4/255; a hard spread-100 band's corner arc differs
 // by up to ~1px of arc (chamfer-vs-area-sampling convention).
 void prepare_outer_glow_softer_mask(std::vector<float>& mask, int width, int height, float size, float spread,
-                                    float range) {
-  prepare_photoshop_soft_effect_mask(mask, width, height, size, spread);
+                                    float range, const std::vector<float>* source_strengths) {
+  prepare_photoshop_soft_effect_mask(mask, width, height, size, spread, source_strengths);
   const auto gain = 100.0F / std::clamp(range, 1.0F, 100.0F);
   if (gain > 1.0F) {
     for (auto& value : mask) {
@@ -861,10 +871,13 @@ std::vector<float> layer_style_source_strengths(const std::vector<float>& input,
 // carrying the per-component source strength alongside. Deterministic scan-order float
 // relaxation shared by the outer-glow falloff and the drop-shadow spread expansion.
 void chamfer_distance_and_strengths(const std::vector<float>& input, int width, int height,
-                                           std::vector<float>& distances, std::vector<float>& strengths) {
+                                           std::vector<float>& distances, std::vector<float>& strengths,
+                                           const std::vector<float>* provided_strengths) {
   constexpr float kInfinity = 1.0e20F;
   constexpr float kDiagonalDistance = 1.41421356237F;
-  const auto source_strengths = layer_style_source_strengths(input, width, height);
+  const bool provided = provided_strengths != nullptr && provided_strengths->size() == input.size();
+  const auto computed_strengths = provided ? std::vector<float>{} : layer_style_source_strengths(input, width, height);
+  const auto& source_strengths = provided ? *provided_strengths : computed_strengths;
   distances.assign(input.size(), kInfinity);
   strengths.assign(input.size(), 0.0F);
   for (std::size_t index = 0; index < input.size(); ++index) {
@@ -924,10 +937,11 @@ void chamfer_distance_and_strengths(const std::vector<float>& input, int width, 
 }
 
 std::vector<float> distance_falloff_mask(const std::vector<float>& input, int width, int height,
-                                                float size, float spread) {
+                                                float size, float spread,
+                                                const std::vector<float>* source_strengths) {
   std::vector<float> distances;
   std::vector<float> strengths;
-  chamfer_distance_and_strengths(input, width, height, distances, strengths);
+  chamfer_distance_and_strengths(input, width, height, distances, strengths, source_strengths);
   for (std::size_t index = 0; index < distances.size(); ++index) {
     distances[index] = strengths[index] * layer_style_falloff_alpha(distances[index], size, spread);
   }
@@ -939,13 +953,13 @@ std::vector<float> distance_falloff_mask(const std::vector<float>& input, int wi
 // `radius` is in output pixels; `pixels_per_unit` maps them to mask pixels so the
 // supersampled path expands in scaled space while keeping the 1px ramp width.
 void expand_layer_style_mask_in_place(std::vector<float>& mask, int width, int height, float radius,
-                                             float pixels_per_unit) {
+                                             float pixels_per_unit, const std::vector<float>* source_strengths) {
   if (radius <= 0.0F || mask.empty()) {
     return;
   }
   std::vector<float> distances;
   std::vector<float> strengths;
-  chamfer_distance_and_strengths(mask, width, height, distances, strengths);
+  chamfer_distance_and_strengths(mask, width, height, distances, strengths, source_strengths);
   for (std::size_t index = 0; index < mask.size(); ++index) {
     const auto coverage = clamp_unit(radius + 1.0F - distances[index] / pixels_per_unit);
     mask[index] = std::max(mask[index], strengths[index] * coverage);

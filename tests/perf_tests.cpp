@@ -1723,7 +1723,56 @@ void strip_check_perf_if_available() {
           << layer->bounds().height << " effects=" << (style.effects_visible && !style.empty() ? 1 : 0)
           << " shadows=" << style.drop_shadows.size() << " glows=" << style.outer_glows.size()
           << " strokes=" << style.strokes.size();
-    report(label.str(), threaded, single);
+    if (report(label.str(), threaded, single) == 0) {
+      continue;
+    }
+    // Which of the layer's effects depends on the strips: each kind alone.
+    struct Kind {
+      const char* name;
+      void (*keep)(patchy::LayerStyle&);
+    };
+    const std::array<Kind, 10> kinds{{
+        {"none", [](patchy::LayerStyle& st) { st = patchy::LayerStyle{}; }},
+        {"drop_shadows", [](patchy::LayerStyle& st) { auto k = st.drop_shadows; st = patchy::LayerStyle{}; st.drop_shadows = k; }},
+        {"inner_shadows", [](patchy::LayerStyle& st) { auto k = st.inner_shadows; st = patchy::LayerStyle{}; st.inner_shadows = k; }},
+        {"outer_glows", [](patchy::LayerStyle& st) { auto k = st.outer_glows; st = patchy::LayerStyle{}; st.outer_glows = k; }},
+        {"inner_glows", [](patchy::LayerStyle& st) { auto k = st.inner_glows; st = patchy::LayerStyle{}; st.inner_glows = k; }},
+        {"overlays", [](patchy::LayerStyle& st) {
+           auto c = st.color_overlays;
+           auto g = st.gradient_fills;
+           auto pt = st.pattern_overlays;
+           st = patchy::LayerStyle{};
+           st.color_overlays = c;
+           st.gradient_fills = g;
+           st.pattern_overlays = pt;
+         }},
+        {"strokes", [](patchy::LayerStyle& st) { auto k = st.strokes; st = patchy::LayerStyle{}; st.strokes = k; }},
+        {"first_stroke", [](patchy::LayerStyle& st) {
+           auto k = st.strokes;
+           if (k.size() > 1) k.resize(1);
+           st = patchy::LayerStyle{};
+           st.strokes = k;
+         }},
+        {"bevels", [](patchy::LayerStyle& st) { auto k = st.bevels; st = patchy::LayerStyle{}; st.bevels = k; }},
+        {"satins", [](patchy::LayerStyle& st) { auto k = st.satins; st = patchy::LayerStyle{}; st.satins = k; }},
+    }};
+    for (const auto& kind : kinds) {
+      patchy::Document only = alone;
+      auto edited = std::as_const(only).find_layer(keep)->layer_style();
+      kind.keep(edited);
+      only.find_layer(keep)->layer_style() = edited;
+      const auto [kind_threaded, kind_single] = render_pair(only);
+      report(std::string("    only=") + kind.name, kind_threaded, kind_single);
+    }
+    for (const auto& glow : style.outer_glows) {
+      std::cout << "[PERF_STRIP_CHECK]     glow size=" << glow.size << " spread=" << glow.spread << " range="
+                << glow.range << " technique=" << static_cast<int>(glow.technique) << " opacity=" << glow.opacity
+                << " gradient=" << (glow.gradient ? 1 : 0) << '\n';
+    }
+    for (const auto& stroke : style.strokes) {
+      std::cout << "[PERF_STRIP_CHECK]     stroke size=" << stroke.size << " opacity=" << stroke.opacity
+                << " overprint=" << (stroke.overprint ? 1 : 0) << " enabled=" << (stroke.enabled ? 1 : 0) << '\n';
+    }
   }
 }
 

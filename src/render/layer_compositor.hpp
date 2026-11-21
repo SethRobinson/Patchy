@@ -550,6 +550,63 @@ struct PreparedInteriorOverlay {
 [[nodiscard]] DeepChannels fold_prepared_satins(DeepChannels color, const std::vector<PreparedSatin>& satins,
                                                 std::int32_t x, std::int32_t y, DeepDomain domain);
 
+// For the pixels of `domain`, sampled `shift` away (a Drop Shadow's offset), the component
+// strengths of the layer's WHOLE matte. A window that holds only part of the layer cannot
+// compute them: a component reaches as far as its shape does, so each strip, patch and full
+// render used to give the same pixel a different strength. Empty when the window holds
+// every painted pixel, where the mask's own flood fill is already that answer (and the
+// bytes of every such render stay what they were). The plane over the layer's visible
+// bounds is cached under the layer's content revision when a provider is there.
+[[nodiscard]] inline std::vector<float> layer_matte_strengths_for_window(
+    StyleMaskProvider* masks, const Layer& layer, const PixelBuffer& source, Rect bounds, Rect source_bounds,
+    std::optional<Rect> layer_mask_bounds, Rect domain, std::int32_t shift_x, std::int32_t shift_y) {
+  if (layer.kind() == LayerKind::Group || source_bounds.empty() || domain.empty()) {
+    return {};
+  }
+  const Rect sampled{domain.x + shift_x, domain.y + shift_y, domain.width, domain.height};
+  if (sampled.x <= source_bounds.x && sampled.y <= source_bounds.y &&
+      sampled.x + sampled.width >= source_bounds.x + source_bounds.width &&
+      sampled.y + sampled.height >= source_bounds.y + source_bounds.height) {
+    return {};
+  }
+  const auto compute_plane = [&] {
+    StyleMaskEntry entry;
+    const auto matte = layer_alpha_mask(source, layer, bounds, source_bounds, 0, 0, layer_mask_bounds);
+    entry.primary = layer_style_source_strengths(matte, source_bounds.width, source_bounds.height);
+    return entry;
+  };
+  std::shared_ptr<const StyleMaskEntry> plane;
+  if (masks != nullptr) {
+    plane = masks->fetch(layer, StyleMaskKind::SourceStrengths, 0, source_bounds, bounds, layer_mask_bounds);
+    if (plane == nullptr) {
+      // A null fetch may have latched the key as in flight; store() must follow.
+      std::shared_ptr<StyleMaskEntry> computed;
+      try {
+        computed = std::make_shared<StyleMaskEntry>(compute_plane());
+      } catch (...) {
+        masks->store(layer, StyleMaskKind::SourceStrengths, 0, source_bounds, bounds, layer_mask_bounds, nullptr);
+        throw;
+      }
+      masks->store(layer, StyleMaskKind::SourceStrengths, 0, source_bounds, bounds, layer_mask_bounds, computed);
+      plane = std::move(computed);
+    }
+  } else {
+    plane = std::make_shared<StyleMaskEntry>(compute_plane());
+  }
+  std::vector<float> strengths(static_cast<std::size_t>(domain.width) * static_cast<std::size_t>(domain.height), 0.0F);
+  const auto overlap = intersect_rect(sampled, source_bounds);
+  for (std::int32_t y = overlap.y; y < overlap.y + overlap.height; ++y) {
+    const auto* from = plane->primary.data() +
+                       static_cast<std::size_t>(y - source_bounds.y) * static_cast<std::size_t>(source_bounds.width) +
+                       static_cast<std::size_t>(overlap.x - source_bounds.x);
+    auto* to = strengths.data() +
+               static_cast<std::size_t>(y - sampled.y) * static_cast<std::size_t>(domain.width) +
+               static_cast<std::size_t>(overlap.x - sampled.x);
+    std::copy(from, from + overlap.width, to);
+  }
+  return strengths;
+}
+
 template <typename Target>
 void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
                         const LayerDropShadow& shadow, std::optional<Rect> layer_mask_bounds,
@@ -604,7 +661,15 @@ void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuff
           computed.primary =
               layer_alpha_mask(source, layer, bounds, domain, -offset_x, -offset_y, layer_mask_bounds);
         }
-        prepare_layer_style_soft_mask(computed.primary, domain.width, domain.height, shadow.size, shadow.spread);
+        // The swept matte of a continuous shadow has components of its own; it keeps the
+        // window's strengths.
+        std::vector<float> strengths;
+        if (!continuous && soft_effect_mask_reads_source_strengths(shadow.size, shadow.spread)) {
+          strengths = layer_matte_strengths_for_window(masks, layer, source, bounds, *source_bounds,
+                                                       layer_mask_bounds, domain, -offset_x, -offset_y);
+        }
+        prepare_layer_style_soft_mask(computed.primary, domain.width, domain.height, shadow.size, shadow.spread,
+                                      strengths.empty() ? nullptr : &strengths);
         return computed;
       });
   const auto width = mask_bounds.width;
@@ -684,12 +749,20 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
         const bool shaped = !style_contour_is_linear(glow.contour);
         // Noise needs the unscaled matte too: it limits how far the grain reaches.
         const bool keep_matte = glow.gradient.has_value() || glow.noise > 0.0F;
+        std::vector<float> strengths;
+        if (!softer || soft_effect_mask_reads_source_strengths(glow.size, glow.spread)) {
+          strengths = layer_matte_strengths_for_window(masks, layer, source, bounds, *source_bounds,
+                                                       layer_mask_bounds, domain, 0, 0);
+        }
+        const auto* window_strengths = strengths.empty() ? nullptr : &strengths;
         if (softer) {
           const auto blur_range = shaped || keep_matte ? 100.0F : glow.range;
-          prepare_outer_glow_softer_mask(base, domain.width, domain.height, glow.size, glow.spread, blur_range);
+          prepare_outer_glow_softer_mask(base, domain.width, domain.height, glow.size, glow.spread, blur_range,
+                                         window_strengths);
           computed.primary = std::move(base);
         } else {
-          computed.primary = distance_falloff_mask(base, domain.width, domain.height, glow.size, glow.spread);
+          computed.primary =
+              distance_falloff_mask(base, domain.width, domain.height, glow.size, glow.spread, window_strengths);
         }
         // A gradient runs from the strong edge towards its far stop. Range and
         // the contour set the stop position, while the raw matte limits opacity.
@@ -2172,7 +2245,11 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   std::vector<PreparedStroke> underlay_strokes;
   StrokeKnockoutPlane knockout_plane;
   const bool fold_underlay = layer.blend_mode() == BlendMode::Normal || (fill_opacity == 1.0F && !has_blend_if);
-  if (!draw_rect.empty() && style.effects_visible) {
+  // Resolved even when the clip misses the layer's own pixels (draw_rect empty) and only
+  // reaches its stroke band: the stacked-stroke draw below knocks each stroke out under
+  // the ones listed before it from this list, and a strip that starts just below a layer
+  // must do that exactly as the pass over the whole layer does.
+  if (style.effects_visible) {
     for (std::uint32_t index = 0; index < style.strokes.size(); ++index) {
       const auto& stroke = style.strokes[index];
       const bool opaque_identity = stroke.overprint || stroke_knockout_is_identity(stroke, layer);
@@ -2190,7 +2267,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
         knockout_strokes.push_back(std::move(*prepared));
       }
     }
-    if (!knockout_strokes.empty()) {
+    if (!knockout_strokes.empty() && !draw_rect.empty()) {
       profile_compositor_step(destination, layer, "stroke_knockout", draw_rect, [&] {
         knockout_plane.rect = draw_rect;
         knockout_plane.factor.assign(
@@ -2206,7 +2283,8 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
       });
     }
   }
-  const auto* knockout = knockout_strokes.empty() ? nullptr : &knockout_plane;
+  // The plane covers the layer's own pixels; a clip that holds none of them has no plane.
+  const auto* knockout = knockout_strokes.empty() || draw_rect.empty() ? nullptr : &knockout_plane;
   const bool has_underlay = !underlay_strokes.empty();
 
   // Interior overlays on a stroked shape layer apply to the FILL plane and the

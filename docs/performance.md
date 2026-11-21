@@ -103,9 +103,9 @@ Fan-outs size their workers from `hardware_worker_threads()` (core/worker_budget
 Styled groups use their complete child silhouette; the bounded style-mask LRU
 shares it across strips and repaints, keyed by descendant render revisions.
 Transient geometry bypasses silhouette caching. Group effect domains stay complete
-outside the canvas too. Other windowed masks differ between strip windows, on one
-document by far more than rounding ([measured](performance-compositor.md#strip-renders-against-the-one-pass-walk));
-retain sequential mode for cross-run checksums.
+outside the canvas too. An effect must give a pixel the same value in every window;
+[what still does not](performance-compositor.md#strip-renders-against-the-one-pass-walk) is
+a level of rounding, so keep sequential mode for cross-run checksums.
 
 Detach copy-on-write pixel storage on the launching thread before any parallel write.
 `PixelBuffer` shares its bytes across copies (undo, render snapshots, `Document` copies) until

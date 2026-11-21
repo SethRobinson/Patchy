@@ -973,6 +973,165 @@ void check_stroke_scene(StrokeScene scene) {
   CHECK(patchy::ui::style_mask_cache_misses() == misses);
 }
 
+// A render window must not change what an effect looks like (November 2026, the 4000x2781
+// pinball poster: strips differed from the one-pass walk by up to 44/255 over half the
+// canvas, and a committed Move patch from a fresh render by 17/255). Two effects read more
+// than their own window:
+// - a spread or Precise falloff takes each pixel's strength from the largest alpha of its
+//   connected shape, which a window of a wider layer sees only part of;
+// - stacked Strokes knock each other out, which a window holding only the band below the
+//   layer used to skip.
+void effect_windows_match_the_whole_layer() {
+  // 4.3 Mpx: a full render takes strips whatever its layers do.
+  constexpr int kWidth = 2400;
+  constexpr int kHeight = 1800;
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  document.add_layer(
+      patchy::Layer(document.allocate_layer_id(), "Paper", solid_rgba(kWidth, kHeight, 70, 80, 95, 255)));
+  {
+    // One connected lattice hanging off both sides of the canvas, fading along both axes:
+    // every window holds a different brightest pixel, and the brightest of all is off the
+    // canvas at the lower right.
+    constexpr int kLatticeWidth = 5200;
+    constexpr int kLatticeHeight = 700;
+    patchy::PixelBuffer pixels(kLatticeWidth, kLatticeHeight, patchy::PixelFormat::rgba8());
+    for (int y = 0; y < kLatticeHeight; ++y) {
+      auto row = pixels.row(y);
+      for (int x = 0; x < kLatticeWidth; ++x) {
+        if (y % 60 >= 6 && x % 90 >= 6) {
+          continue;
+        }
+        auto* pixel = row.data() + static_cast<std::size_t>(x) * 4U;
+        pixel[0] = 120;
+        pixel[1] = 220;
+        pixel[2] = 255;
+        pixel[3] = static_cast<std::uint8_t>(40 + (x * 150) / (kLatticeWidth - 1) + (y * 65) / (kLatticeHeight - 1));
+      }
+    }
+    patchy::Layer lattice(document.allocate_layer_id(), "Lattice", std::move(pixels));
+    lattice.set_bounds(patchy::Rect{-1900, 900, kLatticeWidth, kLatticeHeight});
+    auto& style = lattice.layer_style();
+    patchy::LayerOuterGlow soft;
+    soft.enabled = true;
+    soft.size = 63.0F;
+    soft.spread = 17.0F;  // an 11 px spread: past the exact dilation, into the strength band
+    soft.opacity = 0.6F;
+    style.outer_glows.push_back(soft);
+    patchy::LayerOuterGlow precise;
+    precise.enabled = true;
+    precise.technique = patchy::LayerGlowTechnique::Precise;
+    precise.size = 24.0F;
+    precise.spread = 10.0F;
+    precise.opacity = 0.5F;
+    precise.color = patchy::RgbColor{255, 120, 200};
+    style.outer_glows.push_back(precise);
+    patchy::LayerDropShadow shadow;
+    shadow.enabled = true;
+    shadow.size = 40.0F;
+    shadow.spread = 40.0F;
+    shadow.distance = 14.0F;
+    shadow.opacity = 0.6F;
+    style.drop_shadows.push_back(shadow);
+    document.add_layer(std::move(lattice));
+  }
+  // Plates with two stacked strokes, bottoms three rows apart from row 380 to 560, so a
+  // strip boundary of any strip count falls inside some plate's band below its edge.
+  constexpr int kFirstBottom = 380;
+  for (int index = 0; index <= 60; ++index) {
+    patchy::Layer plate(document.allocate_layer_id(), "Plate", solid_rgba(24, 90, 230, 170, 60, 255));
+    plate.set_bounds(patchy::Rect{30 + index * 38, kFirstBottom + index * 3 - 90, 24, 90});
+    auto& style = plate.layer_style();
+    patchy::LayerStroke upper;
+    upper.enabled = true;
+    upper.size = 11.0F;
+    upper.opacity = 0.6F;
+    upper.color = patchy::RgbColor{255, 255, 255};
+    style.strokes.push_back(upper);
+    patchy::LayerStroke lower;
+    lower.enabled = true;
+    lower.size = 10.0F;
+    lower.color = patchy::RgbColor{20, 20, 20};
+    style.strokes.push_back(lower);
+    document.add_layer(std::move(plate));
+  }
+
+  const auto threaded = patchy::ui::qimage_from_document(document, true);
+  QImage whole;
+  {
+    ScopedSingleThreadedRender single;
+    whole = patchy::ui::qimage_from_document(document, true);
+  }
+  CHECK(!whole.isNull());
+  struct Difference {
+    long long pixels{0};
+    int worst{0};
+    QRect extent;
+  };
+  const auto difference = [](const char* label, const QImage& left, const QImage& right) {
+    Difference result;
+    const auto a = left.convertToFormat(QImage::Format_RGBA8888);
+    const auto b = right.convertToFormat(QImage::Format_RGBA8888);
+    if (a.size() != b.size()) {
+      result.pixels = -1;
+      result.worst = 255;
+      return result;
+    }
+    for (int y = 0; y < a.height(); ++y) {
+      const auto* row_a = a.constScanLine(y);
+      const auto* row_b = b.constScanLine(y);
+      for (int x = 0; x < a.width(); ++x) {
+        int delta = 0;
+        for (int c = 0; c < 4; ++c) {
+          delta = std::max(delta, std::abs(static_cast<int>(row_a[x * 4 + c]) - static_cast<int>(row_b[x * 4 + c])));
+        }
+        if (delta != 0) {
+          ++result.pixels;
+          result.worst = std::max(result.worst, delta);
+          result.extent = result.extent.united(QRect(x, y, 1, 1));
+        }
+      }
+    }
+    if (result.pixels != 0) {
+      std::fprintf(stderr, "  %s: %lld pixels differ, worst %d, in %d,%d %dx%d\n", label, result.pixels, result.worst,
+                   result.extent.x(), result.extent.y(), result.extent.width(), result.extent.height());
+    }
+    return result;
+  };
+
+  // Strips against the one-pass walk. The lattice's rows must be the same bytes. Around
+  // the plates a stroke below full opacity rounds one level differently in some windows,
+  // with or without this fix (1,470 pixels here); the stacked-stroke bug was 68 levels.
+  const QRect lattice_rows(0, 700, kWidth, kHeight - 700);
+  CHECK(difference("strips, lattice rows", threaded.copy(lattice_rows), whole.copy(lattice_rows)).pixels == 0);
+  CHECK(difference("strips, whole canvas", threaded, whole).worst <= 1);
+
+  // Windows of the one-pass walk itself against the whole render.
+  const auto window_difference = [&](QRect rect) {
+    ScopedSingleThreadedRender single;
+    const auto patches = patchy::ui::qimage_patches_from_document_region(document, QRegion(rect), true);
+    Difference total;
+    if (patches.empty()) {
+      total.worst = 255;
+    }
+    for (const auto& patch : patches) {
+      const auto one = difference("window", patch.image,
+                                  whole.copy(patch.document_rect).convertToFormat(patch.image.format()));
+      total.pixels += one.pixels;
+      total.worst = std::max(total.worst, one.worst);
+    }
+    return total;
+  };
+  // A band through the lattice and its glow, a block inside it, and its right end: each
+  // window's own components stop at the window's edges.
+  CHECK(window_difference(QRect(0, 1000, kWidth, 180)).pixels == 0);
+  CHECK(window_difference(QRect(900, 820, 700, 300)).pixels == 0);
+  CHECK(window_difference(QRect(kWidth - 400, 860, 400, 420)).pixels == 0);
+  // Only the band below a plate, none of the plate itself; then plates whole.
+  CHECK(window_difference(QRect(20, kFirstBottom + 3, 200, 30)).worst <= 1);
+  CHECK(window_difference(QRect(30 + 20 * 38 - 20, kFirstBottom + 20 * 3 + 2, 70, 12)).worst <= 1);
+  CHECK(window_difference(QRect(0, 250, 900, 320)).worst <= 1);
+}
+
 // A region patch between 0.5 and 4 Mpx composites in strips across the workers, as a
 // full render does from 4 Mpx up, while every effect mask it reads is a full-layer one:
 // its bytes are then those of one pass (and of that part of a full render). A layer whose
@@ -1101,6 +1260,7 @@ std::vector<patchy::test::TestCase> composite_render_tests() {
       {"styled_group_partial_render_and_child_edit_match_full_render", styled_group_partial_render_and_child_edit_match_full_render},
       {"styled_group_parallel_strips_match_single_threaded", styled_group_parallel_strips_match_single_threaded},
       {"region_patch_strips_match_one_pass", region_patch_strips_match_one_pass},
+      {"effect_windows_match_the_whole_layer", effect_windows_match_the_whole_layer},
       {"knockout_preview_preserves_alpha_depth_and_partial_bounds", knockout_preview_preserves_alpha_depth_and_partial_bounds},
       {"hidden_knockout_does_not_change_rgb_matte_blending", hidden_knockout_does_not_change_rgb_matte_blending},
       {"group_clipped_adjustment_preview_keeps_backdrop_and_tracks_child_move",
