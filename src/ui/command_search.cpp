@@ -147,6 +147,7 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"edit.remove_object", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Erase an object and fill the gap")},
     {"edit.define_brush_tip", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make a brush from the selection")},
     {"edit.define_custom_shape", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make a custom shape from a path")},
+    {"edit.define_pattern", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make a pattern from the image or selection")},
     {"edit.convert_to_profile", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Change the color profile")},
     {"edit.presets_gradients", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Manage gradient presets")},
     {"edit.presets_patterns", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Manage pattern presets")},

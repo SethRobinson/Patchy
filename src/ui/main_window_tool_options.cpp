@@ -1363,6 +1363,91 @@ void MainWindow::define_brush_tip_from_selection() {
   statusBar()->showMessage(tr("Defined brush tip: %1").arg(name.trimmed()));
 }
 
+void MainWindow::define_pattern_from_document() {
+  if (canvas_ == nullptr || !has_active_document() || preview_dialog_edit_locked()) {
+    return;
+  }
+  // The picture as it will be: pending text and a pending transform land first, as they do
+  // for Copy Merged and an export.
+  finish_active_text_editor();
+  canvas_->finish_free_transform();
+  const auto& doc = std::as_const(document());
+  const QRect canvas_rect(0, 0, doc.width(), doc.height());
+  // The selection's bounding rectangle is the tile (a pattern repeats a rectangle, so a
+  // lasso's shape or a feather is not applied); with no selection, the whole canvas.
+  auto tile_rect = canvas_rect;
+  if (const auto selected = canvas_->selected_document_rect(); selected.has_value()) {
+    tile_rect = selected->intersected(canvas_rect);
+  }
+  if (tile_rect.isEmpty()) {
+    show_status_error(tr("The selection is outside the canvas, so there is nothing to make a pattern from"));
+    return;
+  }
+  // Refused from the size alone, before anything is rendered or allocated.
+  const auto too_large = [&](const QString& limit) {
+    (void)show_warning_message(this, tr("Define Pattern"),
+                               tr("The area is %1 x %2 pixels. %3 Select a smaller area and try again.")
+                                   .arg(tile_rect.width())
+                                   .arg(tile_rect.height())
+                                   .arg(limit),
+                               QMessageBox::Ok, QMessageBox::Ok, QStringLiteral("definePatternTooLargeMessageBox"));
+  };
+  switch (PatternLibrary::image_pattern_size(tile_rect.size())) {
+    case PatternLibrary::ImagePatternSize::TooWideOrTall:
+      too_large(tr("A pattern can be at most 30,000 pixels wide or tall."));
+      return;
+    case PatternLibrary::ImagePatternSize::TooManyPixels:
+      too_large(tr("A pattern can have at most 8 million pixels."));
+      return;
+    case PatternLibrary::ImagePatternSize::Fits:
+      break;
+  }
+  // The visible composite with its transparency, at 8 bits (a pattern tile is RGBA8). Taken
+  // now, so the tile is what was on screen when the command ran.
+  const auto image = qimage_from_document_rect(doc, tile_rect, /*preserve_alpha*/ true);
+  if (image.isNull()) {
+    show_status_error(tr("Could not read the image to define a pattern"));
+    return;
+  }
+
+  const auto default_name = tr("Pattern %1").arg(pattern_library().entries().size() + 1);
+  QDialog dialog(this);
+  dialog.setObjectName(QStringLiteral("definePatternDialog"));
+  dialog.setWindowTitle(tr("Define Pattern"));
+  auto* layout = new QVBoxLayout(&dialog);
+  auto* form = new QFormLayout();
+  auto* name_edit = new QLineEdit(default_name, &dialog);
+  name_edit->setObjectName(QStringLiteral("definePatternNameEdit"));
+  name_edit->setMinimumWidth(240);  // room for a real name, not just the default
+  name_edit->selectAll();
+  form->addRow(tr("Name:"), name_edit);
+  layout->addLayout(form);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  layout->addWidget(buttons);
+  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+    statusBar()->showMessage(tr("Cancelled defining a pattern"));
+    return;
+  }
+  const auto trimmed_name = name_edit->text().trimmed();
+  const auto name = trimmed_name.isEmpty() ? default_name : trimmed_name;
+  QString error;
+  const auto storage_id = pattern_library().add_image(name, image, error);
+  const auto* entry = storage_id.isEmpty() ? nullptr : pattern_library().find_entry(storage_id);
+  if (entry == nullptr) {
+    show_status_error(error.isEmpty() ? tr("Could not save the pattern") : error);
+    return;
+  }
+  // The new pattern becomes the Pattern Stamp's, as a defined brush tip becomes the brush's.
+  current_pattern_stamp_pattern_id_ = entry->id;
+  refresh_pattern_stamp_pattern_combo();
+  apply_pattern_stamp_settings_to_canvas(canvas_);
+  save_tool_settings();
+  statusBar()->showMessage(
+      tr("Defined pattern: %1 (%2 x %3 px)").arg(name).arg(image.width()).arg(image.height()));
+}
+
 std::vector<LayerId> MainWindow::selected_layer_ids() const {
   std::vector<LayerId> ids;
   if (layer_list_ == nullptr) {

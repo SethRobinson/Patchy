@@ -16491,6 +16491,18 @@ Do you want to replace it?</source>
         <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>This pattern is already in the pattern library</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save this pattern as a preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save Pattern as Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22524,6 +22536,10 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Manage saved layer style contours</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make a pattern from the image or selection</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -37123,6 +37139,50 @@ Locked: %1</source>
     </message>
     <message>
         <source>Hide Effects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Define Pattern...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selection is outside the canvas, so there is nothing to make a pattern from</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Define Pattern</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The area is %1 x %2 pixels. %3 Select a smaller area and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A pattern can be at most 30,000 pixels wide or tall.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A pattern can have at most 8 million pixels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not read the image to define a pattern</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pattern %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled defining a pattern</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not save the pattern</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Defined pattern: %1 (%2 x %3 px)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -16565,6 +16565,18 @@ Do you want to replace it?</source>
         <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
         <translation>Автор: %1 (%2)</translation>
     </message>
+    <message>
+        <source>This pattern is already in the pattern library</source>
+        <translation>Этот узор уже есть в библиотеке узоров</translation>
+    </message>
+    <message>
+        <source>Save this pattern as a preset</source>
+        <translation>Сохранить этот узор как предустановку</translation>
+    </message>
+    <message>
+        <source>Save Pattern as Preset</source>
+        <translation>Сохранить узор как предустановку</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22605,6 +22617,10 @@ Do you want to replace it?</source>
     <message>
         <source>Manage saved layer style contours</source>
         <translation>Управлять сохранёнными контурами стилей слоя</translation>
+    </message>
+    <message>
+        <source>Make a pattern from the image or selection</source>
+        <translation>Создать узор из изображения или выделения</translation>
     </message>
 </context>
 <context>
@@ -37323,6 +37339,50 @@ Locked: %1</source>
     <message>
         <source>Hide Effects</source>
         <translation>Скрыть эффекты</translation>
+    </message>
+    <message>
+        <source>Define Pattern...</source>
+        <translation>Определить узор...</translation>
+    </message>
+    <message>
+        <source>The selection is outside the canvas, so there is nothing to make a pattern from</source>
+        <translation>Выделение находится за пределами холста, поэтому узор создать не из чего</translation>
+    </message>
+    <message>
+        <source>Define Pattern</source>
+        <translation>Определить узор</translation>
+    </message>
+    <message>
+        <source>The area is %1 x %2 pixels. %3 Select a smaller area and try again.</source>
+        <translation>Размер области: %1 x %2 пикселей. %3 Выделите область поменьше и повторите попытку.</translation>
+    </message>
+    <message>
+        <source>A pattern can be at most 30,000 pixels wide or tall.</source>
+        <translation>Ширина и высота узора не могут превышать 30 000 пикселей.</translation>
+    </message>
+    <message>
+        <source>A pattern can have at most 8 million pixels.</source>
+        <translation>Узор может содержать не более 8 миллионов пикселей.</translation>
+    </message>
+    <message>
+        <source>Could not read the image to define a pattern</source>
+        <translation>Не удалось прочитать изображение для определения узора</translation>
+    </message>
+    <message>
+        <source>Pattern %1</source>
+        <translation>Узор %1</translation>
+    </message>
+    <message>
+        <source>Cancelled defining a pattern</source>
+        <translation>Определение узора отменено</translation>
+    </message>
+    <message>
+        <source>Could not save the pattern</source>
+        <translation>Не удалось сохранить узор</translation>
+    </message>
+    <message>
+        <source>Defined pattern: %1 (%2 x %3 px)</source>
+        <translation>Определён узор: %1 (%2 x %3 px)</translation>
     </message>
 </context>
 <context>

@@ -598,25 +598,11 @@ QString PatternLibrary::import_image(const QString& path, QString& error, QStrin
   const auto file_name = QFileInfo(path).fileName();
   QImageReader reader(path);
   reader.setAutoTransform(true);  // apply EXIF orientation (phone photos)
-  const auto exceeds_pixel_cap = [](QSize size) {
-    return size.isValid() &&
-           static_cast<std::int64_t>(size.width()) * size.height() > kMaxImagePatternPixels;
-  };
-  const auto exceeds_dimension_cap = [](QSize size) {
-    return size.isValid() &&
-           (size.width() > kMaxPatternDimension || size.height() > kMaxPatternDimension);
-  };
   // Reject oversized images from their header before asking the image plugin to
   // allocate and decode the full raster. Keep the post-read check below for
   // formats whose handlers cannot report dimensions up front.
-  const auto header_size = reader.size();
-  if (exceeds_dimension_cap(header_size)) {
-    error = tr("\"%1\" is too large to use as a pattern (over 30,000 pixels wide or tall).")
-                .arg(file_name);
-    return {};
-  }
-  if (exceeds_pixel_cap(header_size)) {
-    error = tr("\"%1\" is too large to use as a pattern (over 8 million pixels).").arg(file_name);
+  error = image_pattern_size_error(reader.size(), file_name);
+  if (!error.isEmpty()) {
     return {};
   }
   const auto image = reader.read();
@@ -624,13 +610,8 @@ QString PatternLibrary::import_image(const QString& path, QString& error, QStrin
     error = tr("Could not read \"%1\" as an image.").arg(file_name);
     return {};
   }
-  if (exceeds_dimension_cap(image.size())) {
-    error = tr("\"%1\" is too large to use as a pattern (over 30,000 pixels wide or tall).")
-                .arg(file_name);
-    return {};
-  }
-  if (exceeds_pixel_cap(image.size())) {
-    error = tr("\"%1\" is too large to use as a pattern (over 8 million pixels).").arg(file_name);
+  error = image_pattern_size_error(image.size(), file_name);
+  if (!error.isEmpty()) {
     return {};
   }
   if (reader.supportsAnimation() && reader.imageCount() > 1) {
@@ -641,8 +622,40 @@ QString PatternLibrary::import_image(const QString& path, QString& error, QStrin
     error = tr("Could not read \"%1\" as an image.").arg(file_name);
     return {};
   }
-  const auto name = QFileInfo(path).completeBaseName();
-  const auto storage_id = add_pattern_internal(name, *tile, {}, {});
+  return store_image_tile(QFileInfo(path).completeBaseName(), *tile, error);
+}
+
+PatternLibrary::ImagePatternSize PatternLibrary::image_pattern_size(QSize size) noexcept {
+  if (!size.isValid()) {
+    return ImagePatternSize::Fits;
+  }
+  if (size.width() > kMaxPatternDimension || size.height() > kMaxPatternDimension) {
+    return ImagePatternSize::TooWideOrTall;
+  }
+  if (static_cast<std::int64_t>(size.width()) * size.height() > kMaxImagePatternPixels) {
+    return ImagePatternSize::TooManyPixels;
+  }
+  return ImagePatternSize::Fits;
+}
+
+QString PatternLibrary::image_pattern_size_error(QSize size, const QString& label) {
+  switch (image_pattern_size(size)) {
+    case ImagePatternSize::TooWideOrTall:
+      return tr("\"%1\" is too large to use as a pattern (over 30,000 pixels wide or tall).").arg(label);
+    case ImagePatternSize::TooManyPixels:
+      return tr("\"%1\" is too large to use as a pattern (over 8 million pixels).").arg(label);
+    case ImagePatternSize::Fits:
+      break;
+  }
+  return {};
+}
+
+QString PatternLibrary::store_image_tile(const QString& name, const PixelBuffer& tile, QString& error,
+                                         const QString& pattern_id) {
+  // The .pat reader's rule for an id worth keeping: at most 255 bytes of UTF-8.
+  const auto keep_id = !pattern_id.isEmpty() && pattern_id.toUtf8().size() <= 255 &&
+                       find_entry_by_pattern_id(pattern_id) == nullptr;
+  const auto storage_id = add_pattern_internal(name, tile, {}, keep_id ? pattern_id : QString());
   if (storage_id.isEmpty()) {
     error = tr("Could not save pattern \"%1\".").arg(name);
     return {};
@@ -650,6 +663,57 @@ QString PatternLibrary::import_image(const QString& path, QString& error, QStrin
   sort_entries();
   emit changed();
   return storage_id;
+}
+
+QString PatternLibrary::add_image(const QString& name, const QImage& image, QString& error) {
+  error = image_pattern_size_error(image.size(), name);
+  if (!error.isEmpty()) {
+    return {};
+  }
+  // The size is settled before the RGBA copy below is allocated.
+  const auto tile = pattern_tile_from_image(image);
+  if (!tile.has_value()) {
+    error = tr("Could not save pattern \"%1\".").arg(name);
+    return {};
+  }
+  return store_image_tile(name, *tile, error);
+}
+
+QString PatternLibrary::add_resource(const QString& name, const PatternResource& resource, QString& error) {
+  const auto& tile = resource.tile;
+  error = image_pattern_size_error(QSize(tile.width(), tile.height()), name);
+  if (!error.isEmpty()) {
+    return {};
+  }
+  return store_image_tile(name, tile, error, qstring_from_utf8(resource.id));
+}
+
+const PatternLibraryEntry* PatternLibrary::find_entry_by_tile(const PixelBuffer& tile) const {
+  if (tile.empty() || tile.format() != PixelFormat::rgba8()) {
+    return nullptr;
+  }
+  const QSize size(tile.width(), tile.height());
+  QImage thumbnail;  // made when the first entry of this size turns up
+  for (const auto& entry : entries_) {
+    if (entry.size != size) {
+      continue;
+    }
+    // Equal tiles have equal thumbnails (one generator makes them all), so a different one
+    // spares reading and decoding the stored PNG.
+    if (!entry.thumbnail.isNull()) {
+      if (thumbnail.isNull()) {
+        thumbnail = pattern_thumbnail(tile).toImage();
+      }
+      if (entry.thumbnail.toImage() != thumbnail) {
+        continue;
+      }
+    }
+    const auto stored = tile_for_entry(entry);
+    if (stored.has_value() && pattern_tiles_equal(*stored, tile)) {
+      return &entry;
+    }
+  }
+  return nullptr;
 }
 
 QString PatternLibrary::duplicate_pattern(const QString& storage_id) {

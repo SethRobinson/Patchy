@@ -116,6 +116,29 @@ public:
   // Returns the new entry's storage id, or empty on failure.
   QString import_image(const QString& path, QString& error, QStringList& warnings);
 
+  // Whether a tile of this size may become an image pattern: import_image's limits, 8 million
+  // pixels and 30,000 per axis (what a PSD pattern resource can store). A caller that builds
+  // the tile itself asks before it allocates one (Edit > Define Pattern). An empty size fits.
+  enum class ImagePatternSize { Fits, TooWideOrTall, TooManyPixels };
+  [[nodiscard]] static ImagePatternSize image_pattern_size(QSize size) noexcept;
+
+  // Adds an image already in memory as one ungrouped pattern with a fresh pattern UUID: what
+  // import_image stores once its file is decoded, under the same limits, alpha preserved, no
+  // pixel dedup. Returns the new entry's storage id, or empty with `error` set.
+  QString add_image(const QString& name, const QImage& image, QString& error);
+
+  // Saves a document's own pattern as a preset (the "+" beside Layer Style's pattern pickers,
+  // GitHub issue 748): add_image's store and limits for a tile that is already decoded, named
+  // `name`. The pattern keeps its id when no library pattern has that id yet, so documents
+  // that reference it find it in the library; otherwise it gets a fresh pattern UUID.
+  // Returns the new entry's storage id, or empty with `error` set.
+  QString add_resource(const QString& name, const PatternResource& resource, QString& error);
+
+  // The library pattern with exactly these pixels, or nullptr. Sizes and thumbnails rule out
+  // nearly every entry before a stored tile is read, so a picker can ask for each row it
+  // shows. GUI thread only.
+  [[nodiscard]] const PatternLibraryEntry* find_entry_by_tile(const PixelBuffer& tile) const;
+
   // Adds one RGBA tile. preferred_pattern_id is retained when non-empty and
   // unique; an empty id generates a fresh Photoshop-shaped UUID. Returns the
   // safe storage id, or empty on failure/id collision.
@@ -179,6 +202,13 @@ private:
                                const QString& folder, const QString& pattern_id,
                                const QString& source_id = {}, const QString& storage_id = {});
   bool remove_entry_files(const QString& storage_id);
+  // The message for an image past image_pattern_size()'s limits, naming `label`; empty when
+  // the size fits.
+  [[nodiscard]] static QString image_pattern_size_error(QSize size, const QString& label);
+  // Stores a decoded image tile ungrouped and announces it; empty with `error` set on failure.
+  // A `pattern_id` the library does not hold yet is kept; an empty or taken one gives a fresh id.
+  QString store_image_tile(const QString& name, const PixelBuffer& tile, QString& error,
+                           const QString& pattern_id = {});
   [[nodiscard]] QString png_path(const QString& storage_id) const;
   bool write_sidecar(const PatternLibraryEntry& entry) const;
   [[nodiscard]] std::optional<PixelBuffer> tile_for_entry(

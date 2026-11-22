@@ -207,6 +207,11 @@ precision, so revealing it keeps the upper blend mode.
   from the first xmpMM:History entry's stEvt:softwareAgent (GIMP 3 writes "GIMP 3.2.6
   (Linux)"), else "GIMP" (a packet is created if needed; the header names only the XCF
   version). A PSD save keeps it as xmp:CreatorTool; an unparseable packet is left alone.
+- Dates: some GIMP 3 files keep `Xmp.xmp.CreateDate`, `Xmp.photoshop.DateCreated` and
+  their siblings in the EXIF form (`2025:10:05T22:24:52+01:00`; three corpus files). File
+  Info shows what the file says; a PSD save writes them as ISO dates, because Photoshop
+  rejects the EXIF form with a file info warning ([ps-compat.md](ps-compat.md#write-rules-pinned-against-ps-silent-corruption-otherwise);
+  `xcf_gimp_image_metadata_exif_style_xmp_dates_save_as_iso_in_psd`).
 - GIMP writes no thumbnail into the XCF (none of the issue 450 samples has one); it keeps
   thumbnails in the freedesktop cache (`~/.cache/thumbnails`).
 

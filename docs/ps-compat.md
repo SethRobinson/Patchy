@@ -32,12 +32,20 @@ See [photoshop-com.md](photoshop-com.md) (entry point, dialog-mode caveats, comp
   transfer resources are per mode family (1012/1015 gray, 1014/1017/1018 duotone, 1013/1016
   color); saves drop other families', like PS's mode change.
 
-- XMP resource 1060 dates require extended timezone offsets (`-07:00`, not
-  `-0700`). Photoshop's XMP parser rejects the latter when importing File Info
-  and shows a data-discard warning. The writer repairs basic offsets only in
-  recognized, namespace-resolved XMP date properties; other packet bytes and
-  valid IPTC/EXIF metadata stay intact (issue397 fixture: a date-only repair
-  opens clean in error-enabled dialog mode).
+- XMP resource 1060 dates are ISO 8601 with extended timezone offsets
+  (`2025-10-05T22:24:52-07:00`). Photoshop's XMP parser rejects a basic offset
+  (`-0700`) and the EXIF date form (`2025:10:05T22:24:52+01:00`, which some GIMP 3
+  files carry in `gimp-image-metadata`) when importing File Info, and shows the modal
+  "This file contains file info data which cannot be read and has been ignored".
+  `repair_xmp_dates` (psd_image_resources.cpp) rewrites both, and EXIF's space
+  before the time, only in recognized, namespace-resolved XMP date properties
+  (xmp:CreateDate, ModifyDate and MetadataDate, photoshop:DateCreated,
+  exif:DateTimeOriginal, DateTimeDigitized and GPSTimeStamp, stEvt:when) whose whole
+  value reads as a date; other packet bytes and valid IPTC/EXIF metadata stay intact,
+  and the document's File Info keeps the source's value (issue397 fixture: a date-only
+  repair opens clean in error-enabled dialog mode; the three XCF corpus files with EXIF
+  dates open clean in Photoshop 2027, November 2026). An hour-only offset (`+03`) and an
+  EXIF-form `tiff:DateTime` open without the warning and are left alone.
 
 - **Photoshop reads type from the document-level `Txt2` block and trusts it over the TySh.**
   The block holds one text object per type layer, addressed by the TySh TextIndex; a stale

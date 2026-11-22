@@ -16509,6 +16509,18 @@ Sostituirlo?</translation>
         <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
         <translation>Creato da %1 (%2)</translation>
     </message>
+    <message>
+        <source>This pattern is already in the pattern library</source>
+        <translation>Questo pattern è già nella libreria dei pattern</translation>
+    </message>
+    <message>
+        <source>Save this pattern as a preset</source>
+        <translation>Salva questo pattern come predefinito</translation>
+    </message>
+    <message>
+        <source>Save Pattern as Preset</source>
+        <translation>Salva pattern come predefinito</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22543,6 +22555,10 @@ Sostituirlo?</translation>
     <message>
         <source>Manage saved layer style contours</source>
         <translation>Gestisci i contorni salvati degli stili di livello</translation>
+    </message>
+    <message>
+        <source>Make a pattern from the image or selection</source>
+        <translation>Crea un pattern dall&apos;immagine o dalla selezione</translation>
     </message>
 </context>
 <context>
@@ -37208,6 +37224,50 @@ Bloccato: %1</translation>
     <message>
         <source>Hide Effects</source>
         <translation>Nascondi effetti</translation>
+    </message>
+    <message>
+        <source>Define Pattern...</source>
+        <translation>Definisci pattern...</translation>
+    </message>
+    <message>
+        <source>The selection is outside the canvas, so there is nothing to make a pattern from</source>
+        <translation>La selezione è fuori dal quadro, quindi non c&apos;è nulla da cui creare un pattern</translation>
+    </message>
+    <message>
+        <source>Define Pattern</source>
+        <translation>Definisci pattern</translation>
+    </message>
+    <message>
+        <source>The area is %1 x %2 pixels. %3 Select a smaller area and try again.</source>
+        <translation>L&apos;area misura %1 x %2 pixel. %3 Seleziona un&apos;area più piccola e riprova.</translation>
+    </message>
+    <message>
+        <source>A pattern can be at most 30,000 pixels wide or tall.</source>
+        <translation>Un pattern può misurare al massimo 30.000 pixel di larghezza o altezza.</translation>
+    </message>
+    <message>
+        <source>A pattern can have at most 8 million pixels.</source>
+        <translation>Un pattern può avere al massimo 8 milioni di pixel.</translation>
+    </message>
+    <message>
+        <source>Could not read the image to define a pattern</source>
+        <translation>Impossibile leggere l&apos;immagine per definire un pattern</translation>
+    </message>
+    <message>
+        <source>Pattern %1</source>
+        <translation>Pattern %1</translation>
+    </message>
+    <message>
+        <source>Cancelled defining a pattern</source>
+        <translation>Definizione del pattern annullata</translation>
+    </message>
+    <message>
+        <source>Could not save the pattern</source>
+        <translation>Impossibile salvare il pattern</translation>
+    </message>
+    <message>
+        <source>Defined pattern: %1 (%2 x %3 px)</source>
+        <translation>Pattern definito: %1 (%2 x %3 px)</translation>
     </message>
 </context>
 <context>

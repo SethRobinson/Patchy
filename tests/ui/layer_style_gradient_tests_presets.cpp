@@ -602,6 +602,269 @@ void ui_pattern_manager_and_layer_style_buttons_use_library_pattern() {
   clear_pattern_test_state();
 }
 
+// GitHub issue 748: the "+" after Layer Style's two pattern pickers saves a pattern the
+// document carries into the pattern library. Cancel adds nothing, a pattern whose pixels the
+// library already has cannot be saved again, and the effect keeps the pattern it had.
+void ui_layer_style_saves_document_pattern_as_preset() {
+  clear_pattern_test_state();
+  const auto cleanup = qScopeGuard([] { clear_pattern_test_state(); });
+  const auto rgba8 = patchy::PixelFormat::rgba8();
+  const auto same_tile = [](const patchy::PixelBuffer& a, const patchy::PixelBuffer& b) {
+    return a.width() == b.width() && a.height() == b.height() && a.data().size() == b.data().size() &&
+           std::equal(a.data().begin(), a.data().end(), b.data().begin());
+  };
+  const auto files_on_disk = [] { return QDir(pattern_test_storage_dir()).entryList(QDir::Files).size(); };
+
+  // The library starts with two patterns: one whose id a document pattern also uses, and one
+  // the size of the document's bricks with other pixels.
+  QString moss_pattern_id;
+  QString fern_pattern_id;
+  {
+    patchy::ui::PatternLibrary seed(pattern_test_storage_dir());
+    const auto moss = seed.add_pattern(QStringLiteral("Moss"), solid_pixels(20, 14, rgba8, QColor(30, 200, 90)));
+    const auto fern = seed.add_pattern(QStringLiteral("Fern"), solid_pixels(16, 12, rgba8, QColor(20, 120, 60)));
+    CHECK(!moss.isEmpty() && !fern.isEmpty());
+    moss_pattern_id = seed.find_entry(moss)->id;
+    fern_pattern_id = seed.find_entry(fern)->id;
+  }
+
+  // The document's own patterns, as a PSD brings them: bricks the library does not have, dots
+  // under the id the library gives to Moss, and a reference whose tile never came.
+  patchy::PatternResource bricks;
+  bricks.id = "74800000-aaaa-4bbb-8ccc-000000000001";
+  bricks.name = "Doc Bricks";
+  bricks.tile = solid_pixels(16, 12, rgba8, QColor(170, 70, 40));
+  fill_pixel_rect(bricks.tile, QRect(0, 5, 16, 1), QColor(225, 215, 200));
+  fill_pixel_rect(bricks.tile, QRect(7, 0, 1, 5), QColor(225, 215, 200));
+  fill_pixel_rect(bricks.tile, QRect(12, 8, 4, 4), QColor(Qt::transparent));
+  bricks.provenance = patchy::PatternProvenance::ImportedRaw;
+  patchy::PatternResource dots;
+  dots.id = moss_pattern_id.toStdString();
+  dots.name = "Doc Dots";
+  dots.tile = solid_pixels(8, 8, rgba8, QColor(40, 60, 150));
+  fill_pixel_rect(dots.tile, QRect(2, 2, 3, 3), QColor(250, 230, 90));
+  dots.provenance = patchy::PatternProvenance::ImportedRaw;
+  patchy::PatternResource ghost;
+  ghost.id = "74800000-aaaa-4bbb-8ccc-000000000003";
+  ghost.name = "Ghost";
+  ghost.tile = solid_pixels(1, 1, rgba8, QColor(Qt::transparent));
+  ghost.provenance = patchy::PatternProvenance::ImportedRaw;
+  CHECK(patchy::pattern_tile_is_unrenderable(ghost.tile));
+
+  patchy::Document document(96, 72, rgba8);
+  document.metadata().patterns.patterns = {bricks, dots, ghost};
+  patchy::Layer layer(document.allocate_layer_id(), "Styled", solid_pixels(48, 36, rgba8, QColor(80, 140, 220)));
+  patchy::LayerPatternOverlay overlay;
+  overlay.enabled = true;
+  overlay.pattern_id = bricks.id;
+  overlay.pattern_name = bricks.name;
+  layer.layer_style().pattern_overlays = {overlay};
+  patchy::LayerBevelEmboss bevel;
+  bevel.enabled = true;
+  bevel.texture.enabled = true;
+  bevel.texture.pattern_id = bricks.id;
+  bevel.texture.pattern_name = bricks.name;
+  layer.layer_style().bevels = {bevel};
+
+  const auto save_tip = QStringLiteral("Save this pattern as a preset");
+  const auto have_tip = QStringLiteral("This pattern is already in the pattern library");
+  // Answers the name prompt: a null name cancels it, an empty one empties the field.
+  const auto answer_prompt = [](QPushButton* button, const QString& prefill, const QString& name,
+                                const char* artifact = nullptr) {
+    when_dialog_visible(QStringLiteral("layerStyleSavePatternDialog"), [prefill, name, artifact](QDialog& prompt) {
+      auto* name_edit = prompt.findChild<QLineEdit*>(QStringLiteral("layerStyleSavePatternNameEdit"));
+      CHECK(name_edit != nullptr);
+      if (name_edit == nullptr) {
+        prompt.reject();
+        return;
+      }
+      CHECK(name_edit->text() == prefill);
+      CHECK(name_edit->selectedText() == prefill);
+      if (name.isNull()) {
+        prompt.reject();
+        return;
+      }
+      name_edit->setText(name);
+      QApplication::processEvents();
+      if (artifact != nullptr) {
+        save_widget_artifact(artifact, prompt);
+      }
+      prompt.accept();
+    });
+    button->click();
+    QApplication::processEvents();
+  };
+  struct StyleControls {
+    QDialog* dialog{};
+    QPushButton* overlay_save{};
+    QPushButton* texture_save{};
+    QComboBox* overlay_combo{};
+    QComboBox* texture_combo{};
+    QListWidget* categories{};
+  };
+  const auto style_controls = [] {
+    StyleControls found;
+    found.dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(found.dialog != nullptr);
+    found.overlay_save =
+        found.dialog->findChild<QPushButton*>(QStringLiteral("layerStylePatternOverlaySavePatternButton"));
+    found.texture_save =
+        found.dialog->findChild<QPushButton*>(QStringLiteral("layerStyleBevelTextureSavePatternButton"));
+    found.overlay_combo = found.dialog->findChild<QComboBox*>(QStringLiteral("layerStylePatternOverlayPatternCombo"));
+    found.texture_combo = found.dialog->findChild<QComboBox*>(QStringLiteral("layerStyleBevelTexturePatternCombo"));
+    found.categories = found.dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    CHECK(found.overlay_save != nullptr && found.texture_save != nullptr);
+    CHECK(found.overlay_combo != nullptr && found.texture_combo != nullptr && found.categories != nullptr);
+    return found;
+  };
+  const auto show_page = [](const StyleControls& controls, const QString& title) {
+    const auto items = controls.categories->findItems(title, Qt::MatchExactly);
+    CHECK(!items.empty());
+    controls.categories->setCurrentItem(items.front());
+    QApplication::processEvents();
+  };
+  const auto pick = [](QComboBox* combo, const QString& pattern_id) {
+    const auto row = combo->findData(pattern_id);
+    CHECK(row >= 0);
+    combo->setCurrentIndex(row);
+    QApplication::processEvents();
+  };
+  const auto bricks_id = QString::fromStdString(bricks.id);
+  const auto ghost_id = QString::fromStdString(ghost.id);
+
+  patchy::ui::PatternLibrary library(pattern_test_storage_dir());
+  CHECK(library.entries().size() == 2U);
+  const auto entry_named = [](const patchy::ui::PatternLibrary& from,
+                              const QString& name) -> const patchy::ui::PatternLibraryEntry* {
+    for (const auto& entry : from.entries()) {
+      if (entry.name == name) {
+        return &entry;
+      }
+    }
+    return nullptr;
+  };
+  const auto files_before = files_on_disk();
+  int preview_count = 0;
+  bool checked_dialog = false;
+  QTimer::singleShot(0, guarded([&] {
+    const auto controls = style_controls();
+    // A pattern only the document has can be saved, from either picker.
+    CHECK(controls.overlay_save->isEnabled() && controls.overlay_save->toolTip() == save_tip);
+    CHECK(controls.texture_save->isEnabled() && controls.texture_save->toolTip() == save_tip);
+    CHECK(controls.overlay_combo->currentData().toString() == bricks_id);
+    show_page(controls, QStringLiteral("Pattern Overlay"));
+    save_widget_artifact("issue_748_pattern_overlay_save_button", *controls.dialog);
+
+    // Cancel: the library and its folder are as they were.
+    answer_prompt(controls.overlay_save, QStringLiteral("Doc Bricks"), QString());
+    CHECK(library.entries().size() == 2U);
+    CHECK(files_on_disk() == files_before);
+    CHECK(controls.overlay_save->isEnabled());
+
+    // Saved under a new name, with the document's id (no library pattern had it) and pixels.
+    const auto previews_before_save = preview_count;
+    answer_prompt(controls.overlay_save, QStringLiteral("Doc Bricks"), QStringLiteral("Saved Bricks"),
+                  "issue_748_save_pattern_name_prompt");
+    CHECK(library.entries().size() == 3U);
+    CHECK(files_on_disk() == files_before + 2);
+    const auto* saved = entry_named(library, QStringLiteral("Saved Bricks"));
+    CHECK(saved != nullptr);
+    if (saved != nullptr) {
+      CHECK(saved->id == bricks_id);
+      CHECK(saved->folder.isEmpty());
+      CHECK(saved->size == QSize(16, 12));
+      const auto stored = library.resource_for_entry(saved->storage_id);
+      CHECK(stored.has_value() && same_tile(stored->tile, bricks.tile));
+    }
+    // Nothing about the effect changed, and the pattern cannot be saved a second time from
+    // either picker.
+    CHECK(preview_count == previews_before_save);
+    CHECK(controls.overlay_combo->currentData().toString() == bricks_id);
+    CHECK(controls.texture_combo->currentData().toString() == bricks_id);
+    CHECK(!controls.overlay_save->isEnabled() && controls.overlay_save->toolTip() == have_tip);
+    CHECK(!controls.texture_save->isEnabled() && controls.texture_save->toolTip() == have_tip);
+    save_widget_artifact("issue_748_pattern_overlay_after_saving", *controls.dialog);
+
+    // A library pattern and a reference with no tile have nothing to save.
+    pick(controls.overlay_combo, fern_pattern_id);
+    CHECK(!controls.overlay_save->isEnabled() && controls.overlay_save->toolTip() == have_tip);
+    pick(controls.overlay_combo, ghost_id);
+    CHECK(!controls.overlay_save->isEnabled() && controls.overlay_save->toolTip() == save_tip);
+    pick(controls.overlay_combo, bricks_id);
+    CHECK(!controls.overlay_save->isEnabled());
+
+    // Bevel Texture: the document's dots share an id with the library's Moss, whose pixels
+    // differ, so they can be saved and get an id of their own. An emptied name field keeps
+    // the pattern's name.
+    show_page(controls, QStringLiteral("Texture"));
+    pick(controls.texture_combo, moss_pattern_id);
+    CHECK(controls.texture_save->isEnabled() && controls.texture_save->toolTip() == save_tip);
+    save_widget_artifact("issue_748_bevel_texture_save_button", *controls.dialog);
+    answer_prompt(controls.texture_save, QStringLiteral("Doc Dots"), QStringLiteral(""));
+    CHECK(library.entries().size() == 4U);
+    const auto* saved_dots = entry_named(library, QStringLiteral("Doc Dots"));
+    CHECK(saved_dots != nullptr);
+    if (saved_dots != nullptr) {
+      CHECK(!saved_dots->id.isEmpty() && saved_dots->id != moss_pattern_id);
+      const auto stored = library.resource_for_entry(saved_dots->storage_id);
+      CHECK(stored.has_value() && same_tile(stored->tile, dots.tile));
+      // The new library pattern is listed, and the picker still shows the document's.
+      CHECK(controls.texture_combo->findData(saved_dots->id) >= 0);
+    }
+    CHECK(controls.texture_combo->currentData().toString() == moss_pattern_id);
+    CHECK(!controls.texture_save->isEnabled() && controls.texture_save->toolTip() == have_tip);
+    checked_dialog = true;
+    QTimer::singleShot(80, controls.dialog, [dialog = controls.dialog] { dialog->accept(); });
+  }));
+  const auto settings = patchy::ui::request_layer_style_settings(
+      nullptr, layer, [&](const patchy::ui::LayerStyleSettings&) { ++preview_count; },
+      &document.metadata().patterns, &library);
+  CHECK(checked_dialog);
+  CHECK(settings.has_value());
+  if (settings.has_value()) {
+    CHECK(settings->style.pattern_overlays.size() == 1 &&
+          settings->style.pattern_overlays.front().pattern_id == bricks.id);
+    CHECK(settings->style.bevels.size() == 1 &&
+          QString::fromStdString(settings->style.bevels.front().texture.pattern_id) == moss_pattern_id);
+  }
+
+  // Both patterns are on disk, and a library read from it still knows their pixels.
+  patchy::ui::PatternLibrary reloaded(pattern_test_storage_dir());
+  CHECK(reloaded.entries().size() == 4U);
+  const auto* reloaded_bricks = reloaded.find_entry_by_tile(bricks.tile);
+  CHECK(reloaded_bricks != nullptr && reloaded_bricks->name == QStringLiteral("Saved Bricks"));
+  const auto* reloaded_dots = reloaded.find_entry_by_tile(dots.tile);
+  CHECK(reloaded_dots != nullptr && reloaded_dots->name == QStringLiteral("Doc Dots"));
+  auto other_bricks = bricks.tile;
+  fill_pixel_rect(other_bricks, QRect(3, 9, 1, 1), QColor(10, 10, 10));
+  CHECK(reloaded.find_entry_by_tile(other_bricks) == nullptr);
+  CHECK(reloaded.find_entry_by_tile(ghost.tile) == nullptr);
+
+  // A later session starts with the buttons off for both patterns.
+  bool checked_reopened = false;
+  QTimer::singleShot(0, guarded([&] {
+    const auto controls = style_controls();
+    CHECK(!controls.overlay_save->isEnabled() && controls.overlay_save->toolTip() == have_tip);
+    CHECK(!controls.texture_save->isEnabled());
+    pick(controls.texture_combo, moss_pattern_id);
+    CHECK(!controls.texture_save->isEnabled() && controls.texture_save->toolTip() == have_tip);
+    checked_reopened = true;
+    controls.dialog->reject();
+  }));
+  (void)patchy::ui::request_layer_style_settings(nullptr, layer, {}, &document.metadata().patterns, &reloaded);
+  CHECK(checked_reopened);
+
+  // A tile past the image-pattern limits is refused with the reason, as add_image refuses it.
+  patchy::PatternResource ribbon;
+  ribbon.id = "74800000-aaaa-4bbb-8ccc-000000000004";
+  ribbon.name = "Ribbon";
+  ribbon.tile = patchy::PixelBuffer(30001, 1, rgba8);
+  QString error;
+  CHECK(reloaded.add_resource(QStringLiteral("Ribbon"), ribbon, error).isEmpty());
+  CHECK(error.contains(QStringLiteral("30,000")) && error.contains(QStringLiteral("Ribbon")));
+  CHECK(reloaded.entries().size() == 4U);
+}
+
 void ui_pattern_manager_preview_zooms_and_opens_image() {
   QTemporaryDir directory;
   CHECK(directory.isValid());
@@ -2138,6 +2401,7 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part2() {
   return {
       {"ui_pattern_manager_and_layer_style_buttons_use_library_pattern",
        ui_pattern_manager_and_layer_style_buttons_use_library_pattern},
+      {"ui_layer_style_saves_document_pattern_as_preset", ui_layer_style_saves_document_pattern_as_preset},
       {"ui_pattern_manager_preview_zooms_and_opens_image",
        ui_pattern_manager_preview_zooms_and_opens_image},
       {"ui_gradient_manager_shows_defaults_and_supports_crud",

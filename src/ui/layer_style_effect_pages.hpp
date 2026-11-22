@@ -61,6 +61,7 @@ struct BevelTexturePageControls {
   QPushButton* bevel_texture_snap{};
   QSpinBox* bevel_texture_offset_x{};
   QSpinBox* bevel_texture_offset_y{};
+  QPushButton* bevel_texture_save_pattern{};  // "+": the picked pattern into the library (issue 748)
 };
 BevelTexturePageControls build_bevel_texture_page(LayerStylePageContext& context, QVBoxLayout* bevel_texture_layout, const LayerBevelEmboss& bevel);
 
@@ -75,6 +76,7 @@ struct PatternOverlayPageControls {
   QPushButton* pattern_overlay_snap{};
   QSpinBox* pattern_overlay_offset_x{};
   QSpinBox* pattern_overlay_offset_y{};
+  QPushButton* pattern_overlay_save_pattern{};  // as BevelTexturePageControls::bevel_texture_save_pattern
 };
 PatternOverlayPageControls build_pattern_overlay_page(LayerStylePageContext& context, QVBoxLayout* pattern_overlay_layout, const LayerPatternOverlay& pattern_overlay);
 

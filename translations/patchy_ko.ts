@@ -16453,6 +16453,18 @@ Do you want to replace it?</source>
         <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
         <translation>제작: %1 (%2)</translation>
     </message>
+    <message>
+        <source>This pattern is already in the pattern library</source>
+        <translation>이 패턴은 이미 패턴 라이브러리에 있습니다</translation>
+    </message>
+    <message>
+        <source>Save this pattern as a preset</source>
+        <translation>이 패턴을 프리셋으로 저장</translation>
+    </message>
+    <message>
+        <source>Save Pattern as Preset</source>
+        <translation>패턴을 프리셋으로 저장</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22481,6 +22493,10 @@ Do you want to replace it?</source>
     <message>
         <source>Manage saved layer style contours</source>
         <translation>저장된 레이어 스타일 윤곽선 관리</translation>
+    </message>
+    <message>
+        <source>Make a pattern from the image or selection</source>
+        <translation>이미지 또는 선택 영역으로 패턴 만들기</translation>
     </message>
 </context>
 <context>
@@ -37093,6 +37109,50 @@ Locked: %1</source>
     <message>
         <source>Hide Effects</source>
         <translation>효과 숨기기</translation>
+    </message>
+    <message>
+        <source>Define Pattern...</source>
+        <translation>패턴 정의...</translation>
+    </message>
+    <message>
+        <source>The selection is outside the canvas, so there is nothing to make a pattern from</source>
+        <translation>선택 영역이 캔버스 밖에 있어 패턴으로 만들 부분이 없습니다</translation>
+    </message>
+    <message>
+        <source>Define Pattern</source>
+        <translation>패턴 정의</translation>
+    </message>
+    <message>
+        <source>The area is %1 x %2 pixels. %3 Select a smaller area and try again.</source>
+        <translation>영역이 %1 x %2픽셀입니다. %3 더 작은 영역을 선택한 후 다시 시도하세요.</translation>
+    </message>
+    <message>
+        <source>A pattern can be at most 30,000 pixels wide or tall.</source>
+        <translation>패턴의 너비와 높이는 최대 30,000픽셀입니다.</translation>
+    </message>
+    <message>
+        <source>A pattern can have at most 8 million pixels.</source>
+        <translation>패턴은 최대 800만 픽셀까지 가능합니다.</translation>
+    </message>
+    <message>
+        <source>Could not read the image to define a pattern</source>
+        <translation>패턴을 정의할 이미지를 읽을 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Pattern %1</source>
+        <translation>패턴 %1</translation>
+    </message>
+    <message>
+        <source>Cancelled defining a pattern</source>
+        <translation>패턴 정의가 취소되었습니다</translation>
+    </message>
+    <message>
+        <source>Could not save the pattern</source>
+        <translation>패턴을 저장할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Defined pattern: %1 (%2 x %3 px)</source>
+        <translation>정의된 패턴: %1 (%2 x %3 px)</translation>
     </message>
 </context>
 <context>

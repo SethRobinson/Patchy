@@ -16509,6 +16509,18 @@ Möchten Sie die Datei ersetzen?</translation>
         <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
         <translation>Erstellt von %1 (%2)</translation>
     </message>
+    <message>
+        <source>This pattern is already in the pattern library</source>
+        <translation>Dieses Muster ist bereits in der Musterbibliothek</translation>
+    </message>
+    <message>
+        <source>Save this pattern as a preset</source>
+        <translation>Dieses Muster als Vorgabe speichern</translation>
+    </message>
+    <message>
+        <source>Save Pattern as Preset</source>
+        <translation>Muster als Vorgabe speichern</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22543,6 +22555,10 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Manage saved layer style contours</source>
         <translation>Gespeicherte Konturen für Ebenenstile verwalten</translation>
+    </message>
+    <message>
+        <source>Make a pattern from the image or selection</source>
+        <translation>Ein Muster aus dem Bild oder der Auswahl erstellen</translation>
     </message>
 </context>
 <context>
@@ -37208,6 +37224,50 @@ Fixiert: %1</translation>
     <message>
         <source>Hide Effects</source>
         <translation>Effekte ausblenden</translation>
+    </message>
+    <message>
+        <source>Define Pattern...</source>
+        <translation>Muster festlegen...</translation>
+    </message>
+    <message>
+        <source>The selection is outside the canvas, so there is nothing to make a pattern from</source>
+        <translation>Die Auswahl liegt außerhalb der Arbeitsfläche, daher gibt es nichts, woraus ein Muster erstellt werden kann</translation>
+    </message>
+    <message>
+        <source>Define Pattern</source>
+        <translation>Muster festlegen</translation>
+    </message>
+    <message>
+        <source>The area is %1 x %2 pixels. %3 Select a smaller area and try again.</source>
+        <translation>Der Bereich ist %1 x %2 Pixel groß. %3 Wählen Sie einen kleineren Bereich aus und versuchen Sie es erneut.</translation>
+    </message>
+    <message>
+        <source>A pattern can be at most 30,000 pixels wide or tall.</source>
+        <translation>Ein Muster darf höchstens 30.000 Pixel breit oder hoch sein.</translation>
+    </message>
+    <message>
+        <source>A pattern can have at most 8 million pixels.</source>
+        <translation>Ein Muster darf höchstens 8 Millionen Pixel haben.</translation>
+    </message>
+    <message>
+        <source>Could not read the image to define a pattern</source>
+        <translation>Das Bild konnte nicht gelesen werden, um ein Muster festzulegen</translation>
+    </message>
+    <message>
+        <source>Pattern %1</source>
+        <translation>Muster %1</translation>
+    </message>
+    <message>
+        <source>Cancelled defining a pattern</source>
+        <translation>Festlegen des Musters abgebrochen</translation>
+    </message>
+    <message>
+        <source>Could not save the pattern</source>
+        <translation>Das Muster konnte nicht gespeichert werden</translation>
+    </message>
+    <message>
+        <source>Defined pattern: %1 (%2 x %3 px)</source>
+        <translation>Muster festgelegt: %1 (%2 x %3 px)</translation>
     </message>
 </context>
 <context>

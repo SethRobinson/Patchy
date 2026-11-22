@@ -15,6 +15,9 @@
 #include "ui/brush_tip_picker.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/fill_dialog.hpp"
+#include "ui/layer_style_dialog.hpp"
+#include "ui/shape_appearance_dialog.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
@@ -46,6 +49,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QPainter>
 #include <QScopeGuard>
 #include <QTemporaryDir>
 #include <QMimeData>
@@ -2491,6 +2497,451 @@ void ui_pattern_library_imports_image_files() {
   CHECK(library.entries().size() == 3);
 }
 
+// The store Define Pattern uses: an image already in memory, under import_image's limits.
+void ui_pattern_library_adds_images_from_memory() {
+  using Size = patchy::ui::PatternLibrary::ImagePatternSize;
+  CHECK(patchy::ui::PatternLibrary::image_pattern_size(QSize(4096, 2048)) == Size::Fits);
+  CHECK(patchy::ui::PatternLibrary::image_pattern_size(QSize(4096, 2049)) == Size::TooManyPixels);
+  CHECK(patchy::ui::PatternLibrary::image_pattern_size(QSize(30000, 1)) == Size::Fits);
+  CHECK(patchy::ui::PatternLibrary::image_pattern_size(QSize(30001, 1)) == Size::TooWideOrTall);
+  CHECK(patchy::ui::PatternLibrary::image_pattern_size(QSize(1, 30001)) == Size::TooWideOrTall);
+  CHECK(patchy::ui::PatternLibrary::image_pattern_size(QSize()) == Size::Fits);
+
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::PatternLibrary library(directory.filePath(QStringLiteral("library")));
+  int announced = 0;
+  QObject::connect(&library, &patchy::ui::PatternLibrary::changed, [&announced] { ++announced; });
+
+  // Premultiplied ARGB in: the stored tile is straight RGBA with the alpha kept.
+  QImage image(6, 4, QImage::Format_ARGB32_Premultiplied);
+  image.fill(Qt::transparent);
+  {
+    QPainter painter(&image);
+    painter.fillRect(QRect(0, 0, 3, 4), QColor(200, 40, 20));
+    painter.fillRect(QRect(3, 0, 2, 4), QColor(20, 40, 200, 128));
+  }
+  QString error = QStringLiteral("stale");
+  const auto storage_id = library.add_image(QStringLiteral("  Brick  "), image, error);
+  CHECK(!storage_id.isEmpty());
+  CHECK(error.isEmpty());
+  CHECK(announced == 1);
+  const auto* entry = library.find_entry(storage_id);
+  CHECK(entry != nullptr);
+  if (entry == nullptr) {
+    return;
+  }
+  CHECK(entry->name == QStringLiteral("Brick"));
+  CHECK(entry->folder.isEmpty());
+  CHECK(entry->size == QSize(6, 4));
+  CHECK(!entry->id.isEmpty());
+  const auto resource = library.resource_for_entry(storage_id);
+  CHECK(resource.has_value());
+  if (resource.has_value()) {
+    const auto* red = resource->tile.pixel(1, 1);
+    CHECK(red[0] == 200 && red[1] == 40 && red[2] == 20 && red[3] == 255);
+    const auto* blue = resource->tile.pixel(4, 2);
+    CHECK(blue[3] == 128);
+    CHECK(std::abs(blue[2] - 200) <= 2 && std::abs(blue[0] - 20) <= 2);
+    CHECK(resource->tile.pixel(5, 0)[3] == 0);
+  }
+
+  // The same image again is a second pattern with its own id.
+  const auto second = library.add_image(QStringLiteral("Brick"), image, error);
+  CHECK(!second.isEmpty() && second != storage_id);
+  CHECK(library.find_entry(second)->id != library.find_entry(storage_id)->id);
+  CHECK(library.entries().size() == 2);
+
+  // Nothing to store, and an image past the pixel cap: an error and no entry. The bits of the
+  // oversized image are never touched, so its pages are not committed.
+  CHECK(library.add_image(QStringLiteral("Nothing"), QImage(), error).isEmpty());
+  CHECK(error.contains(QStringLiteral("Nothing")));
+  const QImage oversized(4096, 2049, QImage::Format_Grayscale8);
+  CHECK(!oversized.isNull());
+  CHECK(library.add_image(QStringLiteral("Huge"), oversized, error).isEmpty());
+  CHECK(error.contains(QStringLiteral("8 million")) && error.contains(QStringLiteral("Huge")));
+  const QImage too_wide(30001, 1, QImage::Format_Grayscale8);
+  CHECK(library.add_image(QStringLiteral("Ribbon"), too_wide, error).isEmpty());
+  CHECK(error.contains(QStringLiteral("30,000")));
+  CHECK(library.entries().size() == 2);
+  CHECK(announced == 2);
+
+  patchy::ui::PatternLibrary reloaded(library.storage_dir());
+  CHECK(reloaded.entries().size() == 2);
+  CHECK(reloaded.find_entry(storage_id) != nullptr);
+}
+
+// GitHub issue 747: Edit > Define New Preset > Define Pattern... makes a library pattern from
+// the visible composite, transparency kept: the whole canvas, or the selection's bounding
+// rectangle. Cancel and an area past the limits add nothing, and the pattern is on disk.
+void ui_define_pattern_from_document_and_selection() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  clear_pattern_test_state();
+  patchy::ui::save_fill_dialog_settings(patchy::ui::FillDialogSettings{});
+  const auto cleanup = qScopeGuard([] {
+    patchy::ui::save_fill_dialog_settings(patchy::ui::FillDialogSettings{});
+    clear_pattern_test_state();
+  });
+  const QColor sky(70, 130, 200);
+  const QColor sun(250, 200, 40);
+  constexpr int kWidth = 64;
+  constexpr int kHeight = 48;
+  QString whole_storage_id;
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    // Two layers: a blue one with a clear corner, and a yellow square on the layer above.
+    patchy::Document source(kWidth, kHeight, patchy::PixelFormat::rgba8());
+    auto lower = solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), sky);
+    fill_pixel_rect(lower, QRect(48, 32, 16, 16), QColor(Qt::transparent));
+    source.add_pixel_layer("Sky", std::move(lower));
+    auto upper = solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(Qt::transparent));
+    fill_pixel_rect(upper, QRect(8, 8, 24, 24), sun);
+    source.add_pixel_layer("Sun", std::move(upper));
+    window.add_document_session(std::move(source), QStringLiteral("Define pattern"));
+    QApplication::processEvents();
+    auto* canvas = require_canvas(window);
+    canvas->set_zoom(4.0);
+    auto& library = window.pattern_library();
+    auto* action = require_action(window, "editDefinePatternAction");
+    CHECK(action->isEnabled());
+    CHECK(action->text() == QStringLiteral("Define Pattern..."));
+    auto* stamp_combo = window.findChild<QComboBox*>(QStringLiteral("patternStampPatternCombo"));
+    CHECK(stamp_combo != nullptr);
+    const auto entries_before = library.entries().size();
+    const auto undo_depth = Access::active_session_undo_depth(window);
+    const auto files_on_disk = [] {
+      return QDir(pattern_test_storage_dir()).entryList(QDir::Files).size();
+    };
+    const auto files_before = files_on_disk();
+
+    // Answers the name prompt: a null name cancels it.
+    const auto answer_prompt = [&](const QString& name, const char* artifact = nullptr) {
+      when_dialog_visible(QStringLiteral("definePatternDialog"), [name, artifact](QDialog& dialog) {
+        auto* name_edit = dialog.findChild<QLineEdit*>(QStringLiteral("definePatternNameEdit"));
+        CHECK(name_edit != nullptr);
+        if (name_edit == nullptr || name.isNull()) {
+          dialog.reject();
+          return;
+        }
+        CHECK(name_edit->text().startsWith(QStringLiteral("Pattern ")));
+        CHECK(name_edit->selectedText() == name_edit->text());
+        name_edit->setText(name);
+        QApplication::processEvents();
+        if (artifact != nullptr) {
+          save_widget_artifact(artifact, dialog);
+        }
+        dialog.accept();
+      });
+      action->trigger();
+      QApplication::processEvents();
+    };
+    const auto entry_named = [&library](const QString& name) -> const patchy::ui::PatternLibraryEntry* {
+      for (const auto& entry : library.entries()) {
+        if (entry.name == name) {
+          return &entry;
+        }
+      }
+      return nullptr;
+    };
+    const auto tile_color = [](const patchy::PixelBuffer& tile, int x, int y) {
+      const auto* px = tile.pixel(x, y);
+      return QColor(px[0], px[1], px[2], px[3]);
+    };
+
+    // Cancel: the library and its folder are as they were.
+    answer_prompt(QString());
+    CHECK(library.entries().size() == entries_before);
+    CHECK(files_on_disk() == files_before);
+
+    // No selection: the whole canvas, both layers composited, the clear corner still clear.
+    answer_prompt(QStringLiteral("Whole Canvas"), "issue_747_define_pattern_dialog");
+    CHECK(library.entries().size() == entries_before + 1);
+    const auto* whole = entry_named(QStringLiteral("Whole Canvas"));
+    CHECK(whole != nullptr);
+    if (whole == nullptr) {
+      return;
+    }
+    whole_storage_id = whole->storage_id;
+    const auto whole_pattern_id = whole->id;
+    CHECK(whole->size == QSize(kWidth, kHeight));
+    CHECK(whole->folder.isEmpty());
+    {
+      const auto resource = library.resource_for_entry(whole_storage_id);
+      CHECK(resource.has_value());
+      if (resource.has_value()) {
+        CHECK(tile_color(resource->tile, 2, 2) == sky);
+        CHECK(tile_color(resource->tile, 20, 20) == sun);
+        CHECK(tile_color(resource->tile, 40, 40) == sky);
+        CHECK(tile_color(resource->tile, 56, 40).alpha() == 0);
+      }
+    }
+    // It is the Pattern Stamp's pattern now, and the document took no history step.
+    if (stamp_combo != nullptr) {
+      CHECK(stamp_combo->currentData().toString() == whole_pattern_id);
+      CHECK(stamp_combo->currentText() == QStringLiteral("Whole Canvas"));
+    }
+    CHECK(Access::active_session_undo_depth(window) == undo_depth);
+
+    // A selection: its bounding rectangle only. An ellipse inside (24,16) 16x12 gives that
+    // rectangle whole: the corners outside the ellipse are part of the tile.
+    {
+      patchy::PixelBuffer coverage(kWidth, kHeight, patchy::PixelFormat::gray8());
+      coverage.clear(0);
+      for (int y = 16; y < 28; ++y) {
+        for (int x = 24; x < 40; ++x) {
+          const double dx = (x + 0.5 - 32.0) / 8.0;
+          const double dy = (y + 0.5 - 22.0) / 6.0;
+          coverage.pixel(x, y)[0] = dx * dx + dy * dy <= 1.0 ? 255 : 0;
+        }
+      }
+      canvas->apply_grayscale_to_selection(coverage);
+      QApplication::processEvents();
+      CHECK(canvas->selected_document_rect() == std::optional<QRect>(QRect(24, 16, 16, 12)));
+    }
+    answer_prompt(QStringLiteral("Selected Part"));
+    const auto* part = entry_named(QStringLiteral("Selected Part"));
+    CHECK(part != nullptr);
+    if (part == nullptr) {
+      return;
+    }
+    const auto part_pattern_id = part->id;
+    CHECK(part->size == QSize(16, 12));
+    {
+      const auto resource = library.resource_for_entry(part->storage_id);
+      CHECK(resource.has_value());
+      if (resource.has_value()) {
+        // Document x 24..31 is the yellow square, 32..39 the blue layer under it.
+        CHECK(tile_color(resource->tile, 0, 0) == sun);
+        CHECK(tile_color(resource->tile, 7, 11) == sun);
+        CHECK(tile_color(resource->tile, 8, 0) == sky);
+        CHECK(tile_color(resource->tile, 15, 11) == sky);
+      }
+    }
+
+    // An empty name keeps the default one.
+    const auto default_name = QStringLiteral("Pattern %1").arg(library.entries().size() + 1);
+    answer_prompt(QStringLiteral("   "));
+    CHECK(entry_named(default_name) != nullptr);
+    CHECK(library.entries().size() == entries_before + 3);
+    CHECK(Access::active_session_undo_depth(window) == undo_depth);
+
+    // Every other pattern picker reads the same library. Layer Style lists the new patterns
+    // for Pattern Overlay and for Bevel Texture.
+    {
+      patchy::Document styled(96, 72, patchy::PixelFormat::rgba8());
+      patchy::Layer styled_layer(styled.allocate_layer_id(), "Styled",
+                                 solid_pixels(48, 36, patchy::PixelFormat::rgba8(), sky));
+      int combos_checked = 0;
+      QTimer::singleShot(0, guarded([&] {
+        auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
+        CHECK(dialog != nullptr);
+        if (dialog == nullptr) {
+          return;
+        }
+        for (const auto* combo_name :
+             {"layerStylePatternOverlayPatternCombo", "layerStyleBevelTexturePatternCombo"}) {
+          auto* combo = dialog->findChild<QComboBox*>(QString::fromLatin1(combo_name));
+          CHECK(combo != nullptr);
+          if (combo != nullptr) {
+            CHECK(combo->findData(whole_pattern_id) >= 0);
+            CHECK(combo->findData(part_pattern_id) >= 0);
+            ++combos_checked;
+          }
+        }
+        QTimer::singleShot(0, dialog, [dialog] { dialog->reject(); });
+      }));
+      (void)patchy::ui::request_layer_style_settings(nullptr, styled_layer, {}, &styled.metadata().patterns,
+                                                     &library);
+      CHECK(combos_checked == 2);
+    }
+    // Shape Appearance takes them as a fill and as a stroke.
+    {
+      patchy::PatternStore no_document_patterns;
+      patchy::ui::ShapeAppearanceSettings initial;
+      initial.fill.kind = patchy::VectorFillKind::Pattern;
+      initial.fill.pattern_id = whole_pattern_id.toStdString();
+      initial.fill.pattern_name = "Whole Canvas";
+      initial.stroke.enabled = true;
+      initial.stroke.width = 4;
+      initial.stroke.content.kind = patchy::VectorFillKind::Pattern;
+      initial.stroke.content.pattern_id = part_pattern_id.toStdString();
+      initial.stroke.content.pattern_name = "Selected Part";
+      bool checked = false;
+      QTimer::singleShot(0, guarded([&] {
+        auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+        CHECK(dialog != nullptr);
+        if (dialog == nullptr) {
+          return;
+        }
+        auto* fill = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillPatternCombo"));
+        auto* stroke = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokePatternCombo"));
+        CHECK(fill != nullptr && stroke != nullptr);
+        if (fill != nullptr && stroke != nullptr) {
+          CHECK(fill->currentData().toString() == whole_pattern_id);
+          CHECK(stroke->currentData().toString() == part_pattern_id);
+          CHECK(fill->findData(part_pattern_id) >= 0);
+          checked = true;
+        }
+        dialog->reject();
+      }));
+      (void)patchy::ui::request_shape_appearance_settings(nullptr, {}, initial, {}, nullptr, &library,
+                                                          &no_document_patterns, {}, {});
+      CHECK(checked);
+    }
+    // Fill Path offers them: a work path from the selection, then Paths > Fill Path.
+    {
+      QTimer::singleShot(0, guarded([&] {
+        auto* dialog = find_top_level_dialog(QStringLiteral("makeWorkPathDialog"));
+        CHECK(dialog != nullptr);
+        if (dialog != nullptr) {
+          dialog->accept();
+        }
+      }));
+      require_action(window, "pathFromSelectionAction")->trigger();
+      QApplication::processEvents();
+      CHECK(std::as_const(Access::document(window)).work_path() != nullptr);
+      if (auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+          paths_list != nullptr && paths_list->count() > 0) {
+        paths_list->setCurrentRow(0);
+        QApplication::processEvents();
+      }
+      bool listed = false;
+      when_dialog_visible(QStringLiteral("fillPathDialog"), [&](QDialog& dialog) {
+        auto* pattern = dialog.findChild<QComboBox*>(QStringLiteral("fillPathPatternCombo"));
+        CHECK(pattern != nullptr);
+        if (pattern != nullptr) {
+          const int index = pattern->findData(whole_pattern_id);
+          listed = index >= 0 && pattern->findData(part_pattern_id) >= 0;
+          if (index >= 0) {
+            CHECK(pattern->itemText(index) == QStringLiteral("Whole Canvas"));
+          }
+        }
+        dialog.reject();
+      });
+      require_action(window, "pathFillAction")->trigger();
+      QApplication::processEvents();
+      CHECK(listed);
+    }
+
+    // The new patterns repeat: Edit > Fill lists them, and filling a white page three tiles
+    // wide and high with the whole-canvas one repeats it, the clear corner showing the page.
+    patchy::Document page(kWidth * 3, kHeight * 3, patchy::PixelFormat::rgba8());
+    const auto page_layer =
+        page.add_pixel_layer("Page", solid_pixels(kWidth * 3, kHeight * 3, patchy::PixelFormat::rgba8(), Qt::white))
+            .id();
+    window.add_document_session(std::move(page), QStringLiteral("Pattern page"));
+    QApplication::processEvents();
+    canvas = require_canvas(window);
+    canvas->set_zoom(2.0);
+    when_dialog_visible(QStringLiteral("patchyFillDialog"), [&](QDialog& dialog) {
+      auto* contents = dialog.findChild<QComboBox*>(QStringLiteral("editFillContentsCombo"));
+      auto* pattern = dialog.findChild<QComboBox*>(QStringLiteral("editFillPatternCombo"));
+      CHECK(contents != nullptr && pattern != nullptr);
+      if (contents == nullptr || pattern == nullptr) {
+        dialog.reject();
+        return;
+      }
+      contents->setCurrentIndex(contents->findData(QStringLiteral("pattern")));
+      CHECK(pattern->findData(part_pattern_id) >= 0);
+      const int index = pattern->findData(whole_pattern_id);
+      CHECK(index >= 0);
+      pattern->setCurrentIndex(index);
+      CHECK(pattern->itemText(index) == QStringLiteral("Whole Canvas"));
+      QApplication::processEvents();
+      save_widget_artifact("issue_747_define_pattern_in_fill_dialog", dialog);
+      dialog.accept();
+    });
+    require_action(window, "editFillAction")->trigger();
+    QApplication::processEvents();
+    {
+      const auto& doc = std::as_const(Access::document(window));
+      const auto* layer = doc.find_layer(page_layer);
+      CHECK(layer != nullptr);
+      if (layer != nullptr) {
+        const auto page_color = [&](int x, int y) { return tile_color(layer->pixels(), x, y); };
+        for (int tile_y = 0; tile_y < 3; ++tile_y) {
+          for (int tile_x = 0; tile_x < 3; ++tile_x) {
+            const int left = tile_x * kWidth;
+            const int top = tile_y * kHeight;
+            CHECK(page_color(left + 2, top + 2) == sky);
+            CHECK(page_color(left + 20, top + 20) == sun);
+            CHECK(page_color(left + 40, top + 40) == sky);
+            CHECK(page_color(left + 56, top + 40) == QColor(Qt::white));
+          }
+        }
+      }
+    }
+    QApplication::processEvents();
+    save_widget_artifact("issue_747_define_pattern_filled_page", *canvas);
+
+    // Past the limits: a message with the size, no name prompt, nothing added. The canvas
+    // sizes are only numbers here: one small layer, and nothing is rendered.
+    struct TooLarge {
+      QSize size;
+      QString limit;
+    };
+    for (const auto& too_large : {TooLarge{QSize(4096, 2049), QStringLiteral("8 million")},
+                                  TooLarge{QSize(30001, 16), QStringLiteral("30,000")}}) {
+      const auto size = too_large.size;
+      const auto limit = too_large.limit;
+      patchy::Document big(size.width(), size.height(), patchy::PixelFormat::rgba8());
+      big.add_layer(patchy::Layer(big.allocate_layer_id(), "Dot",
+                                  solid_pixels(16, 16, patchy::PixelFormat::rgba8(), sun)));
+      window.add_document_session(std::move(big), QStringLiteral("Too large"));
+      QApplication::processEvents();
+      const auto count = library.entries().size();
+      bool warned = false;
+      when_dialog_visible(QStringLiteral("definePatternTooLargeMessageBox"), [&](QDialog& dialog) {
+        auto* box = qobject_cast<QMessageBox*>(&dialog);
+        CHECK(box != nullptr);
+        if (box != nullptr) {
+          CHECK(box->text().contains(limit));
+          CHECK(box->text().contains(QStringLiteral("%1 x %2").arg(size.width()).arg(size.height())));
+          warned = true;
+        }
+        dialog.accept();
+      });
+      action->trigger();
+      QApplication::processEvents();
+      CHECK(warned);
+      CHECK(find_top_level_dialog(QStringLiteral("definePatternDialog")) == nullptr);
+      CHECK(library.entries().size() == count);
+
+      // The limits are the tile's, not the document's: a selected corner of it is fine.
+      canvas = require_canvas(window);
+      patchy::PixelBuffer corner_coverage(16, 16, patchy::PixelFormat::gray8());
+      corner_coverage.clear(255);
+      canvas->set_selection_from_coverage(QRect(0, 0, 16, 16), corner_coverage);
+      QApplication::processEvents();
+      CHECK(canvas->selected_document_rect() == std::optional<QRect>(QRect(0, 0, 16, 16)));
+      const auto corner_name = QStringLiteral("Corner %1").arg(size.width());
+      answer_prompt(corner_name);
+      const auto* corner = entry_named(corner_name);
+      CHECK(corner != nullptr);
+      if (corner != nullptr) {
+        CHECK(corner->size == QSize(16, 16));
+      }
+    }
+  }
+
+  // A fresh library reads the defined pattern back from disk: name, size, pixels.
+  patchy::ui::PatternLibrary reloaded(pattern_test_storage_dir());
+  const auto* entry = reloaded.find_entry(whole_storage_id);
+  CHECK(entry != nullptr);
+  if (entry != nullptr) {
+    CHECK(entry->name == QStringLiteral("Whole Canvas"));
+    CHECK(entry->size == QSize(kWidth, kHeight));
+    const auto resource = reloaded.resource_for_entry(whole_storage_id);
+    CHECK(resource.has_value());
+    if (resource.has_value()) {
+      const auto* px = resource->tile.pixel(20, 20);
+      CHECK(QColor(px[0], px[1], px[2], px[3]) == sun);
+      CHECK(resource->tile.pixel(56, 40)[3] == 0);
+    }
+  }
+}
+
 void ui_brush_tip_folders_and_bulk_delete() {
   clear_brush_tip_test_state();
   patchy::ui::MainWindow window;
@@ -2570,6 +3021,8 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part1() {
       {"ui_pattern_library_delete_requires_tile_removal",
        ui_pattern_library_delete_requires_tile_removal},
       {"ui_pattern_library_imports_image_files", ui_pattern_library_imports_image_files},
+      {"ui_pattern_library_adds_images_from_memory", ui_pattern_library_adds_images_from_memory},
+      {"ui_define_pattern_from_document_and_selection", ui_define_pattern_from_document_and_selection},
       {"ui_default_patterns_seed_once_and_restore", ui_default_patterns_seed_once_and_restore},
       {"ui_pattern_library_off_thread_load_matches_direct_load",
        ui_pattern_library_off_thread_load_matches_direct_load},

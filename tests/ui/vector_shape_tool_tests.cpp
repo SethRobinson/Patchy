@@ -1670,8 +1670,9 @@ void save_menu_with_open_submenu(QMenu& submenu, const std::string& name) {
 }
 
 void ui_edit_define_menu_holds_the_define_commands() {
-  // Seth, October 28, 2026 (GitHub issue 485 follow-up): the three Define commands in one
-  // Edit submenu right above Presets, same QActions, object names and hotkey ids.
+  // Seth, October 28, 2026 (GitHub issue 485 follow-up): the Define commands in one
+  // Edit submenu right above Presets, same QActions, object names and hotkey ids. Define
+  // Pattern joined them for GitHub issue 747.
   patchy::ui::MainWindow window;
   show_window(window);
   auto* define_menu = window.findChild<QMenu*>(QStringLiteral("editDefineMenu"));
@@ -1684,6 +1685,7 @@ void ui_edit_define_menu_holds_the_define_commands() {
   CHECK(define_menu->menuAction()->menuRole() == QAction::NoRole);
   const std::vector<std::pair<QString, QString>> expected{
       {QStringLiteral("editDefineBrushTipAction"), QStringLiteral("edit.define_brush_tip")},
+      {QStringLiteral("editDefinePatternAction"), QStringLiteral("edit.define_pattern")},
       {QStringLiteral("editDefineCustomShapeAction"), QStringLiteral("edit.define_custom_shape")},
       {QStringLiteral("editDefineCustomShapeFromSvgAction"), QStringLiteral("edit.define_custom_shape_svg")}};
   const auto actions = define_menu->actions();
@@ -1695,7 +1697,7 @@ void ui_edit_define_menu_holds_the_define_commands() {
     const auto* command = window.hotkey_registry().find_command(expected[static_cast<std::size_t>(index)].second);
     CHECK(command != nullptr && command->action.data() == action);
   }
-  // Nothing of the three is left on the Edit menu itself, and Define sits right above Presets.
+  // None of them is left on the Edit menu itself, and Define sits right above Presets.
   auto* edit_menu = qobject_cast<QMenu*>(define_menu->parentWidget());
   CHECK(edit_menu != nullptr);
   if (edit_menu != nullptr) {
@@ -1708,7 +1710,7 @@ void ui_edit_define_menu_holds_the_define_commands() {
       }
     }
   }
-  // The SVG import needs no document; the other two follow the document actions.
+  // The SVG import needs no document; the others follow the document actions.
   CHECK(patchy::ui::command_works_without_document(*define_menu->menuAction(), QString()));
   save_menu_with_open_submenu(*define_menu, "ui_edit_define_menu_open");
 }
