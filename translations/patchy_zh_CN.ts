@@ -16391,10 +16391,6 @@ Do you want to replace it?</source>
         <translation>由 %1 创作（%2、%3）</translation>
     </message>
     <message>
-        <source>Site</source>
-        <translation>网站</translation>
-    </message>
-    <message>
         <source>%1 · Up to date</source>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · 已是最新版本</translation>

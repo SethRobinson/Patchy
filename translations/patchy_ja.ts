@@ -16391,10 +16391,6 @@ Do you want to replace it?</source>
         <translation>作成: %1（%2、%3）</translation>
     </message>
     <message>
-        <source>Site</source>
-        <translation>サイト</translation>
-    </message>
-    <message>
         <source>%1 · Up to date</source>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · 最新です</translation>

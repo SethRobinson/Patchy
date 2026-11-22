@@ -16503,10 +16503,6 @@ Do you want to replace it?</source>
         <translation>Автор: %1 (%2, %3)</translation>
     </message>
     <message>
-        <source>Site</source>
-        <translation>Сайт</translation>
-    </message>
-    <message>
         <source>%1 · Up to date</source>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · Актуальная версия</translation>

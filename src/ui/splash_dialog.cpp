@@ -271,7 +271,8 @@ public:
     set_themed_label_text(*credit, QObject::tr("Created by %1 (%2, %3)").arg(
         QStringLiteral("Seth A. Robinson"),
         link(QStringLiteral("https://github.com/SethRobinson"), QStringLiteral("GitHub")),
-        link(QStringLiteral("https://rtsoft.com"), QObject::tr("Site"))));
+        // The address itself is the link text, the same in every language.
+        link(QStringLiteral("https://rtsoft.com"), QStringLiteral("rtsoft.com"))));
     credit->setTextInteractionFlags(Qt::TextBrowserInteraction);
     credit->setOpenExternalLinks(true);
     credit->setWordWrap(true);

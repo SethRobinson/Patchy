@@ -16391,10 +16391,6 @@ Do you want to replace it?</source>
         <translation>제작: %1 (%2, %3)</translation>
     </message>
     <message>
-        <source>Site</source>
-        <translation>웹사이트</translation>
-    </message>
-    <message>
         <source>%1 · Up to date</source>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · 최신 상태</translation>

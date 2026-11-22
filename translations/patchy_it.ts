@@ -16447,10 +16447,6 @@ Sostituirlo?</translation>
         <translation>Creato da %1 (%2, %3)</translation>
     </message>
     <message>
-        <source>Site</source>
-        <translation>Sito</translation>
-    </message>
-    <message>
         <source>%1 · Up to date</source>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · Aggiornato</translation>

@@ -16503,10 +16503,6 @@ Czy chcesz go zastąpić?</translation>
         <translation>Autor: %1 (%2, %3)</translation>
     </message>
     <message>
-        <source>Site</source>
-        <translation>Strona</translation>
-    </message>
-    <message>
         <source>%1 · Up to date</source>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · Wersja aktualna</translation>

@@ -16447,10 +16447,6 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Erstellt von %1 (%2, %3)</translation>
     </message>
     <message>
-        <source>Site</source>
-        <translation>Website</translation>
-    </message>
-    <message>
         <source>%1 · Up to date</source>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · Auf dem neuesten Stand</translation>

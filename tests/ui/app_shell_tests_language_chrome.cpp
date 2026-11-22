@@ -41,12 +41,16 @@
 #include <QImage>
 #include <QLabel>
 #include <QMainWindow>
+#include <QMap>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QListWidget>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
+#include <QTextBlock>
+#include <QTextDocument>
+#include <QTextFragment>
 #include <QLocale>
 #include <QMenu>
 #include <QMenuBar>
@@ -1470,6 +1474,22 @@ struct IniRootOverride {
   IniRootOverride& operator=(const IniRootOverride&) = delete;
 };
 
+// The visible text of every link in a rich-text label, keyed by the link's destination.
+QMap<QString, QString> rendered_label_links(const QLabel& label) {
+  QTextDocument document;
+  document.setHtml(label.text());
+  QMap<QString, QString> links;
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    for (auto it = block.begin(); !it.atEnd(); ++it) {
+      const auto fragment = it.fragment();
+      if (fragment.charFormat().isAnchor()) {
+        links[fragment.charFormat().anchorHref()] += fragment.text();
+      }
+    }
+  }
+  return links;
+}
+
 void ui_about_dialog_shows_labeled_external_links() {
   bool inspected = false;
   QTimer::singleShot(0, guarded([&] {
@@ -1497,7 +1517,12 @@ void ui_about_dialog_shows_labeled_external_links() {
     CHECK(project->text().contains(QStringLiteral("href=\"https://github.com/SethRobinson/Patchy\">SethRobinson/Patchy</a>")));
     CHECK(credit->text().startsWith(QStringLiteral("Created by Seth A. Robinson (")));
     CHECK(credit->text().contains(QStringLiteral("href=\"https://github.com/SethRobinson\">GitHub</a>")));
-    CHECK(credit->text().contains(QStringLiteral("href=\"https://rtsoft.com\">Site</a>")));
+    // The website link shows its address, not a word for it (GitHub issue 740).
+    CHECK(credit->text().contains(QStringLiteral("href=\"https://rtsoft.com\">rtsoft.com</a>")));
+    const auto credit_links = rendered_label_links(*credit);
+    CHECK(credit_links.size() == 2);
+    CHECK(credit_links.value(QStringLiteral("https://github.com/SethRobinson")) == QStringLiteral("GitHub"));
+    CHECK(credit_links.value(QStringLiteral("https://rtsoft.com")) == QStringLiteral("rtsoft.com"));
     for (const auto* label : {project, credit}) {
       CHECK(label->textFormat() == Qt::RichText);
       CHECK(label->textInteractionFlags().testFlag(Qt::LinksAccessibleByMouse));
@@ -1585,6 +1610,44 @@ void ui_about_dialog_shows_labeled_external_links() {
 
   patchy::ui::show_about_splash();
   CHECK(inspected);
+}
+
+// The creator's website link reads "rtsoft.com" in every shipped language, beside a
+// separate GitHub link (GitHub issue 740).
+void ui_about_dialog_creator_links_show_the_site_address_in_every_language() {
+  auto& manager = patchy::ui::LocalizationManager::instance();
+  const auto restore_language = qScopeGuard([&manager] { manager.set_language(QStringLiteral("en"), false); });
+  for (const auto& language : manager.languages()) {
+    CHECK(manager.set_language(language.code, false));
+    bool inspected = false;
+    QTimer::singleShot(0, guarded([&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchySplashScreen"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* credit = dialog->findChild<QLabel*>(QStringLiteral("splashCredit"));
+      CHECK(credit != nullptr);
+      if (credit != nullptr) {
+        const auto links = rendered_label_links(*credit);
+        if (links.value(QStringLiteral("https://rtsoft.com")) != QStringLiteral("rtsoft.com")) {
+          fprintf(stderr, "  %s: the website link reads \"%s\"\n", qPrintable(language.code),
+                  qPrintable(links.value(QStringLiteral("https://rtsoft.com"))));
+        }
+        CHECK(links.size() == 2);
+        CHECK(links.value(QStringLiteral("https://rtsoft.com")) == QStringLiteral("rtsoft.com"));
+        CHECK(links.value(QStringLiteral("https://github.com/SethRobinson")) == QStringLiteral("GitHub"));
+        QTextDocument rendered;
+        rendered.setHtml(credit->text());
+        CHECK(rendered.toPlainText().contains(QStringLiteral("Seth A. Robinson")));
+        CHECK(rendered.toPlainText().contains(QStringLiteral("rtsoft.com")));
+      }
+      inspected = true;
+      dialog->accept();
+    }));
+    patchy::ui::show_about_splash();
+    CHECK(inspected);
+  }
 }
 
 void ui_about_dialog_compact_folder_layout_fits_a_modest_screen() {
@@ -3024,6 +3087,8 @@ std::vector<patchy::test::TestCase> app_shell_tests_part3() {
       {"ui_about_dialog_compact_folder_layout_fits_a_modest_screen",
        ui_about_dialog_compact_folder_layout_fits_a_modest_screen},
       {"ui_about_dialog_shows_labeled_external_links", ui_about_dialog_shows_labeled_external_links},
+      {"ui_about_dialog_creator_links_show_the_site_address_in_every_language",
+       ui_about_dialog_creator_links_show_the_site_address_in_every_language},
       {"ui_about_dialog_lists_shared_settings_and_data_folder_once",
        ui_about_dialog_lists_shared_settings_and_data_folder_once},
       {"ui_about_dialog_shows_memory_row", ui_about_dialog_shows_memory_row},
