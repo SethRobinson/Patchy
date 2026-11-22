@@ -2666,6 +2666,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/stroke_mask_effects_tests.cpp
     tests/core/layer_style_noise_methods_tests.cpp
     tests/core/layer_style_inner_glow_gradient_tests.cpp
+    tests/core/layer_style_inner_effects_soft_edge_tests.cpp
     tests/core/pdf_tests.cpp
     tests/core/pdf_hidden_text_tests.cpp
     tests/core/artboard_tests.cpp

@@ -435,9 +435,10 @@ void psd_inner_glow_gradient_exchange_file_round_trips() {
 // and stays close to Photoshop's flatten.
 void photoshop_inner_glow_gradient_probes_match_if_available() {
   const auto dir = patchy::test::local_fixtures_root() / "layer-style-746" / "probes";
-  // soft_edges: the feathered row is compared too. Precise and Choke read a soft edge
-  // differently from Photoshop for a solid glow already (the half-coverage silhouette and
-  // the choke of a gray matte), so those documents compare their hard squares only.
+  // soft_edges: the feathered row is compared too, soft edge included. Precise and Choke
+  // place a soft edge differently from Photoshop for a solid glow already (the half-coverage
+  // silhouette and the choke of a gray matte), so those documents compare their hard
+  // squares only.
   struct Probe {
     const char* name;
     Source source;
@@ -510,11 +511,11 @@ void photoshop_inner_glow_gradient_probes_match_if_available() {
         const auto top = feathered ? 140 : 20;
         int worst = 0;
         double mean_error = 0.0;
-        // A feathered square compares where it is opaque. On its soft edge Patchy draws
-        // an interior effect over the finished layer and Photoshop inside the layer, before
-        // the layer's alpha, so a solid glow differs there as much as a gradient one
-        // (docs/layer-effects-render-shadows-glows.md, "Soft edges").
-        const auto inset = feathered ? 14 : -4;
+        // A feathered square compares with its whole soft edge (the feather of 4 fades
+        // out within 10 px of the square): the glow folds into the layer's color and the
+        // layer meets the page once, as in Photoshop
+        // (docs/layer-effects-render-shadows-glows.md, "Interior effects on soft edges").
+        const auto inset = feathered ? -10 : -4;
         const auto side = 100 - 2 * inset;
         for (std::int32_t y = top + inset; y < top + inset + side; ++y) {
           for (std::int32_t x = left + inset; x < left + inset + side; ++x) {
@@ -551,6 +552,8 @@ void photoshop_inner_glow_gradient_probes_match_if_available() {
   // three-stop gradient where Range 50 and Choke 30 saturate a Precise glow: Photoshop stops
   // short of the end stop there (3 levels at Range 100, 6 at Range 50). Two-stop gradients
   // stay within 6 in every method; the grain figure is a feathered square with fading stops.
+  // The feathered squares stay inside the same figures over their soft edges; before the
+  // glow folded into the layer's color they were 42 (solid) and 64 (gradient) levels off.
   CHECK(worst_solid <= 3);
   CHECK(worst_gradient <= 10);
   CHECK(worst_grain_mean <= 3.0);

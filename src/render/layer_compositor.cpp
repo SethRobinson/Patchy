@@ -343,6 +343,66 @@ float shape_burst_stroke_opacity(const LayerStyleGradient& gradient, float band_
   return color;
 }
 
+// Inner Glow and Inner Shadow fold through fold_effect_color, the RGB-space twin of the
+// composite_effect_color their destination passes use, so the burn and dodge modes keep
+// their calibration and an opaque Normal layer renders what the destination pass gave it.
+[[nodiscard]] std::array<std::uint8_t, 3> fold_prepared_inner_glows(std::array<std::uint8_t, 3> color,
+                                                                    const std::vector<PreparedInnerGlow>& glows,
+                                                                    std::int32_t x, std::int32_t y) {
+  for (const auto& prepared : glows) {
+    const auto sample = inner_glow_sample(prepared, x, y);
+    const auto coverage = clamp_unit(sample.coverage * prepared.effect->opacity);
+    if (coverage <= 0.0F) {
+      continue;
+    }
+    color = fold_effect_color(color, sample.color, coverage, prepared.effect->blend_mode, x, y,
+                              DissolveField::InnerGlow);
+  }
+  return color;
+}
+
+[[nodiscard]] DeepChannels fold_prepared_inner_glows(DeepChannels color, const std::vector<PreparedInnerGlow>& glows,
+                                                     std::int32_t x, std::int32_t y, DeepDomain domain) {
+  for (const auto& prepared : glows) {
+    const auto sample = inner_glow_sample(prepared, x, y);
+    const auto coverage = clamp_unit(sample.coverage * prepared.effect->opacity);
+    if (coverage <= 0.0F) {
+      continue;
+    }
+    color = fold_effect_color(color, sample.color, coverage, prepared.effect->blend_mode, x, y,
+                              DissolveField::InnerGlow, domain);
+  }
+  return color;
+}
+
+[[nodiscard]] std::array<std::uint8_t, 3> fold_prepared_inner_shadows(
+    std::array<std::uint8_t, 3> color, const std::vector<PreparedInnerShadow>& shadows, std::int32_t x,
+    std::int32_t y) {
+  for (const auto& prepared : shadows) {
+    const auto coverage = clamp_unit(inner_shadow_coverage(prepared, x, y) * prepared.effect->opacity);
+    if (coverage <= 0.0F) {
+      continue;
+    }
+    color = fold_effect_color(color, prepared.effect->color, coverage, prepared.effect->blend_mode, x, y,
+                              DissolveField::InnerShadow);
+  }
+  return color;
+}
+
+[[nodiscard]] DeepChannels fold_prepared_inner_shadows(DeepChannels color,
+                                                       const std::vector<PreparedInnerShadow>& shadows,
+                                                       std::int32_t x, std::int32_t y, DeepDomain domain) {
+  for (const auto& prepared : shadows) {
+    const auto coverage = clamp_unit(inner_shadow_coverage(prepared, x, y) * prepared.effect->opacity);
+    if (coverage <= 0.0F) {
+      continue;
+    }
+    color = fold_effect_color(color, prepared.effect->color, coverage, prepared.effect->blend_mode, x, y,
+                              DissolveField::InnerShadow, domain);
+  }
+  return color;
+}
+
 std::optional<PreparedStroke> prepare_stroke_render(const Layer& layer, const PixelBuffer& source, Rect clip,
                                                     Rect bounds, const LayerStroke& stroke,
                                                     std::optional<Rect> layer_mask_bounds,

@@ -816,21 +816,29 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
   }
 }
 
-template <typename Target>
-void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
-                         const LayerInnerShadow& shadow, std::optional<Rect> layer_mask_bounds,
-                         StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0,
-                         const StrokeKnockoutPlane* knockout = nullptr) {
+// An Inner Shadow with its falloff mask resolved. The base-pass fold
+// (fold_prepared_inner_shadows) and the destination pass (render_inner_shadow) read
+// the same mask.
+struct PreparedInnerShadow {
+  const LayerInnerShadow* effect{nullptr};
+  std::shared_ptr<const StyleMaskEntry> entry;
+  Rect mask_bounds{};
+  Rect draw_rect{};
+};
+
+[[nodiscard]] inline std::optional<PreparedInnerShadow> prepare_inner_shadow(
+    const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds, const LayerInnerShadow& shadow,
+    std::optional<Rect> layer_mask_bounds, StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0) {
   // Size 0 still renders: Photoshop draws the inverse matte offset by the
   // rounded distance vector as a hard band (7 px at distance 10 / angle 135,
   // whatever the choke; photoshop-size-zero-effects.psd, September 2026), which
   // is exactly what the interior soft mask degenerates to without a blur.
   if (!shadow.enabled || shadow.opacity <= 0.0F) {
-    return;
+    return std::nullopt;
   }
   const auto draw_rect = intersect_rect(clip, bounds);
   if (draw_rect.empty()) {
-    return;
+    return std::nullopt;
   }
 
   constexpr float kPi = 3.14159265358979323846F;
@@ -841,10 +849,15 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
   const auto interior_reach = static_cast<int>(std::lround(std::max(0.0F, shadow.size))) + 2;
   const auto reach_x = bounds.width + interior_reach;
   const auto reach_y = bounds.height + interior_reach;
-  const auto offset_x =
-      std::clamp(static_cast<int>(std::lround(std::cos(radians) * shadow.distance)), -reach_x, reach_x);
-  const auto offset_y =
-      std::clamp(static_cast<int>(std::lround(std::sin(radians) * shadow.distance)), -reach_y, reach_y);
+  // Photoshop rounds a half-pixel offset away from zero: Distance 5 at 120 degrees (the
+  // defaults) moves the shadow 3 px across, and 1, 3 and 7 px give 1, 2 and 4 (Size 0 bands,
+  // Photoshop 2027, November 2026). The float cosine of 60 degrees is a hair under one half,
+  // so the product is nudged past the tie before rounding.
+  const auto rounded_offset = [](float value) {
+    return static_cast<int>(std::lround(value + std::copysign(1.0e-3F, value)));
+  };
+  const auto offset_x = std::clamp(rounded_offset(std::cos(radians) * shadow.distance), -reach_x, reach_x);
+  const auto offset_y = std::clamp(rounded_offset(std::sin(radians) * shadow.distance), -reach_y, reach_y);
   // The COM-calibrated interior pipeline (July 2026, distance-0 probes at sizes
   // 5-40 and chokes 0-50 matched byte-for-byte): choke dilation of the inverse
   // matte, then the tent blur. Padding covers choke reach + tent reach + offset.
@@ -852,7 +865,7 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
                               std::max(std::abs(offset_x), std::abs(offset_y)) + 2;
   const auto full_domain = outset_rect(bounds, sample_padding);
   const auto legacy_mask_bounds = clipped_mask_bounds(full_domain, draw_rect, sample_padding);
-  const auto [entry, mask_bounds] = style_mask_for_render(
+  auto [entry, mask_bounds] = style_mask_for_render(
       masks, layer, StyleMaskKind::InnerShadow, effect_index, full_domain, bounds, legacy_mask_bounds, bounds,
       layer_mask_bounds, [&](Rect domain) {
         StyleMaskEntry computed;
@@ -863,9 +876,32 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
         apply_effect_contour(computed.primary, domain.width, shadow.contour, shadow.anti_aliased);
         return computed;
       });
-  const auto width = mask_bounds.width;
-  const auto& shifted_mask = entry->primary;
+  return PreparedInnerShadow{&shadow, std::move(entry), mask_bounds, draw_rect};
+}
 
+// The shadow's coverage at a pixel of its draw rect, Noise included, before its
+// Opacity and before the layer's alpha and opacity.
+[[nodiscard]] inline float inner_shadow_coverage(const PreparedInnerShadow& prepared, std::int32_t x,
+                                                 std::int32_t y) {
+  const auto falloff_alpha = prepared.entry->primary[static_cast<std::size_t>(
+      (y - prepared.mask_bounds.y) * prepared.mask_bounds.width + (x - prepared.mask_bounds.x))];
+  return effect_noise_coverage(falloff_alpha, prepared.effect->noise, x, y);
+}
+
+// The destination pass: the shadow composited over the finished layer with the layer's
+// alpha. Only layers the base pass cannot fold the shadow into take it (see
+// fold_prepared_inner_glows).
+template <typename Target>
+void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
+                         const LayerInnerShadow& shadow, std::optional<Rect> layer_mask_bounds,
+                         StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0,
+                         const StrokeKnockoutPlane* knockout = nullptr) {
+  const auto prepared =
+      prepare_inner_shadow(layer, source, clip, bounds, shadow, layer_mask_bounds, masks, effect_index);
+  if (!prepared.has_value()) {
+    return;
+  }
+  const auto draw_rect = prepared->draw_rect;
   const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect, 0, 0, layer_mask_bounds);
   const auto source_mask_width = draw_rect.width;
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
@@ -875,10 +911,7 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
       if (source_alpha <= 0.0F) {
         continue;
       }
-      const auto falloff_alpha =
-          shifted_mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
-      auto shadow_alpha = source_alpha * effect_noise_coverage(falloff_alpha, shadow.noise, x, y) * shadow.opacity *
-                          layer.opacity();
+      auto shadow_alpha = source_alpha * inner_shadow_coverage(*prepared, x, y) * shadow.opacity * layer.opacity();
       if (knockout != nullptr) {
         shadow_alpha *= knockout->at(x, y);
       }
@@ -888,30 +921,37 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
   }
 }
 
-template <typename Target>
-void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
-                       const LayerInnerGlow& glow, std::optional<Rect> layer_mask_bounds,
-                       StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0,
-                       const StrokeKnockoutPlane* knockout = nullptr) {
-  // Size 0: an Edge glow has no reach and renders nothing; a Center glow is the
-  // complement of that empty edge field, so it fills the whole shape
-  // (photoshop-size-zero-effects.psd, September 2026). A gradient Edge glow still
-  // draws there: zero coverage is the gradient's last stop, over the whole shape
-  // (Photoshop 2027, GitHub issue 746).
-  const bool empty_edge_field = glow.size <= 0.0F && glow.source != LayerInnerGlowSource::Center;
-  if (!glow.enabled || glow.opacity <= 0.0F || (empty_edge_field && !glow.gradient)) {
-    return;
+// An Inner Glow with its falloff mask resolved, shared like PreparedInnerShadow.
+struct PreparedInnerGlow {
+  const LayerInnerGlow* effect{nullptr};
+  std::shared_ptr<const StyleMaskEntry> entry;
+  Rect mask_bounds{};
+  Rect draw_rect{};
+};
+
+[[nodiscard]] inline std::optional<PreparedInnerGlow> prepare_inner_glow(
+    const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds, const LayerInnerGlow& glow,
+    std::optional<Rect> layer_mask_bounds, StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0) {
+  // Size 0: the falloff is the inverse matte without a blur. An Edge glow has no reach
+  // into opaque pixels and renders nothing there, and a Center glow, its complement, fills
+  // the whole shape (photoshop-size-zero-effects.psd, September 2026). On a soft pixel of
+  // coverage s the Edge glow keeps 1 - s and the Center glow s (Photoshop 2027, feathered
+  // squares, November 2026). A gradient Edge glow draws over the whole shape: zero
+  // coverage is the gradient's last stop (GitHub issue 746).
+  const bool size_zero_edge = glow.size <= 0.0F && glow.source != LayerInnerGlowSource::Center;
+  if (!glow.enabled || glow.opacity <= 0.0F) {
+    return std::nullopt;
   }
   const auto draw_rect = intersect_rect(clip, bounds);
   if (draw_rect.empty()) {
-    return;
+    return std::nullopt;
   }
 
   // Both techniques reach at most one pixel beyond the rounded Size.
   const auto sample_padding = static_cast<int>(std::lround(std::max(0.0F, glow.size))) + 2;
   const auto full_domain = outset_rect(bounds, sample_padding);
   const auto legacy_mask_bounds = clipped_mask_bounds(full_domain, draw_rect, sample_padding);
-  const auto [entry, mask_bounds] = style_mask_for_render(
+  auto [entry, mask_bounds] = style_mask_for_render(
       masks, layer, StyleMaskKind::InnerGlow, effect_index, full_domain, bounds, legacy_mask_bounds, bounds,
       layer_mask_bounds, [&](Rect domain) {
         StyleMaskEntry computed;
@@ -924,12 +964,55 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
           prepare_inner_glow_precise_mask(computed.primary, domain.width, domain.height, glow.size,
                                           glow.choke, glow.range, center);
         }
-        apply_effect_contour(computed.primary, domain.width, glow.contour, glow.anti_aliased);
+        // An Edge glow at Size 0 keeps its raw field: a contour there is unprobed, and a
+        // curve that lifts zero coverage would fill the shape.
+        if (!size_zero_edge) {
+          apply_effect_contour(computed.primary, domain.width, glow.contour, glow.anti_aliased);
+        }
         return computed;
       });
-  const auto width = mask_bounds.width;
-  const auto& falloff_mask = entry->primary;
+  return PreparedInnerGlow{&glow, std::move(entry), mask_bounds, draw_rect};
+}
 
+// The glow's color and coverage at a pixel of its draw rect, Noise included, before its
+// Opacity and before the layer's alpha and opacity.
+struct InnerGlowSample {
+  RgbColor color{};
+  float coverage{0.0F};
+};
+
+[[nodiscard]] inline InnerGlowSample inner_glow_sample(const PreparedInnerGlow& prepared, std::int32_t x,
+                                                       std::int32_t y) {
+  const auto& glow = *prepared.effect;
+  auto source_factor = prepared.entry->primary[static_cast<std::size_t>(
+      (y - prepared.mask_bounds.y) * prepared.mask_bounds.width + (x - prepared.mask_bounds.x))];
+  auto color = glow.color;
+  if (glow.gradient) {
+    // The gradient's first stop sits where the solid glow is strongest and its last where
+    // the glow has faded out, for Edge and Center alike. The gradient's own opacity there
+    // replaces the coverage, so an opaque gradient covers the whole shape (Photoshop 2027,
+    // GitHub issue 746). Noise then moves that opacity, never the stop position.
+    // The coverage is mapped through the gradient as a Gradient Map maps tones, so the
+    // Perceptual and Linear methods take the smoothness ease too.
+    const auto position = 1.0F - source_factor;
+    source_factor = gradient_stop_opacity(*glow.gradient, position, true);
+    color = gradient_color(*glow.gradient, position, true, true);
+  }
+  return {color, effect_noise_coverage(source_factor, glow.noise, x, y)};
+}
+
+// The destination pass, for the layers the base pass cannot fold the glow into (see
+// fold_prepared_inner_glows).
+template <typename Target>
+void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
+                       const LayerInnerGlow& glow, std::optional<Rect> layer_mask_bounds,
+                       StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0,
+                       const StrokeKnockoutPlane* knockout = nullptr) {
+  const auto prepared = prepare_inner_glow(layer, source, clip, bounds, glow, layer_mask_bounds, masks, effect_index);
+  if (!prepared.has_value()) {
+    return;
+  }
+  const auto draw_rect = prepared->draw_rect;
   const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect, 0, 0, layer_mask_bounds);
   const auto source_mask_width = draw_rect.width;
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
@@ -939,32 +1022,41 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
       if (source_alpha <= 0.0F) {
         continue;
       }
-      auto source_factor =
-          empty_edge_field
-              ? 0.0F
-              : falloff_mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
-      auto color = glow.color;
-      if (glow.gradient) {
-        // The gradient's first stop sits where the solid glow is strongest and its last where
-        // the glow has faded out, for Edge and Center alike. The gradient's own opacity there
-        // replaces the coverage, so an opaque gradient covers the whole shape (Photoshop 2027,
-        // GitHub issue 746). Noise then moves that opacity, never the stop position.
-        // The coverage is mapped through the gradient as a Gradient Map maps tones, so the
-        // Perceptual and Linear methods take the smoothness ease too.
-        const auto position = 1.0F - source_factor;
-        source_factor = gradient_stop_opacity(*glow.gradient, position, true);
-        color = gradient_color(*glow.gradient, position, true, true);
-      }
-      auto glow_alpha = source_alpha * effect_noise_coverage(source_factor, glow.noise, x, y) * glow.opacity *
-                        layer.opacity();
+      const auto sample = inner_glow_sample(*prepared, x, y);
+      auto glow_alpha = source_alpha * sample.coverage * glow.opacity * layer.opacity();
       if (knockout != nullptr) {
         glow_alpha *= knockout->at(x, y);
       }
-      composite_effect_color(destination, x, y, color, glow_alpha, glow.blend_mode,
+      composite_effect_color(destination, x, y, sample.color, glow_alpha, glow.blend_mode,
                              DissolveField::InnerGlow);
     }
   }
 }
+
+// Folds the prepared Inner Glows into one styled color, above the overlays and Satin
+// (Photoshop's interior stack). Photoshop applies an interior effect to the layer's own
+// color and composites the layer by its coverage once: with coverage s and glow strength
+// f the backdrop keeps 1 - s, the glow gets s x f and the layer's color s x (1 - f)
+// (Photoshop 2027 captures of feathered squares, November 2026,
+// docs/layer-effects-render-shadows-glows.md, "Interior effects on soft edges"). A
+// separate pass over the finished layer leaves s x (1 - s x f) of the layer's color
+// instead, and widens the alpha on a transparent backdrop. Source alpha, the mask, opacity and the stroke
+// knockout are absent here for that reason: the base pass applies each of them once.
+[[nodiscard]] std::array<std::uint8_t, 3> fold_prepared_inner_glows(std::array<std::uint8_t, 3> color,
+                                                                    const std::vector<PreparedInnerGlow>& glows,
+                                                                    std::int32_t x, std::int32_t y);
+
+[[nodiscard]] DeepChannels fold_prepared_inner_glows(DeepChannels color, const std::vector<PreparedInnerGlow>& glows,
+                                                     std::int32_t x, std::int32_t y, DeepDomain domain);
+
+// The Inner Shadows' fold, above the Inner Glows.
+[[nodiscard]] std::array<std::uint8_t, 3> fold_prepared_inner_shadows(
+    std::array<std::uint8_t, 3> color, const std::vector<PreparedInnerShadow>& shadows, std::int32_t x,
+    std::int32_t y);
+
+[[nodiscard]] DeepChannels fold_prepared_inner_shadows(DeepChannels color,
+                                                       const std::vector<PreparedInnerShadow>& shadows,
+                                                       std::int32_t x, std::int32_t y, DeepDomain domain);
 
 template <typename Target>
 void render_color_overlay(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
@@ -2360,6 +2452,31 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
       folded_overlays = prepare_interior_overlays(layer, style, source, bounds, patterns);
     });
   }
+  // Inner Glow and Inner Shadow fold with them, above Satin, and for the same reason: an
+  // interior effect belongs to the layer's color, which meets the backdrop once by the
+  // layer's coverage (fold_prepared_inner_glows). The same escapes keep their destination
+  // passes below.
+  std::vector<PreparedInnerGlow> folded_inner_glows;
+  std::vector<PreparedInnerShadow> folded_inner_shadows;
+  if (fold_interior_overlays_into_base && !draw_rect.empty()) {
+    for (std::uint32_t index = 0; index < style.inner_glows.size(); ++index) {
+      profile_compositor_step(destination, layer, "inner_glow", clip, [&] {
+        if (auto prepared = prepare_inner_glow(layer, effect_source, clip, bounds, style.inner_glows[index],
+                                               layer_mask_bounds, masks, index)) {
+          folded_inner_glows.push_back(std::move(*prepared));
+        }
+      });
+    }
+    for (std::uint32_t index = 0; index < style.inner_shadows.size(); ++index) {
+      profile_compositor_step(destination, layer, "inner_shadow", clip, [&] {
+        if (auto prepared = prepare_inner_shadow(layer, effect_source, clip, bounds, style.inner_shadows[index],
+                                                 layer_mask_bounds, masks, index)) {
+          folded_inner_shadows.push_back(std::move(*prepared));
+        }
+      });
+    }
+  }
+  const bool has_folded_inner_effects = !folded_inner_glows.empty() || !folded_inner_shadows.empty();
 
   // WHAT the fold lands on is Photoshop's "Blend Interior Effects as Group"
   // blending option ('infx'), off by default. Off, the layer's blend mode
@@ -2370,11 +2487,16 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   // strength with infx off and desaturated through the layer's mode with it on).
   // Both readings agree whenever the layer's blend mode is Normal, which is why
   // that path keeps the cheaper source-color fold and its pinned bytes.
+  // Inner Glow belongs to that group. Inner Shadow does not: it composites onto the
+  // blended result whether the option is on or off (docs/ps-compat.md, "Layer blend mode
+  // vs its own effects"), so a folded Inner Shadow always asks for the layer's blend first.
   const bool fold_after_layer_blend = !style.blend_interior_elements;
-  const bool has_interior_folds = !folded_overlays.empty() || !prepared_satins.empty();
+  const bool has_interior_folds =
+      !folded_overlays.empty() || !prepared_satins.empty() || !folded_inner_glows.empty();
   const bool blend_against_backdrop =
       layer.blend_mode() != BlendMode::Normal && !has_blend_if && fill_opacity == 1.0F &&
-      ((has_interior_folds && fold_after_layer_blend) || has_exterior_effects || has_underlay);
+      ((has_interior_folds && fold_after_layer_blend) || !folded_inner_shadows.empty() || has_exterior_effects ||
+       has_underlay);
 
   // Knockout replaces the lower stack by its floor before the content blends.
   // Restore the uncovered part afterwards in premultiplied space. Erasing by
@@ -2521,6 +2643,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
                 if (!has_blend_if && fill_opacity == 1.0F && !has_effect_matte) {
                   color = fold_prepared_satins(color, prepared_satins, x, y, domain);
                 }
+                color = fold_prepared_inner_glows(color, folded_inner_glows, x, y, domain);
                 return color;
               };
               if (!fold_after_layer_blend) {
@@ -2535,6 +2658,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
               if (fold_after_layer_blend) {
                 styled_color = fold_interiors(styled_color);
               }
+              styled_color = fold_prepared_inner_shadows(styled_color, folded_inner_shadows, x, y, domain);
               if (underlay_alpha > 0.0F) {
                 const auto content_alpha = layer.opacity() > 0.0F ? alpha / layer.opacity() : 0.0F;
                 const auto total = content_alpha + underlay_alpha;
@@ -2594,7 +2718,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
           }
         }
         if (!composited_by_target && !has_blend_if && !has_enabled_mask && prepared_satins.empty() && folded_overlays.empty() &&
-            knockout == nullptr && !has_underlay && fill_opacity == 1.0F && layer.blend_mode() == BlendMode::Normal) {
+            !has_folded_inner_effects && knockout == nullptr && !has_underlay && fill_opacity == 1.0F && layer.blend_mode() == BlendMode::Normal) {
           if constexpr (requires(Target& target, std::int32_t x, std::int32_t y, const std::uint8_t* row,
                                   std::int32_t width, std::uint16_t channel_count, float opacity) {
                           target.composite_source_row(x, y, row, width, channel_count, opacity);
@@ -2618,7 +2742,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
         // match the general loop bit for bit. Dissolve stays per-pixel: its
         // coverage is a stochastic paint decision, not a colour function.
         if (!composited_by_target && !has_blend_if && prepared_satins.empty() && !has_folded_overlays &&
-            knockout == nullptr && !has_underlay && fill_opacity == 1.0F && !blend_against_backdrop &&
+            !has_folded_inner_effects && knockout == nullptr && !has_underlay && fill_opacity == 1.0F && !blend_against_backdrop &&
             layer.blend_mode() != BlendMode::Dissolve) {
           if constexpr (requires(Target& target, std::int32_t x, std::int32_t y, const std::uint8_t* row,
                                   const float* mask_row, std::int32_t width, std::uint16_t channel_count,
@@ -2749,6 +2873,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
                 if (!has_blend_if && fill_opacity == 1.0F && !has_effect_matte) {
                   color = fold_prepared_satins(color, prepared_satins, x, y);
                 }
+                color = fold_prepared_inner_glows(color, folded_inner_glows, x, y);
                 return color;
               };
               if (!fold_after_layer_blend) {
@@ -2764,6 +2889,8 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
               if (fold_after_layer_blend) {
                 styled_color = fold_interiors(styled_color);
               }
+              // Inner Shadow sits outside the group: it lands on the blended result either way.
+              styled_color = fold_prepared_inner_shadows(styled_color, folded_inner_shadows, x, y);
               if (underlay_alpha > 0.0F) {
                 // Two disjoint paints in one pixel: the content at its coverage and the
                 // stroke beneath at its take; layer opacity then scales the pair.
@@ -3028,20 +3155,24 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
     // destination AFTER overlays), where the historical effects-then-overlays
     // order dodged the raw dark pixels and the 15% overlay then washed the rim
     // out entirely.
-    for (std::uint32_t index = 0; index < style.inner_glows.size(); ++index) {
-      const auto& glow = style.inner_glows[index];
-      profile_compositor_step(destination, layer, "inner_glow", clip, [&] {
-        render_inner_glow(destination, layer, effect_source, clip, bounds, glow, layer_mask_bounds, masks, index,
-                          knockout);
-      });
-    }
-    for (std::uint32_t index = 0; index < style.inner_shadows.size(); ++index) {
-      const auto& shadow = style.inner_shadows[index];
-      profile_compositor_step(destination, layer, "inner_shadow", clip, [&] {
-        render_inner_shadow(destination, layer, effect_source, clip, bounds, shadow, layer_mask_bounds, masks,
-                            index,
+    // The base pass folded both into the layer's color where it could (the same stack
+    // order); these destination passes are for the layers it could not.
+    if (!fold_interior_overlays_into_base) {
+      for (std::uint32_t index = 0; index < style.inner_glows.size(); ++index) {
+        const auto& glow = style.inner_glows[index];
+        profile_compositor_step(destination, layer, "inner_glow", clip, [&] {
+          render_inner_glow(destination, layer, effect_source, clip, bounds, glow, layer_mask_bounds, masks, index,
                             knockout);
-      });
+        });
+      }
+      for (std::uint32_t index = 0; index < style.inner_shadows.size(); ++index) {
+        const auto& shadow = style.inner_shadows[index];
+        profile_compositor_step(destination, layer, "inner_shadow", clip, [&] {
+          render_inner_shadow(destination, layer, effect_source, clip, bounds, shadow, layer_mask_bounds, masks,
+                              index,
+                              knockout);
+        });
+      }
     }
     // Several Stroke instances stack like layers, the first listed on top
     // (see render_prepared_stroke): draw from the last to the first, each

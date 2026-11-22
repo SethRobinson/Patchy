@@ -143,6 +143,7 @@ int main(int argc, char** argv) {
            stroke_mask_effects_tests,
            layer_style_noise_methods_tests,
            layer_style_inner_glow_gradient_tests,
+           layer_style_inner_effects_soft_edge_tests,
            smart_objects_warp_tests,
            smart_filter_pixels_tests,
            smart_filter_classic_tests,

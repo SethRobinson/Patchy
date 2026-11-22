@@ -765,7 +765,14 @@ void prepare_inner_glow_softer_mask(std::vector<float>& mask, int width, int hei
 void prepare_inner_glow_precise_mask(std::vector<float>& mask, int width, int height, float size,
                                      float choke, float range, bool center_source) {
   if (size <= 0.0F) {
-    return;  // A Size 0 Center glow uses the shape matte. Edge is skipped by the caller.
+    // Size 0 has no ramp: a Center glow uses the shape matte and an Edge glow its inverse,
+    // as the Softer technique does there.
+    if (!center_source) {
+      for (auto& value : mask) {
+        value = 1.0F - clamp_unit(value);
+      }
+    }
+    return;
   }
   const auto radius = std::round(size);
   const auto reach = radius + 1.0F;
