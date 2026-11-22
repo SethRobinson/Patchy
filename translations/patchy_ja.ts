@@ -16453,6 +16453,18 @@ Do you want to replace it?</source>
         <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
         <translation>作成: %1（%2）</translation>
     </message>
+    <message>
+        <source>This pattern is already in the pattern library</source>
+        <translation>このパターンは既にパターンライブラリにあります</translation>
+    </message>
+    <message>
+        <source>Save this pattern as a preset</source>
+        <translation>このパターンをプリセットとして保存</translation>
+    </message>
+    <message>
+        <source>Save Pattern as Preset</source>
+        <translation>パターンをプリセットとして保存</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

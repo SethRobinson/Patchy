@@ -16509,6 +16509,18 @@ Möchten Sie die Datei ersetzen?</translation>
         <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
         <translation>Erstellt von %1 (%2)</translation>
     </message>
+    <message>
+        <source>This pattern is already in the pattern library</source>
+        <translation>Dieses Muster ist bereits in der Musterbibliothek</translation>
+    </message>
+    <message>
+        <source>Save this pattern as a preset</source>
+        <translation>Dieses Muster als Vorgabe speichern</translation>
+    </message>
+    <message>
+        <source>Save Pattern as Preset</source>
+        <translation>Muster als Vorgabe speichern</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

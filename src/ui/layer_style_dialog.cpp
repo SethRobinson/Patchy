@@ -3762,6 +3762,88 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                    [&emit_preview](bool) { emit_preview(true); });
   bevel_texture_manage->setEnabled(pattern_library != nullptr);
   pattern_overlay_manage->setEnabled(pattern_library != nullptr);
+  // The "+" after each pattern picker saves the picked pattern into the pattern library
+  // (GitHub issue 748). Only a pattern the document holds and the library lacks can be saved:
+  // every other row is a library pattern already, or a reference whose tile is missing.
+  const auto savable_pattern = [&](const QComboBox* combo) -> const PatternResource* {
+    if (pattern_library == nullptr || document_patterns == nullptr) {
+      return nullptr;
+    }
+    const auto* resource = document_patterns->find(pattern_combo_id(combo));
+    return resource != nullptr && !pattern_tile_is_unrenderable(resource->tile) ? resource : nullptr;
+  };
+  const auto update_save_pattern_buttons = [&] {
+    for (const auto& [combo, button] :
+         {std::pair<QComboBox*, QPushButton*>{bevel_texture_pattern, bevel_texture_page.bevel_texture_save_pattern},
+          std::pair<QComboBox*, QPushButton*>{pattern_overlay_pattern,
+                                              pattern_overlay_page.pattern_overlay_save_pattern}}) {
+      const auto* resource = savable_pattern(combo);
+      // The same pixels under any id count: a second copy would only repeat a row.
+      const auto in_library =
+          pattern_library != nullptr &&
+          (resource != nullptr
+               ? pattern_library->find_entry_by_tile(resource->tile) != nullptr
+               : pattern_library->find_entry_by_pattern_id(combo->currentData(kPatternIdRole).toString()) != nullptr);
+      button->setEnabled(resource != nullptr && !in_library);
+      button->setToolTip(in_library ? QObject::tr("This pattern is already in the pattern library")
+                                    : QObject::tr("Save this pattern as a preset"));
+    }
+  };
+  update_save_pattern_buttons();
+  const auto save_pattern_as_preset = [&](QComboBox* combo) {
+    const auto* picked = savable_pattern(combo);
+    if (picked == nullptr) {
+      return;
+    }
+    const auto resource = *picked;  // a copy: the prompt runs an event loop
+    const auto title = QObject::tr("Save Pattern as Preset");
+    const auto default_name = document_pattern_display_name(resource).trimmed();
+    QDialog prompt(&dialog);
+    prompt.setObjectName(QStringLiteral("layerStyleSavePatternDialog"));
+    prompt.setWindowTitle(title);
+    auto* prompt_layout = new QVBoxLayout(&prompt);
+    auto* form = new QFormLayout();
+    auto* name_edit = new QLineEdit(default_name, &prompt);
+    name_edit->setObjectName(QStringLiteral("layerStyleSavePatternNameEdit"));
+    name_edit->setMinimumWidth(240);  // room for a real name
+    name_edit->selectAll();
+    form->addRow(QObject::tr("Name:"), name_edit);
+    prompt_layout->addLayout(form);
+    auto* prompt_buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &prompt);
+    QObject::connect(prompt_buttons, &QDialogButtonBox::accepted, &prompt, &QDialog::accept);
+    QObject::connect(prompt_buttons, &QDialogButtonBox::rejected, &prompt, &QDialog::reject);
+    prompt_layout->addWidget(prompt_buttons);
+    if (exec_dialog(prompt) != QDialog::Accepted) {
+      return;
+    }
+    // An emptied field keeps the pattern's own name.
+    const auto typed_name = name_edit->text().trimmed();
+    QString error;
+    const auto storage_id =
+        pattern_library->add_resource(typed_name.isEmpty() ? default_name : typed_name, resource, error);
+    if (storage_id.isEmpty()) {
+      (void)show_warning_message(&dialog, title, error, QMessageBox::Ok, QMessageBox::Ok,
+                                 QStringLiteral("layerStyleSavePatternMessageBox"));
+      return;
+    }
+    // The pickers list the library, so both are rebuilt around the patterns they show. The
+    // effect keeps its pattern: nothing is previewed and no control changes.
+    const auto bevel_id = pattern_combo_id(bevel_texture_pattern);
+    const auto bevel_name = pattern_combo_persist_name(bevel_texture_pattern);
+    const auto overlay_id = pattern_combo_id(pattern_overlay_pattern);
+    const auto overlay_name = pattern_combo_persist_name(pattern_overlay_pattern);
+    populate_pattern_combo(bevel_texture_pattern, bevel_id, bevel_name);
+    populate_pattern_combo(pattern_overlay_pattern, overlay_id, overlay_name);
+    update_save_pattern_buttons();
+  };
+  QObject::connect(bevel_texture_page.bevel_texture_save_pattern, &QPushButton::clicked, &dialog,
+                   [&] { save_pattern_as_preset(bevel_texture_pattern); });
+  QObject::connect(pattern_overlay_page.pattern_overlay_save_pattern, &QPushButton::clicked, &dialog,
+                   [&] { save_pattern_as_preset(pattern_overlay_pattern); });
+  for (auto* combo : {bevel_texture_pattern, pattern_overlay_pattern}) {
+    QObject::connect(combo, &QComboBox::currentIndexChanged, &dialog,
+                     [&update_save_pattern_buttons](int) { update_save_pattern_buttons(); });
+  }
   const auto open_pattern_manager = [&](QComboBox* target_combo) {
     if (pattern_library == nullptr) {
       return;
@@ -3821,6 +3903,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       }
     }
     emit_preview(true);
+    update_save_pattern_buttons();  // the manager may have added or deleted the picked pattern
     if (missing_pattern_warning != nullptr) {
       const auto current_style = build_current_settings().style;
       auto has_missing = false;

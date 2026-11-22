@@ -16565,6 +16565,18 @@ Czy chcesz go zastąpić?</translation>
         <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
         <translation>Autor: %1 (%2)</translation>
     </message>
+    <message>
+        <source>This pattern is already in the pattern library</source>
+        <translation>Ten wzorek jest już w bibliotece wzorków</translation>
+    </message>
+    <message>
+        <source>Save this pattern as a preset</source>
+        <translation>Zapisz ten wzorek jako ustawienie wstępne</translation>
+    </message>
+    <message>
+        <source>Save Pattern as Preset</source>
+        <translation>Zapisz wzorek jako ustawienie wstępne</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

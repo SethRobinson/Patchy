@@ -56,6 +56,17 @@ std::pair<QComboBox*, QCheckBox*> add_contour_row(LayerStylePageContext& context
   form->addRow(QObject::tr("Contour:"), row);
   return {combo, check};
 }
+
+// The small "+" after a pattern picker: saves the picked pattern into the pattern library
+// (GitHub issue 748). The dialog enables it only for a pattern the library does not have.
+QPushButton* add_save_pattern_button(QHBoxLayout* row_layout, QWidget* row, const QString& object_name) {
+  auto* button = new QPushButton(QStringLiteral("+"), row);
+  button->setObjectName(object_name);
+  button->setToolTip(QObject::tr("Save this pattern as a preset"));
+  configure_compact_symbol_button(button);
+  row_layout->addWidget(button);
+  return button;
+}
 }
 
 BevelPageControls build_bevel_page(LayerStylePageContext& context, QVBoxLayout* bevel_layout, const LayerBevelEmboss& bevel, const StyleContour& custom_gloss_contour) {
@@ -199,6 +210,8 @@ BevelTexturePageControls build_bevel_texture_page(LayerStylePageContext& context
                                                    QStringLiteral("layerStyleBevelTexturePatternCombo"),
                                                    bevel.texture.pattern_id, bevel.texture.pattern_name);
   bevel_texture_pattern_layout->addWidget(bevel_texture_pattern, 1);
+  auto* bevel_texture_save_pattern = add_save_pattern_button(
+      bevel_texture_pattern_layout, bevel_texture_pattern_row, QStringLiteral("layerStyleBevelTextureSavePatternButton"));
   auto* bevel_texture_manage = new QPushButton(QObject::tr("Manage…"), bevel_texture_pattern_row);
   bevel_texture_manage->setObjectName(QStringLiteral("layerStyleBevelTextureManageButton"));
   bevel_texture_manage->setToolTip(QObject::tr("Open Pattern Manager"));
@@ -236,7 +249,7 @@ BevelTexturePageControls build_bevel_texture_page(LayerStylePageContext& context
   bevel_texture_layout->addWidget(bevel_texture_group);
   bevel_texture_layout->addStretch(1);
 
-  return {bevel_texture_pattern, bevel_texture_manage, bevel_texture_scale, bevel_texture_depth, bevel_texture_invert, bevel_texture_link, bevel_texture_snap, bevel_texture_offset_x, bevel_texture_offset_y};
+  return {bevel_texture_pattern, bevel_texture_manage, bevel_texture_scale, bevel_texture_depth, bevel_texture_invert, bevel_texture_link, bevel_texture_snap, bevel_texture_offset_x, bevel_texture_offset_y, bevel_texture_save_pattern};
 }
 
 PatternOverlayPageControls build_pattern_overlay_page(LayerStylePageContext& context, QVBoxLayout* pattern_overlay_layout, const LayerPatternOverlay& pattern_overlay) {
@@ -262,6 +275,8 @@ PatternOverlayPageControls build_pattern_overlay_page(LayerStylePageContext& con
       pattern_overlay_pattern_row, QStringLiteral("layerStylePatternOverlayPatternCombo"),
       pattern_overlay.pattern_id, pattern_overlay.pattern_name);
   pattern_overlay_pattern_layout->addWidget(pattern_overlay_pattern, 1);
+  auto* pattern_overlay_save_pattern = add_save_pattern_button(
+      pattern_overlay_pattern_layout, pattern_overlay_pattern_row, QStringLiteral("layerStylePatternOverlaySavePatternButton"));
   auto* pattern_overlay_manage = new QPushButton(QObject::tr("Manage…"), pattern_overlay_pattern_row);
   pattern_overlay_manage->setObjectName(QStringLiteral("layerStylePatternOverlayManageButton"));
   pattern_overlay_manage->setToolTip(QObject::tr("Open Pattern Manager"));
@@ -295,7 +310,7 @@ PatternOverlayPageControls build_pattern_overlay_page(LayerStylePageContext& con
   pattern_overlay_layout->addWidget(pattern_overlay_group);
   pattern_overlay_layout->addStretch(1);
 
-  return {pattern_overlay_blend, pattern_overlay_opacity, pattern_overlay_pattern, pattern_overlay_manage, pattern_overlay_angle, pattern_overlay_scale, pattern_overlay_link, pattern_overlay_snap, pattern_overlay_offset_x, pattern_overlay_offset_y};
+  return {pattern_overlay_blend, pattern_overlay_opacity, pattern_overlay_pattern, pattern_overlay_manage, pattern_overlay_angle, pattern_overlay_scale, pattern_overlay_link, pattern_overlay_snap, pattern_overlay_offset_x, pattern_overlay_offset_y, pattern_overlay_save_pattern};
 }
 
 StrokePageControls build_stroke_page(LayerStylePageContext& context, QVBoxLayout* stroke_layout, const LayerStroke& stroke) {

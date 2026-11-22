@@ -16509,6 +16509,18 @@ Deseja substituí-lo?</translation>
         <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
         <translation>Criado por %1 (%2)</translation>
     </message>
+    <message>
+        <source>This pattern is already in the pattern library</source>
+        <translation>Este padrão já está na biblioteca de padrões</translation>
+    </message>
+    <message>
+        <source>Save this pattern as a preset</source>
+        <translation>Salvar este padrão como predefinição</translation>
+    </message>
+    <message>
+        <source>Save Pattern as Preset</source>
+        <translation>Salvar padrão como predefinição</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -16565,6 +16565,18 @@ Do you want to replace it?</source>
         <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
         <translation>Автор: %1 (%2)</translation>
     </message>
+    <message>
+        <source>This pattern is already in the pattern library</source>
+        <translation>Этот узор уже есть в библиотеке узоров</translation>
+    </message>
+    <message>
+        <source>Save this pattern as a preset</source>
+        <translation>Сохранить этот узор как предустановку</translation>
+    </message>
+    <message>
+        <source>Save Pattern as Preset</source>
+        <translation>Сохранить узор как предустановку</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

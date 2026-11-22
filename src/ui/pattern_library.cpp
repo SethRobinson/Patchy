@@ -650,8 +650,12 @@ QString PatternLibrary::image_pattern_size_error(QSize size, const QString& labe
   return {};
 }
 
-QString PatternLibrary::store_image_tile(const QString& name, const PixelBuffer& tile, QString& error) {
-  const auto storage_id = add_pattern_internal(name, tile, {}, {});
+QString PatternLibrary::store_image_tile(const QString& name, const PixelBuffer& tile, QString& error,
+                                         const QString& pattern_id) {
+  // The .pat reader's rule for an id worth keeping: at most 255 bytes of UTF-8.
+  const auto keep_id = !pattern_id.isEmpty() && pattern_id.toUtf8().size() <= 255 &&
+                       find_entry_by_pattern_id(pattern_id) == nullptr;
+  const auto storage_id = add_pattern_internal(name, tile, {}, keep_id ? pattern_id : QString());
   if (storage_id.isEmpty()) {
     error = tr("Could not save pattern \"%1\".").arg(name);
     return {};
@@ -673,6 +677,43 @@ QString PatternLibrary::add_image(const QString& name, const QImage& image, QStr
     return {};
   }
   return store_image_tile(name, *tile, error);
+}
+
+QString PatternLibrary::add_resource(const QString& name, const PatternResource& resource, QString& error) {
+  const auto& tile = resource.tile;
+  error = image_pattern_size_error(QSize(tile.width(), tile.height()), name);
+  if (!error.isEmpty()) {
+    return {};
+  }
+  return store_image_tile(name, tile, error, qstring_from_utf8(resource.id));
+}
+
+const PatternLibraryEntry* PatternLibrary::find_entry_by_tile(const PixelBuffer& tile) const {
+  if (tile.empty() || tile.format() != PixelFormat::rgba8()) {
+    return nullptr;
+  }
+  const QSize size(tile.width(), tile.height());
+  QImage thumbnail;  // made when the first entry of this size turns up
+  for (const auto& entry : entries_) {
+    if (entry.size != size) {
+      continue;
+    }
+    // Equal tiles have equal thumbnails (one generator makes them all), so a different one
+    // spares reading and decoding the stored PNG.
+    if (!entry.thumbnail.isNull()) {
+      if (thumbnail.isNull()) {
+        thumbnail = pattern_thumbnail(tile).toImage();
+      }
+      if (entry.thumbnail.toImage() != thumbnail) {
+        continue;
+      }
+    }
+    const auto stored = tile_for_entry(entry);
+    if (stored.has_value() && pattern_tiles_equal(*stored, tile)) {
+      return &entry;
+    }
+  }
+  return nullptr;
 }
 
 QString PatternLibrary::duplicate_pattern(const QString& storage_id) {
