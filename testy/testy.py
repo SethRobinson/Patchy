@@ -340,6 +340,20 @@ def _run_in_progress() -> bool:
     return _in_process_run_active or (_child_run is not None and _child_run.poll() is None)
 
 
+def _drain_body(handler) -> None:
+    """Read a POST body nobody will use. Windows can reset the connection on close
+    if it is still in the receive buffer, and the client then never sees the reply."""
+    try:
+        remaining = int(handler.headers.get("Content-Length", "0"))
+    except ValueError:
+        return
+    while remaining > 0:
+        chunk = handler.rfile.read(min(remaining, 64 * 1024))
+        if not chunk:
+            break
+        remaining -= len(chunk)
+
+
 _NATIVE_RUN = re.compile(r"native-[0-9]{8}-[0-9]{6}-[0-9a-f]{8}\Z")
 
 
@@ -717,7 +731,11 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
                              "report": (path / "report.html").is_file(),
                              "canStop": path == owned and path.is_dir() and state in {"starting", "running"},
                              "stopPending": (path / "stop.flag").is_file()})
-            response = {"manifests": list(_native_manifests()), "runs": rows, "busy": _run_in_progress()}
+            import native_editors
+
+            response = {"manifests": list(_native_manifests()), "runs": rows, "busy": _run_in_progress(),
+                        "editors": [{"key": key, "name": native_editors.NAMES[key]}
+                                    for key in native_editors.CONTESTANTS if key != "patchy"]}
         self._send_json(response)
 
     def _native_local_request(self) -> bool:
@@ -734,6 +752,8 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
             local = False
         if (not local or (origin is not None and origin.lower() != "http://" + host)
                 or self.headers.get("Sec-Fetch-Site") == "cross-site"):
+            if self.command == "POST":
+                _drain_body(self)
             self._send_json({"errors": ["Use the local Testy dashboard to manage native runs"]}, status=403)
             return False
         return True
@@ -783,14 +803,7 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._guarded(handler)
 
     def _shutdown(self) -> None:
-        # Windows can reset the connection on close if the POST body is still
-        # in the receive buffer, losing the dashboard's 202 acknowledgment.
-        remaining = int(self.headers.get("Content-Length", "0"))
-        while remaining > 0:
-            chunk = self.rfile.read(min(remaining, 64 * 1024))
-            if not chunk:
-                break
-            remaining -= len(chunk)
+        _drain_body(self)
         self.server.request_stop()
         self._send_json({"shuttingDown": True}, status=202)
 
@@ -801,10 +814,21 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         name = parse_qs(parsed.query).get("name", [""])[0]
         runs_root = (config.TESTY_ROOT / "runs").resolve()
         target = (config.TESTY_ROOT / name).resolve()
-        if (not target.is_relative_to(runs_root) or target == runs_root
-                or _NATIVE_RUN.fullmatch(target.relative_to(runs_root).parts[0])):
+        if not target.is_relative_to(runs_root) or target == runs_root:
+            _drain_body(self)
             self.send_error(403)
             return
+        parts = target.relative_to(runs_root).parts
+        if _NATIVE_RUN.fullmatch(parts[0]):
+            # A native run takes uploads only from its own Photopea column: one of the two
+            # files that column writes, inside the live child's run directory.
+            owned = _native_child_dir()
+            if (owned is None or owned.name != parts[0] or len(parts) != 5 or parts[1] != "cells"
+                    or not parts[2].isdigit() or parts[3] != "photopea"
+                    or parts[4] not in ("render.png", "converted.psd")):
+                _drain_body(self)
+                self.send_error(403)
+                return
         length = int(self.headers.get("Content-Length", "0"))
         if length <= 0 or length > 1 << 30:
             self.send_error(400)
@@ -852,19 +876,38 @@ class TestyRequestHandler(http.server.SimpleHTTPRequestHandler):
         if _run_in_progress():
             self._send_json({"errors": ["a run is already in progress"]}, status=409)
             return
+        import native_editors
+        import native_reference
+
         name = request.get("manifest")
         manifest = _native_manifests().get(name) if isinstance(name, str) else None
-        if set(request) != {"manifest"} or manifest is None:
+        if not set(request) <= {"manifest", "editors", "psdJudge", "reference"} or manifest is None:
             self._send_json({"errors": ["Choose a native manifest from the corpus list"]}, status=400)
             return
+        editors = request.get("editors", [])
+        reference = request.get("reference", "pinned")
+        if (not isinstance(editors, list) or not all(isinstance(key, str) for key in editors)
+                or type(request.get("psdJudge", False)) is not bool or reference not in native_reference.MODES):
+            self._send_json({"errors": ["Unknown native run options"]}, status=400)
+            return
         try:
+            editors = native_editors.parse_editors(",".join(editors)) if editors else []
             native_import.load_manifest(manifest)
         except (ValueError, OSError) as error:
             self._send_json({"errors": [str(error)]}, status=400)
             return
         folder = native_import.next_run_dir()
-        self._spawn_child([sys.executable, str(config.TESTY_ROOT / "testy.py"), "native-import",
-                           str(manifest), "--output", str(folder)], run_dir=folder)
+        command = [sys.executable, str(config.TESTY_ROOT / "testy.py"), "native-import",
+                   str(manifest), "--output", str(folder)]
+        if editors:
+            # Photopea loads its files from this server and uploads its exports to it.
+            command += ["--editors", ",".join(editors),
+                        "--server-url", f"http://127.0.0.1:{self.server.server_address[1]}"]
+        if request.get("psdJudge"):
+            command.append("--psd-judge")
+        if reference != "pinned":
+            command += ["--reference", reference]
+        self._spawn_child(command, run_dir=folder)
         self._send_json({"started": True, "run": folder.name}, status=202)
 
     def _stop_native(self) -> None:

@@ -117,7 +117,20 @@ CHROME_CANDIDATES = [
     Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
 ]
 
+# Aseprite only renders reference frames for the native import benchmark (it has no
+# PSD support, so it is never a column). Other installs go in config.local.json.
+ASEPRITE_CANDIDATES = [
+    Path(r"C:\Program Files\Aseprite\Aseprite.exe"),
+    Path(r"C:\Program Files (x86)\Steam\steamapps\common\Aseprite\Aseprite.exe"),
+]
+
 # The whole suite assumes Photoshop is COM-registered (PHOTOSHOP_PROGID above).
+
+
+def reference_app(key: str) -> Path | None:
+    """The installed authoring app that renders native references: "gimp" or "aseprite"."""
+    candidates = {"gimp": GIMP_CANDIDATES, "aseprite": ASEPRITE_CANDIDATES}[key]
+    return _configured_editor_path(key) or _first_existing(candidates)
 
 
 def photoshop_installs():

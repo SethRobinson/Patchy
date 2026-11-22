@@ -16,10 +16,11 @@ import testy
 CHILD = """\
 import json, os, sys, time
 from pathlib import Path
-command, manifest, flag, folder = sys.argv[1:]
+command, manifest, flag, folder, *options = sys.argv[1:]
 assert command == 'native-import' and Path(manifest).name == 'sprites.json' and flag == '--output'
 out = Path(folder)
 out.mkdir()
+(out/'options.json').write_text(json.dumps(options))
 def progress(state):
     (out/'progress.json').write_text(json.dumps(dict(state=state,name='Sprites',completed=1,total=2)))
 progress('running')
@@ -67,8 +68,8 @@ class NativeDashboard(unittest.TestCase):
         finally:
             conn.close()
 
-    def run_native(self):
-        status, res = self.request("/testy-start-native", {"manifest": "sprites.json"})
+    def run_native(self, **options):
+        status, res = self.request("/testy-start-native", {"manifest": "sprites.json", **options})
         self.assertEqual(status, 202, res)
         folder = self.runs / res["run"]
         end = time.monotonic() + 6
@@ -117,6 +118,41 @@ class NativeDashboard(unittest.TestCase):
         self.assertFalse(state["runs"][0]["canStop"])
         self.assertEqual(self.request(f"/runs/{folder.name}/report.html"), (200, "Native report"))
         self.assertEqual(self.request("/testy-stop-native", {"run": folder.name})[0], 409)
+
+    def upload(self, name):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        try:
+            conn.request("POST", "/testy-upload?name=" + name, body=b"bytes")
+            response = conn.getresponse()
+            response.read()
+            return response.status
+        finally:
+            conn.close()
+
+    def test_cross_editor_options_reach_the_child_and_only_its_photopea_cells_take_uploads(self):
+        editors = self.request("/testy-native-state")[1]["editors"]
+        self.assertEqual([editor["key"] for editor in editors],
+                         ["gimp", "krita", "photodemon", "photocraft", "photopea"])
+        for bad in ({"editors": ["photoshop"]}, {"editors": "gimp"}, {"editors": ["gimp", "gimp"]},
+                    {"psdJudge": "yes"}, {"reference": "fresh"}):
+            self.assertEqual(self.request("/testy-start-native", {"manifest": "sprites.json", **bad})[0], 400, bad)
+        stale = self.runs / "native-20261120-142759-deadbeef"
+        (stale / "cells" / "0001" / "photopea").mkdir(parents=True)
+        folder = self.run_native(editors=["gimp", "photopea"], psdJudge=True, reference="installed")
+        self.assertEqual(json.loads((folder / "options.json").read_text()),
+                         ["--editors", "gimp,photopea", "--server-url", f"http://127.0.0.1:{self.port}",
+                          "--psd-judge", "--reference", "installed"])
+        cell = f"runs/{folder.name}/cells/0001/"
+        self.assertEqual(self.upload(cell + "photopea/render.png"), 200)
+        self.assertEqual(self.upload(cell + "photopea/converted.psd"), 200)
+        self.assertEqual((folder / "cells/0001/photopea/render.png").read_bytes(), b"bytes")
+        for refused in (cell + "gimp/render.png", cell + "photopea/other.png", cell + "render.png",
+                        f"runs/{folder.name}/report.html", f"runs/{folder.name}/cells/x/photopea/render.png",
+                        f"runs/{stale.name}/cells/0001/photopea/render.png"):
+            self.assertEqual(self.upload(refused), 403, refused)
+        self.assertEqual(self.request("/testy-stop-native", {"run": folder.name})[0], 202)
+        self.assertEqual(testy._child_run.wait(timeout=6), 0)
+        self.assertEqual(self.upload(cell + "photopea/render.png"), 403)  # no live child owns it now
 
     def test_lists_cli_reports_and_keeps_psd_report_controls(self):
         folder = self.runs / "native-20261120-142759-deadbeef"

@@ -227,3 +227,12 @@ Split from [testy.md](testy.md): how Testy drives each editor (Photoshop over CO
   the last resort. A pre-existing user instance is reused but never quit. The trap leg stays skipped: Affinity re-renders layers by
   design, so the baked-composite trap proves nothing. Partial cells (a failed PSD
   leg) are never cached.
+- Native import columns ([testy-native-import.md](testy-native-import.md#compare-editors)):
+  `native_editors.py` calls the same `export(exe, in, out)` functions with an XCF, KRA,
+  OpenRaster or Aseprite file as the input (none of them looks at the input's
+  extension) and Photopea's `export_one` (one export per page load: a PNG or a .psd).
+  The Photopea column's uploads are the one thing `/testy-upload` accepts inside a
+  native run directory: `cells/<n>/photopea/render.png` or `converted.psd` of the live
+  child. `drivers/aseprite.py` runs `Aseprite.exe -b <in> --save-as
+  <folder>/frame-{frame}.png` for reference frames only and reads the frame numbers
+  back from the names it wrote.

@@ -45,6 +45,17 @@ try {
         checkpoint();
         result.floatExported = doc.exportAs(patchy.args.floatOutput);
     }
+    // Optional copies for the conversion checks. A failure here must not hide the import result.
+    [["psdOutput", "psdSaved", "psdError"], ["aseOutput", "aseSaved", "aseError"]].forEach(function (leg) {
+        if (!patchy.args[leg[0]]) return;
+        checkpoint();
+        try {
+            result[leg[1]] = doc.exportAs(patchy.args[leg[0]]);
+        } catch (error) {
+            result[leg[1]] = false;
+            result[leg[2]] = String(error);
+        }
+    });
 } catch (error) {
     result.error = String(error);
 }

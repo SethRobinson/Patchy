@@ -179,6 +179,31 @@ def export_all(
         return {"ok": False, "opens": None, "error": f"driver crash: {error}", "notes": notes}
 
 
+def export_one(base_url: str, testy_root: Path, source: Path, output: Path) -> dict:
+    """Open any file Photopea reads and upload one export, a PNG render or a .psd by
+    the output's extension (the native import benchmark). Returns the command-line
+    drivers' shape: "harness" marks a failure on Testy's side of the host page, and
+    "fileRejected" one inside Photopea."""
+    slot = "resave" if output.suffix.lower() == ".psd" else "render"
+    try:
+        _run_host_page(
+            base_url,
+            {
+                "file": _file_url(base_url, testy_root, source),
+                "upload": f"{base_url}/testy-upload?name=",
+                slot: _rel_url(testy_root, output),
+            },
+            [output],
+        )
+    except PhotopeaError as error:
+        return {"ok": False, "exitCode": 1, "stderr": str(error), "harness": error.harness,
+                "fileRejected": not error.harness}
+    except Exception as error:  # a driver bug or a dead Chrome: no verdict on the file
+        return {"ok": False, "exitCode": 1, "stderr": f"driver crash: {error}", "harness": True,
+                "fileRejected": False}
+    return {"ok": True, "exitCode": 0, "stderr": "", "fileRejected": False}
+
+
 def render_text_afresh(base_url: str, testy_root: Path, source: Path, render_png: Path,
                         text_fonts: list[str] | None = None, rerender_text: bool = True) -> dict:
     """Render `source` after making Photopea lay out every text layer itself (it shows

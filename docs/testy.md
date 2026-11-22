@@ -2,12 +2,12 @@
 
 Testy (`testy/`) measures PSD compatibility against the Photoshop installation selected as the reference for the run: whether each editor opens a file, how closely its render matches Photoshop's, whether it composites layers itself, what native data and bit depth survive its PSD save, whether text survives a save made after the editor re-lays it out, and for 16-bit files how precise its render is. What each measurement means is in [testy-scoring.md](testy-scoring.md); the public write-up of the latest published run is [psd-compatibility-benchmark.md](psd-compatibility-benchmark.md).
 
-The dashboard also runs Patchy's native import benchmark for GIMP XCF, Aseprite, Krita and OpenRaster documents. It compares the imported canvas, editable structure, rendered pixels, selected HDR values and animation timing with the references provided for each file. PSD compatibility scores include only sources the reference Photoshop opens cleanly and renders consistently.
+The dashboard also runs the native import benchmark for GIMP XCF, Aseprite, Krita and OpenRaster documents. It compares Patchy's imported canvas, editable structure, rendered pixels, selected HDR values and animation timing with the references provided for each file. Other editors can open the same files as columns, and Photoshop can judge the PSD each editor converts a file to. PSD compatibility scores include only sources the reference Photoshop opens cleanly and renders consistently.
 
 Related documents:
 
 - [32-bit float comparisons](testy-float.md) covers the optional full-canvas linear RGB measurement for original PSDs and PSBs.
-- [testy-native-import.md](testy-native-import.md): pinned corpora, local artwork, manifests, native import reports and per-format scoring.
+- [testy-native-import.md](testy-native-import.md): pinned corpora, local artwork, manifests, native import reports and per-format scoring, the other editors as columns and Photoshop's verdict on each converted PSD.
 - [testy-scoring.md](testy-scoring.md): what each cell measures (opens, render accuracy, the trap, data kept in the .psd save, the round-trip render, text kept in a save made after the editor's text update, bit depth and 16-bit precision, and the cache-free leg that scores an editor on what it draws itself), with the reference-render rules and the "never mark an editor down for the harness's mistake" safeguards.
 - [testy-editor-drivers.md](testy-editor-drivers.md): how each editor is driven (Photoshop over COM, Krita, the patched PhotoDemon build, GIMP, PhotoCraft, Photopea, Affinity) and the defenses against modal dialogs, wedged or crashed editors, failing columns (the circuit breaker) and a Photoshop that draws a file differently from one open to the next.
 - [testy-photoshop-versions.md](testy-photoshop-versions.md): reopening every resave in more Photoshop versions, remote Photoshop hosts, and running Testy on a Photoshop host over ssh.
@@ -96,7 +96,8 @@ Existing batches get current controls when served by an updated Testy server;
 restart the server after updating Testy. Frozen reports have no rerun controls.
 Editor-free regressions (via `scripts\run-throttled.bat python`): `tests\testy_rerun_tests.py`,
 `testy_shutdown_tests.py`, `testy_driver_failure_tests.py`, `testy_text_save_tests.py`,
-`testy_text_sheets_tests.py`, `testy_render_check_tests.py` and `testy_float32_tests.py`.
+`testy_text_sheets_tests.py`, `testy_render_check_tests.py`, `testy_float32_tests.py` and the
+`testy_native_*_tests.py` files.
 
 **Retest file** in the detail panel creates a separate one-file run, reusing
 caches and refreshing Patchy's build. Both controls require an idle Testy server.
@@ -233,6 +234,9 @@ testy/
   rerun.py           one-image updates and previous-result snapshots
   render_check.py    draws a Photoshop render again when it disagrees with the reference
   export_static.py   one finished run as a folder a plain web host can serve
+  native_import.py   native import runner (+ _score, _report); native_cross.py, native_editors.py,
+                     native_reference.py and native_psd_score.py add other editors, installed
+                     references and the converted-PSD verdict (testy-native-import.md)
   affinity_js.py     MCP/JS client for the Affinity app (also reused by .af tooling)
   win_dialogs.py     modal-dialog guard for scripted apps (--selftest included)
   photoshop_agent.py remote Photoshop reopen agent; remote/ runs it or Testy by ssh

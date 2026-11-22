@@ -1,6 +1,6 @@
 # Testy native import benchmark
 
-Testy opens XCF, Aseprite, KRA and OpenRaster files in headless Patchy. Each file gets an open result, its import notes, a PNG export and independent checks for document properties, editable structure, appearance and animation timing. The [PSD benchmark](testy.md) uses Photoshop as its reference and measures what survives an editor's PSD save.
+Testy opens XCF, Aseprite, KRA and OpenRaster files in headless Patchy. Each file gets an open result, its import notes, a PNG export and independent checks for document properties, editable structure, appearance and animation timing. Other editors can open the same files as columns, and Photoshop can judge the PSD each editor converts a file to: see [Compare editors](#compare-editors). The [PSD benchmark](testy.md) uses Photoshop as its reference and measures what survives an editor's PSD save.
 
 ## Prepare a corpus
 
@@ -21,7 +21,7 @@ The optional second command writes `native-local.json` from installed [XCF](xcf.
 
 ## Run and inspect results
 
-On the Testy dashboard, choose a corpus under **Patchy native import** and click **Run import checks**. The dashboard lists progress and links completed reports. **Stop after this file** writes a partial report. A stopped native run can be started again as a fresh run.
+On the Testy dashboard, choose a corpus under **Native format import** and click **Run import checks**. The dashboard lists progress and links completed reports. **Stop after this file** writes a partial report. A stopped native run can be started again as a fresh run.
 
 ```bat
 scripts\run-throttled.bat python testy\testy.py native-import testy\corpus\native-imports.json
@@ -30,6 +30,26 @@ scripts\run-throttled.bat python testy\testy.py native-import testy\corpus\nativ
 The CLI measures the existing `build/opt-dev/patchy.exe`. To investigate one file, append `--case aseprite/tilemap` or repeat `--case` for several IDs. `--patchy` selects a different executable, `--timeout` sets the per-file limit in seconds and `--output` selects a new run directory. The default is a unique `testy/runs/native-...` directory. Each case opens a temporary copy with any declared sidecars in a dedicated Patchy process using isolated settings. The report records the binary and manifest SHA-256 hashes, the measured source hashes and Patchy's reported version.
 
 Open `report.html` to inspect individual files, import notes, failed checks and renders. `results.json` contains the same measurements for scripts. A completed benchmark can contain compatibility failures. The exit code reports whether the runner finished. Each check shows passes out of eligible comparisons and how many files were unscored. A missing input, an absent reference and a measured mismatch have different outcomes.
+
+## Compare editors
+
+```bat
+scripts\run-throttled.bat python testy\testy.py native-import testy\corpus\native-imports.json --editors gimp,krita,photodemon,photocraft --psd-judge --reference installed
+```
+
+Patchy is always measured. `--editors` adds GIMP, Krita, PhotoDemon, PhotoCraft or Photopea as columns; each opens the staged file and exports a PNG (`testy/native_editors.py`, on the PSD benchmark's [drivers](testy-editor-drivers.md)). The dashboard offers the same choices as checkboxes. Photopea needs the dashboard server, so a command-line run names it with `--server-url`. Photoshop and psd-tools read none of these formats and are not columns. A plain run without these options measures and reports exactly what it did before. Each case gains a `cells` object in `results.json`, and the report an "Editors by format" table per format.
+
+- **Opened.** Every file is attempted in every editor, including a format an editor has no reader for: a probe file cannot tell "no reader" from "cannot read these files" (Krita imports XCF, but refuses the ones GIMP 3 writes), so the table states what was measured, such as 0 / 57, and marks a format an editor opened none of. A refusal, a crash and a hang count against the editor. A failure to start the editor, or one on Testy's side, gives no verdict. Three crashes, hangs or launch failures in a row skip the rest of that editor's column; refusals never do.
+- **Render match** compares the editor's PNG with the case's reference under the rules below. For an animation only Patchy exports every frame; another editor's single PNG is compared with the first frame, and the cell says so.
+- **Converted PSD** (`--psd-judge`). Each editor that opened a file also saves a PSD, and Photoshop opens it (`testy/native_psd_score.py`). "Photoshop opens the PSD" fails on a refusal; dialogs it raised are listed as warnings; a Photoshop that hung, crashed or never started gives no verdict. "PSD render match" holds Photoshop's render of the PSD to the same reference by the still-image rule, with both over white and no alpha comparison (Photoshop renders a flattened copy, which has no transparency); an animation has no single picture and is unscored. "All layers kept" flattens the manifest's `expect.layers` tree and pairs it with Photoshop's layer list by name, then stack order: a group must still be a group, text still a type layer, any other layer still a layer. Nesting, visibility, masks, opacity (within 1%) and blend mode are counted beside it. A source blend mode Photoshop has no name for is never expected, so an editor may keep such a layer or bake its look: the render and layer columns show which it chose. Cases without a layer tree are unscored. Patchy's PSD comes from its scripted save, which keeps layers and writes an unsupported mode as Normal.
+- **References.** `--reference pinned` (the default) scores against what the manifest supplies. `--reference installed` has the GIMP on this machine render each XCF (the render [xcf.md](xcf.md#corpus) describes) and Aseprite each sprite frame, which also gives the upstream sprites a reference. The supplied PNG becomes a cross-check: when the two disagree by the rule that scores an editor, the file's appearance is unscored for everyone and the case says why. A file the app cannot render, or renders with a different frame count, keeps its supplied reference. KRA and OpenRaster always use the composite saved in the file. The report names each format's reference source and marks GIMP and Krita as their format's own app.
+- **Patchy save reopened in Aseprite.** With installed references and Aseprite present, Patchy also saves each still sprite as .aseprite, and Aseprite's render of that save must match the reference exactly.
+
+The Photoshop leg follows the PSD benchmark's rules for the reference Photoshop. Run it only where that Photoshop may be driven: the driver restarts a wedged Photoshop.
+
+Aseprite is found through `editors.aseprite` in `config.local.json` or its standard install folders. It is never a column, because it has no PSD support. GIMP, Krita and Aseprite run only as command-line tools; nothing in Testy reads their source.
+
+Editor output is cached in `testy/cache/native` by source hash (sidecars included) and editor version, with Photoshop's probe of each cached PSD; reference renders go to `testy/cache/native-ref`. A cell is cached when it opened, rendered and saved what was asked, or when the editor cleanly refused the file; a crash or a hang is measured again. Scores are computed again every run, and Patchy is always measured afresh. `--fresh` ignores the cache.
 
 ## Write a manifest
 

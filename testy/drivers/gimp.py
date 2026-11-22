@@ -23,7 +23,9 @@ TIMEOUT_SECONDS = 180
 
 # Startup/noise lines that would bury the real failure cause in the report.
 _NOISE_MARKERS = ("Welcome to GIMP", "batch command executed successfully",
-                  "TESTY-BATCH-ERROR", "Fontconfig")
+                  "TESTY-BATCH-ERROR", "Fontconfig",
+                  # An install whose Python plug-ins cannot start says so on every launch.
+                  "interpreter file")
 
 
 def _scheme_string(path: Path) -> str:

@@ -219,7 +219,9 @@ def _sprite_differences(reference, actual):
             "premultipliedPixelsOverTolerance": premultiplied_bad, "deltaTolerance": tolerance}
 
 
-def _score_image(spec, case, manifest_dir, render, render_path, observed, exact, capture):
+def _score_image(spec, case, manifest_dir, render, render_path, observed, exact, capture, alpha=True):
+    """`alpha=False` compares the pictures over white only, for a render that carries no
+    transparency of its own (Photoshop flattens the PSD it renders)."""
     if not spec:
         return _unscored("No reference PNG for this frame")
     reference, source_size = _reference(spec, case, manifest_dir)
@@ -270,6 +272,14 @@ def _score_image(spec, case, manifest_dir, render, render_path, observed, exact,
     alpha_bad = int(np.count_nonzero(alpha_delta > analyze.PIXEL_TOLERANCE))
     alpha_bad_fraction = alpha_bad / alpha_delta.size
     bad = metrics["perceptual"]["badFraction"]
+    if not alpha:
+        passed = bad <= STILL_BAD_FRACTION
+        result = {"status": "pass" if passed else "fail", "metric": "8-bit sRGB appearance over white",
+                  "perceptual": metrics["perceptual"], "strictBadFraction": metrics["badFraction"],
+                  "perceptualBadFractionLimit": STILL_BAD_FRACTION, "pixels": ref_size[0] * ref_size[1]}
+        if not passed:
+            result["reason"] = f"{bad:.2%} perceptual bad pixels"
+        return result
     passed = bad <= STILL_BAD_FRACTION and alpha_bad_fraction <= STILL_BAD_FRACTION
     result = {"status": "pass" if passed else "fail", "metric": "8-bit sRGB appearance and alpha",
               "perceptual": metrics["perceptual"], "strictBadFraction": metrics["badFraction"],

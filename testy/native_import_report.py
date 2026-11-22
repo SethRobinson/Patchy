@@ -13,7 +13,12 @@ from rerun import write_text
 
 _CHECKS = (("appearance", "Appearance"), ("document", "Document properties"), ("structure", "Editable structure"),
            ("timing", "Animation timing"))
-_OPTIONAL_CHECKS = (("reopenAppearance", "Appearance after reopen"), ("linearSamples", "Linear HDR samples"))
+_OPTIONAL_CHECKS = (("reopenAppearance", "Appearance after reopen"), ("linearSamples", "Linear HDR samples"),
+                    ("saveReopen", "Patchy save reopened in Aseprite"))
+# Columns of the cross-editor tables: where a cell keeps each check.
+_CELL_CHECKS = (("Render match", ("appearance",)),)
+_PSD_CHECKS = (("Photoshop opens the PSD", ("psd", "accepted")), ("PSD render match", ("psd", "appearance")),
+               ("All layers kept in the PSD", ("psd", "layers")))
 _STATUS = {"pass": "Pass", "fail": "Fail", "unscored": "Unscored"}
 _FORMATS = {"xcf": "GIMP XCF", "kra": "Krita KRA", "ora": "OpenRaster",
             "aseprite": "Aseprite"}
@@ -90,6 +95,112 @@ def _format_summary(cases: list[dict], checks) -> str:
     return "".join(cells)
 
 
+def _dig(cell: dict, path) -> dict | None:
+    for key in path:
+        cell = cell.get(key) if isinstance(cell, dict) else None
+    return cell if isinstance(cell, dict) else None
+
+
+def _tally(checks: list[dict]) -> str:
+    """Passes out of scored results, as the single-editor table words it."""
+    if not checks:
+        return "<td>Not measured</td>"
+    statuses = [_status(check) for check in checks]
+    passed, failed = statuses.count("pass"), statuses.count("fail")
+    return (f"<td>{passed} / {passed + failed}<small>{failed} failed &middot; "
+            f"{statuses.count('unscored')} unscored</small></td>")
+
+
+def _editor_label(run: dict, key: str, fmt: str | None = None) -> str:
+    info = run["editors"].get(key, {})
+    label = f'{_text(info.get("name", key))} <small>{_text(info.get("version", ""))}</small>'
+    if fmt is not None and run.get("authoring", {}).get(fmt) == key:
+        label += "<small>the format's own app</small>"
+    return label
+
+
+def _editor_summary(run: dict, fmt: str, cases: list[dict], judged: bool) -> str:
+    """One row per editor for a format. Every file was attempted, so an editor that
+    reads none of a format shows the measured 0 of N, never a guess at why."""
+    rows = []
+    for key in run["editors"]:
+        cells = [case["cells"][key] for case in cases if key in case.get("cells", {})]
+        rows.append(f'<tr><th scope="row">{_editor_label(run, key, fmt)}</th>')
+        tried = [cell for cell in cells if cell.get("opened") is not None]
+        opened = sum(cell["opened"] is True for cell in tried)
+        skipped = len(cells) - len(tried)
+        none = '<small class="notice">Opened none of this format</small>' if tried and not opened else ""
+        rows.append(f"<td>{opened} / {len(tried)}{none}"
+                    + (f"<small>{skipped} not measured</small>" if skipped else "") + "</td>")
+        rows.extend(_tally([check for cell in tried if (check := _dig(cell, path))]) for _, path in _CELL_CHECKS)
+        if judged:
+            saves = [cell["savedPsd"] for cell in tried if cell.get("savedPsd") is not None]
+            rows.append(f"<td>{sum(saves)} / {len(saves)}</td>" if saves else "<td>Not measured</td>")
+            for label, path in _PSD_CHECKS:
+                found = [check for cell in tried if (check := _dig(cell, path))]
+                cell_html = _tally(found)
+                if path[-1] == "layers":
+                    kept = sum(check.get("layersKept", 0) for check in found)
+                    total = sum(check.get("layersTotal", 0) for check in found)
+                    if total:
+                        cell_html = cell_html.replace("</small></td>", f" &middot; {kept} / {total} layers</small></td>")
+                rows.append(cell_html)
+        rows.append("</tr>")
+    head = "<th>Editor</th><th>Opened / attempted</th>"
+    head += "".join(f"<th>{label}</th>" for label, _ in _CELL_CHECKS)
+    if judged:
+        head += "<th>PSD saved</th>" + "".join(f"<th>{label}</th>" for label, _ in _PSD_CHECKS)
+    return (f'<div class="table-scroll"><table><thead><tr>{head}</tr></thead>'
+            f'<tbody>{"".join(rows)}</tbody></table></div>')
+
+
+def _cell_state(cell: dict) -> tuple[str, str]:
+    if cell.get("skipped"):
+        return "unscored", cell["skipped"]
+    if cell.get("opened") is None:
+        return "unscored", "Not measured"
+    if not cell["opened"]:
+        return "fail", "Crashed or hung" if cell.get("appFailure") else "Did not open"
+    return ("", "Opened") if cell.get("rendered") else ("fail", "Opened, no render")
+
+
+def _check_cell(check: dict | None) -> str:
+    if check is None:
+        return '<td class="unscored">-</td>'
+    status = _status(check)
+    reason = f'<small>{_text(check["reason"])}</small>' if check.get("reason") else ""
+    return f'<td><span class="{status}">{_STATUS[status]}</span>{reason}</td>'
+
+
+def _cells_html(outdir: Path, run: dict, case: dict) -> str:
+    judged = "psdJudge" in run
+    head = "<th>Editor</th><th>Result</th>" + "".join(f"<th>{label}</th>" for label, _ in _CELL_CHECKS)
+    if judged:
+        head += "".join(f"<th>{label}</th>" for label, _ in _PSD_CHECKS)
+    rows = []
+    for key, cell in case["cells"].items():
+        state, outcome = _cell_state(cell)
+        detail = [f'<span class="{state}">{_text(outcome)}</span>']
+        for field in ("error", "psdError"):
+            if cell.get(field):
+                detail.append(f"<small>{_text(cell[field])}</small>")
+        detail.extend(f'<small class="notice">{_text(note)}</small>' for note in cell.get("notes") or [])
+        links = [(cell.get("render"), "render")]
+        if _dig(cell, ("psd", "accepted")) and _status(cell["psd"]["accepted"]) == "pass":
+            links.append((f'{case.get("folder")}/{key}/photoshop.png', "Photoshop's render of the PSD"))
+        for name, label in links:
+            href = _render_href(outdir, case.get("folder"), name)
+            if href:
+                detail.append(f'<small><a href="{href}">{label}</a></small>')
+        for warning in _dig(cell, ("psd",)) and cell["psd"].get("warnings") or []:
+            detail.append(f'<small class="notice">Photoshop said: {_text(warning)}</small>')
+        rows.append(f'<tr><th scope="row">{_editor_label(run, key)}</th><td>{"".join(detail)}</td>'
+                    + "".join(_check_cell(_dig(cell, path)) for _, path in
+                              _CELL_CHECKS + (_PSD_CHECKS if judged else ())) + "</tr>")
+    return (f'<h3>Editors</h3><div class="table-scroll"><table><thead><tr>{head}</tr></thead>'
+            f'<tbody>{"".join(rows)}</tbody></table></div>')
+
+
 def _check_details(label: str, check: dict) -> str:
     status = _status(check)
     parts = [f'<h3>{label} <span class="{status}">{_STATUS[status]}</span></h3>']
@@ -101,7 +212,7 @@ def _check_details(label: str, check: dict) -> str:
     return "".join(parts)
 
 
-def _case_html(outdir: Path, case: dict) -> str:
+def _case_html(outdir: Path, case: dict, run: dict | None = None) -> str:
     if case["opened"] is None:
         state, outcome = "unscored", "Open not measured"
     elif not case["opened"]:
@@ -127,6 +238,15 @@ def _case_html(outdir: Path, case: dict) -> str:
         parts.append(f'<h3 class="notice">Notes</h3><ul>{items}</ul>')
     if case.get("referenceNote"):
         parts.append(f'<p><strong>Reference</strong> {_text(case["referenceNote"])}</p>')
+    chosen = case.get("reference")
+    if isinstance(chosen, dict):
+        checked = {"agrees": "The reference supplied with the corpus agrees.",
+                   "differs": "The reference supplied with the corpus disagrees."}.get(chosen.get("crossCheck"), "")
+        source = str(chosen.get("source") or "").rstrip(".")
+        said = " ".join(_text(text) for text in (source and source + ".", checked, chosen.get("note")) if text)
+        parts.append(f'<p><strong>Reference used</strong> {said}</p>')
+    if run is not None and case.get("cells"):
+        parts.append(_cells_html(outdir, run, case))
     folder = case.get("folder")
     href = _render_href(outdir, folder, case.get("render"))
     if href:
@@ -186,7 +306,27 @@ def write_report(outdir: Path, run: dict) -> None:
     page.append(f'<p class="meta">{" &middot; ".join(meta)}</p>')
     if run.get("error"):
         page.append(f'<p class="fail">{_text(run["error"])}</p>')
-    page.append("<h2>Results by format</h2>")
+    compared = run if isinstance(run.get("editors"), dict) else None
+    if compared:
+        for key, reason in (run.get("unavailable") or {}).items():
+            page.append(f'<p class="notice">{_text(key)} was not measured: {_text(reason)}</p>')
+        if run.get("psdJudge"):
+            page.append(f'<p class="meta">Converted PSDs were opened in Photoshop '
+                        f'{_text(run["psdJudge"].get("photoshop") or "version unknown")}.</p>')
+        page.append("<h2>Editors by format</h2>")
+        page.append("<p>Each editor was given the same files. Render match compares its own PNG with the "
+                    "reference, for the files it opened. Layers kept counts "
+                    "the source's layers that Photoshop still finds as layers of the same kind in the "
+                    "converted PSD; an editor may instead bake a look a PSD cannot hold, which keeps the "
+                    "render and loses the layer.</p>")
+        for fmt, cases in groups:
+            source = (run.get("references") or {}).get(fmt)
+            page.append(f"<h3>{_text(_FORMATS.get(fmt, fmt))}</h3>"
+                        + (f'<p class="meta">Reference: {_text(source)}</p>' if source else ""))
+            page.append(_editor_summary(run, fmt, cases, "psdJudge" in run))
+        page.append("<h2>Patchy import detail by format</h2>")
+    else:
+        page.append("<h2>Results by format</h2>")
     page.append("<p>Checks show passes out of files with a scored result. Expand a file to see its evidence.</p>")
     page.append('<div class="table-scroll"><table><thead><tr><th>Format</th>'
                 '<th>Opened / attempted</th><th>PNG exports / opened</th><th>Files with import notes</th>')
@@ -202,7 +342,7 @@ def write_report(outdir: Path, run: dict) -> None:
         page.append("<p>No files in this run.</p>")
     for index, (fmt, cases) in enumerate(groups):
         page.append(f'<h2 id="format-{index}">{_text(_FORMATS.get(fmt, fmt))} ({len(cases)})</h2>')
-        page.extend(_case_html(outdir, case) for case in cases)
+        page.extend(_case_html(outdir, case, compared) for case in cases)
     if run.get("sources"):
         page.append("<h2>Corpus sources</h2><ul>")
         page.extend(_source_html(source) for source in run["sources"])

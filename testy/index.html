@@ -95,9 +95,18 @@
     <div id="run-note"></div>
   </section>
   <section id="native-imports">
-    <h2>Patchy native import</h2>
+    <h2>Native format import</h2>
     <label>Corpus <select id="native-manifest" disabled></select></label>
     <button id="native-start" type="button" disabled>Run import checks</button>
+    <div class="scores">Patchy is always measured. Also open the files in:
+      <span id="native-editors"></span></div>
+    <div class="scores">
+      <label><input id="native-psd" type="checkbox"> Convert to PSD and check it in Photoshop</label>
+      <label>References <select id="native-reference">
+        <option value="pinned">supplied with the corpus</option>
+        <option value="installed">rendered by GIMP and Aseprite here</option>
+      </select></label>
+    </div>
     <span id="native-setup" class="scores"></span>
     <output id="native-message" aria-live="polite"></output>
     <output id="native-poll-status" aria-live="polite"></output>
@@ -469,8 +478,15 @@ async function nativeAction(endpoint, payload) {
   }
 }
 
-document.getElementById("native-start").addEventListener("click", () =>
-  nativeAction("/testy-start-native", {manifest:document.getElementById("native-manifest").value}));
+document.getElementById("native-start").addEventListener("click", () => {
+  const payload = {manifest:document.getElementById("native-manifest").value};
+  const editors = Array.from(document.querySelectorAll("#native-editors input:checked"), box => box.value);
+  if (editors.length) payload.editors = editors;
+  if (document.getElementById("native-psd").checked) payload.psdJudge = true;
+  const reference = document.getElementById("native-reference").value;
+  if (reference !== "pinned") payload.reference = reference;
+  nativeAction("/testy-start-native", payload);
+});
 
 async function refreshNative() {
   if (shuttingDown || offline) return;
@@ -489,6 +505,18 @@ async function refreshNative() {
       select.replaceChildren(...state.manifests.map(name => new Option(name, name)));
       if (state.manifests.includes(selected)) select.value = selected;
       select.dataset.names = JSON.stringify(state.manifests);
+    }
+    const editorBox = document.getElementById("native-editors");
+    if (JSON.stringify(state.editors || []) !== editorBox.dataset.keys) {
+      editorBox.replaceChildren(...(state.editors || []).map(editor => {
+        const label = document.createElement("label");
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.value = editor.key;
+        label.append(box, " " + editor.name + " ");
+        return label;
+      }));
+      editorBox.dataset.keys = JSON.stringify(state.editors || []);
     }
     const empty = !state.manifests.length;
     select.disabled = empty || state.busy;
