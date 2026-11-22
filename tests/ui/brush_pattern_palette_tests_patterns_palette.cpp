@@ -16,6 +16,8 @@
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/fill_dialog.hpp"
+#include "ui/layer_style_dialog.hpp"
+#include "ui/shape_appearance_dialog.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
@@ -48,6 +50,7 @@
 #include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QPainter>
 #include <QScopeGuard>
 #include <QTemporaryDir>
@@ -2722,6 +2725,104 @@ void ui_define_pattern_from_document_and_selection() {
     CHECK(entry_named(default_name) != nullptr);
     CHECK(library.entries().size() == entries_before + 3);
     CHECK(Access::active_session_undo_depth(window) == undo_depth);
+
+    // Every other pattern picker reads the same library. Layer Style lists the new patterns
+    // for Pattern Overlay and for Bevel Texture.
+    {
+      patchy::Document styled(96, 72, patchy::PixelFormat::rgba8());
+      patchy::Layer styled_layer(styled.allocate_layer_id(), "Styled",
+                                 solid_pixels(48, 36, patchy::PixelFormat::rgba8(), sky));
+      int combos_checked = 0;
+      QTimer::singleShot(0, guarded([&] {
+        auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
+        CHECK(dialog != nullptr);
+        if (dialog == nullptr) {
+          return;
+        }
+        for (const auto* combo_name :
+             {"layerStylePatternOverlayPatternCombo", "layerStyleBevelTexturePatternCombo"}) {
+          auto* combo = dialog->findChild<QComboBox*>(QString::fromLatin1(combo_name));
+          CHECK(combo != nullptr);
+          if (combo != nullptr) {
+            CHECK(combo->findData(whole_pattern_id) >= 0);
+            CHECK(combo->findData(part_pattern_id) >= 0);
+            ++combos_checked;
+          }
+        }
+        QTimer::singleShot(0, dialog, [dialog] { dialog->reject(); });
+      }));
+      (void)patchy::ui::request_layer_style_settings(nullptr, styled_layer, {}, &styled.metadata().patterns,
+                                                     &library);
+      CHECK(combos_checked == 2);
+    }
+    // Shape Appearance takes them as a fill and as a stroke.
+    {
+      patchy::PatternStore no_document_patterns;
+      patchy::ui::ShapeAppearanceSettings initial;
+      initial.fill.kind = patchy::VectorFillKind::Pattern;
+      initial.fill.pattern_id = whole_pattern_id.toStdString();
+      initial.fill.pattern_name = "Whole Canvas";
+      initial.stroke.enabled = true;
+      initial.stroke.width = 4;
+      initial.stroke.content.kind = patchy::VectorFillKind::Pattern;
+      initial.stroke.content.pattern_id = part_pattern_id.toStdString();
+      initial.stroke.content.pattern_name = "Selected Part";
+      bool checked = false;
+      QTimer::singleShot(0, guarded([&] {
+        auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+        CHECK(dialog != nullptr);
+        if (dialog == nullptr) {
+          return;
+        }
+        auto* fill = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillPatternCombo"));
+        auto* stroke = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokePatternCombo"));
+        CHECK(fill != nullptr && stroke != nullptr);
+        if (fill != nullptr && stroke != nullptr) {
+          CHECK(fill->currentData().toString() == whole_pattern_id);
+          CHECK(stroke->currentData().toString() == part_pattern_id);
+          CHECK(fill->findData(part_pattern_id) >= 0);
+          checked = true;
+        }
+        dialog->reject();
+      }));
+      (void)patchy::ui::request_shape_appearance_settings(nullptr, {}, initial, {}, nullptr, &library,
+                                                          &no_document_patterns, {}, {});
+      CHECK(checked);
+    }
+    // Fill Path offers them: a work path from the selection, then Paths > Fill Path.
+    {
+      QTimer::singleShot(0, guarded([&] {
+        auto* dialog = find_top_level_dialog(QStringLiteral("makeWorkPathDialog"));
+        CHECK(dialog != nullptr);
+        if (dialog != nullptr) {
+          dialog->accept();
+        }
+      }));
+      require_action(window, "pathFromSelectionAction")->trigger();
+      QApplication::processEvents();
+      CHECK(std::as_const(Access::document(window)).work_path() != nullptr);
+      if (auto* paths_list = window.findChild<QListWidget*>(QStringLiteral("pathsList"));
+          paths_list != nullptr && paths_list->count() > 0) {
+        paths_list->setCurrentRow(0);
+        QApplication::processEvents();
+      }
+      bool listed = false;
+      when_dialog_visible(QStringLiteral("fillPathDialog"), [&](QDialog& dialog) {
+        auto* pattern = dialog.findChild<QComboBox*>(QStringLiteral("fillPathPatternCombo"));
+        CHECK(pattern != nullptr);
+        if (pattern != nullptr) {
+          const int index = pattern->findData(whole_pattern_id);
+          listed = index >= 0 && pattern->findData(part_pattern_id) >= 0;
+          if (index >= 0) {
+            CHECK(pattern->itemText(index) == QStringLiteral("Whole Canvas"));
+          }
+        }
+        dialog.reject();
+      });
+      require_action(window, "pathFillAction")->trigger();
+      QApplication::processEvents();
+      CHECK(listed);
+    }
 
     // The new patterns repeat: Edit > Fill lists them, and filling a white page three tiles
     // wide and high with the whole-canvas one repeats it, the clear corner showing the page.
