@@ -1787,6 +1787,52 @@ void psd_xmp_dates_repair_basic_timezones_without_discarding_metadata() {
   CHECK(document.metadata().raw_psd_image_resources == resources.bytes());
 }
 
+// Photoshop also rejects the EXIF date form in an XMP date ("This file contains file info
+// data which cannot be read and has been ignored"; some GIMP versions write it). The writer
+// saves the date with hyphens and a T, a basic zone with its colon, and leaves alone every
+// value that does not read as a whole date and every property that is not a date.
+void psd_xmp_dates_repair_exif_style_dates() {
+  using namespace patchy;
+  const std::string prefix =
+      "<x:xmpmeta xmlns:x='adobe:ns:meta/'><rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>"
+      "<rdf:Description xmlns:d='http://ns.adobe.com/xap/1.0/' xmlns:p='http://ns.adobe.com/photoshop/1.0/' "
+      "xmlns:e='http://ns.adobe.com/exif/1.0/' xmlns:t='http://ns.adobe.com/tiff/1.0/' ";
+  const std::string suffix = "</rdf:Description></rdf:RDF></x:xmpmeta>";
+  const std::string unchanged =
+      "<e:DateTimeDigitized>2025:13:05T22:24:52</e:DateTimeDigitized>"
+      "<e:GPSTimeStamp>2025:10:05T22:24:52 extra</e:GPSTimeStamp>"
+      "<d:Label>2025:10:05T22:24:52+01:00</d:Label>"
+      "<t:Make>2025:10:05 22:24:52</t:Make>"
+      "<!-- <d:CreateDate>2025:10:05T22:24:52+01:00</d:CreateDate> -->";
+  const std::string original = prefix +
+      "d:CreateDate='2025:10:05T22:24:52+01:00' title='2025:10:05T22:24:52+01:00'>"
+      "<p:DateCreated> 2025:10:05T22:24:52.5-0400 </p:DateCreated>"
+      "<d:ModifyDate>2025:10:05 22:24:52</d:ModifyDate>"
+      "<d:MetadataDate>2025:10:05</d:MetadataDate>"
+      "<e:DateTimeOriginal>2025:10:05T22:24Z</e:DateTimeOriginal>" + unchanged + suffix;
+  const std::string expected = prefix +
+      "d:CreateDate='2025-10-05T22:24:52+01:00' title='2025:10:05T22:24:52+01:00'>"
+      "<p:DateCreated> 2025-10-05T22:24:52.5-04:00 </p:DateCreated>"
+      "<d:ModifyDate>2025-10-05T22:24:52</d:ModifyDate>"
+      "<d:MetadataDate>2025-10-05</d:MetadataDate>"
+      "<e:DateTimeOriginal>2025-10-05T22:24Z</e:DateTimeOriginal>" + unchanged + suffix;
+  Document document(2, 2, PixelFormat::rgb8());
+  document.add_pixel_layer("Pixels", solid_rgb(2, 2, 10, 20, 30));
+  document.file_info().xmp = make_metadata_bytes(std::vector<std::uint8_t>(original.begin(), original.end()));
+  for (const bool flat : {false, true}) {
+    const auto read = psd::DocumentIo::read(flat ? psd::DocumentIo::write_flat_rgb8(document)
+                                                 : psd::DocumentIo::write_layered_rgb8(document));
+    const auto& xmp = read.file_info().xmp;
+    CHECK(xmp != nullptr);
+    CHECK(xmp != nullptr && std::string(xmp->begin(), xmp->end()) == expected);
+    // Already repaired: a second save writes the same packet.
+    const auto resaved = psd::image_resources_for_document(read, {});
+    CHECK(xmp != nullptr && psd::find_image_resource_payload(resaved, 1060).value() == *xmp);
+  }
+  // The document keeps what its source said.
+  CHECK(std::string(document.file_info().xmp->begin(), document.file_info().xmp->end()) == original);
+}
+
 
 // The Saving dialog's progress (psd::WriteOptions::progress): the composite, then each
 // top-level layer by name, then the assembly; reporting never changes the bytes.
@@ -1821,6 +1867,7 @@ std::vector<patchy::test::TestCase> psd_writer_stability_tests() {
       {"psd_write_progress_reports_layers_and_keeps_bytes", psd_write_progress_reports_layers_and_keeps_bytes},
       {"psd_xmp_dates_repair_basic_timezones_without_discarding_metadata",
        psd_xmp_dates_repair_basic_timezones_without_discarding_metadata},
+      {"psd_xmp_dates_repair_exif_style_dates", psd_xmp_dates_repair_exif_style_dates},
       {"psb_write_accepts_over_30k_dimension_psd_rejects",
        psb_write_accepts_over_30k_dimension_psd_rejects},
       {"psd_layered_writer_bytes_are_stable", psd_layered_writer_bytes_are_stable},

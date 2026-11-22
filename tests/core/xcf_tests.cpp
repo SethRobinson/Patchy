@@ -2968,6 +2968,44 @@ void xcf_gimp_image_metadata_created_date_keeps_time_offset() {
   CHECK(fields.modified == "2026-10-26T13:12:12+03:00");
 }
 
+// Some GIMP 3 files keep XMP dates in the EXIF form, colons in the date
+// (xcf-corpus gimpformats/layer_comp_modes.xcf, opengameart/radar.xcf, xcfpy/kirby.xcf).
+// Photoshop opened a PSD saved with them with "This file contains file info data which
+// cannot be read and has been ignored": the PSD writer saves them as ISO dates
+// (docs/ps-compat.md). File Info keeps what the file said; the other blocks are untouched.
+void xcf_gimp_image_metadata_exif_style_xmp_dates_save_as_iso_in_psd() {
+  const std::string tags = R"(<metadata>
+  <tag name="Exif.Image.DateTime">2025:10:05 22:24:52</tag>
+  <tag name="Exif.Photo.DateTimeOriginal">2025:10:05 22:24:52</tag>
+  <tag name="Exif.Photo.OffsetTimeOriginal">+01:00</tag>
+  <tag name="Xmp.photoshop.DateCreated">2025:10:05T22:24:52+01:00</tag>
+  <tag name="Xmp.xmp.CreateDate">2025:10:05T22:24:52+01:00</tag>
+  <tag name="Xmp.xmp.MetadataDate">2025:10:05T22:24:52+01:00</tag>
+  <tag name="Xmp.xmp.ModifyDate">2025:10:05T22:24:52+01:00</tag>
+  <tag name="Xmp.dc.source">2025:10:05T22:24:52+01:00</tag>
+  <tag name="Iptc.Application2.DateCreated">2025-10-05</tag>
+  <tag name="Iptc.Application2.TimeCreated">22:24:52+01:00</tag>
+</metadata>)";
+  const auto document = read_with_parasites({{"gimp-image-metadata", text_bytes(tags)}});
+  const auto& info = document.file_info();
+  CHECK(info.xmp && info.exif && info.iptc);
+  CHECK(document_xmp(document).text(md::xmp_ns::kXmp, "CreateDate") == "2025:10:05T22:24:52+01:00");
+
+  for (const bool flat : {false, true}) {
+    const auto reread = patchy::psd::DocumentIo::read(flat ? patchy::psd::DocumentIo::write_flat_rgb8(document)
+                                                           : patchy::psd::DocumentIo::write_layered_rgb8(document));
+    const auto xmp = document_xmp(reread);
+    CHECK(xmp.text(md::xmp_ns::kPhotoshop, "DateCreated") == "2025-10-05T22:24:52+01:00");
+    CHECK(xmp.text(md::xmp_ns::kXmp, "CreateDate") == "2025-10-05T22:24:52+01:00");
+    CHECK(xmp.text(md::xmp_ns::kXmp, "MetadataDate") == "2025-10-05T22:24:52+01:00");
+    CHECK(xmp.text(md::xmp_ns::kXmp, "ModifyDate") == "2025-10-05T22:24:52+01:00");
+    CHECK(xmp.text(md::xmp_ns::kDc, "source") == "2025:10:05T22:24:52+01:00");  // not a date property
+    CHECK(reread.file_info().xmp && reread.file_info().xmp->size() == info.xmp->size());
+    CHECK(reread.file_info().exif && *reread.file_info().exif == *info.exif);
+    CHECK(reread.file_info().iptc && *reread.file_info().iptc == *info.iptc);
+  }
+}
+
 // gimp-metadata (XMP) and exif-data keep precedence; the tag list only fills what they
 // lack. A damaged tag list is ignored and the comment still arrives.
 void xcf_gimp_image_metadata_fills_only_gaps_and_survives_damage() {
@@ -3217,6 +3255,8 @@ std::vector<patchy::test::TestCase> xcf_tests() {
       {"xcf_reads_channels_selection_paths_guides_and_metadata", xcf_reads_channels_selection_paths_guides_and_metadata},
       {"xcf_gimp_image_metadata_tag_list_fills_file_info", xcf_gimp_image_metadata_tag_list_fills_file_info},
       {"xcf_gimp_image_metadata_created_date_keeps_time_offset", xcf_gimp_image_metadata_created_date_keeps_time_offset},
+      {"xcf_gimp_image_metadata_exif_style_xmp_dates_save_as_iso_in_psd",
+       xcf_gimp_image_metadata_exif_style_xmp_dates_save_as_iso_in_psd},
       {"xcf_gimp_image_metadata_fills_only_gaps_and_survives_damage", xcf_gimp_image_metadata_fills_only_gaps_and_survives_damage},
       {"xcf_metadata_application_names_gimp", xcf_metadata_application_names_gimp},
       {"xcf_metadata_sample_comment", xcf_metadata_sample_comment},

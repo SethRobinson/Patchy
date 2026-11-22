@@ -158,7 +158,8 @@ unknown value as "Other: <value>". It is a declaration; nothing enforces it. The
   - JPEG XL and AVIF: no injection; the writer gets EXIF and XMP from `save_metadata_for` and emits
     them itself (JPEG XL as uncompressed `Exif` and `xml ` boxes, also animated; docs/jxl.md, docs/avif.md).
 - PSD: `image_resources_for_document` writes the lifted resources (XMP still goes through
-  `repair_xmp_date_timezones`) plus resource 4213 (`'PtcM'`, v1, big-endian: u32 count,
+  `repair_xmp_dates`, which fixes the date forms Photoshop rejects:
+  [ps-compat.md](ps-compat.md#write-rules-pinned-against-ps-silent-corruption-otherwise)) plus resource 4213 (`'PtcM'`, v1, big-endian: u32 count,
   then per entry u8 FileInfoTextKind and key/value/language as u32 length + UTF-8) for PNG
   text and comments. Patchy-born documents carry none, so the byte-stability canaries are
   unchanged.

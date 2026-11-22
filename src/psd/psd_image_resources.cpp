@@ -121,17 +121,20 @@ double fixed_16_16_to_double(std::uint32_t value) noexcept {
 
 namespace {
 
-// Some exporters write ISO basic timezone offsets in XMP dates. Adobe's XMP
-// parser accepts the packet but rejects these properties when Photoshop imports
-// File Info, producing a modal data-discard warning. Repair only date properties,
-// keeping all other metadata and the packet's original serialization intact.
-void repair_xmp_date_timezones(std::vector<std::uint8_t>& payload) {
+// Some exporters write XMP dates that Adobe's XMP parser accepts in the packet but
+// rejects when Photoshop imports File Info, producing the modal "file info data which
+// cannot be read and has been ignored" warning: ISO basic timezone offsets (-0700) and
+// the EXIF date form (2025:10:05T22:24:52+01:00, which some GIMP versions keep in an
+// XCF's gimp-image-metadata). Repair only date properties, keeping all other metadata
+// and the packet's original serialization intact.
+void repair_xmp_dates(std::vector<std::uint8_t>& payload) {
   const std::string_view xml(reinterpret_cast<const char*>(payload.data()), payload.size());
   const auto whitespace = [](char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; };
   using Namespaces = std::map<std::string_view, std::string_view>;
   struct Element { Namespaces namespaces; std::string_view name; bool date{false}; };
   std::vector<Element> stack;
-  std::vector<std::size_t> insertions;
+  std::vector<std::size_t> insertions;                     // a ':' goes in before each offset
+  std::vector<std::pair<std::size_t, char>> replacements;  // same-length fixes
   const auto date_property = [](std::string_view name, const Namespaces& namespaces) {
     const auto colon = name.find(':');
     if (colon == std::string_view::npos) return false;
@@ -150,21 +153,59 @@ void repair_xmp_date_timezones(std::vector<std::uint8_t>& payload) {
     while (begin < end && whitespace(xml[begin])) ++begin;
     while (end > begin && whitespace(xml[end - 1])) --end;
     const auto value = xml.substr(begin, end - begin);
-    // YYYY-MM-DDThh:mm:ss[.fraction]+hhmm. Do not guess at damaged dates.
-    if (value.size() < 24 || value[4] != '-' || value[7] != '-' || value[10] != 'T' ||
-        value[13] != ':' || value[16] != ':') return;
-    const auto zone = value.size() - 5;
-    if (value[zone] != '+' && value[zone] != '-') return;
-    for (std::size_t i = 0; i < value.size(); ++i) {
-      if (i == 4 || i == 7 || i == 10 || i == 13 || i == 16 || i == zone) continue;
-      if (i == 19 && zone > 19 && value[i] == '.') continue;
-      if (value[i] < '0' || value[i] > '9') return;
-    }
-    if (zone != 19 && (zone < 21 || value[19] != '.')) return;
+    const auto digits = [&](std::size_t at, std::size_t count) {
+      if (at + count > value.size()) return false;
+      for (std::size_t i = at; i < at + count; ++i) {
+        if (value[i] < '0' || value[i] > '9') return false;
+      }
+      return true;
+    };
     const auto pair = [&](std::size_t at) { return (value[at] - '0') * 10 + value[at + 1] - '0'; };
-    if (pair(5) < 1 || pair(5) > 12 || pair(8) < 1 || pair(8) > 31 ||
-        pair(11) > 23 || pair(14) > 59 || pair(17) > 59 || pair(zone + 1) > 23 || pair(zone + 3) > 59) return;
-    insertions.push_back(begin + zone + 3);
+    // The whole value must read as a date: YYYY-MM-DD, or EXIF's YYYY:MM:DD, alone or
+    // with Thh:mm[:ss[.fraction]] and Z, +hh, +hh:mm or +hhmm. Do not guess at damaged dates.
+    if (!digits(0, 4) || !digits(5, 2) || !digits(8, 2)) return;
+    const bool exif_date = value[4] == ':' && value[7] == ':';
+    if (!exif_date && (value[4] != '-' || value[7] != '-')) return;
+    if (pair(5) < 1 || pair(5) > 12 || pair(8) < 1 || pair(8) > 31) return;
+    bool exif_separator = false;
+    auto basic_zone = std::string_view::npos;
+    if (value.size() > 10) {
+      // EXIF puts a space between the date and the time.
+      exif_separator = exif_date && value[10] == ' ';
+      if (value[10] != 'T' && !exif_separator) return;
+      if (!digits(11, 2) || value.size() < 16 || value[13] != ':' || !digits(14, 2) ||
+          pair(11) > 23 || pair(14) > 59) return;
+      std::size_t at = 16;
+      if (at < value.size() && value[at] == ':') {
+        if (!digits(17, 2) || pair(17) > 59) return;
+        at = 19;
+        if (at < value.size() && value[at] == '.') {
+          if (!digits(++at, 1)) return;
+          while (digits(at, 1)) ++at;
+        }
+      }
+      if (at < value.size() && value[at] == 'Z') {
+        ++at;
+      } else if (at < value.size() && (value[at] == '+' || value[at] == '-')) {
+        if (!digits(at + 1, 2) || pair(at + 1) > 23) return;
+        at += 3;
+        if (at < value.size() && value[at] == ':') {
+          if (!digits(at + 1, 2) || pair(at + 1) > 59) return;
+          at += 3;
+        } else if (digits(at, 2)) {
+          if (pair(at) > 59) return;
+          basic_zone = at;
+          at += 2;
+        }
+      }
+      if (at != value.size()) return;
+    }
+    if (exif_date) {
+      replacements.emplace_back(begin + 4, '-');
+      replacements.emplace_back(begin + 7, '-');
+      if (exif_separator) replacements.emplace_back(begin + 10, 'T');
+    }
+    if (basic_zone != std::string_view::npos) insertions.push_back(begin + basic_zone);
   };
   std::size_t pos = 0;
   while (pos < xml.size()) {
@@ -226,7 +267,11 @@ void repair_xmp_date_timezones(std::vector<std::uint8_t>& payload) {
     }
     pos = at + 1;
   }
-  if (!stack.empty() || insertions.empty()) return;
+  if (!stack.empty() || (insertions.empty() && replacements.empty())) return;
+  for (const auto& [at, value] : replacements) {
+    payload[at] = static_cast<std::uint8_t>(value);
+  }
+  if (insertions.empty()) return;
   // Build once: repeated vector insertions would be quadratic for large packets.
   std::vector<std::uint8_t> repaired;
   repaired.reserve(payload.size() + insertions.size());
@@ -1250,7 +1295,7 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
   if (blob_owns_file_info) {
     for (auto& resource : *parsed) {
       if (resource.id == kResourceXmp) {
-        repair_xmp_date_timezones(resource.payload);
+        repair_xmp_dates(resource.payload);
       }
     }
   }
@@ -1274,7 +1319,7 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
   }
   if (info.xmp && !info.xmp->empty()) {
     auto xmp = *info.xmp;
-    repair_xmp_date_timezones(xmp);
+    repair_xmp_dates(xmp);
     upsert_image_resource(*parsed, kResourceXmp, std::move(xmp));
   }
   for (const auto& [id, payload] : info.psd_resources) {
