@@ -22544,6 +22544,10 @@ Voulez-vous le remplacer ?</translation>
         <source>Manage saved layer style contours</source>
         <translation>Gérer les contours enregistrés des styles de calque</translation>
     </message>
+    <message>
+        <source>Make a pattern from the image or selection</source>
+        <translation>Créer un motif à partir de l&apos;image ou de la sélection</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -37208,6 +37212,50 @@ Verrouillé : %1</translation>
     <message>
         <source>Hide Effects</source>
         <translation>Masquer les effets</translation>
+    </message>
+    <message>
+        <source>Define Pattern...</source>
+        <translation>Définir un motif...</translation>
+    </message>
+    <message>
+        <source>The selection is outside the canvas, so there is nothing to make a pattern from</source>
+        <translation>La sélection est hors de la zone de travail, il n&apos;y a donc rien à partir de quoi créer un motif</translation>
+    </message>
+    <message>
+        <source>Define Pattern</source>
+        <translation>Définir un motif</translation>
+    </message>
+    <message>
+        <source>The area is %1 x %2 pixels. %3 Select a smaller area and try again.</source>
+        <translation>La zone mesure %1 x %2 pixels. %3 Sélectionnez une zone plus petite et réessayez.</translation>
+    </message>
+    <message>
+        <source>A pattern can be at most 30,000 pixels wide or tall.</source>
+        <translation>Un motif peut mesurer au plus 30 000 pixels de large ou de haut.</translation>
+    </message>
+    <message>
+        <source>A pattern can have at most 8 million pixels.</source>
+        <translation>Un motif peut contenir au plus 8 millions de pixels.</translation>
+    </message>
+    <message>
+        <source>Could not read the image to define a pattern</source>
+        <translation>Impossible de lire l&apos;image pour définir un motif</translation>
+    </message>
+    <message>
+        <source>Pattern %1</source>
+        <translation>Motif %1</translation>
+    </message>
+    <message>
+        <source>Cancelled defining a pattern</source>
+        <translation>Définition du motif annulée</translation>
+    </message>
+    <message>
+        <source>Could not save the pattern</source>
+        <translation>Impossible d&apos;enregistrer le motif</translation>
+    </message>
+    <message>
+        <source>Defined pattern: %1 (%2 x %3 px)</source>
+        <translation>Motif défini : %1 (%2 x %3 px)</translation>
     </message>
 </context>
 <context>

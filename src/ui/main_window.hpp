@@ -389,6 +389,10 @@ public:
   void set_active_brush_tip(const QString& tip_id, bool announce, bool apply_tool_settings = true);
   void define_brush_tip_from_selection();
   [[nodiscard]] QImage capture_brush_tip_define_source() const;
+  // Edit > Define New Preset > Define Pattern (GitHub issue 747): the visible composite of
+  // the selection's bounding rectangle, or of the whole canvas, becomes a library pattern
+  // under the name the prompt returns. The document is not changed.
+  void define_pattern_from_document();
   // Profiling stress test, CLI entry (`patchy --stress-test=<preset>`): defers the
   // run until the event loop starts, writes the report, and exits the application
   // with 0 (success) or 1 (failure). See main_window_stress_test.cpp.

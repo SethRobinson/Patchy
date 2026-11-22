@@ -22606,6 +22606,10 @@ Czy chcesz go zastąpić?</translation>
         <source>Manage saved layer style contours</source>
         <translation>Zarządzaj zapisanymi konturami stylów warstw</translation>
     </message>
+    <message>
+        <source>Make a pattern from the image or selection</source>
+        <translation>Utwórz wzorek z obrazu lub zaznaczenia</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -37323,6 +37327,50 @@ Zablokowano: %1</translation>
     <message>
         <source>Hide Effects</source>
         <translation>Ukryj efekty</translation>
+    </message>
+    <message>
+        <source>Define Pattern...</source>
+        <translation>Zdefiniuj wzorek...</translation>
+    </message>
+    <message>
+        <source>The selection is outside the canvas, so there is nothing to make a pattern from</source>
+        <translation>Zaznaczenie jest poza płótnem, więc nie ma z czego utworzyć wzorka</translation>
+    </message>
+    <message>
+        <source>Define Pattern</source>
+        <translation>Zdefiniuj wzorek</translation>
+    </message>
+    <message>
+        <source>The area is %1 x %2 pixels. %3 Select a smaller area and try again.</source>
+        <translation>Obszar ma %1 x %2 pikseli. %3 Zaznacz mniejszy obszar i spróbuj ponownie.</translation>
+    </message>
+    <message>
+        <source>A pattern can be at most 30,000 pixels wide or tall.</source>
+        <translation>Wzorek może mieć najwyżej 30 000 pikseli szerokości lub wysokości.</translation>
+    </message>
+    <message>
+        <source>A pattern can have at most 8 million pixels.</source>
+        <translation>Wzorek może mieć najwyżej 8 milionów pikseli.</translation>
+    </message>
+    <message>
+        <source>Could not read the image to define a pattern</source>
+        <translation>Nie można odczytać obrazu, aby zdefiniować wzorek</translation>
+    </message>
+    <message>
+        <source>Pattern %1</source>
+        <translation>Wzorek %1</translation>
+    </message>
+    <message>
+        <source>Cancelled defining a pattern</source>
+        <translation>Anulowano definiowanie wzorka</translation>
+    </message>
+    <message>
+        <source>Could not save the pattern</source>
+        <translation>Nie można zapisać wzorka</translation>
+    </message>
+    <message>
+        <source>Defined pattern: %1 (%2 x %3 px)</source>
+        <translation>Zdefiniowany wzorek: %1 (%2 x %3 px)</translation>
     </message>
 </context>
 <context>

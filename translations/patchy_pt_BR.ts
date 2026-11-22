@@ -22544,6 +22544,10 @@ Deseja substituí-lo?</translation>
         <source>Manage saved layer style contours</source>
         <translation>Gerenciar os contornos salvos dos estilos de camada</translation>
     </message>
+    <message>
+        <source>Make a pattern from the image or selection</source>
+        <translation>Criar um padrão a partir da imagem ou da seleção</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -37208,6 +37212,50 @@ Bloqueado: %1</translation>
     <message>
         <source>Hide Effects</source>
         <translation>Ocultar efeitos</translation>
+    </message>
+    <message>
+        <source>Define Pattern...</source>
+        <translation>Definir padrão...</translation>
+    </message>
+    <message>
+        <source>The selection is outside the canvas, so there is nothing to make a pattern from</source>
+        <translation>A seleção está fora da tela, então não há nada com que criar um padrão</translation>
+    </message>
+    <message>
+        <source>Define Pattern</source>
+        <translation>Definir padrão</translation>
+    </message>
+    <message>
+        <source>The area is %1 x %2 pixels. %3 Select a smaller area and try again.</source>
+        <translation>A área tem %1 x %2 pixels. %3 Selecione uma área menor e tente novamente.</translation>
+    </message>
+    <message>
+        <source>A pattern can be at most 30,000 pixels wide or tall.</source>
+        <translation>Um padrão pode ter no máximo 30.000 pixels de largura ou altura.</translation>
+    </message>
+    <message>
+        <source>A pattern can have at most 8 million pixels.</source>
+        <translation>Um padrão pode ter no máximo 8 milhões de pixels.</translation>
+    </message>
+    <message>
+        <source>Could not read the image to define a pattern</source>
+        <translation>Não foi possível ler a imagem para definir um padrão</translation>
+    </message>
+    <message>
+        <source>Pattern %1</source>
+        <translation>Padrão %1</translation>
+    </message>
+    <message>
+        <source>Cancelled defining a pattern</source>
+        <translation>Cancelada a definição do padrão</translation>
+    </message>
+    <message>
+        <source>Could not save the pattern</source>
+        <translation>Não foi possível salvar o padrão</translation>
+    </message>
+    <message>
+        <source>Defined pattern: %1 (%2 x %3 px)</source>
+        <translation>Padrão definido: %1 (%2 x %3 px)</translation>
     </message>
 </context>
 <context>

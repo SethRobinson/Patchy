@@ -22482,6 +22482,10 @@ Do you want to replace it?</source>
         <source>Manage saved layer style contours</source>
         <translation>管理已儲存的圖層樣式輪廓</translation>
     </message>
+    <message>
+        <source>Make a pattern from the image or selection</source>
+        <translation>用影像或選取範圍建立圖樣</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -37093,6 +37097,50 @@ Locked: %1</source>
     <message>
         <source>Hide Effects</source>
         <translation>隱藏效果</translation>
+    </message>
+    <message>
+        <source>Define Pattern...</source>
+        <translation>定義圖樣...</translation>
+    </message>
+    <message>
+        <source>The selection is outside the canvas, so there is nothing to make a pattern from</source>
+        <translation>選取範圍在畫布之外，沒有可用來建立圖樣的內容</translation>
+    </message>
+    <message>
+        <source>Define Pattern</source>
+        <translation>定義圖樣</translation>
+    </message>
+    <message>
+        <source>The area is %1 x %2 pixels. %3 Select a smaller area and try again.</source>
+        <translation>該區域為 %1 x %2 像素。%3 請選取較小的區域後再試一次。</translation>
+    </message>
+    <message>
+        <source>A pattern can be at most 30,000 pixels wide or tall.</source>
+        <translation>圖樣的寬度和高度最多為 30,000 像素。</translation>
+    </message>
+    <message>
+        <source>A pattern can have at most 8 million pixels.</source>
+        <translation>圖樣最多包含 800 萬像素。</translation>
+    </message>
+    <message>
+        <source>Could not read the image to define a pattern</source>
+        <translation>無法讀取用來定義圖樣的影像</translation>
+    </message>
+    <message>
+        <source>Pattern %1</source>
+        <translation>圖樣 %1</translation>
+    </message>
+    <message>
+        <source>Cancelled defining a pattern</source>
+        <translation>已取消定義圖樣</translation>
+    </message>
+    <message>
+        <source>Could not save the pattern</source>
+        <translation>無法儲存圖樣</translation>
+    </message>
+    <message>
+        <source>Defined pattern: %1 (%2 x %3 px)</source>
+        <translation>已定義圖樣：%1 (%2 x %3 px)</translation>
     </message>
 </context>
 <context>

@@ -22482,6 +22482,10 @@ Do you want to replace it?</source>
         <source>Manage saved layer style contours</source>
         <translation>保存したレイヤースタイルの輪郭を管理</translation>
     </message>
+    <message>
+        <source>Make a pattern from the image or selection</source>
+        <translation>画像または選択範囲からパターンを作成</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -37093,6 +37097,50 @@ Locked: %1</source>
     <message>
         <source>Hide Effects</source>
         <translation>エフェクトを非表示</translation>
+    </message>
+    <message>
+        <source>Define Pattern...</source>
+        <translation>パターンを定義...</translation>
+    </message>
+    <message>
+        <source>The selection is outside the canvas, so there is nothing to make a pattern from</source>
+        <translation>選択範囲がキャンバスの外にあるため、パターンにできる部分がありません</translation>
+    </message>
+    <message>
+        <source>Define Pattern</source>
+        <translation>パターンを定義</translation>
+    </message>
+    <message>
+        <source>The area is %1 x %2 pixels. %3 Select a smaller area and try again.</source>
+        <translation>範囲は %1 x %2 ピクセルです。%3 より小さい範囲を選択して、もう一度お試しください。</translation>
+    </message>
+    <message>
+        <source>A pattern can be at most 30,000 pixels wide or tall.</source>
+        <translation>パターンの幅と高さは最大 30,000 ピクセルです。</translation>
+    </message>
+    <message>
+        <source>A pattern can have at most 8 million pixels.</source>
+        <translation>パターンは最大 800 万ピクセルです。</translation>
+    </message>
+    <message>
+        <source>Could not read the image to define a pattern</source>
+        <translation>パターンを定義するための画像を読み込めませんでした</translation>
+    </message>
+    <message>
+        <source>Pattern %1</source>
+        <translation>パターン %1</translation>
+    </message>
+    <message>
+        <source>Cancelled defining a pattern</source>
+        <translation>パターンの定義をキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Could not save the pattern</source>
+        <translation>パターンを保存できませんでした</translation>
+    </message>
+    <message>
+        <source>Defined pattern: %1 (%2 x %3 px)</source>
+        <translation>パターンを定義しました: %1 (%2 x %3 px)</translation>
     </message>
 </context>
 <context>
