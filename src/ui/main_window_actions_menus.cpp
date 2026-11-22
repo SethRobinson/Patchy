@@ -934,7 +934,15 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(define_brush_tip_action, "edit.define_brush_tip");
   connect(define_brush_tip_action, &QAction::triggered, this, [this] { define_brush_tip_from_selection(); });
   register_document_action(define_brush_tip_action);
-  auto* define_custom_shape_action = define_menu->addAction(tr("Define Custom Shape from Path"));
+  // GitHub issue 747: a pattern from the selection's rectangle or the whole canvas.
+  auto* define_pattern_action = define_menu->addAction(tr("Define Pattern..."));
+  bind_action_text(define_pattern_action, QT_TR_NOOP("Define Pattern..."));
+  define_pattern_action->setObjectName(QStringLiteral("editDefinePatternAction"));
+  define_pattern_action->setMenuRole(QAction::NoRole);
+  register_hotkey(define_pattern_action, "edit.define_pattern");
+  connect(define_pattern_action, &QAction::triggered, this, [this] { define_pattern_from_document(); });
+  register_document_action(define_pattern_action);
+  auto* define_custom_shape_action =define_menu->addAction(tr("Define Custom Shape from Path"));
   bind_action_text(define_custom_shape_action, QT_TR_NOOP("Define Custom Shape from Path"));
   define_custom_shape_action->setObjectName(QStringLiteral("editDefineCustomShapeAction"));
   define_custom_shape_action->setMenuRole(QAction::NoRole);

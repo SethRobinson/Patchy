@@ -22544,6 +22544,10 @@ Do you want to replace it?</source>
         <source>Manage saved layer style contours</source>
         <translation>Gestionar los contornos guardados de los estilos de capa</translation>
     </message>
+    <message>
+        <source>Make a pattern from the image or selection</source>
+        <translation>Crear un motivo a partir de la imagen o la selección</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -37208,6 +37212,50 @@ Bloqueada: %1</translation>
     <message>
         <source>Hide Effects</source>
         <translation>Ocultar efectos</translation>
+    </message>
+    <message>
+        <source>Define Pattern...</source>
+        <translation>Definir motivo...</translation>
+    </message>
+    <message>
+        <source>The selection is outside the canvas, so there is nothing to make a pattern from</source>
+        <translation>La selección está fuera del lienzo, así que no hay nada con lo que crear un motivo</translation>
+    </message>
+    <message>
+        <source>Define Pattern</source>
+        <translation>Definir motivo</translation>
+    </message>
+    <message>
+        <source>The area is %1 x %2 pixels. %3 Select a smaller area and try again.</source>
+        <translation>El área mide %1 x %2 píxeles. %3 Seleccione un área más pequeña e inténtelo de nuevo.</translation>
+    </message>
+    <message>
+        <source>A pattern can be at most 30,000 pixels wide or tall.</source>
+        <translation>Un motivo puede tener como máximo 30.000 píxeles de ancho o de alto.</translation>
+    </message>
+    <message>
+        <source>A pattern can have at most 8 million pixels.</source>
+        <translation>Un motivo puede tener como máximo 8 millones de píxeles.</translation>
+    </message>
+    <message>
+        <source>Could not read the image to define a pattern</source>
+        <translation>No se pudo leer la imagen para definir un motivo</translation>
+    </message>
+    <message>
+        <source>Pattern %1</source>
+        <translation>Motivo %1</translation>
+    </message>
+    <message>
+        <source>Cancelled defining a pattern</source>
+        <translation>Se canceló la definición del motivo</translation>
+    </message>
+    <message>
+        <source>Could not save the pattern</source>
+        <translation>No se pudo guardar el motivo</translation>
+    </message>
+    <message>
+        <source>Defined pattern: %1 (%2 x %3 px)</source>
+        <translation>Motivo definido: %1 (%2 x %3 px)</translation>
     </message>
 </context>
 <context>
