@@ -16386,11 +16386,6 @@ Do you want to replace it?</source>
         <translation>Aseprite 애니메이션을 %1개의 프레임 그룹으로 가져왔습니다</translation>
     </message>
     <message>
-        <source>Created by %1 (%2, %3)</source>
-        <extracomment>%1 is the creator&apos;s name, %2 and %3 are links to his GitHub profile and website.</extracomment>
-        <translation>제작: %1 (%2, %3)</translation>
-    </message>
-    <message>
         <source>%1 · Up to date</source>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · 최신 상태</translation>
@@ -16452,6 +16447,11 @@ Do you want to replace it?</source>
         <source>Stripes</source>
         <comment>gradient interpolation</comment>
         <translation>줄무늬</translation>
+    </message>
+    <message>
+        <source>Created by %1 (%2)</source>
+        <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
+        <translation>제작: %1 (%2)</translation>
     </message>
 </context>
 <context>

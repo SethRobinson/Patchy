@@ -16442,11 +16442,6 @@ Sostituirlo?</translation>
         <translation>Animazione Aseprite importata in %1 gruppi di fotogrammi</translation>
     </message>
     <message>
-        <source>Created by %1 (%2, %3)</source>
-        <extracomment>%1 is the creator&apos;s name, %2 and %3 are links to his GitHub profile and website.</extracomment>
-        <translation>Creato da %1 (%2, %3)</translation>
-    </message>
-    <message>
         <source>%1 · Up to date</source>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · Aggiornato</translation>
@@ -16508,6 +16503,11 @@ Sostituirlo?</translation>
         <source>Stripes</source>
         <comment>gradient interpolation</comment>
         <translation>Strisce</translation>
+    </message>
+    <message>
+        <source>Created by %1 (%2)</source>
+        <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
+        <translation>Creato da %1 (%2)</translation>
     </message>
 </context>
 <context>

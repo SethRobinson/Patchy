@@ -16442,11 +16442,6 @@ Voulez-vous le remplacer ?</translation>
         <translation>Animation Aseprite importée en %1 groupes d’images</translation>
     </message>
     <message>
-        <source>Created by %1 (%2, %3)</source>
-        <extracomment>%1 is the creator&apos;s name, %2 and %3 are links to his GitHub profile and website.</extracomment>
-        <translation>Créé par %1 (%2, %3)</translation>
-    </message>
-    <message>
         <source>%1 · Up to date</source>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · À jour</translation>
@@ -16508,6 +16503,11 @@ Voulez-vous le remplacer ?</translation>
         <source>Stripes</source>
         <comment>gradient interpolation</comment>
         <translation>Rayures</translation>
+    </message>
+    <message>
+        <source>Created by %1 (%2)</source>
+        <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
+        <translation>Créé par %1 (%2)</translation>
     </message>
 </context>
 <context>

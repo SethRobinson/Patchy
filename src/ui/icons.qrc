@@ -1,6 +1,7 @@
 <RCC>
   <qresource prefix="/patchy/branding">
     <file alias="logo.svg">../../packaging/branding/patchy-logo-folded.svg</file>
+    <file alias="rtsoft-mark.png">../../packaging/branding/rtsoft-mark.png</file>
   </qresource>
   <qresource prefix="/patchy/icons">
     <file alias="new.svg">icons/new.svg</file>

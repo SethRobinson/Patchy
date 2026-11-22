@@ -12,6 +12,11 @@
 #include "ui/ui_text_size.hpp"
 #include "ui/window_effects.hpp"
 
+#include <QtGui/qtguiglobal.h>
+#if QT_CONFIG(accessibility)
+#include <QAccessible>
+#include <QAccessibleWidget>
+#endif
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDir>
@@ -19,6 +24,8 @@
 #include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QIcon>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QObject>
@@ -28,6 +35,7 @@
 #include <QScreen>
 #include <QStandardPaths>
 #include <QString>
+#include <QStringList>
 #include <QTimer>
 #include <QToolButton>
 #include <QUrl>
@@ -38,6 +46,7 @@
 #include <algorithm>
 #include <functional>
 #include <optional>
+#include <utility>
 
 #include "patchy_version.hpp"
 
@@ -55,6 +64,102 @@ bool same_folder(const QString& a, const QString& b) {
                              .compare(QDir::cleanPath(QFileInfo(b).absoluteFilePath()), kCase) == 0;
 }
 #endif
+
+QUrl creator_site_url() {
+  return QUrl(QStringLiteral("https://rtsoft.com"));
+}
+
+std::function<void(const QUrl&)>& site_link_opener() {
+  static std::function<void(const QUrl&)> opener;
+  return opener;
+}
+
+void open_creator_site() {
+  if (const auto& opener = site_link_opener(); opener) {
+    opener(creator_site_url());
+    return;
+  }
+  QDesktopServices::openUrl(creator_site_url());
+}
+
+constexpr char kSiteLinkObjectName[] = "splashSiteLink";
+
+#if QT_CONFIG(accessibility)
+// Assistive technology gets the mark and its address as one link, with the press action a
+// link has; a tool button alone reports a push button.
+class SiteLinkAccessible final : public QAccessibleWidget {
+public:
+  explicit SiteLinkAccessible(QToolButton* button) : QAccessibleWidget(button, QAccessible::Link) {}
+
+  QStringList actionNames() const override {
+    return {QAccessibleActionInterface::pressAction(), QAccessibleActionInterface::setFocusAction()};
+  }
+
+  void doAction(const QString& action_name) override {
+    if (action_name == QAccessibleActionInterface::pressAction()) {
+      if (auto* button = qobject_cast<QToolButton*>(object()); button != nullptr) {
+        button->click();
+      }
+      return;
+    }
+    QAccessibleWidget::doAction(action_name);
+  }
+};
+
+QAccessibleInterface* site_link_accessible_factory(const QString&, QObject* object) {
+  auto* button = qobject_cast<QToolButton*>(object);
+  if (button == nullptr || button->objectName() != QLatin1String(kSiteLinkObjectName)) {
+    return nullptr;
+  }
+  return new SiteLinkAccessible(button);
+}
+#endif
+
+// The creator's site in the About dialog: the RTsoft mark above the visible address
+// (GitHub issue 740). One button, so the mark and the address share a click target, a
+// focus stop and an accessible element, and the mark is drawn at the display's pixel
+// density. The address is the same in every language.
+class SplashSiteLink final : public QToolButton {
+public:
+  static constexpr int kMarkHeight = 44;
+
+  explicit SplashSiteLink(QWidget* parent) : QToolButton(parent) {
+    setObjectName(QLatin1String(kSiteLinkObjectName));
+    // packaging/branding/rtsoft-mark.png (its README records the source).
+    const QIcon mark(QStringLiteral(":/patchy/branding/rtsoft-mark.png"));
+    const QSize art = mark.availableSizes().value(0, QSize(71, 119));
+    const int height = ui_text_length(kMarkHeight);
+    setIcon(mark);
+    setIconSize(QSize(qRound(static_cast<double>(height) * art.width() / art.height()), height));
+    setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+    setText(QStringLiteral("rtsoft.com"));
+    setCursor(Qt::PointingHandCursor);
+    setFocusPolicy(Qt::StrongFocus);
+    setToolTip(creator_site_url().toString());
+    setAccessibleName(QStringLiteral("RTsoft, rtsoft.com"));
+    setAccessibleDescription(creator_site_url().toString());
+    connect(this, &QToolButton::clicked, this, [] { open_creator_site(); });
+#if QT_CONFIG(accessibility)
+    static const bool factory_installed = [] {
+      QAccessible::installFactory(site_link_accessible_factory);
+      return true;
+    }();
+    (void)factory_installed;
+#endif
+  }
+
+protected:
+  // A link opens on Enter. A tool button answers only Space, and the dialog would give
+  // Enter to its default button.
+  void keyPressEvent(QKeyEvent* event) override {
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+      click();
+      event->accept();
+      return;
+    }
+    QToolButton::keyPressEvent(event);
+  }
+};
 
 QString format_memory_mb(qint64 mb) {
   if (mb >= 1024) {
@@ -167,6 +272,20 @@ public:
       QPushButton#splashOpenPluginsFolderButton:hover {
         background: @splash_button_hover_bg;
       }
+      QToolButton#splashSiteLink {
+        background: transparent;
+        color: @splash_link_text;
+        border: 1px solid transparent;
+        border-radius: 3px;
+        padding: 2px 3px;
+        font-size: 13px;
+      }
+      QToolButton#splashSiteLink:hover, QToolButton#splashSiteLink:pressed {
+        background: transparent;
+      }
+      QToolButton#splashSiteLink:focus {
+        border-color: @splash_link_text;
+      }
       QPushButton#splashUpdateButton {
         background: @splash_button_bg;
         color: @splash_body_text;
@@ -267,16 +386,17 @@ public:
     auto* credit = new QLabel(this);
     credit->setObjectName(QStringLiteral("splashCredit"));
     credit->setTextFormat(Qt::RichText);
-    //: %1 is the creator's name, %2 and %3 are links to his GitHub profile and website.
-    set_themed_label_text(*credit, QObject::tr("Created by %1 (%2, %3)").arg(
+    //: %1 is the creator's name, %2 is a link to his GitHub profile.
+    set_themed_label_text(*credit, QObject::tr("Created by %1 (%2)").arg(
         QStringLiteral("Seth A. Robinson"),
-        link(QStringLiteral("https://github.com/SethRobinson"), QStringLiteral("GitHub")),
-        // The address itself is the link text, the same in every language.
-        link(QStringLiteral("https://rtsoft.com"), QStringLiteral("rtsoft.com"))));
+        link(QStringLiteral("https://github.com/SethRobinson"), QStringLiteral("GitHub"))));
     credit->setTextInteractionFlags(Qt::TextBrowserInteraction);
     credit->setOpenExternalLinks(true);
     credit->setWordWrap(true);
-    layout->addWidget(credit);
+
+    // Created here so Tab reaches it right after the GitHub link, before the long
+    // contributor list.
+    auto* site_link = new SplashSiteLink(this);
 
     auto* contributors = new QLabel(this);
     contributors->setObjectName(QStringLiteral("splashContributors"));
@@ -289,7 +409,19 @@ public:
     contributors->setOpenExternalLinks(true);
     // The list outgrows one line; wrap inside the fixed dialog width.
     contributors->setWordWrap(true);
-    layout->addWidget(contributors);
+
+    // The credit and the contributors share the left of the creator area; the site link
+    // sits at its right, centered against both.
+    auto* creator = new QHBoxLayout();
+    creator->setSpacing(20);
+    auto* creator_text = new QVBoxLayout();
+    creator_text->setSpacing(layout->spacing());
+    creator_text->addWidget(credit);
+    creator_text->addWidget(contributors);
+    creator_text->addStretch(1);
+    creator->addLayout(creator_text, 1);
+    creator->addWidget(site_link, 0, Qt::AlignVCenter);
+    layout->addLayout(creator);
 
 #ifndef Q_OS_WASM
     // The wasm settings store is window.localStorage and its user data lives in
@@ -578,6 +710,10 @@ void show_about_splash(QWidget* parent, std::function<void(const UpdateInfo&)> o
   if (requested_update.has_value() && open_update) {
     open_update(*requested_update);
   }
+}
+
+void set_about_site_link_opener_for_testing(std::function<void(const QUrl&)> opener) {
+  site_link_opener() = std::move(opener);
 }
 
 }  // namespace patchy::ui

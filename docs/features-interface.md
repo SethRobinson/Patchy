@@ -14,7 +14,7 @@ For editing tools, files and formats, see the [full feature list](features.md).
 ## Welcome and About
 
 - The welcome panel and Help > About play a short logo intro. The P appears on the tile, the paper patch flips into place and a glint crosses the finished logo.
-- Help > About Patchy shows the version and project link, creator and contributor credits, and paths to user files with buttons to open their folders. Contributors appear by GitHub handle and accepted pull request and issue count, most first.
+- Help > About Patchy shows the version and project link, creator and contributor credits, the RTsoft logo above a link to rtsoft.com, and paths to user files with buttons to open their folders. Contributors appear by GitHub handle and accepted pull request and issue count, most first.
 
 ## Panels and layers
 

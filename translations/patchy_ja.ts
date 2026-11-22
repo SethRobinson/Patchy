@@ -16386,11 +16386,6 @@ Do you want to replace it?</source>
         <translation>Aseprite アニメーションを %1 個のフレームグループとして読み込みました</translation>
     </message>
     <message>
-        <source>Created by %1 (%2, %3)</source>
-        <extracomment>%1 is the creator&apos;s name, %2 and %3 are links to his GitHub profile and website.</extracomment>
-        <translation>作成: %1（%2、%3）</translation>
-    </message>
-    <message>
         <source>%1 · Up to date</source>
         <extracomment>%1 is the version and build timestamp.</extracomment>
         <translation>%1 · 最新です</translation>
@@ -16452,6 +16447,11 @@ Do you want to replace it?</source>
         <source>Stripes</source>
         <comment>gradient interpolation</comment>
         <translation>ストライプ</translation>
+    </message>
+    <message>
+        <source>Created by %1 (%2)</source>
+        <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
+        <translation>作成: %1（%2）</translation>
     </message>
 </context>
 <context>

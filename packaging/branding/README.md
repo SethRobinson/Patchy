@@ -11,6 +11,17 @@ flat and outline SVGs remain design source material.
 home-screen icons whose platform supplies the outer shape. Its export is an
 ordinary icon, not a maskable icon with a guaranteed circular safe zone.
 
+`rtsoft-mark.png` (71 x 119 px) is the RTsoft mark that Help > About shows above
+the rtsoft.com address. It is first-party artwork: the logo of Robinson
+Technologies (RTsoft), the company of Patchy's author Seth A. Robinson, included
+by its owner. Source: `media/interface/ipad/logo_rtsoft.png` (131 x 196 px) in
+<https://github.com/SethRobinson/RTDink>, cropped to the mark at (30, 30) to
+(101, 149), which leaves out the "RT soft" lettering and the glow around it.
+Nothing else was changed, and no third-party content is involved. The same mark
+appears at <https://www.rtsoft.com/graphics/logo.gif>. `src/ui/icons.qrc` embeds
+it as `:/patchy/branding/rtsoft-mark.png`; `generate-branding.py` does not touch
+it. It is a logo, not an interface icon: use it only to credit and link RTsoft.
+
 Regenerate checked-in platform assets from the repository root:
 
 ```powershell

@@ -51,6 +51,12 @@
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QTextFragment>
+#include <QToolButton>
+#include <QUrl>
+#include <QtGui/qtguiglobal.h>
+#if QT_CONFIG(accessibility)
+#include <QAccessible>
+#endif
 #include <QLocale>
 #include <QMenu>
 #include <QMenuBar>
@@ -1517,12 +1523,37 @@ void ui_about_dialog_shows_labeled_external_links() {
     CHECK(project->text().contains(QStringLiteral("href=\"https://github.com/SethRobinson/Patchy\">SethRobinson/Patchy</a>")));
     CHECK(credit->text().startsWith(QStringLiteral("Created by Seth A. Robinson (")));
     CHECK(credit->text().contains(QStringLiteral("href=\"https://github.com/SethRobinson\">GitHub</a>")));
-    // The website link shows its address, not a word for it (GitHub issue 740).
-    CHECK(credit->text().contains(QStringLiteral("href=\"https://rtsoft.com\">rtsoft.com</a>")));
+    // GitHub stays beside the name; the website is the RTsoft mark above its address at the
+    // right of the creator area (GitHub issue 740).
     const auto credit_links = rendered_label_links(*credit);
-    CHECK(credit_links.size() == 2);
+    CHECK(credit_links.size() == 1);
     CHECK(credit_links.value(QStringLiteral("https://github.com/SethRobinson")) == QStringLiteral("GitHub"));
-    CHECK(credit_links.value(QStringLiteral("https://rtsoft.com")) == QStringLiteral("rtsoft.com"));
+    CHECK(!credit->text().contains(QStringLiteral("rtsoft.com")));
+    auto* site_link = dialog->findChild<QToolButton*>(QStringLiteral("splashSiteLink"));
+    CHECK(site_link != nullptr);
+    auto* credited = dialog->findChild<QLabel*>(QStringLiteral("splashContributors"));
+    if (site_link != nullptr && credited != nullptr) {
+      CHECK(site_link->isVisible());
+      CHECK(site_link->text() == QStringLiteral("rtsoft.com"));
+      CHECK(site_link->toolButtonStyle() == Qt::ToolButtonTextUnderIcon);
+      CHECK(!site_link->icon().isNull());
+      // The 44 px mark keeps the proportions of the bundled artwork (71 x 119).
+      CHECK(site_link->iconSize() == QSize(26, 44));
+      CHECK(site_link->toolTip() == QStringLiteral("https://rtsoft.com"));
+      CHECK(site_link->width() >= site_link->sizeHint().width());
+      CHECK(site_link->height() >= site_link->sizeHint().height());
+      // Right of the credit and the contributors, inside the dialog's margin, and within
+      // the creator area's height.
+      CHECK(site_link->x() > credit->geometry().right());
+      CHECK(site_link->x() > credited->geometry().right());
+      CHECK(site_link->geometry().right() <= dialog->width() - 24);
+      CHECK(site_link->y() >= credit->y());
+      CHECK(site_link->geometry().bottom() <= credited->geometry().bottom());
+      // The mark is drawn: its middle is neither the dialog's background nor the address's color.
+      const auto shot = site_link->grab().toImage();
+      const QPoint mark_center(site_link->width() / 2, 3 + site_link->iconSize().height() / 2);
+      CHECK(shot.pixelColor(mark_center) != shot.pixelColor(1, site_link->height() / 2));
+    }
     for (const auto* label : {project, credit}) {
       CHECK(label->textFormat() == Qt::RichText);
       CHECK(label->textInteractionFlags().testFlag(Qt::LinksAccessibleByMouse));
@@ -1612,8 +1643,83 @@ void ui_about_dialog_shows_labeled_external_links() {
   CHECK(inspected);
 }
 
-// The creator's website link reads "rtsoft.com" in every shipped language, beside a
-// separate GitHub link (GitHub issue 740).
+// The RTsoft mark and the address under it are one link: a click on either part, Enter or
+// Space with the focus on it, and an assistive technology's press all open the site, and
+// Tab reaches it right after the GitHub link (GitHub issue 740).
+void ui_about_dialog_site_link_opens_from_the_mark_the_address_and_the_keyboard() {
+  QList<QUrl> opened;
+  patchy::ui::set_about_site_link_opener_for_testing([&opened](const QUrl& url) { opened.append(url); });
+  const auto restore_opener = qScopeGuard([] { patchy::ui::set_about_site_link_opener_for_testing({}); });
+  bool inspected = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchySplashScreen"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* site_link = dialog->findChild<QToolButton*>(QStringLiteral("splashSiteLink"));
+    auto* credit = dialog->findChild<QLabel*>(QStringLiteral("splashCredit"));
+    CHECK(site_link != nullptr && credit != nullptr);
+    if (site_link == nullptr || credit == nullptr) {
+      dialog->accept();
+      return;
+    }
+
+    // The mark fills the upper part of the link; the address is the text line below it.
+    const int mark_height = site_link->iconSize().height();
+    const QPoint on_mark(site_link->width() / 2, 3 + mark_height / 2);
+    const QPoint on_address(site_link->width() / 2, site_link->height() - 4 - site_link->fontMetrics().height() / 2);
+    CHECK(on_mark.y() < 3 + mark_height);
+    CHECK(on_address.y() > 3 + mark_height);
+    CHECK(site_link->rect().contains(on_address));
+    click_widget_like_a_user(*dialog, site_link->mapTo(dialog, on_mark));
+    CHECK(opened.size() == 1);
+    click_widget_like_a_user(*dialog, site_link->mapTo(dialog, on_address));
+    CHECK(opened.size() == 2);
+
+    // One focus stop for both parts, right after the credit's GitHub link.
+    CHECK(site_link->focusPolicy() == Qt::StrongFocus);
+    CHECK(credit->nextInFocusChain() == site_link);
+    site_link->setFocus(Qt::TabFocusReason);
+    send_key(*site_link, Qt::Key_Return);
+    CHECK(opened.size() == 3);
+    send_key(*site_link, Qt::Key_Enter);
+    CHECK(opened.size() == 4);
+    send_key(*site_link, Qt::Key_Space);
+    CHECK(opened.size() == 5);
+    // Enter went to the link, not to the dialog's default button.
+    CHECK(dialog->isVisible());
+
+#if QT_CONFIG(accessibility)
+    auto* accessible = QAccessible::queryAccessibleInterface(site_link);
+    CHECK(accessible != nullptr);
+    if (accessible != nullptr) {
+      CHECK(accessible->role() == QAccessible::Link);
+      CHECK(accessible->text(QAccessible::Name) == QStringLiteral("RTsoft, rtsoft.com"));
+      CHECK(accessible->text(QAccessible::Description) == QStringLiteral("https://rtsoft.com"));
+      CHECK(accessible->state().focusable);
+      auto* actions = accessible->actionInterface();
+      CHECK(actions != nullptr);
+      if (actions != nullptr) {
+        CHECK(actions->actionNames().contains(QAccessibleActionInterface::pressAction()));
+        actions->doAction(QAccessibleActionInterface::pressAction());
+        CHECK(opened.size() == 6);
+      }
+    }
+#endif
+
+    for (const QUrl& url : opened) {
+      CHECK(url == QUrl(QStringLiteral("https://rtsoft.com")));
+    }
+    inspected = true;
+    dialog->accept();
+  }));
+  patchy::ui::show_about_splash();
+  CHECK(inspected);
+}
+
+// The creator's website link reads "rtsoft.com" in every shipped language, apart from the
+// GitHub link beside the name (GitHub issue 740).
 void ui_about_dialog_creator_links_show_the_site_address_in_every_language() {
   auto& manager = patchy::ui::LocalizationManager::instance();
   const auto restore_language = qScopeGuard([&manager] { manager.set_language(QStringLiteral("en"), false); });
@@ -1630,17 +1736,29 @@ void ui_about_dialog_creator_links_show_the_site_address_in_every_language() {
       CHECK(credit != nullptr);
       if (credit != nullptr) {
         const auto links = rendered_label_links(*credit);
-        if (links.value(QStringLiteral("https://rtsoft.com")) != QStringLiteral("rtsoft.com")) {
-          fprintf(stderr, "  %s: the website link reads \"%s\"\n", qPrintable(language.code),
-                  qPrintable(links.value(QStringLiteral("https://rtsoft.com"))));
-        }
-        CHECK(links.size() == 2);
-        CHECK(links.value(QStringLiteral("https://rtsoft.com")) == QStringLiteral("rtsoft.com"));
+        CHECK(links.size() == 1);
         CHECK(links.value(QStringLiteral("https://github.com/SethRobinson")) == QStringLiteral("GitHub"));
         QTextDocument rendered;
         rendered.setHtml(credit->text());
-        CHECK(rendered.toPlainText().contains(QStringLiteral("Seth A. Robinson")));
-        CHECK(rendered.toPlainText().contains(QStringLiteral("rtsoft.com")));
+        const QString credit_text = rendered.toPlainText();
+        if (!credit_text.contains(QStringLiteral("Seth A. Robinson")) || credit_text.contains(QLatin1Char('%'))) {
+          fprintf(stderr, "  %s: the credit reads \"%s\"\n", qPrintable(language.code), qPrintable(credit_text));
+        }
+        CHECK(credit_text.contains(QStringLiteral("Seth A. Robinson")));
+        CHECK(credit_text.contains(QStringLiteral("GitHub")));
+        // Every placeholder is filled, and the address is not repeated in the sentence.
+        CHECK(!credit_text.contains(QLatin1Char('%')));
+        CHECK(!credit_text.contains(QStringLiteral("rtsoft.com")));
+      }
+      auto* site_link = dialog->findChild<QToolButton*>(QStringLiteral("splashSiteLink"));
+      CHECK(site_link != nullptr);
+      if (site_link != nullptr) {
+        if (site_link->text() != QStringLiteral("rtsoft.com")) {
+          fprintf(stderr, "  %s: the website link reads \"%s\"\n", qPrintable(language.code),
+                  qPrintable(site_link->text()));
+        }
+        CHECK(site_link->text() == QStringLiteral("rtsoft.com"));
+        CHECK(site_link->accessibleName() == QStringLiteral("RTsoft, rtsoft.com"));
       }
       inspected = true;
       dialog->accept();
@@ -1701,6 +1819,18 @@ void ui_about_dialog_compact_folder_layout_fits_a_modest_screen() {
       const auto* folders = dialog->findChild<QGridLayout*>(QStringLiteral("splashFoldersLayout"));
       CHECK(folders != nullptr && button_above != nullptr);
       CHECK(folders->geometry().bottom() == button_above->geometry().bottom());
+
+      // The RTsoft link grows with the text, stays whole inside the dialog and leaves the
+      // contributors every line they need beside it.
+      auto* site_link = dialog->findChild<QToolButton*>(QStringLiteral("splashSiteLink"));
+      auto* contributors = dialog->findChild<QLabel*>(QStringLiteral("splashContributors"));
+      CHECK(site_link != nullptr && contributors != nullptr);
+      CHECK(site_link->iconSize().height() == patchy::ui::ui_text_length(44));
+      CHECK(dialog->rect().contains(site_link->geometry()));
+      CHECK(site_link->width() >= site_link->sizeHint().width());
+      CHECK(site_link->height() >= site_link->sizeHint().height());
+      CHECK(site_link->x() > contributors->geometry().right());
+      CHECK(contributors->height() >= contributors->heightForWidth(contributors->width()));
       const auto* path = dialog->findChild<QLabel*>(QStringLiteral("splashSettingsPath"));
       CHECK(path->height() >= 2 * path->fontMetrics().height());
       inspected = true;
@@ -3087,6 +3217,8 @@ std::vector<patchy::test::TestCase> app_shell_tests_part3() {
       {"ui_about_dialog_compact_folder_layout_fits_a_modest_screen",
        ui_about_dialog_compact_folder_layout_fits_a_modest_screen},
       {"ui_about_dialog_shows_labeled_external_links", ui_about_dialog_shows_labeled_external_links},
+      {"ui_about_dialog_site_link_opens_from_the_mark_the_address_and_the_keyboard",
+       ui_about_dialog_site_link_opens_from_the_mark_the_address_and_the_keyboard},
       {"ui_about_dialog_creator_links_show_the_site_address_in_every_language",
        ui_about_dialog_creator_links_show_the_site_address_in_every_language},
       {"ui_about_dialog_lists_shared_settings_and_data_folder_once",
