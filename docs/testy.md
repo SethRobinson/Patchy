@@ -235,8 +235,9 @@ testy/
   render_check.py    draws a Photoshop render again when it disagrees with the reference
   export_static.py   one finished run as a folder a plain web host can serve
   native_import.py   native import runner (+ _score, _report); native_cross.py, native_editors.py,
-                     native_reference.py and native_psd_score.py add other editors, installed
-                     references and the converted-PSD verdict (testy-native-import.md)
+                     native_reference.py, native_psd_score.py and native_scoring.py add other
+                     editors, installed references, the converted-PSD verdict and the scores
+                     (testy-native-import.md)
   affinity_js.py     MCP/JS client for the Affinity app (also reused by .af tooling)
   win_dialogs.py     modal-dialog guard for scripted apps (--selftest included)
   photoshop_agent.py remote Photoshop reopen agent; remote/ runs it or Testy by ssh

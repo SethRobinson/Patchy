@@ -23,6 +23,7 @@ from console_output import log
 from native_cross import Cross, file_digest
 import native_editors
 import native_reference
+import native_scoring
 from native_import_report import write_report
 from native_import_score import score_case, validate_linear_samples
 from report import write_json_atomic
@@ -305,6 +306,7 @@ def run(manifest_path: Path, exe: Path, out: Path, timeout: int = 180, case_ids:
         if cross is not None:
             try:
                 result.update(cross.describe(result["patchyVersion"]))
+                native_scoring.apply(result)
             finally:
                 if owns_cross:
                     cross.close()
@@ -314,11 +316,38 @@ def run(manifest_path: Path, exe: Path, out: Path, timeout: int = 180, case_ids:
     return result
 
 
+def rescore(folder: Path) -> dict:
+    """Score a finished run again from its stored measurements and rewrite its report."""
+    folder = folder.resolve()
+    result = json.loads((folder / "results.json").read_text(encoding="utf-8"))
+    if native_scoring.apply(result) is None:
+        raise ValueError("This run measured Patchy alone: it has no editor scores.")
+    write_json_atomic(folder / "results.json", result)
+    write_report(folder, result)
+    return result
+
+
+def rescore_main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=rescore.__doc__)
+    parser.add_argument("run", type=Path, help="a native run directory with results.json")
+    args = parser.parse_args(argv)
+    try:
+        scores = rescore(args.run)["scores"]
+    except (OSError, ValueError, KeyError) as error:
+        parser.exit(2, f"Native rescore failed: {error}\n")
+    for key, row in scores["all"].items():
+        log(f"{key}: import {row['import']}, conversion {row['conversion']}, "
+            f"opened {row['opened']} / {row['measured']}")
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("manifest", type=Path, help="native import JSON manifest")
-    parser.add_argument("--patchy", type=Path, default=config.REPO_ROOT / "build/opt-dev/patchy.exe",
-                        help="Patchy executable to measure (default: opt-dev)")
+    parser.add_argument("--patchy", type=Path, default=(config._configured_editor_path("patchy_native")
+                                                        or config.REPO_ROOT / "build/opt-dev/patchy.exe"),
+                        help="Patchy executable to measure (default: editors.patchy_native in "
+                             "config.local.json, else this checkout's opt-dev build)")
     parser.add_argument("--output", type=Path, help="new run directory (default: testy/runs/native-...)")
     parser.add_argument("--timeout", type=int, default=180, help="seconds allowed per Patchy process")
     parser.add_argument("--case", action="append", dest="case_ids", help="measure only this exact case ID (repeatable)")

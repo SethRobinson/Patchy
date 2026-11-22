@@ -10,9 +10,11 @@
   "corpus_file": "corpus/local.txt",
   "corpus_dir": "",
 
-  "//editors": "Optional explicit editor paths; omit entries to use the built-in discovery (standard install locations).",
+  "//editors": "Optional explicit editor paths; omit entries to use the built-in discovery (standard install locations). patchy_native is the Patchy the native import benchmark measures (default: this checkout's build/opt-dev/patchy.exe; a worktree without a build names the main checkout's). aseprite renders sprite references for that benchmark.",
   "editors": {
     "patchy": "",
+    "patchy_native": "",
+    "aseprite": "",
     "krita": "",
     "gimp": "",
     "photodemon": "",

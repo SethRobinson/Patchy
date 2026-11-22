@@ -41,6 +41,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 if __name__ == "__main__" and sys.argv[1:2] == ["native-import"]:
     from native_import import main as native_import_main
     sys.exit(native_import_main(sys.argv[2:]))
+if __name__ == "__main__" and sys.argv[1:2] == ["native-rescore"]:
+    from native_import import rescore_main as native_rescore_main
+    sys.exit(native_rescore_main(sys.argv[2:]))
 
 import analyze
 import config

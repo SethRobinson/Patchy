@@ -144,7 +144,8 @@ def score(probe: dict, version: str, case: dict, folder: Path, manifest_dir: Pat
     spec, reason = _still(case)
     if spec is None:
         result["appearance"] = _unscored(reason)
-    elif probe.get("render") != "ok" or not render.is_file():
+    elif probe.get("render") not in ("ok", "fallback") or not render.is_file():
+        # "fallback" is Photoshop's copy-merged render: where every 32-bit document lands.
         result["appearance"] = _unscored(f"Photoshop wrote no render ({probe.get('render')})")
     else:
         try:

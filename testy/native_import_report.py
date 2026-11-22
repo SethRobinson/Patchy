@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 from urllib.parse import quote, urlsplit
 
+import native_scoring
 from rerun import write_text
 
 _CHECKS = (("appearance", "Appearance"), ("document", "Document properties"), ("structure", "Editable structure"),
@@ -119,13 +120,63 @@ def _editor_label(run: dict, key: str, fmt: str | None = None) -> str:
     return label
 
 
-def _editor_summary(run: dict, fmt: str, cases: list[dict], judged: bool) -> str:
+def _percent(value, files=None) -> str:
+    if value is None:
+        return '<td class="unscored">-</td>'
+    shade = "pass" if value >= 0.9 else "fail" if value < 0.5 else "notice"
+    count = f"<small>{files} {'file' if files == 1 else 'files'}</small>" if files is not None else ""
+    return f'<td><strong class="{shade}">{value:.1%}</strong>{count}</td>'
+
+
+def _score_overview(run: dict, scores: dict) -> str:
+    """Editors down, formats across: the two headline scores, then every file together."""
+    judged = scores.get("judged")
+    columns = [(_FORMATS.get(fmt, fmt), rows) for fmt, rows in scores["formats"].items()]
+    columns.append(("All files", scores["all"]))
+    span = 2 if judged else 1
+    head = "<th>Editor</th>" + "".join(f'<th colspan="{span}">{_text(label)}</th>' for label, _ in columns)
+    sub = "<th></th>" + ("<th>Import</th>" + ("<th>To PSD</th>" if judged else "")) * len(columns)
+    body = []
+    for key in run["editors"]:
+        cells = []
+        for _, rows in columns:
+            row = rows.get(key) or {}
+            cells.append(_percent(row.get("import"), row.get("importFiles")))
+            if judged:
+                cells.append(_percent(row.get("conversion"), row.get("conversionFiles")))
+        body.append(f'<tr><th scope="row">{_editor_label(run, key)}</th>{"".join(cells)}</tr>')
+    return (f'<div class="table-scroll"><table><thead><tr>{head}</tr><tr>{sub}</tr></thead>'
+            f'<tbody>{"".join(body)}</tbody></table></div>')
+
+
+def _outcome_table(run: dict, rows: dict) -> str:
+    """Where each editor's files ended up: every file in exactly one column, its first
+    problem in pipeline order."""
+    present = [(key, label) for key, label in native_scoring.OUTCOMES
+               if any(row.get("outcomes", {}).get(key) for row in rows.values())]
+    head = "<th>Editor</th>" + "".join(f"<th>{_text(label)}</th>" for _, label in present)
+    body = []
+    for key in run["editors"]:
+        counts = (rows.get(key) or {}).get("outcomes", {})
+        cells = "".join(f'<td class="{"" if counts.get(name) else "unscored"}">{counts.get(name, 0)}</td>'
+                        for name, _ in present)
+        body.append(f'<tr><th scope="row">{_text(run["editors"][key].get("name", key))}</th>{cells}</tr>')
+    return (f'<div class="table-scroll"><table><thead><tr>{head}</tr></thead>'
+            f'<tbody>{"".join(body)}</tbody></table></div>')
+
+
+def _editor_summary(run: dict, fmt: str, cases: list[dict], judged: bool, scores: dict | None = None) -> str:
     """One row per editor for a format. Every file was attempted, so an editor that
     reads none of a format shows the measured 0 of N, never a guess at why."""
     rows = []
     for key in run["editors"]:
         cells = [case["cells"][key] for case in cases if key in case.get("cells", {})]
         rows.append(f'<tr><th scope="row">{_editor_label(run, key, fmt)}</th>')
+        if scores is not None:
+            row = scores.get(key) or {}
+            rows.append(_percent(row.get("import"), row.get("importFiles")))
+            if judged:
+                rows.append(_percent(row.get("conversion"), row.get("conversionFiles")))
         tried = [cell for cell in cells if cell.get("opened") is not None]
         opened = sum(cell["opened"] is True for cell in tried)
         skipped = len(cells) - len(tried)
@@ -146,7 +197,10 @@ def _editor_summary(run: dict, fmt: str, cases: list[dict], judged: bool) -> str
                         cell_html = cell_html.replace("</small></td>", f" &middot; {kept} / {total} layers</small></td>")
                 rows.append(cell_html)
         rows.append("</tr>")
-    head = "<th>Editor</th><th>Opened / attempted</th>"
+    head = "<th>Editor</th>"
+    if scores is not None:
+        head += "<th>Import score</th>" + ("<th>To PSD score</th>" if judged else "")
+    head += "<th>Opened / attempted</th>"
     head += "".join(f"<th>{label}</th>" for label, _ in _CELL_CHECKS)
     if judged:
         head += "<th>PSD saved</th>" + "".join(f"<th>{label}</th>" for label, _ in _PSD_CHECKS)
@@ -174,6 +228,7 @@ def _check_cell(check: dict | None) -> str:
 
 def _cells_html(outdir: Path, run: dict, case: dict) -> str:
     judged = "psdJudge" in run
+    scored = case.get("scores") or {}
     head = "<th>Editor</th><th>Result</th>" + "".join(f"<th>{label}</th>" for label, _ in _CELL_CHECKS)
     if judged:
         head += "".join(f"<th>{label}</th>" for label, _ in _PSD_CHECKS)
@@ -181,11 +236,18 @@ def _cells_html(outdir: Path, run: dict, case: dict) -> str:
     for key, cell in case["cells"].items():
         state, outcome = _cell_state(cell)
         detail = [f'<span class="{state}">{_text(outcome)}</span>']
+        marks = [f"{label} {scored[key][name]:.1%}" for name, label in (("import", "Import"), ("conversion", "To PSD"))
+                 if name in scored.get(key, {})]
+        if marks:
+            detail.append(f'<small>{" &middot; ".join(marks)}</small>')
         for field in ("error", "psdError"):
             if cell.get(field):
                 detail.append(f"<small>{_text(cell[field])}</small>")
         detail.extend(f'<small class="notice">{_text(note)}</small>' for note in cell.get("notes") or [])
         links = [(cell.get("render"), "render")]
+        if key != "patchy" and (cell.get("appearance") or {}).get("comparisonImages"):
+            links += [(f'{case.get("folder")}/{key}/reference.png', "reference frame"),
+                      (f'{case.get("folder")}/{key}/actual.png', "its frame as compared")]
         if _dig(cell, ("psd", "accepted")) and _status(cell["psd"]["accepted"]) == "pass":
             links.append((f'{case.get("folder")}/{key}/photoshop.png', "Photoshop's render of the PSD"))
         for name, label in links:
@@ -313,17 +375,30 @@ def write_report(outdir: Path, run: dict) -> None:
         if run.get("psdJudge"):
             page.append(f'<p class="meta">Converted PSDs were opened in Photoshop '
                         f'{_text(run["psdJudge"].get("photoshop") or "version unknown")}.</p>')
+        scores = run.get("scores") or native_scoring.apply(run)
+        judged = "psdJudge" in run
+        page.append("<h2>Scores</h2>")
+        page.append("<p><strong>Import</strong> is how well an editor shows a file: the share of its own "
+                    "picture that matches the reference, averaged over files. "
+                    + ("<strong>To PSD</strong> is how well it converts one: the average of whether Photoshop "
+                       "opens its PSD without a warning, how much of Photoshop's picture of that PSD matches, and "
+                       "the share of the source's layers still layers of their kind. " if judged else "")
+                    + "A file an editor does not open, or crashes on, scores 0 on everything. A file the harness "
+                    "could not measure, and a check no editor could be scored on, are left out.</p>")
+        page.append(_score_overview(run, scores))
         page.append("<h2>Editors by format</h2>")
         page.append("<p>Each editor was given the same files. Render match compares its own PNG with the "
                     "reference, for the files it opened. Layers kept counts "
                     "the source's layers that Photoshop still finds as layers of the same kind in the "
                     "converted PSD; an editor may instead bake a look a PSD cannot hold, which keeps the "
-                    "render and loses the layer.</p>")
+                    "render and loses the layer. The second table puts every file in one column: its first "
+                    "problem, in the order a file moves through an editor.</p>")
         for fmt, cases in groups:
             source = (run.get("references") or {}).get(fmt)
             page.append(f"<h3>{_text(_FORMATS.get(fmt, fmt))}</h3>"
                         + (f'<p class="meta">Reference: {_text(source)}</p>' if source else ""))
-            page.append(_editor_summary(run, fmt, cases, "psdJudge" in run))
+            page.append(_editor_summary(run, fmt, cases, judged, scores["formats"].get(fmt, {})))
+            page.append(_outcome_table(run, scores["formats"].get(fmt, {})))
         page.append("<h2>Patchy import detail by format</h2>")
     else:
         page.append("<h2>Results by format</h2>")

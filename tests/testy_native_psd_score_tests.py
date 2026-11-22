@@ -117,6 +117,15 @@ class Score(unittest.TestCase):
         self.assertEqual(result["appearance"]["status"], "pass")
         self.assertNotIn("alphaBadFraction", result["appearance"])
 
+    def test_the_copy_merged_render_of_a_32_bit_psd_is_scored(self):
+        case = {"source": "a.xcf", "reference": "ref.png"}
+        deep = {**self.render("red"), "render": "fallback"}  # where Photoshop's render of 32 bits lands
+        self.assertEqual(psd.score(deep, "28.0", case, self.root, self.root)["appearance"]["status"], "pass")
+        failed = {**self.render("red"), "render": "render-error: disk"}
+        result = psd.score(failed, "28.0", case, self.root, self.root)
+        self.assertEqual(result["appearance"]["status"], "unscored")
+        self.assertIn("wrote no render", result["appearance"]["reason"])
+
     def test_rejection_counts_and_a_photoshop_failure_does_not(self):
         case = {"source": "a.xcf", "reference": "ref.png"}
         rejected = psd.score({"ok": False, "error": "not a Photoshop document", "fileRejected": True}, "28.0", case,

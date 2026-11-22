@@ -39,9 +39,9 @@ scripts\run-throttled.bat python testy\testy.py native-import testy\corpus\nativ
 
 Patchy is always measured. `--editors` adds GIMP, Krita, PhotoDemon, PhotoCraft or Photopea as columns; each opens the staged file and exports a PNG (`testy/native_editors.py`, on the PSD benchmark's [drivers](testy-editor-drivers.md)). The dashboard offers the same choices as checkboxes. Photopea needs the dashboard server, so a command-line run names it with `--server-url`. Photoshop and psd-tools read none of these formats and are not columns. A plain run without these options measures and reports exactly what it did before. Each case gains a `cells` object in `results.json`, and the report an "Editors by format" table per format.
 
-- **Opened.** Every file is attempted in every editor, including a format an editor has no reader for: a probe file cannot tell "no reader" from "cannot read these files" (Krita imports XCF, but refuses the ones GIMP 3 writes), so the table states what was measured, such as 0 / 57, and marks a format an editor opened none of. A refusal, a crash and a hang count against the editor. A failure to start the editor, or one on Testy's side, gives no verdict. Three crashes, hangs or launch failures in a row skip the rest of that editor's column; refusals never do.
+- **Opened.** Every file is attempted in every editor, including a format an editor has no reader for: a probe file cannot tell "no reader" from "cannot read these files", and a reader can depend on the build (the Krita 5.3.4 Windows package has no XCF import plug-in), so the table states what was measured, such as 0 / 57, and marks a format an editor opened none of. A refusal, a crash and a hang count against the editor. A failure to start the editor, or one on Testy's side, gives no verdict. Three crashes, hangs or launch failures in a row skip the rest of that editor's column; refusals never do.
 - **Render match** compares the editor's PNG with the case's reference under the rules below. For an animation only Patchy exports every frame; another editor's single PNG is compared with the first frame, and the cell says so.
-- **Converted PSD** (`--psd-judge`). Each editor that opened a file also saves a PSD, and Photoshop opens it (`testy/native_psd_score.py`). "Photoshop opens the PSD" fails on a refusal; dialogs it raised are listed as warnings; a Photoshop that hung, crashed or never started gives no verdict. "PSD render match" holds Photoshop's render of the PSD to the same reference by the still-image rule, with both over white and no alpha comparison (Photoshop renders a flattened copy, which has no transparency); an animation has no single picture and is unscored. "All layers kept" flattens the manifest's `expect.layers` tree and pairs it with Photoshop's layer list by name, then stack order: a group must still be a group, text still a type layer, any other layer still a layer. Nesting, visibility, masks, opacity (within 1%) and blend mode are counted beside it. A source blend mode Photoshop has no name for is never expected, so an editor may keep such a layer or bake its look: the render and layer columns show which it chose. Cases without a layer tree are unscored. Patchy's PSD comes from its scripted save, which keeps layers and writes an unsupported mode as Normal.
+- **Converted PSD** (`--psd-judge`). Each editor that opened a file also saves a PSD, and Photoshop opens it (`testy/native_psd_score.py`). "Photoshop opens the PSD" fails on a refusal; dialogs it raised are listed as warnings; a Photoshop that hung, crashed or never started gives no verdict. "PSD render match" holds Photoshop's render of the PSD to the same reference by the still-image rule, with both over white and no alpha comparison (Photoshop renders a flattened copy, which has no transparency); an animation has no single picture and is unscored. A 32-bit PSD's picture is Photoshop's copy-merged render (`fallback` in the probe) and is scored like any other. "All layers kept" flattens the manifest's `expect.layers` tree and pairs it with Photoshop's layer list by name, then stack order: a group must still be a group, text still a type layer, any other layer still a layer. Nesting, visibility, masks, opacity (within 1%) and blend mode are counted beside it. A source blend mode Photoshop has no name for is never expected, so an editor may keep such a layer or bake its look: the render and layer columns show which it chose. Cases without a layer tree are unscored. Patchy's PSD comes from its scripted save, which keeps layers and writes an unsupported mode as Normal.
 - **References.** `--reference pinned` (the default) scores against what the manifest supplies. `--reference installed` has the GIMP on this machine render each XCF (the render [xcf.md](xcf.md#corpus) describes) and Aseprite each sprite frame, which also gives the upstream sprites a reference. The supplied PNG becomes a cross-check: when the two disagree by the rule that scores an editor, the file's appearance is unscored for everyone and the case says why. A file the app cannot render, or renders with a different frame count, keeps its supplied reference. KRA and OpenRaster always use the composite saved in the file. The report names each format's reference source and marks GIMP and Krita as their format's own app.
 - **Patchy save reopened in Aseprite.** With installed references and Aseprite present, Patchy also saves each still sprite as .aseprite, and Aseprite's render of that save must match the reference exactly.
 
@@ -50,6 +50,36 @@ The Photoshop leg follows the PSD benchmark's rules for the reference Photoshop.
 Aseprite is found through `editors.aseprite` in `config.local.json` or its standard install folders. It is never a column, because it has no PSD support. GIMP, Krita and Aseprite run only as command-line tools; nothing in Testy reads their source.
 
 Editor output is cached in `testy/cache/native` by source hash (sidecars included) and editor version, with Photoshop's probe of each cached PSD; reference renders go to `testy/cache/native-ref`. A cell is cached when it opened, rendered and saved what was asked, or when the editor cleanly refused the file; a crash or a hang is measured again. Scores are computed again every run, and Patchy is always measured afresh. `--fresh` ignores the cache.
+
+## Scores
+
+A cross-editor run ends with scores (`testy/native_scoring.py`), computed from the stored measurements: `python testy\testy.py native-rescore testy\runs\<run>` scores a finished run again and rewrites its report, so a rule change never needs the editors. `results.json` holds the averages under `scores` (per format and for all files) and each file's entries under its case's `scores`.
+
+Each file gives an editor up to four components from 0 to 1:
+
+| Component | Value |
+|---|---|
+| `render` | Share of the editor's own picture that matches the reference. Stills: 1 minus the worse of the perceptual and alpha bad fractions. Sprites: 1 minus the share of visible pixels that differ at all. Averaged over the frames that have a reference; a frame the editor never rendered counts 0. |
+| `psdValid` | 1 when the editor saved a PSD and Photoshop opened it without a warning, else 0. |
+| `psdRender` | Share of Photoshop's picture of that PSD that matches the reference. |
+| `layers` | Share of the source's layers that are still layers of their kind in the PSD. |
+
+Two headline scores are means over files. **Import** is `render`: how well the editor shows the file. **To PSD** is the mean of the PSD components eligible for the file: how well the editor converts it. They stay separate because an editor can do one well and not the other.
+
+Each kind of failure has one place:
+
+- **Did not open, crashed or hung:** 0 on every eligible component, as a refused file is a 0% match in the [PSD benchmark](testy-scoring.md#files-an-editor-refuses).
+- **Opened, no picture:** `render` 0.
+- **Picture differs:** `render` drops by the share of wrong pixels, so a file 16% off keeps 84%.
+- **No PSD saved, or Photoshop rejects it:** 0 on all three PSD components.
+- **PSD opens with a warning:** `psdValid` 0; the picture and the layers are still scored.
+- **Layers lost or the PSD's picture differs:** the component drops by the share lost.
+- **Not measured** (the editor did not start, a skipped column, a Photoshop that could not be asked): out of that editor's averages. The tables show how many files each average covers.
+- **A check no editor could be scored on** (no usable reference, no layer tree, an animation's PSD picture): not eligible for that file, so it marks nobody down, including an editor that did not open the file.
+
+The report also puts every file in one outcome column per editor, its first problem in pipeline order: not measured, crashed or hung, did not open, opened without a picture, picture differs, no PSD saved, Photoshop rejects the PSD, PSD opens with a warning, PSD picture differs, layers lost, no problem found. A picture counts as differing by the pass rule of the checks above (10%), while the score uses the measured share.
+
+The all-files average weights every file equally, so the format with the most files dominates it; compare editors per format first. `SCORING_VERSION` in the module changes with the rules.
 
 ## Write a manifest
 
