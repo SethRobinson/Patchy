@@ -138,6 +138,23 @@ class TestLocalCorpus(unittest.TestCase):
             self.assertEqual(paired[0]["reference"], "@mergedimage")
             self.assertEqual(paired[0]["reopenReference"]["png"], "../ora/krita-modes.png")
 
+    def test_a_generated_openraster_file_is_held_to_its_writers_render(self):
+        scratch = ROOT / "build/test-output"
+        scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="testy-ora-generated-", dir=scratch) as tmp:
+            base = Path(tmp)
+            for folder in ("ora-corpus/gimp", "ora"):
+                (base / folder).mkdir(parents=True)
+                for name in ("rendered", "plain"):
+                    with ZipFile(base / folder / (name + ".ora"), "w") as archive:
+                        archive.writestr("stack.xml", '<image w="4" h="3"><stack/></image>')
+                (base / folder / "rendered.png").touch()
+            data, _ = build_manifest(base, base / "corpus/local.json")
+            references = {case["id"]: case["reference"] for case in data["cases"]}
+            self.assertEqual(references, {"ora-corpus/gimp/rendered.ora": "../ora-corpus/gimp/rendered.png",
+                                          "ora-corpus/gimp/plain.ora": "@mergedimage",
+                                          "ora/rendered.ora": "@mergedimage", "ora/plain.ora": "@mergedimage"})
+
 
 if __name__ == "__main__":
     unittest.main()

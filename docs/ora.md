@@ -207,6 +207,23 @@ file with 21 layers opens in 0.9 s and saves in about 4 s (1.1 GB of layer pixel
 have no scripted save, so writing files with them would need desktop control; their output here
 comes only from files found online.
 
+`scripts/dev/ora/export_corpus_to_ora.py [FIXTURES_DIR]` grows the corpus from the files already
+held: GIMP saves every XCF of `xcf-corpus` and `xcf` into `ora-corpus/gimp/`, Krita every KRA of
+`kra-corpus` and `kra` into `ora-corpus/krita/` (sources over `--max-mb`, default 64, are skipped;
+what exists is kept). Each app then opens its own `.ora` and renders `<stem>.png` beside it, and
+Testy's local manifest uses that PNG as the file's reference in place of the stored composite: an
+app draws `mergedimage.png` from the source document, so it can show text, effects and filter
+layers the stack does not hold. `index.json` records each file's source, writer and whether the
+stored composite agrees with the render. The files keep their sources' licences.
+
+`scripts/dev/ora/fetch_wild_corpus.py` fetches other programs' files into `ora-corpus/wild/` from
+`scripts/dev/ora/wild_corpus_sources.json`, which pins each file's public GitHub repository, commit,
+SHA-256 and stated licence (November 22, 2026: 112 files from 27 repositories, among them the test
+files of a dozen paint programs and reader libraries, 73 MB). The list is tracked so the corpus can
+be rebuilt on any machine; the earlier 62-file corpus lived only in an untracked folder and was
+lost. `--record` pins a new entry's commit and hashes. Only `.ora` files are fetched, never a
+program's source. `make_corpus_files.py ora-corpus/made` rebuilds the scripted GIMP and Krita files.
+
 Known differences that are the other app's:
 
 - GIMP's merged image follows GIMP, not its own stack.xml: its extra modes saved as `svg:src-over`,
