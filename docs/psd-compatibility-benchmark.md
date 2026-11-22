@@ -157,6 +157,6 @@ The [October 9, 2026 run](https://www.rtsoft.com/testy/2026-10-09/) used the sam
 
 The [October 6, 2026 run](https://www.rtsoft.com/testy/2026-10-06/) used the same corpus and scoring without the PhotoCraft column. Patchy's perceptual match there was 89.8% on build `57ba855c`, with 258 files within 10%.
 
-The August 7, 2026 run used a 64-file curated corpus of larger documents and the earlier scoring, which compared renders of the files as opened. Its [image-free export](../testy/published-runs/20260807-153700/) remains in the repository. In that run Photoshop reopened all 64 Patchy saves, all 312 text objects stayed text, and Patchy's perceptual render match was 98.83% on build `879a3a8`.
+The August 7, 2026 run used a 64-file curated corpus of larger documents and the earlier scoring, which compared renders of the files as opened. In that run Photoshop reopened all 64 Patchy saves, all 312 text objects stayed text, and Patchy's perceptual render match was 98.83% on build `879a3a8`.
 
 For harness configuration, dashboard use, command examples, and implementation details, see the [Testy developer documentation](testy.md).

@@ -251,7 +251,6 @@ testy/
   runs/<ts>/         gitignored: artifacts, results.json, report.html
   cache/             gitignored: ground-truth + cell cache
   public/            gitignored: export_static.py output
-  published-runs/    committed image-free export of the August 2026 run
 ```
 
 `testy/runs/history.jsonl` accumulates one summary line per run; the report's "Past
