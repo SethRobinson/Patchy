@@ -895,9 +895,11 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
                        const StrokeKnockoutPlane* knockout = nullptr) {
   // Size 0: an Edge glow has no reach and renders nothing; a Center glow is the
   // complement of that empty edge field, so it fills the whole shape
-  // (photoshop-size-zero-effects.psd, September 2026).
-  if (!glow.enabled || glow.opacity <= 0.0F ||
-      (glow.size <= 0.0F && glow.source != LayerInnerGlowSource::Center)) {
+  // (photoshop-size-zero-effects.psd, September 2026). A gradient Edge glow still
+  // draws there: zero coverage is the gradient's last stop, over the whole shape
+  // (Photoshop 2027, GitHub issue 746).
+  const bool empty_edge_field = glow.size <= 0.0F && glow.source != LayerInnerGlowSource::Center;
+  if (!glow.enabled || glow.opacity <= 0.0F || (empty_edge_field && !glow.gradient)) {
     return;
   }
   const auto draw_rect = intersect_rect(clip, bounds);
@@ -937,14 +939,28 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
       if (source_alpha <= 0.0F) {
         continue;
       }
-      const auto source_factor =
-          falloff_mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
+      auto source_factor =
+          empty_edge_field
+              ? 0.0F
+              : falloff_mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
+      auto color = glow.color;
+      if (glow.gradient) {
+        // The gradient's first stop sits where the solid glow is strongest and its last where
+        // the glow has faded out, for Edge and Center alike. The gradient's own opacity there
+        // replaces the coverage, so an opaque gradient covers the whole shape (Photoshop 2027,
+        // GitHub issue 746). Noise then moves that opacity, never the stop position.
+        // The coverage is mapped through the gradient as a Gradient Map maps tones, so the
+        // Perceptual and Linear methods take the smoothness ease too.
+        const auto position = 1.0F - source_factor;
+        source_factor = gradient_stop_opacity(*glow.gradient, position, true);
+        color = gradient_color(*glow.gradient, position, true, true);
+      }
       auto glow_alpha = source_alpha * effect_noise_coverage(source_factor, glow.noise, x, y) * glow.opacity *
                         layer.opacity();
       if (knockout != nullptr) {
         glow_alpha *= knockout->at(x, y);
       }
-      composite_effect_color(destination, x, y, glow.color, glow_alpha, glow.blend_mode,
+      composite_effect_color(destination, x, y, color, glow_alpha, glow.blend_mode,
                              DissolveField::InnerGlow);
     }
   }

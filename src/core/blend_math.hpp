@@ -85,7 +85,8 @@ enum class DissolveField : std::uint32_t {
 // Shape Burst strokes DO ease (photoshop-stroke-shapeburst probes).
 // ease_every_method applies that smoothness ease to the segment position for the
 // Perceptual and Linear methods too, as Photoshop's Gradient Map does (#250; probe: a
-// black-to-white Linear map takes 64 to 125). Fills and layer effects leave it off.
+// black-to-white Linear map takes 64 to 125), and a gradient Inner Glow (#746). Fills and the
+// other layer effects leave it off.
 [[nodiscard]] RgbColor gradient_color(const LayerStyleGradient& gradient, float position,
                                       bool endpoint_smoothing = false, bool ease_every_method = false);
 // gradient_color without the final rounding, for 16 and 32-bit documents

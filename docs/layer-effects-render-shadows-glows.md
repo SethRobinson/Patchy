@@ -20,6 +20,25 @@ Inner Shadow, Inner Glow and Outer Glow apply the contour to the falloff mask be
 
 Gradient Outer Glow samples the near stop at full strength and the far stop where the matte fades away. The position is one minus the Range-scaled, contoured coverage. The lower of the gradient's sampled opacity and the raw matte divided by 0.12 controls transparency. Photoshop 2027 controls on black and white cover solid color, three RGB stops, constant and ramped stop opacity, and Range 50%, 75% and 100%. Gradient jitter is retained on save. Its effect on the stop position is uncalibrated.
 
+## Gradient Inner Glow
+
+An Inner Glow's Fill is a color or a gradient (`LayerInnerGlow::gradient`, GitHub issue 746). Photoshop 2027 captures of November 2026 are in `local-test-fixtures/layer-style-746/probes` (made by `probe.jsx` there; `check_model.py` holds the rule below against every capture): 20 documents, one glow geometry each, with a row of hard squares and a row of feathered ones and a column per fill.
+
+- **Stop position.** With `c` the coverage the same glow has with a solid color (after the Range gain, the Center complement and the contour), the gradient is sampled at `1 - c`. The first stop sits where the solid glow is strongest: at the edge of an Edge glow, in the middle of a Center glow. Past the glow's reach an Edge glow shows the last stop and a Center glow the first.
+- **Opacity.** The gradient's own opacity at that position is the glow's alpha, times the layer's alpha and the effect's Opacity. The coverage does not limit it, unlike the Outer Glow's matte limit: opaque stops cover the whole shape, 100% to 0% stops give the solid glow's alpha again, and 0% to 100% stops leave the strongest part clear.
+- **Size 0.** A solid Edge glow draws nothing there. A gradient Edge glow still draws: zero coverage is the last stop, over the whole shape (`empty_edge_field` in `render_inner_glow`; a contour is not applied to it, unprobed). Center at Size 0 fills the shape with the first stop.
+- **Method.** The coverage goes through the gradient as tones go through a Gradient Map: Perceptual takes the Classic smoothness ease too (`gradient_color` with `ease_every_method`; without it a red to blue Perceptual glow was 15 levels off, with it 6). Linear is assumed to follow, as it does in a Gradient Map; Smooth and Stripes have no ease. The Outer Glow still samples without it (unprobed there).
+- **Noise** moves that opacity (`effect_noise_coverage` on the sampled opacity) and never the stop position: opaque stops at Noise 50 keep 51.9% of their pixels and average 87.7% (87.5% by the rule).
+- **Gradient jitter** (`ShdN`) scatters the stop position in Photoshop. Patchy keeps the value and does not render it, as for the Outer Glow.
+- **Fit.** `check_model.py` holds the position and opacity rule within 2 levels in every capture: Softer and Precise, Range 50 and 100, Choke 30, Size 0, 20 and 60, a Cone contour with and without Anti-aliased. Patchy's own render of the hard squares is within 2 for the solid glow, within 6 for two-stop gradients (straight, smooth, Perceptual, moved midpoints) and within 9 for a smooth three-stop gradient.
+- **Unmodelled.** Where the glow saturates (the middle of a Center glow, the rim of an Edge glow under Range 50), Photoshop stops a smooth three-stop gradient short of its end stop: (250, 217, 42) for a first stop of (250, 220, 40) at Range 100, 6 levels at Range 50, 9 with Choke 30 as well. Two-stop gradients reach their stop, and Size 0 reaches it exactly.
+
+`render_inner_glow` (src/render/layer_compositor.hpp) samples with `gradient_color` and `gradient_stop_opacity`, endpoint smoothing on. A glow without a gradient takes the code path it always did. Tests: `compositor_inner_glow_gradient_follows_solid_coverage`, `compositor_inner_glow_gradient_matches_photoshop_samples`, `inner_glow_gradient_noise_moves_opacity_only`, `photoshop_inner_glow_gradient_probes_match_if_available`.
+
+### Soft edges
+
+The same captures show a difference that a solid Inner Glow has too. On a feathered edge Photoshop applies the glow to the layer's own color and then composites the layer by its alpha: with layer alpha `s` and glow strength `f`, the page keeps `1 - s`, the glow gets `s x f` and the layer color `s x (1 - f)`. Patchy composites the glow over the finished layer with alpha `s x f`, which leaves the layer color `s x (1 - s x f)` and the page `(1 - s) x (1 - s x f)`: up to 30 levels darker for a white glow on a black feathered square over white (Softer, Size 20, feather 4). Patchy's `f` itself matches Photoshop's there. Precise and Choke also place a soft edge differently (the half-coverage silhouette, the choke of a gray matte). The fixture test therefore compares feathered squares on their opaque interior, and only for Softer glows without Choke.
+
 ## Noise
 
 Quality > Noise (`Nose`, percent) on Drop Shadow, Inner Shadow, Outer Glow and Inner Glow (GitHub issue 742; Photoshop 2027 captures of November 2026 in `local-test-fixtures/layer-style-742/noise`):

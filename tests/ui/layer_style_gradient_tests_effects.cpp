@@ -2951,6 +2951,166 @@ void ui_layer_style_outer_glow_fill_switches_between_color_and_gradient() {
   CHECK(solid_again->style.outer_glows.front().color.red == 250);
 }
 
+// GitHub issue 746: an Inner Glow's Fill switches between its solid color and an editable
+// gradient, as the Outer Glow's does.
+void ui_layer_style_inner_glow_fill_switches_between_color_and_gradient() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Glow",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerInnerGlow glow;
+  glow.enabled = true;
+  glow.color = patchy::RgbColor{250, 120, 10};
+  layer.layer_style().inner_glows.push_back(glow);
+
+  QTimer::singleShot(0, guarded([] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    CHECK(categories != nullptr);
+    const auto glow_items = categories->findItems(QStringLiteral("Inner Glow"), Qt::MatchExactly);
+    CHECK(!glow_items.empty());
+    categories->setCurrentItem(glow_items.front());
+    QApplication::processEvents();
+    save_widget_artifact("issue746_inner_glow_color", *dialog);
+    auto* fill = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleInnerGlowFillCombo"));
+    auto* group = dialog->findChild<QGroupBox*>(QStringLiteral("layerStyleInnerGlowGradientGroup"));
+    auto* solid_color = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleInnerGlowColorPreview"));
+    auto* method = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleInnerGlowGradientInterpolationCombo"));
+    auto* angle = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleInnerGlowGradientAngleSpin"));
+    auto* instances = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleAddInnerGlowButton"));
+    auto* scroll = dialog->findChild<QScrollArea*>(QStringLiteral("layerStyleInnerGlowScroll"));
+    CHECK(fill != nullptr && group != nullptr && solid_color != nullptr && method != nullptr);
+    CHECK(instances != nullptr && scroll != nullptr);
+    // A solid glow opens on Color with the gradient editor hidden.
+    CHECK(!fill->currentData().toBool());
+    CHECK(solid_color->isVisible());
+    CHECK(!group->isVisible());
+    // The page is no wider than its scroll area: nothing is cut off at the right.
+    CHECK(scroll->widget() != nullptr && scroll->widget()->minimumSizeHint().width() <= scroll->viewport()->width());
+    fill->setCurrentIndex(fill->findData(true));
+    QApplication::processEvents();
+    CHECK(group->isVisible());
+    CHECK(!solid_color->isVisible());
+    CHECK(scroll->widget()->minimumSizeHint().width() <= scroll->viewport()->width());
+    // A glow has no angle: the placement rows stay hidden, the Method stays.
+    CHECK(angle == nullptr || !angle->isVisible());
+    CHECK(method->isVisible());
+    method->setCurrentIndex(method->findData(static_cast<int>(patchy::GradientInterpolationMethod::Perceptual)));
+    QApplication::processEvents();
+    save_widget_artifact("issue746_inner_glow_gradient", *dialog);
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  }));
+  int previews = 0;
+  std::optional<patchy::LayerStyle> last_preview;
+  const auto with_gradient = patchy::ui::request_layer_style_settings(
+      nullptr, layer, [&](const patchy::ui::LayerStyleSettings& settings) {
+        ++previews;
+        last_preview = settings.style;
+      });
+  CHECK(with_gradient.has_value());
+  CHECK(with_gradient->style.inner_glows.size() == 1);
+  const auto& gradient_glow = with_gradient->style.inner_glows.front();
+  CHECK(gradient_glow.gradient.has_value());
+  CHECK(gradient_glow.gradient->interpolation == patchy::GradientInterpolationMethod::Perceptual);
+  // The gradient starts from the glow's color, fading out.
+  CHECK(gradient_glow.gradient->color_stops.size() == 2);
+  CHECK(gradient_glow.gradient->color_stops.front().color.red == 250 &&
+        gradient_glow.gradient->color_stops.front().color.green == 120 &&
+        gradient_glow.gradient->color_stops.front().color.blue == 10);
+  CHECK(gradient_glow.gradient->alpha_stops.size() == 2);
+  CHECK(gradient_glow.gradient->alpha_stops.front().opacity == 1.0F);
+  CHECK(gradient_glow.gradient->alpha_stops.back().opacity == 0.0F);
+  // The canvas preview followed the switch.
+  CHECK(previews >= 1);
+  CHECK(last_preview.has_value() && last_preview->inner_glows.size() == 1 &&
+        last_preview->inner_glows.front().gradient.has_value());
+
+  // Back to Color: the gradient goes and the solid color returns.
+  layer.layer_style() = with_gradient->style;
+  QTimer::singleShot(0, guarded([] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* fill = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleInnerGlowFillCombo"));
+    CHECK(categories != nullptr && fill != nullptr);
+    const auto glow_items = categories->findItems(QStringLiteral("Inner Glow"), Qt::MatchExactly);
+    CHECK(!glow_items.empty());
+    categories->setCurrentItem(glow_items.front());
+    QApplication::processEvents();
+    CHECK(fill->currentData().toBool());
+    fill->setCurrentIndex(fill->findData(false));
+    QApplication::processEvents();
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  }));
+  const auto solid_again = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(solid_again.has_value());
+  CHECK(solid_again->style.inner_glows.size() == 1);
+  CHECK(!solid_again->style.inner_glows.front().gradient.has_value());
+  CHECK(solid_again->style.inner_glows.front().color.red == 250);
+}
+
+// An imported gradient Inner Glow keeps its gradient exactly while other settings change, and
+// each Inner Glow instance has its own Fill (GitHub issue 746).
+void ui_layer_style_inner_glow_gradient_is_kept_per_instance() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Glow Styled",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerInnerGlow imported;
+  imported.enabled = true;
+  imported.source = patchy::LayerInnerGlowSource::Center;
+  imported.range = 80.0F;
+  auto& gradient = imported.gradient.emplace();
+  gradient.name = "Imported";
+  gradient.color_stops = {{0.0F, {230, 100, 30}, 0.3F}, {0.4F, {250, 240, 20}}, {1.0F, {20, 10, 190}}};
+  gradient.alpha_stops = {{0.0F, 0.9F}, {1.0F, 0.25F}};
+  gradient.interpolation = patchy::GradientInterpolationMethod::Linear;
+  gradient.smoothness = 2048;
+  patchy::LayerInnerGlow solid;
+  solid.enabled = true;
+  solid.color = patchy::RgbColor{10, 200, 90};
+  layer.layer_style().inner_glows = {imported, solid};
+
+  QTimer::singleShot(0, guarded([] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* fill = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleInnerGlowFillCombo"));
+    auto* range = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleInnerGlowRangeSpin"));
+    auto* solid_color = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleInnerGlowColorPreview"));
+    CHECK(categories != nullptr && fill != nullptr && range != nullptr && solid_color != nullptr);
+    const auto glow_items = categories->findItems(QStringLiteral("Inner Glow"), Qt::MatchExactly);
+    CHECK(glow_items.size() == 2);
+    // The gradient instance opens on Fill: Gradient, its solid color row hidden.
+    categories->setCurrentItem(glow_items[0]);
+    QApplication::processEvents();
+    CHECK(fill->currentData().toBool());
+    CHECK(!solid_color->isVisible());
+    CHECK(range->value() == 80);
+    range->setValue(35);
+    // The solid instance shows Color; switching back and forth leaves each as it was.
+    categories->setCurrentItem(glow_items[1]);
+    QApplication::processEvents();
+    CHECK(!fill->currentData().toBool());
+    CHECK(solid_color->isVisible());
+    categories->setCurrentItem(glow_items[0]);
+    QApplication::processEvents();
+    CHECK(fill->currentData().toBool());
+    CHECK(range->value() == 35);
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  }));
+
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(settings.has_value());
+  CHECK(settings->style.inner_glows.size() == 2);
+  const auto& first = settings->style.inner_glows[0];
+  CHECK(first.range == 35.0F);
+  CHECK(first.source == patchy::LayerInnerGlowSource::Center);
+  CHECK(first.gradient == imported.gradient);
+  const auto& second = settings->style.inner_glows[1];
+  CHECK(!second.gradient.has_value());
+  CHECK(second.color.red == 10 && second.color.green == 200 && second.color.blue == 90);
+}
+
 void ui_layer_style_slider_rows_have_step_buttons() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   patchy::Layer layer(document.allocate_layer_id(), "Step Buttons",
@@ -4517,6 +4677,10 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
       {"ui_layer_style_pattern_offsets_map_to_settings", ui_layer_style_pattern_offsets_map_to_settings},
       {"ui_layer_style_outer_glow_fill_switches_between_color_and_gradient",
        ui_layer_style_outer_glow_fill_switches_between_color_and_gradient},
+      {"ui_layer_style_inner_glow_fill_switches_between_color_and_gradient",
+       ui_layer_style_inner_glow_fill_switches_between_color_and_gradient},
+      {"ui_layer_style_inner_glow_gradient_is_kept_per_instance",
+       ui_layer_style_inner_glow_gradient_is_kept_per_instance},
       {"ui_layer_style_blending_options_round_trip_channel_restrictions",
        ui_layer_style_blending_options_round_trip_channel_restrictions},
       {"ui_layer_style_channel_checkboxes_disabled_for_unsupported_payload",

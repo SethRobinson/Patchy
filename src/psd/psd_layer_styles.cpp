@@ -420,6 +420,10 @@ std::optional<LayerInnerGlow> parse_inner_glow(const DescriptorObject& effect,
   glow.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "scrn"),
                                                       std::array<char, 4>{'s', 'c', 'r', 'n'});
   glow.color = descriptor_rgb_color(effect, "Clr ", cmyk, RgbColor{255, 255, 190});
+  if (descriptor_object(effect, "Grad") != nullptr) {
+    glow.gradient = parse_layer_style_gradient(effect, cmyk);
+    if (!glow.gradient->color_stops.empty()) glow.color = glow.gradient->color_stops.front().color;
+  }
   glow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
   glow.choke = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
   glow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
@@ -1671,10 +1675,17 @@ void write_outer_glow_descriptor(BigEndianWriter& writer, const LayerOuterGlow& 
 
 void write_inner_glow_descriptor(BigEndianWriter& writer, const LayerInnerGlow& glow) {
   const bool contoured = !style_contour_is_linear(glow.contour);
-  write_descriptor_object_header(writer, "", "IrGl", contoured ? 13U : 12U);
+  write_descriptor_object_header(writer, "", "IrGl", 12U + (contoured ? 1U : 0U) + (glow.gradient ? 1U : 0U));
   write_descriptor_bool_item(writer, "enab", glow.enabled);
   write_blend_mode_descriptor_item(writer, "Md  ", glow.blend_mode);
-  write_rgb_color_descriptor_item(writer, "Clr ", glow.color);
+  if (glow.gradient) {
+    // The gradient takes the color's slot, as in OrGl (GitHub issue 746).
+    write_stroke_gradient_descriptor_item(writer, "Grad", *glow.gradient);
+    write_descriptor_enum_item(writer, "gradientsInterpolationMethod", "gradientInterpolationMethodType",
+                               gradient_interpolation_descriptor_value(glow.gradient->interpolation));
+  } else {
+    write_rgb_color_descriptor_item(writer, "Clr ", glow.color);
+  }
   write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, glow.opacity * 100.0);
   // GlwT sits between Opct and Ckmt in Photoshop's native IrGl layout, same as OrGl.
   write_descriptor_enum_item(writer, "GlwT", "BETE",

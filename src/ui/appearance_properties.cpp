@@ -391,6 +391,7 @@ void add_effect_fields(const EffectFields<LayerInnerGlow>& fields) {
   EFFECT_FIELD(anti_aliased);
   EFFECT_FIELD(jitter);
   EFFECT_FIELD(noise);
+  EFFECT_FIELD(gradient);
 }
 
 void add_effect_fields(const EffectFields<LayerColorOverlay>& fields) {

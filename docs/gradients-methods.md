@@ -2,7 +2,7 @@
 
 Split from [gradients.md](gradients.md). `GradientInterpolationMethod` (src/core/layer.hpp) is append-only and saved by value: Classic 0, Perceptual 1, Linear 2, Smooth 3, Stripes 4. Classic, Perceptual and Linear are described in [gradients.md](gradients.md#rendering); this page records the two methods added for GitHub issue 742 and how they were measured.
 
-Every gradient shares the list: Gradient Overlay, gradient Stroke, gradient Outer Glow, Gradient Fill layers, gradient shape paints and Gradient Map (the Method box of `make_gradient_controls`, items "Smooth" and "Stripes" in the `gradient interpolation` translation context). Scripts name them `"smooth"` and `"stripes"` in a gradient's `interpolation`. The Gradient tool's own gradient has no method and stays Classic.
+Every gradient shares the list: Gradient Overlay, gradient Stroke, gradient Outer Glow and Inner Glow, Gradient Fill layers, gradient shape paints and Gradient Map (the Method box of `make_gradient_controls`, items "Smooth" and "Stripes" in the `gradient interpolation` translation context). Scripts name them `"smooth"` and `"stripes"` in a gradient's `interpolation`. The Gradient tool's own gradient has no method and stays Classic.
 
 ## Smooth and Stripes
 

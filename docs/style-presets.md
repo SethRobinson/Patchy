@@ -66,8 +66,10 @@ where the slider was and keep the field at the right; Bevel's Shading uses the
 angle-and-altitude dial (`add_angle_altitude_rows`) with Altitude's field under
 Angle's (GitHub issue 618).
 
-The Stroke and Outer Glow pages scroll on their own (`layerStyleStrokeScroll`,
-`layerStyleOuterGlowScroll`), so their gradient block does not set the dialog's height.
+The Stroke, Outer Glow and Inner Glow pages scroll on their own (`layerStyleStrokeScroll`,
+`layerStyleOuterGlowScroll`, `layerStyleInnerGlowScroll`), so their gradient block does not
+set the dialog's height. The two glow pages share their Fill box, color rows and gradient
+editor (`add_glow_fill_rows`, `add_glow_scroll_page` in layer_style_effect_pages.cpp).
 Each sets its scroll area's minimum width from its rows with both Fill blocks counted
 (`fit_scroll_width` in its page controls). The dialog runs that again after
 `align_page_label_columns`, including the pass once it is shown: the width taken while

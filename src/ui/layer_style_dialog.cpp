@@ -1756,10 +1756,12 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       explicit_fields, reset_batch_capture, [&](bool stroke_gradient) {
         const auto* current = categories->currentItem();
         const auto index = current ? current->data(kLayerStyleEffectIndexRole).toInt() : 0;
-        // An Outer Glow's gradient is one optional property, not a placement plus a definition.
-        if (current != nullptr && static_cast<LayerStyleEffectKind>(current->data(kLayerStyleEffectKindRole).toInt()) ==
-                                      LayerStyleEffectKind::OuterGlow) {
-          return effect_property_prefix(LayerStyleEffectKind::OuterGlow, index) + ".gradient";
+        // A glow's gradient is one optional property, not a placement plus a definition.
+        if (current != nullptr) {
+          const auto kind = static_cast<LayerStyleEffectKind>(current->data(kLayerStyleEffectKindRole).toInt());
+          if (kind == LayerStyleEffectKind::OuterGlow || kind == LayerStyleEffectKind::InnerGlow) {
+            return effect_property_prefix(kind, index) + ".gradient";
+          }
         }
         return effect_property_prefix(stroke_gradient ? LayerStyleEffectKind::Stroke
             : LayerStyleEffectKind::GradientOverlay, index) + ".gradient.definition";
@@ -2444,6 +2446,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto& inner_glow_blue = inner_glow_page.inner_glow_blue;
   auto& add_inner_glow = inner_glow_page.add_inner_glow;
   auto& remove_inner_glow = inner_glow_page.remove_inner_glow;
+  auto& inner_glow_gradient_controls = inner_glow_page.gradient_controls;
+  // As for the Outer Glow: an imported gradient stays exact until its editor or Fill changes.
+  bool inner_glow_gradient_edited = false;
 
   auto satin_page = build_satin_page(page_context, satin_layout, satin);
   auto& satin_blend = satin_page.satin_blend;
@@ -2851,6 +2856,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.color = RgbColor{static_cast<std::uint8_t>(inner_glow_red->value()),
                                 static_cast<std::uint8_t>(inner_glow_green->value()),
                                 static_cast<std::uint8_t>(inner_glow_blue->value())};
+        if (!inner_glow_page.fill->currentData().toBool()) {
+          target.gradient.reset();
+        } else if (inner_glow_gradient_edited || !target.gradient.has_value()) {
+          target.gradient = inner_glow_gradient_controls->value();
+        }
         break;
       }
       case LayerStyleEffectKind::Satin: {
@@ -3113,6 +3123,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         inner_glow_red->setValue(value.color.red);
         inner_glow_green->setValue(value.color.green);
         inner_glow_blue->setValue(value.color.blue);
+        inner_glow_page.fill->setCurrentIndex(value.gradient.has_value() ? 1 : 0);
+        inner_glow_gradient_controls->load(value.gradient ? *value.gradient : glow_gradient_from_color(value.color));
+        inner_glow_gradient_edited = false;
+        inner_glow_page.update_fill_visibility();
         break;
       }
       case LayerStyleEffectKind::Satin: {
@@ -3190,7 +3204,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         outer_glow_blue->setValue(value.color.blue);
         outer_glow_page.fill->setCurrentIndex(value.gradient.has_value() ? 1 : 0);
         outer_glow_gradient_controls->load(value.gradient ? *value.gradient
-                                                          : outer_glow_gradient_from_color(value.color));
+                                                          : glow_gradient_from_color(value.color));
         outer_glow_gradient_edited = false;
         outer_glow_page.update_fill_visibility();
         break;
@@ -3227,6 +3241,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     gradient_controls->update_previews();
     stroke_gradient_controls->update_previews();
     outer_glow_gradient_controls->update_previews();
+    inner_glow_gradient_controls->update_previews();
     outer_glow_rows.update_preview();
     inner_glow_rows.update_preview();
     satin_rows.update_preview();
@@ -3547,6 +3562,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     gradient_controls->update_previews();
     stroke_gradient_controls->update_previews();
     outer_glow_gradient_controls->update_previews();
+    inner_glow_gradient_controls->update_previews();
     outer_glow_rows.update_preview();
     inner_glow_rows.update_preview();
     satin_rows.update_preview();
@@ -3656,6 +3672,21 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       return;
     }
     outer_glow_gradient_edited = true;
+    emit_preview(true);
+  });
+  inner_glow_gradient_controls->changed = [&](bool immediate) {
+    if (loading_controls || rebuilding_categories) {
+      return;
+    }
+    inner_glow_gradient_edited = true;
+    emit_preview(immediate);
+  };
+  QObject::connect(inner_glow_page.fill, &QComboBox::currentIndexChanged, &dialog, [&](int) {
+    inner_glow_page.update_fill_visibility();
+    if (loading_controls || rebuilding_categories) {
+      return;
+    }
+    inner_glow_gradient_edited = true;
     emit_preview(true);
   });
   QObject::connect(categories, &QListWidget::itemSelectionChanged, &dialog, restyle_category_rows);
@@ -4705,22 +4736,23 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     effect(bevel_texture_page.bevel_texture_offset_y, LayerStyleEffectKind::BevelTexture, "phase_y");
     effect(pattern_overlay_page.pattern_overlay_offset_x, LayerStyleEffectKind::PatternOverlay, "phase_x");
     effect(pattern_overlay_page.pattern_overlay_offset_y, LayerStyleEffectKind::PatternOverlay, "phase_y");
-    // The glow's gradient is a single optional property: Fill and every editor field map to it.
-    effect(outer_glow_page.fill, LayerStyleEffectKind::OuterGlow, "gradient");
-    {
-      auto* fields = outer_glow_gradient_controls.get();
+    // A glow's gradient is a single optional property: Fill and every editor field map to it.
+    const auto glow_gradient = [&](QComboBox* fill, LayerStyleGradientControls* fields, LayerStyleEffectKind kind) {
+      effect(fill, kind, "gradient");
       for (QWidget* widget : std::initializer_list<QWidget*>{
                fields->interpolation, fields->form_combo, fields->smoothness, fields->noise_seed,
                fields->noise_roughness, fields->noise_transparency, fields->noise_restrict, fields->noise_color_model,
                fields->stop_location, fields->stop_opacity, fields->stop_midpoint}) {
-        effect(widget, LayerStyleEffectKind::OuterGlow, "gradient");
+        effect(widget, kind, "gradient");
       }
-      for (auto* widget : fields->noise_minimum) effect(widget, LayerStyleEffectKind::OuterGlow, "gradient");
-      for (auto* widget : fields->noise_maximum) effect(widget, LayerStyleEffectKind::OuterGlow, "gradient");
-      effect(fields->stop_swatch, LayerStyleEffectKind::OuterGlow, "gradient", false);
-      effect(fields->stop_hex, LayerStyleEffectKind::OuterGlow, "gradient", false);
-      effect(fields->editor, LayerStyleEffectKind::OuterGlow, "gradient", false);
-    }
+      for (auto* widget : fields->noise_minimum) effect(widget, kind, "gradient");
+      for (auto* widget : fields->noise_maximum) effect(widget, kind, "gradient");
+      effect(fields->stop_swatch, kind, "gradient", false);
+      effect(fields->stop_hex, kind, "gradient", false);
+      effect(fields->editor, kind, "gradient", false);
+    };
+    glow_gradient(outer_glow_page.fill, outer_glow_gradient_controls.get(), LayerStyleEffectKind::OuterGlow);
+    glow_gradient(inner_glow_page.fill, inner_glow_gradient_controls.get(), LayerStyleEffectKind::InnerGlow);
     effect(inner_glow_blend, LayerStyleEffectKind::InnerGlow, "blend_mode");
     effect(inner_glow_page.contour, LayerStyleEffectKind::InnerGlow, "contour");
     effect(inner_glow_page.anti_aliased, LayerStyleEffectKind::InnerGlow, "anti_aliased");
@@ -4908,12 +4940,16 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   // The pages that scroll on their own take their width from their rows, so they measure
   // again after every change to the label column.
   const auto fit_scrolling_pages = [fit_stroke = stroke_page.fit_scroll_width,
-                                    fit_outer_glow = outer_glow_page.fit_scroll_width] {
+                                    fit_outer_glow = outer_glow_page.fit_scroll_width,
+                                    fit_inner_glow = inner_glow_page.fit_scroll_width] {
     if (fit_stroke) {
       fit_stroke();
     }
     if (fit_outer_glow) {
       fit_outer_glow();
+    }
+    if (fit_inner_glow) {
+      fit_inner_glow();
     }
   };
   align_page_label_columns(*controls);

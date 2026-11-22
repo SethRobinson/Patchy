@@ -17,7 +17,10 @@
 #include <QVBoxLayout>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <initializer_list>
+#include <memory>
+#include <optional>
 #include <utility>
 namespace patchy::ui::layer_style_detail {
 namespace {
@@ -451,7 +454,111 @@ InnerShadowPageControls build_inner_shadow_page(LayerStylePageContext& context, 
   return {inner_shadow_blend, inner_shadow_opacity, inner_shadow_angle, inner_shadow_distance, inner_shadow_size, inner_shadow_choke, inner_shadow_rows, inner_shadow_red, inner_shadow_green, inner_shadow_blue, add_inner_shadow, remove_inner_shadow, contour, anti_aliased, noise};
 }
 
+LayerStyleGradient glow_gradient_from_color(RgbColor color) {
+  LayerStyleGradient gradient;
+  gradient.color_stops = {GradientColorStop{0.0F, color}, GradientColorStop{1.0F, color}};
+  gradient.alpha_stops = {GradientAlphaStop{0.0F, 1.0F}, GradientAlphaStop{1.0F, 0.0F}};
+  return gradient;
+}
+
+namespace {
+
+// The Fill box, the color rows and the gradient editor of a glow page, shared by Outer Glow
+// (GitHub issue 742) and Inner Glow (issue 746). object_prefix is "layerStyleOuterGlow" or
+// "layerStyleInnerGlow".
+struct GlowFillRows {
+  QComboBox* fill{};
+  RgbColorRowWidgets rows{};
+  QGroupBox* gradient_group{};
+  std::unique_ptr<LayerStyleGradientControls> gradient_controls{};
+  std::function<void()> update_fill_visibility{};
+};
+
+GlowFillRows add_glow_fill_rows(LayerStylePageContext& context, QFormLayout* form, QGroupBox* group,
+                                const QString& object_prefix, RgbColor color,
+                                const std::optional<LayerStyleGradient>& gradient) {
+  auto* fill = new QComboBox(group);
+  fill->setObjectName(object_prefix + QStringLiteral("FillCombo"));
+  fill->addItem(QObject::tr("Color"), false);
+  fill->addItem(QObject::tr("Gradient"), true);
+  fill->setCurrentIndex(gradient.has_value() ? 1 : 0);
+  form->addRow(QObject::tr("Fill:"), fill);
+  const auto rows = make_color_rows(form, group, object_prefix, color);
+  auto* gradient_group = new QGroupBox(QObject::tr("Gradient"), group);
+  gradient_group->setObjectName(object_prefix + QStringLiteral("GradientGroup"));
+  auto* gradient_form = new QFormLayout(gradient_group);
+  auto gradient_controls = make_gradient_controls(
+      context.gradient_context, gradient_form, gradient_group, object_prefix + QStringLiteral("Gradient"),
+      gradient ? *gradient : glow_gradient_from_color(color), QObject::tr("Choose Gradient Stop Color"));
+  // A glow's gradient follows the glow's own falloff: it has no style, angle, scale,
+  // offset, Reverse, Dither or Align with Layer, so those rows stay hidden.
+  const auto hide_row = [gradient_form](QWidget* widget) {
+    for (auto* candidate = widget; candidate != nullptr; candidate = candidate->parentWidget()) {
+      int row = -1;
+      QFormLayout::ItemRole role{};
+      gradient_form->getWidgetPosition(candidate, &row, &role);
+      if (row >= 0) {
+        gradient_form->setRowVisible(row, false);
+        return;
+      }
+    }
+  };
+  for (QWidget* widget : std::initializer_list<QWidget*>{gradient_controls->style_combo, gradient_controls->angle,
+                                                         gradient_controls->scale, gradient_controls->offset_x,
+                                                         gradient_controls->offset_y,
+                                                         gradient_controls->reset_alignment,
+                                                         gradient_controls->reverse}) {
+    if (widget != nullptr) {
+      hide_row(widget);
+    }
+  }
+  form->addRow(gradient_group);
+  auto update_fill_visibility = [fill, form, rows, gradient_group] {
+    const bool uses_gradient = fill->currentData().toBool();
+    form->setRowVisible(rows.row_container, !uses_gradient);
+    form->setRowVisible(gradient_group, uses_gradient);
+  };
+  return {fill, rows, gradient_group, std::move(gradient_controls), std::move(update_fill_visibility)};
+}
+
+// Puts a glow page's group in its own scroll area, like the Stroke page, so the gradient
+// block does not set the dialog's height. Returns the page's fit_scroll_width.
+std::function<void()> add_glow_scroll_page(QDialog& dialog, QVBoxLayout* page_layout, QGroupBox* group,
+                                           QFormLayout* form, const QString& object_prefix,
+                                           const GlowFillRows& fill_rows) {
+  const auto scroll_name = object_prefix + QStringLiteral("Scroll");
+  auto* scroll = new QScrollArea(&dialog);
+  scroll->setObjectName(scroll_name);
+  scroll->setWidgetResizable(true);
+  scroll->setFrameShape(QFrame::NoFrame);
+  scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  set_themed_style(*scroll, QStringLiteral("QScrollArea#%1 { background: transparent; }"
+                                           "QScrollArea#%1 > QWidget > QWidget { background: transparent; }")
+                                .arg(scroll_name));
+  auto* scroll_page = new QWidget(scroll);
+  scroll_page->setObjectName(scroll_name + QStringLiteral("Page"));
+  auto* scroll_column = new QVBoxLayout(scroll_page);
+  scroll_column->setContentsMargins(0, 0, 6, 0);
+  scroll_column->addWidget(group);
+  scroll_column->addStretch(1);
+  scroll->setWidget(scroll_page);
+  auto fit_scroll_width = [scroll, scroll_page, form, row_container = fill_rows.rows.row_container,
+                           gradient_group = fill_rows.gradient_group,
+                           update_fill_visibility = fill_rows.update_fill_visibility] {
+    form->setRowVisible(row_container, true);
+    form->setRowVisible(gradient_group, true);
+    scroll->setMinimumWidth(scroll_page->minimumSizeHint().width() + scroll->verticalScrollBar()->sizeHint().width());
+    update_fill_visibility();
+  };
+  fit_scroll_width();
+  page_layout->addWidget(scroll, 1);
+  return fit_scroll_width;
+}
+
+}  // namespace
+
 InnerGlowPageControls build_inner_glow_page(LayerStylePageContext& context, QVBoxLayout* inner_glow_layout, const LayerInnerGlow& inner_glow) {
+  auto& dialog = context.dialog;
   auto& controls = context.controls;
   auto* inner_glow_group = new QGroupBox(page_title(QObject::tr("Inner Glow")), controls);
   auto* inner_glow_form = new QFormLayout(inner_glow_group);
@@ -491,8 +598,9 @@ InnerGlowPageControls build_inner_glow_page(LayerStylePageContext& context, QVBo
                                                         inner_glow.contour, inner_glow.anti_aliased);
   auto* noise = add_noise_row(inner_glow_form, inner_glow_group, QStringLiteral("layerStyleInnerGlow"),
                               inner_glow.noise);
-  const auto inner_glow_rows = make_color_rows(inner_glow_form, inner_glow_group,
-                                               QStringLiteral("layerStyleInnerGlow"), inner_glow.color);
+  auto fill_rows = add_glow_fill_rows(context, inner_glow_form, inner_glow_group,
+                                      QStringLiteral("layerStyleInnerGlow"), inner_glow.color, inner_glow.gradient);
+  const auto inner_glow_rows = fill_rows.rows;
   auto* inner_glow_red = inner_glow_rows.red;
   auto* inner_glow_green = inner_glow_rows.green;
   auto* inner_glow_blue = inner_glow_rows.blue;
@@ -511,10 +619,10 @@ InnerGlowPageControls build_inner_glow_page(LayerStylePageContext& context, QVBo
   inner_glow_instance_layout->addWidget(remove_inner_glow);
   inner_glow_instance_layout->addStretch(1);
   inner_glow_form->addRow(QObject::tr("Instances:"), inner_glow_instance_row);
-  inner_glow_layout->addWidget(inner_glow_group);
-  inner_glow_layout->addStretch(1);
+  auto fit_scroll_width = add_glow_scroll_page(dialog, inner_glow_layout, inner_glow_group, inner_glow_form,
+                                               QStringLiteral("layerStyleInnerGlow"), fill_rows);
 
-  return {inner_glow_blend, inner_glow_technique, inner_glow_opacity, inner_glow_size, inner_glow_choke, inner_glow_range, inner_glow_source, inner_glow_rows, inner_glow_red, inner_glow_green, inner_glow_blue, add_inner_glow, remove_inner_glow, contour, anti_aliased, noise};
+  return {inner_glow_blend, inner_glow_technique, inner_glow_opacity, inner_glow_size, inner_glow_choke, inner_glow_range, inner_glow_source, inner_glow_rows, inner_glow_red, inner_glow_green, inner_glow_blue, add_inner_glow, remove_inner_glow, contour, anti_aliased, noise, fill_rows.fill, std::move(fill_rows.gradient_controls), fill_rows.update_fill_visibility, fit_scroll_width};
 }
 
 SatinPageControls build_satin_page(LayerStylePageContext& context, QVBoxLayout* satin_layout, const LayerSatin& satin) {
@@ -605,13 +713,6 @@ GradientPageControls build_gradient_page(LayerStylePageContext& context, QVBoxLa
   return {gradient_blend, gradient_opacity, std::move(gradient_controls)};
 }
 
-LayerStyleGradient outer_glow_gradient_from_color(RgbColor color) {
-  LayerStyleGradient gradient;
-  gradient.color_stops = {GradientColorStop{0.0F, color}, GradientColorStop{1.0F, color}};
-  gradient.alpha_stops = {GradientAlphaStop{0.0F, 1.0F}, GradientAlphaStop{1.0F, 0.0F}};
-  return gradient;
-}
-
 OuterGlowPageControls build_outer_glow_page(LayerStylePageContext& context, QVBoxLayout* outer_glow_layout, const LayerOuterGlow& outer_glow) {
   auto& dialog = context.dialog;
   auto& controls = context.controls;
@@ -648,81 +749,16 @@ OuterGlowPageControls build_outer_glow_page(LayerStylePageContext& context, QVBo
                                                         outer_glow.contour, outer_glow.anti_aliased);
   auto* noise = add_noise_row(outer_glow_form, outer_glow_group, QStringLiteral("layerStyleOuterGlow"),
                               outer_glow.noise);
-  auto* fill = new QComboBox(outer_glow_group);
-  fill->setObjectName(QStringLiteral("layerStyleOuterGlowFillCombo"));
-  fill->addItem(QObject::tr("Color"), false);
-  fill->addItem(QObject::tr("Gradient"), true);
-  fill->setCurrentIndex(outer_glow.gradient.has_value() ? 1 : 0);
-  outer_glow_form->addRow(QObject::tr("Fill:"), fill);
-  const auto outer_glow_rows = make_color_rows(outer_glow_form, outer_glow_group,
-                                               QStringLiteral("layerStyleOuterGlow"), outer_glow.color);
+  auto fill_rows = add_glow_fill_rows(context, outer_glow_form, outer_glow_group,
+                                      QStringLiteral("layerStyleOuterGlow"), outer_glow.color, outer_glow.gradient);
+  const auto outer_glow_rows = fill_rows.rows;
   auto* outer_glow_red = outer_glow_rows.red;
   auto* outer_glow_green = outer_glow_rows.green;
   auto* outer_glow_blue = outer_glow_rows.blue;
-  auto* gradient_group = new QGroupBox(QObject::tr("Gradient"), outer_glow_group);
-  gradient_group->setObjectName(QStringLiteral("layerStyleOuterGlowGradientGroup"));
-  auto* gradient_form = new QFormLayout(gradient_group);
-  auto gradient_controls = make_gradient_controls(
-      context.gradient_context, gradient_form, gradient_group, QStringLiteral("layerStyleOuterGlowGradient"),
-      outer_glow.gradient ? *outer_glow.gradient : outer_glow_gradient_from_color(outer_glow.color),
-      QObject::tr("Choose Gradient Stop Color"));
-  // A glow's gradient runs from the layer's edge outward: it has no style, angle, scale,
-  // offset, Reverse, Dither or Align with Layer, so those rows stay hidden.
-  const auto hide_row = [gradient_form](QWidget* widget) {
-    for (auto* candidate = widget; candidate != nullptr; candidate = candidate->parentWidget()) {
-      int row = -1;
-      QFormLayout::ItemRole role{};
-      gradient_form->getWidgetPosition(candidate, &row, &role);
-      if (row >= 0) {
-        gradient_form->setRowVisible(row, false);
-        return;
-      }
-    }
-  };
-  for (QWidget* widget : std::initializer_list<QWidget*>{gradient_controls->style_combo, gradient_controls->angle,
-                                                         gradient_controls->scale, gradient_controls->offset_x,
-                                                         gradient_controls->offset_y,
-                                                         gradient_controls->reset_alignment,
-                                                         gradient_controls->reverse}) {
-    if (widget != nullptr) {
-      hide_row(widget);
-    }
-  }
-  outer_glow_form->addRow(gradient_group);
-  auto update_fill_visibility = [fill, outer_glow_form, outer_glow_rows, gradient_group] {
-    const bool uses_gradient = fill->currentData().toBool();
-    outer_glow_form->setRowVisible(outer_glow_rows.row_container, !uses_gradient);
-    outer_glow_form->setRowVisible(gradient_group, uses_gradient);
-  };
-  // Scrolls like the Stroke page, so the gradient block does not set the dialog's height.
-  auto* outer_glow_scroll = new QScrollArea(&dialog);
-  outer_glow_scroll->setObjectName(QStringLiteral("layerStyleOuterGlowScroll"));
-  outer_glow_scroll->setWidgetResizable(true);
-  outer_glow_scroll->setFrameShape(QFrame::NoFrame);
-  outer_glow_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-  set_themed_style(*outer_glow_scroll,
-                   QStringLiteral("QScrollArea#layerStyleOuterGlowScroll { background: transparent; }"
-                                  "QScrollArea#layerStyleOuterGlowScroll > QWidget > QWidget { "
-                                  "background: transparent; }"));
-  auto* outer_glow_scroll_page = new QWidget(outer_glow_scroll);
-  outer_glow_scroll_page->setObjectName(QStringLiteral("layerStyleOuterGlowScrollPage"));
-  auto* outer_glow_scroll_column = new QVBoxLayout(outer_glow_scroll_page);
-  outer_glow_scroll_column->setContentsMargins(0, 0, 6, 0);
-  outer_glow_scroll_column->addWidget(outer_glow_group);
-  outer_glow_scroll_column->addStretch(1);
-  outer_glow_scroll->setWidget(outer_glow_scroll_page);
-  auto fit_scroll_width = [outer_glow_scroll, outer_glow_scroll_page, outer_glow_form, outer_glow_rows, gradient_group,
-                           update_fill_visibility] {
-    outer_glow_form->setRowVisible(outer_glow_rows.row_container, true);
-    outer_glow_form->setRowVisible(gradient_group, true);
-    outer_glow_scroll->setMinimumWidth(outer_glow_scroll_page->minimumSizeHint().width() +
-                                       outer_glow_scroll->verticalScrollBar()->sizeHint().width());
-    update_fill_visibility();
-  };
-  fit_scroll_width();
-  outer_glow_layout->addWidget(outer_glow_scroll, 1);
+  auto fit_scroll_width = add_glow_scroll_page(dialog, outer_glow_layout, outer_glow_group, outer_glow_form,
+                                               QStringLiteral("layerStyleOuterGlow"), fill_rows);
 
-  return {outer_glow_blend, outer_glow_technique, outer_glow_opacity, outer_glow_size, outer_glow_spread, outer_glow_range, outer_glow_rows, outer_glow_red, outer_glow_green, outer_glow_blue, contour, anti_aliased, noise, fill, std::move(gradient_controls), update_fill_visibility, fit_scroll_width};
+  return {outer_glow_blend, outer_glow_technique, outer_glow_opacity, outer_glow_size, outer_glow_spread, outer_glow_range, outer_glow_rows, outer_glow_red, outer_glow_green, outer_glow_blue, contour, anti_aliased, noise, fill_rows.fill, std::move(fill_rows.gradient_controls), fill_rows.update_fill_visibility, fit_scroll_width};
 }
 
 ShadowPageControls build_shadow_page(LayerStylePageContext& context, QVBoxLayout* shadow_layout, const LayerDropShadow& shadow, const StyleContour& custom_shadow_contour) {

@@ -272,7 +272,11 @@ bool has_enabled_backdrop_dependent_style(const LayerStyle& style) noexcept {
                                               });
   const auto enabled_inner_glow = std::any_of(style.inner_glows.begin(), style.inner_glows.end(),
                                               [](const LayerInnerGlow& glow) {
-                                                return glow.enabled && glow.opacity > 0.0F && glow.size > 0.0F;
+                                                // Size 0 still draws from the center, and with a
+                                                // gradient from the edge too (its last stop).
+                                                return glow.enabled && glow.opacity > 0.0F &&
+                                                       (glow.size > 0.0F || glow.gradient.has_value() ||
+                                                        glow.source == LayerInnerGlowSource::Center);
                                               });
   const auto enabled_gradient = std::any_of(style.gradient_fills.begin(), style.gradient_fills.end(),
                                             [](const LayerGradientFill& fill) {

@@ -133,7 +133,15 @@ struct InnerGlowPageControls {
   QComboBox* contour{};
   QCheckBox* anti_aliased{};
   QSpinBox* noise{};
+  // Fill: Color or Gradient, as on the Outer Glow page (GitHub issue 746).
+  QComboBox* fill{};
+  std::unique_ptr<LayerStyleGradientControls> gradient_controls{};
+  std::function<void()> update_fill_visibility{};
+  std::function<void()> fit_scroll_width{};  // as StrokePageControls::fit_scroll_width
 };
+// The gradient a solid glow starts from when its Fill is switched to Gradient: its color,
+// opaque where the glow is strongest and fading out.
+LayerStyleGradient glow_gradient_from_color(RgbColor color);
 InnerGlowPageControls build_inner_glow_page(LayerStylePageContext& context, QVBoxLayout* inner_glow_layout, const LayerInnerGlow& inner_glow);
 
 struct SatinPageControls {
@@ -190,9 +198,6 @@ struct OuterGlowPageControls {
   std::function<void()> update_fill_visibility{};
   std::function<void()> fit_scroll_width{};  // as StrokePageControls::fit_scroll_width
 };
-// The gradient a solid glow starts from when its Fill is switched to Gradient: its color,
-// opaque at the layer's edge and fading out.
-LayerStyleGradient outer_glow_gradient_from_color(RgbColor color);
 OuterGlowPageControls build_outer_glow_page(LayerStylePageContext& context, QVBoxLayout* outer_glow_layout, const LayerOuterGlow& outer_glow);
 
 struct ShadowPageControls {

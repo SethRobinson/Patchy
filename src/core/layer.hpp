@@ -523,6 +523,9 @@ struct LayerInnerGlow {
   // Quality > Noise (descriptor 'Nose', percent 0..100): a per-pixel offset on the effect's
   // coverage before Opacity (effect_noise_coverage, render/layer_style_mask_ops.hpp).
   float noise{0.0F};
+  // Fill: a gradient instead of the color (GitHub issue 746). Its first stop sits where the
+  // glow is strongest: at the edge for an Edge glow, in the middle for a Center glow.
+  std::optional<LayerStyleGradient> gradient;
 };
 
 struct LayerColorOverlay {
