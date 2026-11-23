@@ -947,8 +947,13 @@ struct PreparedInnerGlow {
     return std::nullopt;
   }
 
-  // Both techniques reach at most one pixel beyond the rounded Size.
-  const auto sample_padding = static_cast<int>(std::lround(std::max(0.0F, glow.size))) + 2;
+  // Both techniques reach at most one pixel beyond the rounded Size, and the soft-matte
+  // distance looks one pixel past its nearest edge pixel. A Precise glow whose Choke counts
+  // back from the choked shape (Range above 50) reads that shape up to Size + 5 away.
+  const bool choked_precise_ramp =
+      glow.technique == LayerGlowTechnique::Precise && glow.choke > 0.0F && glow.range > 50.0F;
+  const auto sample_padding =
+      static_cast<int>(std::lround(std::max(0.0F, glow.size))) + (choked_precise_ramp ? 6 : 2);
   const auto full_domain = outset_rect(bounds, sample_padding);
   const auto legacy_mask_bounds = clipped_mask_bounds(full_domain, draw_rect, sample_padding);
   auto [entry, mask_bounds] = style_mask_for_render(
