@@ -43,6 +43,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 
 namespace patchy::ora {
@@ -584,6 +585,9 @@ struct ReadState {
   std::vector<std::string> missing_files;
   std::vector<std::string> unreadable_files;
   std::vector<std::string> unsafe_paths;
+  // Entry names without their leading slashes, each mapped to the name as stored (the first
+  // in directory order wins). Built by the first `src` that is not an entry as written.
+  std::optional<std::unordered_map<std::string, std::string>> slashless_entries;
   int skipped_elements{0};
   int layer_count{0};
   int group_count{0};
@@ -636,6 +640,38 @@ void read_common(const svg::XmlNode& element, Node& node, ReadState& state) {
   }
 }
 
+[[nodiscard]] std::string_view without_leading_slashes(std::string_view path) {
+  const auto first = path.find_first_not_of('/');
+  return first == std::string_view::npos ? std::string_view{} : path.substr(first);
+}
+
+// The archive entry a layer's `src` names, or nullopt when it names none. An entry is read
+// by name out of the zip and never resolved against a folder, so a leading slash leads
+// nowhere: the Python library LayeredImage names its entries "/data/layer0.png" and writes
+// the same in `src`. The name is tried as written, then with the leading slashes dropped
+// from it and from the entry names. A `src` with a parent step, a backslash or a colon is
+// never looked up, whatever the archive holds (docs/ora.md, "Layer file names").
+[[nodiscard]] std::optional<std::string> find_layer_entry(ReadState& state, const std::string& src) {
+  const auto relative = without_leading_slashes(src);
+  if (!formats::safe_zip_entry_path(relative)) {
+    return std::nullopt;
+  }
+  if (state.zip.contains(src)) {
+    return src;
+  }
+  if (!state.slashless_entries.has_value()) {
+    auto& names = state.slashless_entries.emplace();
+    for (const auto& name : state.zip.entry_names()) {
+      names.emplace(std::string(without_leading_slashes(name)), name);
+    }
+  }
+  const auto found = state.slashless_entries->find(std::string(relative));
+  if (found == state.slashless_entries->end()) {
+    return std::nullopt;
+  }
+  return found->second;
+}
+
 void read_stack(const svg::XmlNode& stack, std::vector<Node>& out, ReadState& state, std::int64_t offset_x,
                 std::int64_t offset_y, int depth);
 
@@ -654,10 +690,18 @@ void read_layer_element(const svg::XmlNode& element, std::vector<Node>& out, Rea
   }
   read_common(element, node, state);
   const auto src = attribute_or(element, "src", "");
-  if (!formats::safe_zip_entry_path(src)) {
-    add_unique(state.unsafe_paths, node.name);
-  } else if (auto bytes = state.zip.extract(src, kMaxEntryBytes); !bytes.has_value()) {
-    add_unique(state.missing_files, node.name + " (" + src + ")");
+  std::optional<std::vector<std::uint8_t>> bytes;
+  if (const auto entry = find_layer_entry(state, src); entry.has_value()) {
+    bytes = state.zip.extract(*entry, kMaxEntryBytes);
+  }
+  if (!bytes.has_value()) {
+    // No such entry. A plain relative name is a missing file; anything else (a parent step,
+    // a drive, a backslash, or a rooted name the archive does not hold) points outside it.
+    if (formats::safe_zip_entry_path(src)) {
+      add_unique(state.missing_files, node.name + " (" + src + ")");
+    } else {
+      add_unique(state.unsafe_paths, node.name);
+    }
   } else {
     std::string reason;
     if (check_image(*bytes, state.pixel_budget, reason)) {

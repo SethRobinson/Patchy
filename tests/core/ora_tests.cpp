@@ -442,15 +442,30 @@ void ora_reader_refuses_hostile_and_broken_files() {
 }
 
 void ora_reader_opens_damaged_layers_empty_with_notices() {
-  std::vector<ora::detail::ZipEntry> extra = {png_entry("data/a.png", 4, 4, 1), png_entry("../a.png", 4, 4, 2),
-                                              png_entry("/abs.png", 4, 4, 3), {"data/bad.png", bytes_of("garbage"), false}};
+  // Entries exist under every unsafe name a zip can hold, so a layer that opens empty was
+  // refused by its `src`, not by a failed lookup. "/abs.png" names no entry at all.
+  std::vector<ora::detail::ZipEntry> extra = {png_entry("data/a.png", 4, 4, 1),
+                                              png_entry("../a.png", 4, 4, 2),
+                                              png_entry("/../b.png", 4, 4, 3),
+                                              png_entry("data/../c.png", 4, 4, 4),
+                                              png_entry("C:/a.png", 4, 4, 5),
+                                              png_entry("/C:/a.png", 4, 4, 6),
+                                              png_entry("data\\a.png", 4, 4, 7),
+                                              png_entry("/data\\a.png", 4, 4, 8),
+                                              {"data/bad.png", bytes_of("garbage"), false}};
   const auto bytes = archive(
       R"(<image w="8" h="6"><stack>)"
       R"(<layer src="data/missing.png" name="Missing"/>)"
       R"(<layer src="../a.png" name="Parent"/>)"
+      R"(<layer src="/../b.png" name="Rooted parent"/>)"
+      R"(<layer src="data/../c.png" name="Inner parent"/>)"
       R"(<layer src="/abs.png" name="Absolute"/>)"
       R"(<layer src="C:/a.png" name="Drive"/>)"
+      R"(<layer src="/C:/a.png" name="Rooted drive"/>)"
       R"(<layer src="data\a.png" name="Backslash"/>)"
+      R"(<layer src="/data\a.png" name="Rooted backslash"/>)"
+      R"(<layer src="/" name="Only a slash"/>)"
+      R"(<layer name="No src"/>)"
       R"(<layer src="data/bad.png" name="Garbage"/>)"
       R"(<text>hello</text>)"
       R"(<layer src="data/a.png" name="Fine" composite-op="foo:bar"/>)"
@@ -458,18 +473,88 @@ void ora_reader_opens_damaged_layers_empty_with_notices() {
       std::move(extra));
   std::vector<std::string> notices;
   const auto read = ora::DocumentIo::read(bytes, &notices);
-  CHECK(read.layers().size() == 7U);
-  for (const auto* name : {"Missing", "Parent", "Absolute", "Drive", "Backslash", "Garbage"}) {
+  CHECK(read.layers().size() == 13U);
+  for (const auto* name : {"Missing", "Parent", "Rooted parent", "Inner parent", "Absolute", "Drive", "Rooted drive",
+                           "Backslash", "Rooted backslash", "Only a slash", "No src", "Garbage"}) {
     const auto* layer = find_named(read.layers(), name);
     CHECK(layer != nullptr && layer->pixels().width() == 0);
   }
   const auto* fine = find_named(read.layers(), "Fine");
   CHECK(fine != nullptr && fine->pixels().width() == 4 && fine->blend_mode() == BlendMode::Normal);
   CHECK(notices_mention(notices, "Missing (data/missing.png)"));
-  CHECK(notices_mention(notices, "point outside the file opened empty: Parent, Absolute, Drive, Backslash"));
+  CHECK(notices_mention(notices, "point outside the file opened empty: Parent, Rooted parent, Inner parent, Absolute, "
+                                 "Drive, Rooted drive, Backslash, Rooted backslash, Only a slash, No src"));
   CHECK(notices_mention(notices, "Garbage"));
   CHECK(notices_mention(notices, "Fine (foo:bar)"));
   CHECK(notices_mention(notices, "Skipped 1 elements"));
+}
+
+// The Python library LayeredImage names its entries "/data/layer0.png" and writes the same
+// in `src`. An entry is read by name out of the zip, never from a folder, so the slash
+// leads nowhere: the name is tried as written, then with the leading slashes dropped on
+// both sides (docs/ora.md, "Layer file names").
+void ora_reader_opens_layers_named_with_a_leading_slash() {
+  const auto holds = [](const Layer* layer, std::int32_t width, std::int32_t height, int seed) {
+    if (layer == nullptr || layer->pixels().width() != width || layer->pixels().height() != height) {
+      return false;
+    }
+    const auto expected = pattern(width, height, seed);
+    const auto want = std::as_const(expected).data();
+    const auto got = layer->pixels().data();
+    return got.size() == want.size() && std::equal(want.begin(), want.end(), got.begin());
+  };
+  {
+    // The library's own shape: no notice, and the composite is the layers'.
+    const auto bytes = archive(
+        R"(<image w="8" h="6"><stack>)"
+        R"(<layer src="/data/layer1.png" name="Top" x="2" y="1"/>)"
+        R"(<stack name="Group"><layer src="/data/layer2.png" name="Inner"/></stack>)"
+        R"(<layer src="/data/layer0.png" name="Bottom"/>)"
+        R"(</stack></image>)",
+        {png_entry("/data/layer0.png", 8, 6, 1), png_entry("/data/layer1.png", 4, 3, 2),
+         png_entry("/data/layer2.png", 5, 5, 3)});
+    std::vector<std::string> notices;
+    const auto read = ora::DocumentIo::read(bytes, &notices);
+    CHECK(notices.empty());
+    CHECK(holds(find_named(read.layers(), "Bottom"), 8, 6, 1));
+    CHECK(holds(find_named(read.layers(), "Top"), 4, 3, 2));
+    CHECK(holds(find_named(read.layers(), "Inner"), 5, 5, 3));
+    const auto* top = find_named(read.layers(), "Top");
+    CHECK(top != nullptr && top->bounds() == (Rect{2, 1, 4, 3}));
+
+    Document expected(8, 6, PixelFormat::rgba8());
+    expected.add_layer(pixel_layer(expected, "Bottom", Rect{0, 0, 8, 6}, 1));
+    expected.add_layer(pixel_layer(expected, "Inner", Rect{0, 0, 5, 5}, 3));
+    expected.add_layer(pixel_layer(expected, "Top", Rect{2, 1, 4, 3}, 2));
+    const auto want = patchy::flatten_document_rgba8(expected);
+    const auto got = patchy::flatten_document_rgba8(read);
+    CHECK(std::equal(want.data().begin(), want.data().end(), got.data().begin()));
+  }
+  {
+    // A slash on one side only, several slashes, and the name as written winning over the
+    // slashless match when the archive holds both.
+    const auto bytes = archive(
+        R"(<image w="8" h="6"><stack>)"
+        R"(<layer src="/data/plain.png" name="Rooted src"/>)"
+        R"(<layer src="data/rooted.png" name="Rooted entry"/>)"
+        R"(<layer src="//data/plain.png" name="Two slashes"/>)"
+        R"(<layer src="data/twice.png" name="Twice plain"/>)"
+        R"(<layer src="/data/twice.png" name="Twice rooted"/>)"
+        R"(<layer src="/data/nowhere.png" name="Rooted missing"/>)"
+        R"(</stack></image>)",
+        {png_entry("data/plain.png", 4, 4, 1), png_entry("/data/rooted.png", 4, 4, 2),
+         png_entry("data/twice.png", 4, 4, 3), png_entry("/data/twice.png", 4, 4, 4)});
+    std::vector<std::string> notices;
+    const auto read = ora::DocumentIo::read(bytes, &notices);
+    CHECK(holds(find_named(read.layers(), "Rooted src"), 4, 4, 1));
+    CHECK(holds(find_named(read.layers(), "Rooted entry"), 4, 4, 2));
+    CHECK(holds(find_named(read.layers(), "Two slashes"), 4, 4, 1));
+    CHECK(holds(find_named(read.layers(), "Twice plain"), 4, 4, 3));
+    CHECK(holds(find_named(read.layers(), "Twice rooted"), 4, 4, 4));
+    const auto* missing = find_named(read.layers(), "Rooted missing");
+    CHECK(missing != nullptr && missing->pixels().width() == 0);
+    CHECK(notices.size() == 1U && notices_mention(notices, "point outside the file opened empty: Rooted missing"));
+  }
 }
 
 void ora_reader_maps_groups_isolation_and_operators() {
@@ -973,6 +1058,7 @@ std::vector<patchy::test::TestCase> ora_tests() {
       {"ora_unicode_path_round_trips", ora_unicode_path_round_trips},
       {"ora_reader_refuses_hostile_and_broken_files", ora_reader_refuses_hostile_and_broken_files},
       {"ora_reader_opens_damaged_layers_empty_with_notices", ora_reader_opens_damaged_layers_empty_with_notices},
+      {"ora_reader_opens_layers_named_with_a_leading_slash", ora_reader_opens_layers_named_with_a_leading_slash},
       {"ora_reader_maps_groups_isolation_and_operators", ora_reader_maps_groups_isolation_and_operators},
       {"ora_round_trip_keeps_edit_locks", ora_round_trip_keeps_edit_locks},
       {"ora_reader_opens_alpha_preserve_as_clipping", ora_reader_opens_alpha_preserve_as_clipping},

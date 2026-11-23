@@ -33,10 +33,24 @@ and GIMP's .xcf open through their own importers ([kra.md](kra.md), [xcf.md](xcf
 Refused before allocation: a canvas or layer side over 300000, an image over 2^28 pixels, more than
 2^31 decoded pixels in a file, more than 4 GiB extracted, `stack.xml` over 64 MiB, more than 200000
 entries, an entry claiming more than deflate can expand to (1032:1) or a stored entry whose sizes
-differ, encrypted entries, groups nested past 64. A layer `src` with `..`, a leading `/`, a
-backslash or a colon is never looked up; that layer opens empty with a notice, as do a missing or
-undecodable file. Layer files are extracted and size-checked in file order, then decoded in parallel
+differ, encrypted entries, groups nested past 64. Layer files are extracted and size-checked in file order, then decoded in parallel
 (one worker per hardware thread); notes and the depth are gathered in file order afterwards. Bad XML, a truncated zip and damaged entries throw plain errors.
+
+### Layer file names
+
+A layer's `src` only ever names an entry of the archive: the bytes come out of the zip by name and
+nothing is resolved against a folder (`find_layer_entry`).
+
+- The name is tried as written, then with the leading slashes dropped from it and from the entry
+  names (the first such entry in directory order). The Python library LayeredImage names its entries
+  `/data/layer0.png` and writes the same in `src`; inside a zip that slash leads nowhere.
+- A `src` with a `..` step, a backslash or a colon is never looked up, even when the archive holds
+  an entry of exactly that name. An empty `src` and one that is only slashes count the same.
+- Those layers, and a rooted `src` that matches no entry, open empty under the notice "Layers that
+  point outside the file opened empty". A plain relative name with no entry is a missing file, and
+  an entry that is not an image is unreadable, each with its own notice.
+- `safe_zip_entry_path` (`src/formats/zip_entry_reader.hpp`) still refuses a leading slash for its
+  other callers (Krita files, theme packages); only this lookup strips it first.
 
 ## stack.xml model
 
@@ -223,7 +237,7 @@ Known differences that are the other app's:
 Core (`tests/core/ora_tests.cpp`, filter `ora_`): round trips at 8 and 16 bits with exact pixels and
 attributes, byte-identical rewrites, the canary, the spec layout and thumbnail size, the Unicode
 path, hostile and damaged input (truncation and mutation sweeps, a size-claim bomb, a huge PNG
-header, unsafe paths), group and operator mapping, the merged-image fallback for an empty stack,
+header, unsafe paths), entries named with a leading slash, group and operator mapping, the merged-image fallback for an empty stack,
 Zip64 read-back, what a save bakes, and the app fixtures. UI (`tests/ui/ora_ui_tests.cpp`, filter
 `ui_ora_`): opening keeps the layers and selected layer without a flat-file alpha mask; the save
 warning names what bakes, Save stays on the .ora, and a plain document saves without a question.
