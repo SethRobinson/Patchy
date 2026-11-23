@@ -435,10 +435,9 @@ void psd_inner_glow_gradient_exchange_file_round_trips() {
 // and stays close to Photoshop's flatten.
 void photoshop_inner_glow_gradient_probes_match_if_available() {
   const auto dir = patchy::test::local_fixtures_root() / "layer-style-746" / "probes";
-  // soft_edges: the feathered row is compared too, soft edge included. Precise and Choke
-  // place a soft edge differently from Photoshop for a solid glow already (the half-coverage
-  // silhouette and the choke of a gray matte), so those documents compare their hard
-  // squares only.
+  // soft_edges: the feathered row is compared too, soft edge included. Every document does
+  // since Precise and Choke measure a soft matte from its opaque boundary
+  // (docs/layer-effects-render-shadows-glows.md, "Soft mattes under Choke and Precise").
   struct Probe {
     const char* name;
     Source source;
@@ -450,12 +449,12 @@ void photoshop_inner_glow_gradient_probes_match_if_available() {
       {"center-soft-r100", Source::Center, Technique::Softer, true},
       {"edge-soft-r50", Source::Edge, Technique::Softer, true},
       {"center-soft-r50", Source::Center, Technique::Softer, true},
-      {"edge-precise-r100", Source::Edge, Technique::Precise, false},
-      {"center-precise-r100", Source::Center, Technique::Precise, false},
-      {"edge-precise-r50", Source::Edge, Technique::Precise, false},
-      {"center-precise-r50", Source::Center, Technique::Precise, false},
-      {"edge-soft-choke30", Source::Edge, Technique::Softer, false},
-      {"center-soft-choke30", Source::Center, Technique::Softer, false},
+      {"edge-precise-r100", Source::Edge, Technique::Precise, true},
+      {"center-precise-r100", Source::Center, Technique::Precise, true},
+      {"edge-precise-r50", Source::Edge, Technique::Precise, true},
+      {"center-precise-r50", Source::Center, Technique::Precise, true},
+      {"edge-soft-choke30", Source::Edge, Technique::Softer, true},
+      {"center-soft-choke30", Source::Center, Technique::Softer, true},
       {"edge-soft-cone", Source::Edge, Technique::Softer, true},
       {"center-soft-cone", Source::Center, Technique::Softer, true},
       {"edge-soft-size60", Source::Edge, Technique::Softer, true},
@@ -464,8 +463,8 @@ void photoshop_inner_glow_gradient_probes_match_if_available() {
       {"edge-soft-screen75", Source::Edge, Technique::Softer, true},
       {"edge-soft-size0", Source::Edge, Technique::Softer, true},
       {"edge-soft-aa-cone", Source::Edge, Technique::Softer, true},
-      {"edge-precise-cone", Source::Edge, Technique::Precise, false},
-      {"center-precise-choke30-r50", Source::Center, Technique::Precise, false},
+      {"edge-precise-cone", Source::Edge, Technique::Precise, true},
+      {"center-precise-choke30-r50", Source::Center, Technique::Precise, true},
   };
   // The columns of every document, left to right. Noise is Patchy's own grain and gradient
   // jitter is not rendered, so those cells compare by their average color only.
@@ -553,7 +552,9 @@ void photoshop_inner_glow_gradient_probes_match_if_available() {
   // short of the end stop there (3 levels at Range 100, 6 at Range 50). Two-stop gradients
   // stay within 6 in every method; the grain figure is a feathered square with fading stops.
   // The feathered squares stay inside the same figures over their soft edges; before the
-  // glow folded into the layer's color they were 42 (solid) and 64 (gradient) levels off.
+  // glow folded into the layer's color they were 42 (solid) and 64 (gradient) levels off,
+  // and before Precise and Choke measured a soft matte from its opaque boundary the feathered
+  // solid squares of those documents were 60 (Precise) and 151 (Choke 30) off.
   CHECK(worst_solid <= 3);
   CHECK(worst_gradient <= 10);
   CHECK(worst_grain_mean <= 3.0);

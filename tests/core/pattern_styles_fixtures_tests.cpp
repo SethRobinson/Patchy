@@ -1167,8 +1167,14 @@ void psd_photoshop_inner_glow_fixtures_match_render() {
       patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(extreme_bmp));
   const auto extreme_flat = patchy::Compositor{}.flatten_rgb8(extreme_document);
   const auto extreme_metrics = rgb_diff_metrics(extreme_reference, extreme_flat);
-  CHECK(extreme_metrics.mean_abs_channel_delta <= 1.2);
-  CHECK(fraction_over_delta(extreme_reference, extreme_flat, 6) <= 0.08);
+  std::cout << "photoshop-inner-glow.psd against Photoshop: mean " << extreme_metrics.mean_abs_channel_delta
+            << ", worst " << extreme_metrics.max_channel_delta << ", over 6 levels "
+            << fraction_over_delta(extreme_reference, extreme_flat, 6) << "\n";
+  // Measured November 2026: mean 0.10, 0.07% of the channels over 6 levels (0.29 and 0.13%
+  // before the choke read the anti-aliased ellipse by its soft-matte distance and radii over
+  // 8 took the exact disc).
+  CHECK(extreme_metrics.mean_abs_channel_delta <= 0.2);
+  CHECK(fraction_over_delta(extreme_reference, extreme_flat, 6) <= 0.001);
 }
 
 void psd_photoshop_inner_shadow_fixture_matches_render() {
@@ -1195,6 +1201,8 @@ void psd_photoshop_inner_shadow_fixture_matches_render() {
       patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(bmp));
   const auto patchy_flat = patchy::Compositor{}.flatten_rgb8(document);
   const auto metrics = rgb_diff_metrics(reference_flat, patchy_flat);
+  std::cout << "photoshop-inner-shadow.psd against Photoshop: mean " << metrics.mean_abs_channel_delta << ", worst "
+            << metrics.max_channel_delta << "\n";
   CHECK(metrics.max_channel_delta <= 3);
   CHECK(metrics.mean_abs_channel_delta <= 0.10);
 }

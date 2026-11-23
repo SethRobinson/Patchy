@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <future>
 #include <utility>
 
@@ -572,6 +573,124 @@ void prepare_photoshop_soft_effect_mask(std::vector<float>& mask, int width, int
   }
 }
 
+// Coverage that is fully opaque in 8 bits. Photoshop's interior effects count every
+// pixel below alpha 255 as part of the edge: a flat 254 square is all edge. The half
+// level keeps float dust on an opaque matte from turning it into one.
+constexpr float kInteriorSolidCoverage = 254.5F / 255.0F;
+
+// Every pixel offset out to `reach`, ordered by squared distance (rows, then columns,
+// within one distance), and where each squared distance starts in that order.
+struct RingOffsets {
+  std::vector<std::int16_t> dx;
+  std::vector<std::int16_t> dy;
+  std::vector<double> distance;
+  std::vector<std::uint32_t> first;  // by squared distance, one past the largest at the end
+};
+
+RingOffsets ring_offsets(int reach) {
+  RingOffsets rings;
+  const auto limit = reach * reach;
+  rings.first.assign(static_cast<std::size_t>(limit) + 2U, 0U);
+  for (int dy = -reach; dy <= reach; ++dy) {
+    for (int dx = -reach; dx <= reach; ++dx) {
+      const auto squared = dx * dx + dy * dy;
+      if (squared <= limit) {
+        ++rings.first[static_cast<std::size_t>(squared) + 1U];
+      }
+    }
+  }
+  for (std::size_t squared = 1; squared < rings.first.size(); ++squared) {
+    rings.first[squared] += rings.first[squared - 1U];
+  }
+  const auto count = static_cast<std::size_t>(rings.first.back());
+  rings.dx.resize(count);
+  rings.dy.resize(count);
+  rings.distance.resize(count);
+  auto cursor = rings.first;
+  for (int dy = -reach; dy <= reach; ++dy) {
+    for (int dx = -reach; dx <= reach; ++dx) {
+      const auto squared = dx * dx + dy * dy;
+      if (squared > limit) {
+        continue;
+      }
+      const auto slot = static_cast<std::size_t>(cursor[static_cast<std::size_t>(squared)]++);
+      rings.dx[slot] = static_cast<std::int16_t>(dx);
+      rings.dy[slot] = static_cast<std::int16_t>(dy);
+      rings.distance[slot] = std::sqrt(static_cast<double>(squared));
+    }
+  }
+  return rings;
+}
+
+// The anti-aliased distance from every pixel to the soft side of an edge, the one
+// Photoshop's interior effects measure (Photoshop 2027, November 2026: ramps, flat
+// translucent squares and staircases of known alpha, docs/layer-effects-render-shadows-glows.md
+// "Soft mattes under Choke and Precise"). `cost` is a pixel's coverage on the solid side, and
+// every pixel below `solid` is an edge pixel that sits `cost` away from the edge. A solid pixel
+// takes the smallest |p - q| + cost[q] over the edge pixels q:
+//   a hard edge (cost 0) gives the plain Euclidean distance, 1 for the first pixel inside;
+//   the opaque pixel beside a 50% pixel sits 1.5 away, and a 99.6% pixel still counts as edge.
+// emit(index, distance) runs once per pixel, from several threads on a large plane.
+// Distances of `limit` and more are not refined (the callers clamp them away), and a
+// plane without an edge pixel reports a huge distance everywhere.
+//
+// Exact, whatever the window: the nearest edge pixel (one exact distance transform)
+// bounds the answer to less than one pixel beyond it, and that ring of offsets is
+// searched in distance order until no farther pixel can win. A hard matte finds its
+// answer on the first ring.
+template <typename Emit>
+void for_each_soft_edge_distance(const std::vector<float>& cost, int width, int height, double limit, float solid,
+                                 Emit&& emit) {
+  if (width <= 0 || height <= 0 || cost.empty()) {
+    return;
+  }
+  std::vector<float> nearest(cost.size(), kEdtUnreached);
+  for (std::size_t index = 0; index < cost.size(); ++index) {
+    if (cost[index] < solid) {
+      nearest[index] = 0.0F;
+    }
+  }
+  exact_squared_distance_transform(nearest, width, height);
+  // A solid pixel whose nearest edge pixel is D away (D < limit) is answered within D + 1.
+  const auto rings = ring_offsets(static_cast<int>(std::ceil(limit)) + 1);
+  const auto ring_count = static_cast<std::uint32_t>(rings.distance.size());
+  const auto limit_squared = static_cast<float>(limit * limit);
+  const auto plane_pixels = static_cast<std::int64_t>(width) * static_cast<std::int64_t>(height);
+  for_each_line_chunk(height, plane_pixels, [&](int begin, int end) {
+    for (int y = begin; y < end; ++y) {
+      const auto row = static_cast<std::size_t>(y) * static_cast<std::size_t>(width);
+      for (int x = 0; x < width; ++x) {
+        const auto index = row + static_cast<std::size_t>(x);
+        const auto own = cost[index];
+        if (own < solid) {
+          emit(index, static_cast<double>(own));
+          continue;
+        }
+        const auto squared = nearest[index];
+        if (!(squared < limit_squared)) {
+          emit(index, std::sqrt(static_cast<double>(squared)));
+          continue;
+        }
+        const auto ring = static_cast<std::size_t>(squared);
+        auto best = std::sqrt(static_cast<double>(ring)) + 1.0;
+        for (auto slot = rings.first[ring]; slot < ring_count && rings.distance[slot] < best; ++slot) {
+          const auto qx = x + rings.dx[slot];
+          const auto qy = y + rings.dy[slot];
+          if (qx < 0 || qy < 0 || qx >= width || qy >= height) {
+            continue;
+          }
+          const auto value =
+              cost[static_cast<std::size_t>(qy) * static_cast<std::size_t>(width) + static_cast<std::size_t>(qx)];
+          if (value < solid) {
+            best = std::min(best, rings.distance[slot] + static_cast<double>(value));
+          }
+        }
+        emit(index, best);
+      }
+    }
+  });
+}
+
 }  // namespace
 
 namespace {
@@ -719,15 +838,35 @@ void prepare_outer_glow_softer_mask(std::vector<float>& mask, int width, int hei
 // Euclidean band; sizes 1-2 still blur with the N=2 tent. Turns the shape's
 // alpha matte into the interior falloff field, 1 at the contour fading to 0
 // inside. Inner shadows use this raw field; inner glows add Range below.
+//
+// The choke measures the soft matte's anti-aliased edge distance (November 2026,
+// for_each_soft_edge_distance above): the expanded inverse matte is
+// clamp(radius + 1 - distance). Every pixel below full opacity is edge, so a
+// feathered band is outside the shape as a whole and a layer that never reaches
+// full opacity is covered completely. On a hard matte this is the exact disc
+// dilation the July probes matched, at any radius. Without a choke radius the
+// inverse matte is blurred as it is.
 void prepare_photoshop_interior_soft_mask(std::vector<float>& mask, int width, int height, float size,
                                           float choke) {
   const auto rounded_size = std::lround(std::max(0.0F, size));
   const auto choke_radius =
       static_cast<int>(std::lround(std::max(0.0F, size) * clamp_unit(choke / 100.0F)));
-  for (auto& value : mask) {
-    value = 1.0F - clamp_unit(value);
+  if (choke_radius > 0 && width > 0 && height > 0 && !mask.empty()) {
+    for (auto& value : mask) {
+      value = clamp_unit(value);
+    }
+    std::vector<float> expanded(mask.size(), 0.0F);
+    const auto full = static_cast<double>(choke_radius) + 1.0;
+    for_each_soft_edge_distance(mask, width, height, full, kInteriorSolidCoverage,
+                                [&expanded, full](std::size_t index, double distance) {
+                                  expanded[index] = static_cast<float>(std::clamp(full - distance, 0.0, 1.0));
+                                });
+    mask.swap(expanded);
+  } else {
+    for (auto& value : mask) {
+      value = 1.0F - clamp_unit(value);
+    }
   }
-  dilate_layer_style_mask_by_radius(mask, width, height, choke_radius);
   if (rounded_size > 0) {
     const auto tent_peak = std::max<long>(2, rounded_size) - choke_radius;
     if (tent_peak >= 2) {
@@ -762,6 +901,18 @@ void prepare_inner_glow_softer_mask(std::vector<float>& mask, int width, int hei
 // Precise is a linear ramp on the distance to the edge. A size-18, choke-30
 // Center glow at Range 50 rises from 0 at distance 5 to 1 at distance 19.
 // At Range 100 the Edge field is half as strong, before the Center complement.
+//
+// The distance is the soft matte's anti-aliased edge distance (November 2026,
+// for_each_soft_edge_distance above): a pixel below full opacity sits its own
+// coverage away from the edge, so a feathered band glows at nearly full strength
+// and the ramp starts where the layer becomes opaque.
+//
+// With a Choke the ramp belongs to the choked shape (the pixels more than the choke
+// radius inside): from there outward the distance is counted back from that shape,
+// radius + 1 - (distance to it). Straight edges give the same numbers either way. A
+// convex corner within the radius glows brighter, and a layer the choke swallows
+// whole glows at full strength. Range 50 and below saturate that whole zone, so
+// only a wider Range takes the second distance.
 void prepare_inner_glow_precise_mask(std::vector<float>& mask, int width, int height, float size,
                                      float choke, float range, bool center_source) {
   if (size <= 0.0F) {
@@ -777,14 +928,37 @@ void prepare_inner_glow_precise_mask(std::vector<float>& mask, int width, int he
   const auto radius = std::round(size);
   const auto reach = radius + 1.0F;
   const auto choke_radius = std::round(radius * clamp_unit(choke / 100.0F));
-  const auto scale = 50.0F / (std::clamp(range, 1.0F, 100.0F) * (reach - choke_radius));
+  // A Choke that takes the whole Size leaves no ramp: Photoshop draws the band at full
+  // strength at Range 100 too (Size 10, Choke 100: 255 through distance 10, then nothing).
+  const auto clamped_range = choke_radius >= radius ? 50.0F : std::clamp(range, 1.0F, 100.0F);
+  const auto scale = 50.0F / (clamped_range * (reach - choke_radius));
   for (auto& value : mask) {
-    value = value < 0.5F ? 0.0F : kEdtUnreached;
+    value = clamp_unit(value);
   }
-  exact_squared_distance_transform(mask, width, height);
-  for (auto& value : mask) {
-    const auto edge = clamp_unit((reach - std::sqrt(value)) * scale);
-    value = center_source ? 1.0F - edge : edge;
+  std::vector<float> distance(mask.size(), 0.0F);
+  for_each_soft_edge_distance(mask, width, height, static_cast<double>(reach), kInteriorSolidCoverage,
+                              [&distance](std::size_t index, double value) {
+                                distance[index] = static_cast<float>(value);
+                              });
+  if (choke_radius > 0.0F && clamped_range > 50.0F) {
+    // The choked shape's coverage is clamp(distance - radius); its complement is the cost
+    // of the mirrored transform, which measures every pixel outside it back to it.
+    for (std::size_t index = 0; index < mask.size(); ++index) {
+      mask[index] = 1.0F - clamp_unit(distance[index] - choke_radius);
+    }
+    // Past this distance from the choked shape the ramp is at full strength.
+    const auto saturation = static_cast<double>(reach - choke_radius) * (clamped_range / 50.0 - 1.0) + 1.0;
+    const auto full = static_cast<double>(choke_radius) + 1.0;
+    for_each_soft_edge_distance(mask, width, height, saturation, 1.0F,
+                                [&mask, &distance, full](std::size_t index, double value) {
+                                  if (mask[index] >= 1.0F) {
+                                    distance[index] = static_cast<float>(full - value);
+                                  }
+                                });
+  }
+  for (std::size_t index = 0; index < mask.size(); ++index) {
+    const auto edge = clamp_unit((reach - distance[index]) * scale);
+    mask[index] = center_source ? 1.0F - edge : edge;
   }
 }
 
