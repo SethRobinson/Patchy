@@ -557,6 +557,39 @@ void ora_reader_opens_layers_named_with_a_leading_slash() {
   }
 }
 
+// x and y belong to layers only: the spec has readers discard them on a <stack>. The files
+// that carry them (LayeredImage's conversions, with the group's old offset left on the stack
+// and absolute positions on its layers) are drawn without them by their own stored
+// composite and by every other reader (docs/ora.md, "stack.xml model").
+void ora_reader_ignores_stack_offsets() {
+  const auto bytes = archive(
+      R"(<image w="12" h="10"><stack x="50" y="60">)"
+      R"(<stack name="Outer" x="100" y="-7" isolation="isolate">)"
+      R"(<layer src="data/a.png" name="Placed" x="3" y="2"/>)"
+      R"(<stack name="Inner" x="-40" y="9" isolation="auto"><layer src="data/b.png" name="Deep" x="6" y="5"/></stack>)"
+      R"(</stack>)"
+      R"(<layer src="data/c.png" name="Bottom"/>)"
+      R"(</stack></image>)",
+      {png_entry("data/a.png", 4, 4, 1), png_entry("data/b.png", 3, 3, 2), png_entry("data/c.png", 12, 10, 3)});
+  std::vector<std::string> notices;
+  const auto read = ora::DocumentIo::read(bytes, &notices);
+  CHECK(notices.empty());
+  const auto* placed = find_named(read.layers(), "Placed");
+  CHECK(placed != nullptr && placed->bounds() == (Rect{3, 2, 4, 4}));
+  const auto* deep = find_named(read.layers(), "Deep");
+  CHECK(deep != nullptr && deep->bounds() == (Rect{6, 5, 3, 3}));
+  const auto* bottom = find_named(read.layers(), "Bottom");
+  CHECK(bottom != nullptr && bottom->bounds() == (Rect{0, 0, 12, 10}));
+
+  Document expected(12, 10, PixelFormat::rgba8());
+  expected.add_layer(pixel_layer(expected, "Bottom", Rect{0, 0, 12, 10}, 3));
+  expected.add_layer(pixel_layer(expected, "Deep", Rect{6, 5, 3, 3}, 2));
+  expected.add_layer(pixel_layer(expected, "Placed", Rect{3, 2, 4, 4}, 1));
+  const auto want = patchy::flatten_document_rgba8(expected);
+  const auto got = patchy::flatten_document_rgba8(read);
+  CHECK(std::equal(want.data().begin(), want.data().end(), got.data().begin()));
+}
+
 void ora_reader_maps_groups_isolation_and_operators() {
   const auto bytes = archive(
       R"(<image w="10" h="10" xres="300" yres="200"><stack>)"
@@ -581,9 +614,10 @@ void ora_reader_maps_groups_isolation_and_operators() {
   const auto* isolated = find_named(read.layers(), "Isolated");
   CHECK(isolated != nullptr && isolated->blend_mode() == BlendMode::Screen && !isolated->visible());
   const auto* base = find_named(read.layers(), "Base");
-  CHECK(base != nullptr && base->blend_mode() == BlendMode::LinearBurn && base->bounds() == (Rect{4, 6, 4, 4}));
+  // The stack's own x and y move nothing (ora_reader_ignores_stack_offsets).
+  CHECK(base != nullptr && base->blend_mode() == BlendMode::LinearBurn && base->bounds() == (Rect{1, 2, 4, 4}));
   const auto* clip = find_named(read.layers(), "Clip");
-  CHECK(clip != nullptr && clip->clipped() && clip->bounds() == (Rect{3, 4, 4, 4}));
+  CHECK(clip != nullptr && clip->clipped() && clip->bounds() == (Rect{0, 0, 4, 4}));
   CHECK(read.active_layer_id() == std::make_optional(clip->id()));
   const auto* atop = find_named(read.layers(), "Atop over two");
   CHECK(atop != nullptr && !atop->clipped());
@@ -1059,6 +1093,7 @@ std::vector<patchy::test::TestCase> ora_tests() {
       {"ora_reader_refuses_hostile_and_broken_files", ora_reader_refuses_hostile_and_broken_files},
       {"ora_reader_opens_damaged_layers_empty_with_notices", ora_reader_opens_damaged_layers_empty_with_notices},
       {"ora_reader_opens_layers_named_with_a_leading_slash", ora_reader_opens_layers_named_with_a_leading_slash},
+      {"ora_reader_ignores_stack_offsets", ora_reader_ignores_stack_offsets},
       {"ora_reader_maps_groups_isolation_and_operators", ora_reader_maps_groups_isolation_and_operators},
       {"ora_round_trip_keeps_edit_locks", ora_round_trip_keeps_edit_locks},
       {"ora_reader_opens_alpha_preserve_as_clipping", ora_reader_opens_alpha_preserve_as_clipping},

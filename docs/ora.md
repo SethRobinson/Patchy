@@ -58,8 +58,11 @@ nothing is resolved against a folder (`find_layer_entry`).
   attributes we use. The first child of a stack is the uppermost, so every sibling list reverses
   against Patchy's bottom-first `layers()`.
 - `<layer src name x y opacity visibility composite-op selected>`; `<stack>` takes the same minus
-  `src`/`x`/`y`, plus `isolation`. Missing names become "Layer N" / "Group N". Stack `x`/`y` were
-  dropped in 0.0.6; older files that set them still offset the stack's layers on read.
+  `src`/`x`/`y`, plus `isolation`. Missing names become "Layer N" / "Group N".
+- `x`/`y` on a `<stack>` are ignored, as the spec tells readers to (it dropped them in 0.0.6): a
+  layer sits at its own `x` and `y`. LayeredImage's conversions leave a group's old offset on the
+  stack beside absolute layer positions; its stored composite, GIMP 3.2, Krita 5.3, PhotoDemon and
+  PhotoCraft all draw those files without it, and no file in the corpus needs it applied.
 - `selected="true"` (GIMP writes it) becomes the active layer; the open path keeps it unless it is a
   group. Patchy writes it on the active layer.
 - `<text>` and other elements are skipped with a notice.
@@ -237,7 +240,7 @@ Known differences that are the other app's:
 Core (`tests/core/ora_tests.cpp`, filter `ora_`): round trips at 8 and 16 bits with exact pixels and
 attributes, byte-identical rewrites, the canary, the spec layout and thumbnail size, the Unicode
 path, hostile and damaged input (truncation and mutation sweeps, a size-claim bomb, a huge PNG
-header, unsafe paths), entries named with a leading slash, group and operator mapping, the merged-image fallback for an empty stack,
+header, unsafe paths), entries named with a leading slash, stack offsets ignored, group and operator mapping, the merged-image fallback for an empty stack,
 Zip64 read-back, what a save bakes, and the app fixtures. UI (`tests/ui/ora_ui_tests.cpp`, filter
 `ui_ora_`): opening keeps the layers and selected layer without a flat-file alpha mask; the save
 warning names what bakes, Save stays on the .ora, and a plain document saves without a question.

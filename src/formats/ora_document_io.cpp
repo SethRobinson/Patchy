@@ -672,19 +672,19 @@ void read_common(const svg::XmlNode& element, Node& node, ReadState& state) {
   return found->second;
 }
 
-void read_stack(const svg::XmlNode& stack, std::vector<Node>& out, ReadState& state, std::int64_t offset_x,
-                std::int64_t offset_y, int depth);
+void read_stack(const svg::XmlNode& stack, std::vector<Node>& out, ReadState& state, int depth);
 
-void read_layer_element(const svg::XmlNode& element, std::vector<Node>& out, ReadState& state, std::int64_t offset_x,
-                        std::int64_t offset_y) {
+void read_layer_element(const svg::XmlNode& element, std::vector<Node>& out, ReadState& state) {
   Node node;
   ++state.layer_count;
   node.name = attribute_or(element, "name", "");
   if (node.name.empty()) {
     node.name = "Layer " + std::to_string(state.layer_count);
   }
-  node.x = offset_x + parse_integer(attribute_or(element, "x", "0")).value_or(0);
-  node.y = offset_y + parse_integer(attribute_or(element, "y", "0")).value_or(0);
+  // A layer's place is its own x and y alone: the spec has readers discard x and y on a
+  // <stack>, and the files that carry them (docs/ora.md) are drawn without them.
+  node.x = parse_integer(attribute_or(element, "x", "0")).value_or(0);
+  node.y = parse_integer(attribute_or(element, "y", "0")).value_or(0);
   if (std::abs(node.x) > kMaxSide || std::abs(node.y) > kMaxSide) {
     throw read_error(PATCHY_TRANSLATE_NOOP("QObject", "The OpenRaster layer list (stack.xml) is damaged or not valid XML"));
   }
@@ -714,8 +714,7 @@ void read_layer_element(const svg::XmlNode& element, std::vector<Node>& out, Rea
   out.push_back(std::move(node));
 }
 
-void read_stack(const svg::XmlNode& stack, std::vector<Node>& out, ReadState& state, std::int64_t offset_x,
-                std::int64_t offset_y, int depth) {
+void read_stack(const svg::XmlNode& stack, std::vector<Node>& out, ReadState& state, int depth) {
   if (depth > 64) {
     throw read_error(PATCHY_TRANSLATE_NOOP("QObject", "The OpenRaster layer list (stack.xml) is damaged or not valid XML"));
   }
@@ -724,7 +723,7 @@ void read_stack(const svg::XmlNode& stack, std::vector<Node>& out, ReadState& st
       continue;
     }
     if (child.name == "layer") {
-      read_layer_element(child, out, state, offset_x, offset_y);
+      read_layer_element(child, out, state);
     } else if (child.name == "stack") {
       Node group;
       group.group = true;
@@ -743,11 +742,7 @@ void read_stack(const svg::XmlNode& stack, std::vector<Node>& out, ReadState& st
         // straight onto the backdrop, Photoshop's Pass Through.
         group.blend = BlendMode::PassThrough;
       }
-      // Stack x/y were dropped in OpenRaster 0.0.6; older files that set them still
-      // offset the stack's layers.
-      const auto stack_x = parse_integer(attribute_or(child, "x", "0")).value_or(0);
-      const auto stack_y = parse_integer(attribute_or(child, "y", "0")).value_or(0);
-      read_stack(child, group.children, state, offset_x + stack_x, offset_y + stack_y, depth + 1);
+      read_stack(child, group.children, state, depth + 1);
       out.push_back(std::move(group));
     } else {
       ++state.skipped_elements;  // <text> and filter elements are not baseline OpenRaster
@@ -1396,7 +1391,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
 
   ReadState state(zip);
   std::vector<Node> nodes;
-  read_stack(*root_stack, nodes, state, 0, 0, 0);
+  read_stack(*root_stack, nodes, state, 0);
   decode_layer_images(nodes, state);
 
   const auto depth = state.any_sixteen && deep_editing_enabled() ? BitDepth::UInt16 : BitDepth::UInt8;
