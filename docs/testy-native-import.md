@@ -29,6 +29,8 @@ scripts\run-throttled.bat python testy\testy.py native-import testy\corpus\nativ
 
 The CLI measures the existing `build/opt-dev/patchy.exe`. To investigate one file, append `--case aseprite/tilemap` or repeat `--case` for several IDs. `--patchy` selects a different executable, `--timeout` sets the per-file limit in seconds and `--output` selects a new run directory. The default is a unique `testy/runs/native-...` directory. Each case opens a temporary copy with any declared sidecars in a dedicated Patchy process using isolated settings. The report records the binary and manifest SHA-256 hashes, the measured source hashes and Patchy's reported version.
 
+A run stops with "Patchy executable changed during the run" when the measured file is rebuilt under it. A shared build folder is rebuilt by any session that works in that checkout, so a run of hours measures a private copy instead: copy `patchy.exe`, the DLLs beside it and the runtime folders (`8bf-host32`, `ai`, `ai-models`, `fonts`, `gegl`, `iconengines`, `imageformats`, `platforms`, `plugins`, `scripts`, `tls`, `translations`) into a folder under `build/` and name it with `--patchy` or `editors.patchy_native` in `config.local.json`. The other editors' cells come back from the cache when a stopped run is started again.
+
 Open `report.html` to inspect individual files, import notes, failed checks and renders. `results.json` contains the same measurements for scripts. A completed benchmark can contain compatibility failures. The exit code reports whether the runner finished. Each check shows passes out of eligible comparisons and how many files were unscored. A missing input, an absent reference and a measured mismatch have different outcomes.
 
 ## Compare editors
@@ -76,6 +78,14 @@ Each kind of failure has one place:
 - **Layers lost or the PSD's picture differs:** the component drops by the share lost.
 - **Not measured** (the editor did not start, a skipped column, a Photoshop that could not be asked): out of that editor's averages. The tables show how many files each average covers.
 - **A check no editor could be scored on** (no usable reference, no layer tree, an animation's PSD picture): not eligible for that file, so it marks nobody down, including an editor that did not open the file.
+- **A stored composite nobody reproduces** (`unreliable_reference`): `render` and `psdRender` are not eligible for that file. See below.
+
+An OpenRaster file's `mergedimage.png` is whatever its writer stored: a picture of an earlier state, one flattened onto a background, the composite of another fixture. So for an OpenRaster case scored against `@mergedimage`, the composite is a reference only while some editor that composes the layers passes against it. When at least three such editors rendered the file (`MIN_LAYER_READERS`) and none passes, the two picture components leave every editor's scores for that file and a picture that differs is no longer its outcome. The measured checks stay in the per-file tables, the case says "Reference not used", and each format's section counts the files (`scores.referencesNotUsed`). Rules that bound it:
+
+- One layer-reading editor that passes keeps the composite, even when it passes by accident. Fewer than three layer readers (the rest refused the file) also keep it.
+- Photopea does not vote on OpenRaster (`COMPOSITE_VIEWERS`): it opens the file as the stored picture in one flat layer, so its match says nothing about the layers. Check that again if Photopea starts keeping OpenRaster layers.
+- A KRA's composite is Krita's own and is always trusted, as is a reference PNG supplied beside a file (the generated `ora-corpus/gimp` and `ora-corpus/krita` cases).
+- A row records `storedComposite` when it was scored against `@mergedimage`. For a run from before that, pass the manifest it measured: `native-rescore testy\runs\<run> --manifest testy\corpus\<manifest>.json` (refused when the manifest's hash is not the run's).
 
 The report also puts every file in one outcome column per editor, its first problem in pipeline order: not measured, crashed or hung, did not open, opened without a picture, picture differs, no PSD saved, Photoshop rejects the PSD, PSD opens with a warning, PSD picture differs, layers lost, no problem found. A picture counts as differing by the pass rule of the checks above (10%), while the score uses the measured share.
 

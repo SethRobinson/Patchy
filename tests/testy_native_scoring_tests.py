@@ -107,6 +107,53 @@ class Cases(unittest.TestCase):
         self.assertEqual(plain["gimp"], {"outcome": "refused", "render": 0.0, "import": 0.0})
 
 
+class StoredComposites(unittest.TestCase):
+    """A composite stored in an OpenRaster file is a reference only while an editor
+    that composes the layers reproduces it."""
+
+    def case(self, cells, fmt="ora", stored=True):
+        case = {"id": "a", "format": fmt, "cells": cells}
+        return {**case, "storedComposite": True} if stored else case
+
+    def wrong(self, **more):
+        return opened(still(1.0), savedPsd=True, psd=psd(bad=1.0), **more)
+
+    def test_a_composite_no_layer_reader_matches_leaves_the_pictures_out(self):
+        case = self.case({"patchy": self.wrong(), "gimp": self.wrong(), "krita": opened(still(0.4), savedPsd=False),
+                          "photodemon": REFUSED, "photopea": opened(savedPsd=True, psd=psd(kept=1))})
+        self.assertIn("none of the 3 editors", scoring.unreliable_reference(case))
+        scores = scoring.score_case(case, True)
+        # Nobody is held to the picture, the editor that shows the stored one included.
+        self.assertEqual(scores["patchy"], {"outcome": "clean", "psdValid": 1.0, "layers": 1.0, "conversion": 1.0})
+        self.assertEqual(scores["photopea"], {"outcome": "layersLost", "psdValid": 1.0, "layers": 0.5,
+                                              "conversion": 0.75})
+        self.assertEqual(scores["krita"], {"outcome": "noPsd", "psdValid": 0.0, "layers": 0.0, "conversion": 0.0})
+        self.assertEqual(scores["photodemon"], {"outcome": "refused", "psdValid": 0.0, "layers": 0.0,
+                                                "conversion": 0.0})
+        self.assertNotIn("import", scoring.score_case(case, False)["gimp"])
+
+    def test_one_layer_reader_that_matches_keeps_the_composite(self):
+        case = self.case({"patchy": self.wrong(), "gimp": opened(), "krita": self.wrong(),
+                          "photocraft": self.wrong(), "photopea": opened()})
+        self.assertIsNone(scoring.unreliable_reference(case))
+        scores = scoring.score_case(case, True)
+        self.assertEqual((scores["patchy"]["import"], scores["patchy"]["outcome"]), (0.0, "renderMismatch"))
+        self.assertEqual(scores["gimp"]["import"], 1.0)
+
+    def test_the_rule_needs_three_layer_readers_and_an_untrusted_stored_composite(self):
+        three = {"patchy": self.wrong(), "gimp": self.wrong(), "krita": self.wrong()}
+        self.assertIsNotNone(scoring.unreliable_reference(self.case(three)))
+        # Two readers, or a third that did not open the file, are not enough to overrule it.
+        self.assertIsNone(scoring.unreliable_reference(self.case({"patchy": self.wrong(), "gimp": self.wrong(),
+                                                                  "krita": REFUSED, "photopea": opened()})))
+        # A reference supplied beside the file, and Krita's own composite in a KRA, are trusted.
+        self.assertIsNone(scoring.unreliable_reference(self.case(three, stored=False)))
+        self.assertIsNone(scoring.unreliable_reference(self.case(three, fmt="kra")))
+        # A render nobody scored is no vote.
+        blank = opened({"status": "unscored", "reason": "Embedded reference dimensions differ"})
+        self.assertIsNone(scoring.unreliable_reference(self.case({**three, "krita": blank})))
+
+
 class Runs(unittest.TestCase):
     def run_data(self):
         def case(name, fmt, cells):
@@ -137,6 +184,28 @@ class Runs(unittest.TestCase):
         self.assertEqual(run["cases"][2]["scores"]["gimp"]["conversion"], 0.0)
         self.assertIsNone(scoring.apply({"cases": []}))
 
+    def ora_run(self):
+        run = self.run_data()
+        wrong = opened(still(1.0), savedPsd=True, psd=psd(bad=1.0))
+        run["editors"]["krita"] = {"name": "Krita", "version": "5"}
+        run["cases"].append({**run["cases"][0], "id": "d.ora", "source": "d.ora", "format": "ora",
+                             "cells": {"patchy": wrong, "gimp": wrong, "krita": wrong}})
+        return run
+
+    def test_a_dropped_composite_is_counted_and_explained(self):
+        run = self.ora_run()
+        self.assertEqual(scoring.apply(run)["referencesNotUsed"], {})  # nothing says what it was scored against
+        run["cases"][3]["storedComposite"] = True
+        scores = scoring.apply(run)
+        self.assertEqual(scores["referencesNotUsed"], {"ora": 1})
+        self.assertIn("none of the 3 editors", run["cases"][3]["referenceNotUsed"])
+        patchy = scores["formats"]["ora"]["patchy"]
+        self.assertEqual((patchy["import"], patchy["importFiles"], patchy["conversion"]), (None, 0, 1.0))
+        self.assertEqual(patchy["outcomes"], {"clean": 1})
+        run["cases"][3]["cells"]["gimp"] = opened()  # scored again after a reader matches: the mark goes
+        self.assertEqual(scoring.apply(run)["referencesNotUsed"], {})
+        self.assertNotIn("referenceNotUsed", run["cases"][3])
+
     def test_rescore_rewrites_a_finished_run_from_its_measurements(self):
         scratch = ROOT / "build" / "test-output"
         scratch.mkdir(parents=True, exist_ok=True)
@@ -152,6 +221,29 @@ class Runs(unittest.TestCase):
             (folder / "results.json").write_text(json.dumps({"name": "Plain", "cases": []}), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "Patchy alone"):
                 native.rescore(folder)
+
+    def test_rescore_learns_from_the_manifest_which_files_used_their_stored_composite(self):
+        scratch = ROOT / "build" / "test-output"
+        scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="patchy-native-scoring-", dir=scratch) as temp:
+            folder = Path(temp)
+            manifest = folder / "manifest.json"
+            manifest.write_text(json.dumps({"cases": [{"source": "a.xcf", "reference": "a.png"},
+                                                      {"source": "d.ora", "reference": "@mergedimage"}]}),
+                                encoding="utf-8")
+            run = {**self.ora_run(), "manifestSHA256": native.file_digest(manifest)}
+            (folder / "results.json").write_text(json.dumps(run), encoding="utf-8")
+            self.assertEqual(native.rescore(folder)["scores"]["referencesNotUsed"], {})
+            result = native.rescore(folder, manifest)
+            self.assertEqual(result["scores"]["referencesNotUsed"], {"ora": 1})
+            self.assertEqual([bool(case.get("storedComposite")) for case in result["cases"]],
+                             [False, False, False, True])
+            html = (folder / "report.html").read_text(encoding="utf-8")
+            for text in ("1 file left out of the picture scores", "Reference not used", "none of the 3 editors"):
+                self.assertIn(text, html)
+            manifest.write_text(json.dumps({"cases": [{"source": "d.ora"}]}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "not the one this run measured"):
+                native.rescore(folder, manifest)
 
 
 if __name__ == "__main__":

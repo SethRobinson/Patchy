@@ -202,6 +202,8 @@ def measure(case: dict, cell: Path, manifest_dir: Path, exe: Path, settings: Pat
                 if reference:
                     row["reference"] = reference
                 extra = cross.patchy_outputs(case, cell, row["format"])
+            if case.get("reference") == "@mergedimage":
+                row["storedComposite"] = True  # scoring checks one before believing it
             observed = (_probe(case, staged, cell, exe, settings, timeout, extra) if extra
                         else _probe(case, staged, cell, exe, settings, timeout))
             row.update({k: observed[k] for k in ("opened", "exported", "notes", "error") if k in observed})
@@ -316,10 +318,20 @@ def run(manifest_path: Path, exe: Path, out: Path, timeout: int = 180, case_ids:
     return result
 
 
-def rescore(folder: Path) -> dict:
+def rescore(folder: Path, manifest_path: Path | None = None) -> dict:
     """Score a finished run again from its stored measurements and rewrite its report."""
     folder = folder.resolve()
     result = json.loads((folder / "results.json").read_text(encoding="utf-8"))
+    if manifest_path is not None:
+        # A run from before rows recorded which reference they were held to: the
+        # manifest it ran says which files were scored against their stored composite.
+        if file_digest(manifest_path) != result.get("manifestSHA256"):
+            raise ValueError("That manifest is not the one this run measured.")
+        stored = {case.get("id", case["source"]) for case in load_manifest(manifest_path)["cases"]
+                  if case.get("reference") == "@mergedimage"}
+        for row in result["cases"]:
+            if row["id"] in stored:  # only KRA and OpenRaster cases can name it, and no app renders those
+                row["storedComposite"] = True
     if native_scoring.apply(result) is None:
         raise ValueError("This run measured Patchy alone: it has no editor scores.")
     write_json_atomic(folder / "results.json", result)
@@ -330,9 +342,12 @@ def rescore(folder: Path) -> dict:
 def rescore_main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=rescore.__doc__)
     parser.add_argument("run", type=Path, help="a native run directory with results.json")
+    parser.add_argument("--manifest", type=Path,
+                        help="the manifest the run measured, for a run from before each file recorded "
+                             "that it was scored against its stored composite")
     args = parser.parse_args(argv)
     try:
-        scores = rescore(args.run)["scores"]
+        scores = rescore(args.run, args.manifest)["scores"]
     except (OSError, ValueError, KeyError) as error:
         parser.exit(2, f"Native rescore failed: {error}\n")
     for key, row in scores["all"].items():
