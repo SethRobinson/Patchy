@@ -17,17 +17,95 @@
 
 namespace patchy::ui {
 
-QCollator natural_name_collator() {
-  QCollator collator;
-  collator.setNumericMode(true);
-  collator.setCaseSensitivity(Qt::CaseInsensitive);
-  return collator;
+namespace {
+
+int compare_folded_chars(QChar lhs, QChar rhs) {
+  const auto lhs_folded = lhs.toCaseFolded();
+  const auto rhs_folded = rhs.toCaseFolded();
+  if (lhs_folded.unicode() < rhs_folded.unicode()) {
+    return -1;
+  }
+  if (lhs_folded.unicode() > rhs_folded.unicode()) {
+    return 1;
+  }
+  return 0;
+}
+
+int compare_digit_runs(QStringView lhs, qsizetype lhs_begin, qsizetype lhs_end,
+                       QStringView rhs, qsizetype rhs_begin, qsizetype rhs_end) {
+  while (lhs_begin < lhs_end && lhs[lhs_begin] == QLatin1Char('0')) {
+    ++lhs_begin;
+  }
+  while (rhs_begin < rhs_end && rhs[rhs_begin] == QLatin1Char('0')) {
+    ++rhs_begin;
+  }
+
+  const auto lhs_significant_length = lhs_end - lhs_begin;
+  const auto rhs_significant_length = rhs_end - rhs_begin;
+  if (lhs_significant_length < rhs_significant_length) {
+    return -1;
+  }
+  if (lhs_significant_length > rhs_significant_length) {
+    return 1;
+  }
+
+  for (qsizetype offset = 0; offset < lhs_significant_length; ++offset) {
+    if (lhs[lhs_begin + offset] < rhs[rhs_begin + offset]) {
+      return -1;
+    }
+    if (lhs[lhs_begin + offset] > rhs[rhs_begin + offset]) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+}  // namespace
+
+int natural_name_compare(QStringView lhs, QStringView rhs) {
+  qsizetype lhs_index = 0;
+  qsizetype rhs_index = 0;
+  while (lhs_index < lhs.size() && rhs_index < rhs.size()) {
+    const auto lhs_is_digit = lhs[lhs_index].isDigit();
+    const auto rhs_is_digit = rhs[rhs_index].isDigit();
+    if (lhs_is_digit && rhs_is_digit) {
+      auto lhs_end = lhs_index;
+      while (lhs_end < lhs.size() && lhs[lhs_end].isDigit()) {
+        ++lhs_end;
+      }
+      auto rhs_end = rhs_index;
+      while (rhs_end < rhs.size() && rhs[rhs_end].isDigit()) {
+        ++rhs_end;
+      }
+      const auto compared = compare_digit_runs(lhs, lhs_index, lhs_end, rhs, rhs_index, rhs_end);
+      if (compared != 0) {
+        return compared;
+      }
+      lhs_index = lhs_end;
+      rhs_index = rhs_end;
+      continue;
+    }
+
+    const auto compared = compare_folded_chars(lhs[lhs_index], rhs[rhs_index]);
+    if (compared != 0) {
+      return compared;
+    }
+    ++lhs_index;
+    ++rhs_index;
+  }
+
+  if (lhs_index < lhs.size()) {
+    return 1;
+  }
+  if (rhs_index < rhs.size()) {
+    return -1;
+  }
+  return 0;
 }
 
 QStringList natural_sorted_titles(QStringList titles) {
-  const auto collator = natural_name_collator();
   std::stable_sort(titles.begin(), titles.end(),
-                   [&collator](const QString& a, const QString& b) { return collator.compare(a, b) < 0; });
+                   [](const QString& a, const QString& b) { return natural_name_compare(a, b) < 0; });
   return titles;
 }
 
@@ -111,11 +189,10 @@ void move_selected_list_items(QListWidget& list, int delta) {
 }
 
 void sort_list_items_naturally(QListWidget& list) {
-  const auto collator = natural_name_collator();
   std::vector<int> order(static_cast<std::size_t>(list.count()));
   std::iota(order.begin(), order.end(), 0);
-  std::stable_sort(order.begin(), order.end(), [&list, &collator](int a, int b) {
-    return collator.compare(list.item(a)->text(), list.item(b)->text()) < 0;
+  std::stable_sort(order.begin(), order.end(), [&list](int a, int b) {
+    return natural_name_compare(list.item(a)->text(), list.item(b)->text()) < 0;
   });
   reorder_list_items(list, order);
 }
