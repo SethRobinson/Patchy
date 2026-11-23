@@ -3,6 +3,14 @@
 Older Patchy release notes are collected here. The most recent release
 remains in [README.md](README.md#whats-new).
 
+## 1.41 - November 22, 2026
+
+- **Layer styles.** Drop Shadow, Inner Shadow, Outer Glow and Inner Glow have a Noise setting. An Outer Glow can be filled with an editable gradient. Pattern Overlay and Bevel Texture have Horizontal and Vertical Offset. Every gradient offers the Smooth and Stripes methods beside Classic, Perceptual and Linear. Photoshop files keep all of these. Dragging along a layer's effect eyes hides or shows several effects in one undo step. ([Issue 742](https://github.com/SethRobinson/Patchy/issues/742))
+- **Fill and libraries.** Edit > Fill can fill with a pattern from the pattern library, with Mode, Opacity and Preserve Transparency. Style (.asl) and pattern (.pat) libraries up to 512 MB import with progress and Cancel. ([Issue 743](https://github.com/SethRobinson/Patchy/issues/743), [issue 741](https://github.com/SethRobinson/Patchy/issues/741))
+- **Layers with effects.** Brush strokes on a layer with effects, inside a styled group or on a mask redraw only around the painted area. Arrow-key nudges and shape point drags respond faster. Hiding or showing one effect no longer recomputes the others.
+- **Large documents.** Rotating or flipping the canvas shows the Processing overlay instead of freezing the window, and quarter turns are much faster. A short Move drag keeps its prepared preview for the next drag. Free Transform prepares its first grab and the frame after each release in the background, and a heavy drag of a layer with effects shows those effects while it moves.
+- **Fixes.** Wide glows and shadows on layers larger than the canvas, and stacked Strokes, render the same across a large canvas. Help > About leaves more room between its folders. ([Issue 740](https://github.com/SethRobinson/Patchy/issues/740))
+
 ## 1.40 - November 21, 2026
 
 - **Canvas and selections.** View > Show > Content Outside Canvas previews off-canvas artwork. The Select menu saves soft selections as alpha channels and can replace, add to, subtract from or intersect a selection when loading one. Help > About has a more compact layout. ([Issue 739](https://github.com/SethRobinson/Patchy/issues/739), [issue 740](https://github.com/SethRobinson/Patchy/issues/740))

@@ -147,6 +147,15 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.42" date="2026-11-23">
+      <description>
+        <ul>
+          <li>Fill an Inner Glow with a gradient, with soft-edged Inner Glow and Inner Shadow closer to Photoshop.</li>
+          <li>Make a pattern from the open image with Edit &gt; Define New Preset &gt; Define Pattern, and save a document's pattern from Layer Style.</li>
+          <li>Open more OpenRaster files.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.41" date="2026-11-22">
       <description>
         <ul>
