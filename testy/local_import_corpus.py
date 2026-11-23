@@ -240,6 +240,11 @@ def build_manifest(fixtures: Path, output: Path) -> tuple[dict, list[str]]:
             if collection not in ("xcf-corpus", "xcf"):
                 case["reference"] = "@mergedimage"
                 _archive_expectations(case, source, relative)
+                render = source.with_suffix(".png")
+                if collection == "ora-corpus" and render.is_file():
+                    # export_corpus_to_ora.py: the writing app's own render of this file. The
+                    # composite it stored was drawn from the source document, not from the stack.
+                    case["reference"] = relative(render)
                 # make_ora_fixtures.py exported these exact GIMP ORAs through Krita.
                 # Its other Krita PNGs were exported from PSDs, not from the sibling ORAs.
                 if collection == "ora" and within in ("gimp-modes.ora", "gimp-structure.ora", "gimp-structure-16.ora"):

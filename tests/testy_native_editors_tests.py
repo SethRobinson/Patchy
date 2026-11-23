@@ -179,6 +179,32 @@ class CrossRun(Scratch):
         fresh.fresh = True
         self.assertNotIn("cached", self.run_cross(cases, fresh, "fresh")["cases"][0]["cells"]["gimp"])
 
+    def test_a_stored_composite_no_layer_reader_matches_is_left_out_of_the_scores(self):
+        import zipfile
+
+        def ora(name, color):
+            with zipfile.ZipFile(self.root / name, "w") as archive:
+                archive.write(png(self.root / "composite.png", color), arcname="mergedimage.png")
+                archive.writestr("stack.xml", '<image w="2" h="2"><stack/></image>')
+            return {"id": name, "source": name, "reference": "@mergedimage"}
+
+        cases = [ora("stale.ora", "green"), ora("true.ora", "blue")]
+        cross = native_cross.Cross({"gimp": self.adapter(["ok"]), "krita": self.adapter(["ok"], "krita", "blue"),
+                                    "photopea": self.adapter(["ok"], "photopea", "green")}, cache=self.root / "cache")
+        result = self.run_cross(cases, cross)
+        stale, true = result["cases"]
+        self.assertTrue(stale["storedComposite"] and true["storedComposite"])
+        # Patchy, GIMP and Krita all compose something else; only the editor that shows the stored picture matches.
+        self.assertIn("none of the 3 editors", stale["referenceNotUsed"])
+        self.assertEqual(stale["scores"], dict.fromkeys(("patchy", "gimp", "krita", "photopea"), {"outcome": "clean"}))
+        self.assertNotIn("referenceNotUsed", true)  # Krita reproduces this one, so the others are held to it
+        self.assertEqual((true["scores"]["patchy"]["import"], true["scores"]["krita"]["import"]), (0.0, 1.0))
+        self.assertEqual(result["scores"]["referencesNotUsed"], {"ora": 1})
+        self.assertEqual(result["scores"]["formats"]["ora"]["patchy"]["importFiles"], 1)
+        html = (self.root / "out" / "report.html").read_text(encoding="utf-8")
+        self.assertIn("1 file left out of the picture scores", html)
+        self.assertIn("Reference not used", html)
+
     def test_aseprite_reopens_the_still_sprite_patchy_saved(self):
         (self.root / "still.ase").write_bytes(b"still")
         (self.root / "moving.ase").write_bytes(b"moving")

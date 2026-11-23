@@ -777,8 +777,10 @@ class RerunTests(unittest.TestCase):
                 queue = list(colors)
                 launches = []
 
-                def fake_script(_runner, _source, take):
+                def fake_script(_runner, _source, take, asked=None):
                     launches.append(take.name)
+                    if asked is not None:
+                        asked.append("Where is the linked file?")  # a question the script answered
                     if not queue:
                         return ""
                     color = queue.pop(0)
@@ -809,6 +811,14 @@ class RerunTests(unittest.TestCase):
             self.assertEqual(run([None])[0], (False, False))
             self.assertFalse(output.exists())
             self.assertEqual([p.name for p in root.iterdir()], [])
+            # A question Krita asked on every take reaches the cell as one note.
+            (root / "kritarunner.com").touch()
+            with mock.patch.object(krita, "_export_script",
+                                   side_effect=lambda _r, _s, take, asked=None: (
+                                       asked.append("answered no: Where is the linked file?"),
+                                       Image.new("RGBA", (4, 4), red).save(take), "ok")[2]):
+                notes = krita.export(root / "krita.com", root / "in.kra", output)["notes"]
+            self.assertEqual(notes, ["Krita stopped to ask and was answered no: Where is the linked file?"])
 
     def test_static_export_is_self_contained_and_names_nothing_local(self):
         import export_static

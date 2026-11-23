@@ -1,0 +1,751 @@
+[
+ {
+  "repo": "AnAverageGitUser/ora-reader",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "res/test-no-version.ora",
+    "size": 13015,
+    "sha256": "ec79bd6f61d6f0b2d3bd3cf1b10ee6f9330c3b155586d4cc7701979228161a18"
+   },
+   {
+    "path": "res/test.ora",
+    "size": 13022,
+    "sha256": "fa1890a8f7004cfcc713f6e81f457cafdc718a9b271ce3e306936cc699f16fd5"
+   }
+  ],
+  "commit": "de7ce096745bc35d23b96d461aa6e1572a01475f"
+ },
+ {
+  "repo": "BryanLunduke/lunduke-paint",
+  "licence": "GPL-3.0",
+  "files": [
+   {
+    "path": "tests/data/r14-bomb.ora",
+    "size": 38317,
+    "sha256": "1c80bb7ab3f5834a5a567697de40c5ca6fd9dd56f63997db2fe00878f489dd01"
+   }
+  ],
+  "commit": "2cac6c653c628d2dace4e560cb8c1db43169a5d1"
+ },
+ {
+  "repo": "CryptoJones/Photoslop",
+  "licence": "Apache-2.0",
+  "files": [
+   {
+    "path": "logo-transparent.ora",
+    "size": 26017,
+    "sha256": "831f500ce591eaefb12358b8b4780447a17ac03af0278f48adca33ef4c0f0b53"
+   }
+  ],
+  "commit": "04450398e92a5a9ec3502d8762f476075e5f0224"
+ },
+ {
+  "repo": "FHPythonUtils/LayeredImage",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "tests/data/gif_output.ora",
+    "size": 49956,
+    "sha256": "edaa680bd47385db3a4032b94a059667ddd47ef7e7957bc89d2879500b4653a3"
+   },
+   {
+    "path": "tests/data/layered_image.ora",
+    "size": 144829,
+    "sha256": "12ce9ea4a82412ae8a2b98a1d6849806f182025eaef217adf333b6725b8e4cfc"
+   },
+   {
+    "path": "tests/data/layered_output.ora",
+    "size": 107564,
+    "sha256": "a44f596e3f676335b01921ee7cec9ab1af909b5309bf61861235fa5ad627a682"
+   },
+   {
+    "path": "tests/data/layeredc_output.ora",
+    "size": 107564,
+    "sha256": "00d148cb2367556c7ed1665dabf373a42e64d6ce97a92cb3ecf5b1253a1bee87"
+   },
+   {
+    "path": "tests/data/lsr_output.ora",
+    "size": 122661,
+    "sha256": "135c9ca81b703b906e59b751662088d4065fc71d09a484453724a4dc6c47c12b"
+   },
+   {
+    "path": "tests/data/ora_output.ora",
+    "size": 107564,
+    "sha256": "06ea6aaa152ea4d36d560487c70d99c650c106292eedb66a70e0305d103b5e09"
+   },
+   {
+    "path": "tests/data/pdn_output.ora",
+    "size": 118681,
+    "sha256": "99e8a15e492dc9c13237ed13df9fa74dc3f910da7d9c9b4c2acdc4a6bccb9cf0"
+   },
+   {
+    "path": "tests/data/psd_output.ora",
+    "size": 106813,
+    "sha256": "70040fce0d2b5b2fcb2e1ab4e4b5cd92d08a036c7fe67a87de2d93fc54540dec"
+   },
+   {
+    "path": "tests/data/tiff_output.ora",
+    "size": 148976,
+    "sha256": "d6f9b93368257624dee70bc0a40a82311a4c60123f3e9a168fc9de9f67602eba"
+   },
+   {
+    "path": "tests/data/webp_output.ora",
+    "size": 150509,
+    "sha256": "7532b32fb023c035dc85d98eda0f1c96e7df4fe46fedb3da72bde6e109153e6b"
+   },
+   {
+    "path": "tests/data/xcf_output.ora",
+    "size": 106813,
+    "sha256": "da105227ce735be6eb0962df6d849cea36ba1d7a0b3f521f7f147965f4661daf"
+   }
+  ],
+  "commit": "4fa8e4f08d202cd3db3f8f79732559b8ee679788"
+ },
+ {
+  "repo": "HurleyUS/omadesign",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "src/formats/openraster/fixtures/independent.ora",
+    "size": 1177,
+    "sha256": "0aa786f66611064d22270074b34ae519cf5e51991afdadb71dd0560f84cc01ef"
+   }
+  ],
+  "commit": "bf4fe5d53c8474799d758013040b008f4da4ae65"
+ },
+ {
+  "repo": "OliverVea/Olve.OpenRaster",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "Olve.OpenRaster.Test/map_1.ora",
+    "size": 29371,
+    "sha256": "6fc32ae306840d41cfa3ab4dc4efa3b4bc27ddacd6c28a63f6df7aaf4ff78590"
+   }
+  ],
+  "commit": "ec17c0034e69c631ef2e015c704a002d4a12b970"
+ },
+ {
+  "repo": "RubyYii/Layered-Redraw-",
+  "licence": "Apache-2.0",
+  "files": [
+   {
+    "path": "examples/cat-cave-npc/NPC-Cave-Scene-02.ora",
+    "size": 271393,
+    "sha256": "3cacca6ee16e84e8c202bd4fe10e27b47963fc830569b48e8dd360f76f35e30a"
+   }
+  ],
+  "commit": "3b1f0b3b766f85a1aa7ac7b119faa4e64940a3de"
+ },
+ {
+  "repo": "acubeone/libora",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "test/testfile.ora",
+    "size": 2158,
+    "sha256": "0aff675ee3470aa70e5a572f9132e83aeecc18b642125a87907f4387e79e0211"
+   }
+  ],
+  "commit": "545840413b49dae1138466763914b040026b441b"
+ },
+ {
+  "repo": "bojand/infer",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "testdata/sample.ora",
+    "size": 357248,
+    "sha256": "d481762423caaa31e61148971d7605392facc1cb0859772e3eba76062d13fe8d"
+   }
+  ],
+  "commit": "cb05400c5f43e07200fbc1c5753e15946e9b1de8"
+ },
+ {
+  "repo": "cosmix-pics/PNGTuberORA",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "res/bot.ora",
+    "size": 896178,
+    "sha256": "fc91c4122df89b6e6ceac5bfe893e2ac3496c898e94ff096cc1a0701165a4dbe"
+   },
+   {
+    "path": "res/fur.ora",
+    "size": 702868,
+    "sha256": "88266b0ad8fd033f519f184da10fe0a92ce124111b0d6cb3d914a55d7d51d3b2"
+   },
+   {
+    "path": "res/test.ora",
+    "size": 1395301,
+    "sha256": "1add17c076d912e6f2c622a13e463de596d1348437f99e7c0fb8782f09a0b1b8"
+   },
+   {
+    "path": "res/vis.ora",
+    "size": 636871,
+    "sha256": "9cf55e63b0f6ba5d7deeb866bb63e90fffd8800a389461ab1d035af479e4d621"
+   }
+  ],
+  "commit": "bf272c6fd6af05f65b80e6983eae8940cfa6e4fa"
+ },
+ {
+  "repo": "dmytrogajewski/openraster-go",
+  "licence": "Apache-2.0",
+  "files": [
+   {
+    "path": "assets/map.ora",
+    "size": 5838,
+    "sha256": "30e84e19fdae47178ee0abf762bfae612303f4439a8d84a6c4a6a6f588bca00b"
+   }
+  ],
+  "commit": "c89eeda7658c57549dd5b03e2004ed256e482424"
+ },
+ {
+  "repo": "eryet/sachi-wallpaper",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "images/sachi-rig/sachi-layers.ora",
+    "size": 1494058,
+    "sha256": "0ee43fb726af22ef20fc06572f242b338e51198283b3798a2a906421f691f1aa"
+   }
+  ],
+  "commit": "605d8def83744fcf40f8525556c0d694770a8794"
+ },
+ {
+  "repo": "f2d/sprite_dress_up",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "example_project_files/from_paint.net/icon_mouse.ora",
+    "size": 5230,
+    "sha256": "73fa454c1a62bdba17868e9e690ec039df7e91408ab37a7892070f07dea4a46c"
+   },
+   {
+    "path": "example_project_files/ora_export/icon.ora",
+    "size": 56602,
+    "sha256": "1fc8fb0a155b22ebf361c9bd744ea027b738e301c33195ff4e2a0efbbaa5ba71"
+   }
+  ],
+  "commit": "b0f32356ff0940ece6e4628392d95ef4838188cb"
+ },
+ {
+  "repo": "fangzhangmnm/weebpaint",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "test/fixtures/format/real/v1/plain.ora",
+    "size": 3942,
+    "sha256": "047427ebba6a6a679c2b88e14c0de1fa53b8d559b2afe510d1fb808ce327a33e"
+   },
+   {
+    "path": "test/fixtures/format/real/v1/reference-timelapse.ora",
+    "size": 4691,
+    "sha256": "80115bf92adb8541ee9f88641b3053d3297fc03a33822cebba14560445818c22"
+   },
+   {
+    "path": "test/fixtures/format/real/v2/plain.ora",
+    "size": 4080,
+    "sha256": "67adf0866f811fc62190b2338e5e8eef60b746aa802d4c9427735ec0fe5de7d5"
+   },
+   {
+    "path": "test/fixtures/format/real/v2/references-live-timelapse.ora",
+    "size": 5349,
+    "sha256": "b0acf2efa2b9c968c6f70f6d3f7b8fc7496b899244af820a51d821ec7d1d74ef"
+   },
+   {
+    "path": "test/fixtures/format/real/v3.0.0-desk1.1.0/plain.ora",
+    "size": 4145,
+    "sha256": "49e0e2c1e914ed08047522530b83bdf2851e45df9b4a537758debf1c4911eb7c"
+   },
+   {
+    "path": "test/fixtures/format/real/v3.0.0-desk1.1.0/references-live-timelapse.ora",
+    "size": 5777,
+    "sha256": "5b39ae6f78cf3784b59fba0754e99f610aab1ad134a122e7046913fa3c89b380"
+   },
+   {
+    "path": "test/fixtures/format/real/v3.0.0/plain.ora",
+    "size": 4127,
+    "sha256": "8506e4fe5190974fdc7026ad8a5181696f6c01d09e4452aad0d847549fe68dce"
+   },
+   {
+    "path": "test/fixtures/format/real/v3.0.0/references-live-timelapse.ora",
+    "size": 5759,
+    "sha256": "429d25708706aafa344b2574f466977e273972af09f4a56f0d2e803a7357c137"
+   },
+   {
+    "path": "test/fixtures/format/real/v3/plain.ora",
+    "size": 4053,
+    "sha256": "5d5ab1728c4f70ef63de8d08e9ce3993523e67bf3a636c10bb84ccb090ddf120"
+   },
+   {
+    "path": "test/fixtures/format/real/v3/references-live-timelapse.ora",
+    "size": 5645,
+    "sha256": "f664ac0680e704a76c69e1066ece03aa57752b0ad0bc2d205f30f6ec37232397"
+   },
+   {
+    "path": "test/fixtures/format/synthetic/future-app/newer-app-same-format.ora",
+    "size": 4160,
+    "sha256": "7a4cb72b45fb53d6cfb59e9b2f92e0ae06aaa28037952c0226cb48acccadcc93"
+   },
+   {
+    "path": "test/fixtures/format/synthetic/future-major/desk-2.ora",
+    "size": 2594,
+    "sha256": "7d8f20982d18d574dd65dd0ea7fd227b88d31c873c7317c57dd88b2840000bec"
+   },
+   {
+    "path": "test/fixtures/format/synthetic/future-major/ora-4.ora",
+    "size": 4125,
+    "sha256": "221ed97a77ab08d461b1966fc9181f85016b167e3aad3a779f771830160950fc"
+   },
+   {
+    "path": "test/fixtures/format/synthetic/future-major/references-2.ora",
+    "size": 4775,
+    "sha256": "7760b90bc590849a383526545b5e4d34c25bf63540687bf6bff46fae9e8c45af"
+   },
+   {
+    "path": "test/fixtures/format/synthetic/future-minor/all-parts.ora",
+    "size": 5436,
+    "sha256": "c5883a2f8c62cfe5bf7ee579b18f763c9a8f8f0ccf876daf163654dd540a0ce2"
+   },
+   {
+    "path": "test/fixtures/format/synthetic/v0/webpaint-dirs.ora",
+    "size": 5010,
+    "sha256": "92b12f09dbcb60739e37fc765dba38bb0e0413bf03b6a8f22c6911c76ec329e2"
+   },
+   {
+    "path": "test/fixtures/format/synthetic/v1/weebpaint-nondot.ora",
+    "size": 4788,
+    "sha256": "572bafee605d8db923c8005778f12cc9b8da76e5d42f6d06ea31e6f8a95cced0"
+   }
+  ],
+  "commit": "2300f5955e6cbe9a7daf69f5c5939a4ca4823c8f"
+ },
+ {
+  "repo": "farmanp/pinta-skills",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "examples/attention/attention.ora",
+    "size": 1172069,
+    "sha256": "79d3ca8e9053d15c39385184b9c298bf113af3a57c67931961d914909a5dd657"
+   },
+   {
+    "path": "examples/native-smoke/native-smoke.ora",
+    "size": 5313,
+    "sha256": "29326b480de3d218c3de4c1c43bb0c3b91e573877ba380e27abf79cfa673a4e0"
+   }
+  ],
+  "commit": "cf927ffe3db16022584bf4b06f73a1ef17de176f"
+ },
+ {
+  "repo": "gywcs101/MoonOpenRaster",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "fixtures/baseline-mixed-edited.ora",
+    "size": 3770,
+    "sha256": "2b9c28e36ecc5470d2d70ef4205205d878f669b570aa0ebf5f9bbf6d048588da"
+   },
+   {
+    "path": "fixtures/baseline-mixed.ora",
+    "size": 3759,
+    "sha256": "ed537c9e1059b9eddc91ab41ed8ffe69ac5b94f022d9b64687ba6ddebbef2a03"
+   },
+   {
+    "path": "fixtures/gradient16.ora",
+    "size": 5315,
+    "sha256": "fd0a25e9a67ced80cc69e8064fdb30039d7641ce01dc46efb9bd931bd5c3a312"
+   },
+   {
+    "path": "fixtures/krita-5.3.4.ora",
+    "size": 18287,
+    "sha256": "e0967239c64f53c6f31b311c2beb3dd9a8511aaea15e2bbb7e3b2a568b3bfb81"
+   },
+   {
+    "path": "web/assets/capitole.ora",
+    "size": 3430597,
+    "sha256": "0e291357862cede7aa00ee95d4c68d6d33ebf492e10014c2486272ff7534d3bc"
+   },
+   {
+    "path": "web/assets/import-samples/atlas-goal.ora",
+    "size": 370418,
+    "sha256": "97a9d180e3c0969a81de0acf751cd4acaf685fcc5d78171b266c2657a9ed6101"
+   },
+   {
+    "path": "web/assets/import-samples/atlas.ora",
+    "size": 22194,
+    "sha256": "b34c3f3a7e42f453e3f4c1b9fcb17eafea702e2cd9de8d9de5ef94afc160b97d"
+   },
+   {
+    "path": "web/assets/import-samples/postcard-goal.ora",
+    "size": 90312,
+    "sha256": "ae54754f3f8ad96f9d0af5997e730a8cb30f8e626ee18a6527d58f04d483c0d9"
+   },
+   {
+    "path": "web/assets/import-samples/postcard.ora",
+    "size": 23802,
+    "sha256": "9b86d68aa213b58f485e138e16f938658d1eebff0624c839246795ce8ba6320c"
+   },
+   {
+    "path": "web/assets/import-samples/signal-goal.ora",
+    "size": 22233,
+    "sha256": "d7706b96ca621aa910eb1011ac57fabc941d0c6b83bfbd48fbf2384a401f6a26"
+   },
+   {
+    "path": "web/assets/import-samples/signal.ora",
+    "size": 27236,
+    "sha256": "6f84a904375460990638f40d3db1f1806ccfa7f25f16141c8224fdf191a9f854"
+   },
+   {
+    "path": "web/assets/samples/bloom-goal.ora",
+    "size": 5098392,
+    "sha256": "7180a3d2061ba8e3b59fec2323b887bda7046b045d278a67029dc75a406bf03f"
+   },
+   {
+    "path": "web/assets/samples/bloom-practice.ora",
+    "size": 6221095,
+    "sha256": "5df4285a2a39bce5405bfc93da2353bc667dd803760b4b47280301c182bd1063"
+   },
+   {
+    "path": "web/assets/samples/bloom.ora",
+    "size": 6221093,
+    "sha256": "adcc505ea9c44cb5e95e2ae35192689ef441dc87ac7c97b87088a097c8f448f1"
+   },
+   {
+    "path": "web/assets/samples/capitole-practice.ora",
+    "size": 3633317,
+    "sha256": "5b4686585129b4b3bcf88a809d434f8a44d84f4f725b0270a9098c5c0f2a5494"
+   },
+   {
+    "path": "web/assets/samples/house-practice.ora",
+    "size": 3786623,
+    "sha256": "d8e98c9a0fdb824ac817cf2b6a78e43e28ebcac10de4bc81b2ef3340b4fa141a"
+   },
+   {
+    "path": "web/assets/samples/house.ora",
+    "size": 3754538,
+    "sha256": "d13a207a1caef70518e91e32c071de18046dfa40e17098de766ce9d084f4fb89"
+   },
+   {
+    "path": "web/assets/samples/rain-goal.ora",
+    "size": 4134604,
+    "sha256": "c5afece557001aa2a69fdb4b59cd3eade6052d1b80ccb29bcc9e1ab02302a034"
+   },
+   {
+    "path": "web/assets/samples/rain-practice.ora",
+    "size": 4193420,
+    "sha256": "4ffb0cea032d58d6b851e04daedce19dda86f3c722ffb4ed2680f3817e3d9660"
+   },
+   {
+    "path": "web/assets/samples/rain.ora",
+    "size": 4152115,
+    "sha256": "deceb9b416ca6a1868d702ede76d6e6e69110155cf8d497e8d45dd890ff015c6"
+   }
+  ],
+  "commit": "12ef7b24c474eff9024faf72a7c95ec218d6dd92"
+ },
+ {
+  "repo": "image-rs/image-extras",
+  "licence": "Apache-2.0",
+  "files": [
+   {
+    "path": "tests/images/ora/layer.ora",
+    "size": 31646,
+    "sha256": "076abc1f7be40cccfe6da411865d3c6eda6e88f3a73c5f73253eb49274504dfd"
+   }
+  ],
+  "commit": "5bd13ba53dc17e0e24af991cca849161427f863a"
+ },
+ {
+  "repo": "khs2325/sprite-converter",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "public/samples/two-layers.ora",
+    "size": 1224,
+    "sha256": "c3b8b6ace765d246f4789b140f0d537ce74d39533b74fb9f400837eb8527981b"
+   },
+   {
+    "path": "tests/fixtures/openraster/malformed-stack.ora",
+    "size": 1142,
+    "sha256": "03018077fd87f8f61b92d9146c5bae1e91dab861f39f5c28aeb1f3d1060461d9"
+   },
+   {
+    "path": "tests/fixtures/openraster/missing-layer-data.ora",
+    "size": 1025,
+    "sha256": "f61ebf11a14e31a03679dbd14ed3274e957b135ab50161d7887663af8d2a71bc"
+   },
+   {
+    "path": "tests/fixtures/openraster/two-layers.ora",
+    "size": 1224,
+    "sha256": "c3b8b6ace765d246f4789b140f0d537ce74d39533b74fb9f400837eb8527981b"
+   },
+   {
+    "path": "tests/fixtures/openraster/unsupported-blend-mode.ora",
+    "size": 1224,
+    "sha256": "3f5f913cfa5723e9dc90885c0a5e071b1954d86df00b16e7de626e266246675b"
+   }
+  ],
+  "commit": "9b259be09104a2360bc88e8a4a5c766ed3063217"
+ },
+ {
+  "repo": "kotebibo/spritesplit",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "tests/golden/ball_4x/layers.ora",
+    "size": 11431,
+    "sha256": "6e0d84283a92f9b6bad173bfce4bfed7169a87cfa979933c6ae1fab5d16f28a9"
+   },
+   {
+    "path": "tests/golden/ball_hueshift/layers.ora",
+    "size": 11431,
+    "sha256": "6e0d84283a92f9b6bad173bfce4bfed7169a87cfa979933c6ae1fab5d16f28a9"
+   },
+   {
+    "path": "tests/golden/ball_selout/layers.ora",
+    "size": 11431,
+    "sha256": "cfa118e3fbe30ec61d7281ca83f431148fee9bfb17bb60b50059877a7ece2389"
+   },
+   {
+    "path": "tests/golden/black_hat/layers.ora",
+    "size": 14707,
+    "sha256": "5c404fda36bd053dc9ed2c050396b67f17760b0dcecb986fa91f001b3e90657c"
+   },
+   {
+    "path": "tests/golden/kenney_ghost/layers.ora",
+    "size": 9513,
+    "sha256": "eb947c8ae8db1e3c44f2cb3e3c0caaf90f3a62ecadcccbb1cf0cd39e2a4c6be9"
+   },
+   {
+    "path": "tests/golden/kenney_knight/layers.ora",
+    "size": 9513,
+    "sha256": "06fe292ef552c7a46fd1e650186c8b8f7a2b90e0be58accd02ac8b4b2da9207b"
+   },
+   {
+    "path": "tests/golden/kenney_rogue/layers.ora",
+    "size": 9513,
+    "sha256": "275ce05422fef7097eba01d85c06c4aaead84c547f829f6ac8ebd739692a80c1"
+   },
+   {
+    "path": "tests/golden/kenney_wizard/layers.ora",
+    "size": 9513,
+    "sha256": "4538b52b5dce92671d3177e1cfb62092c29d30ab31fdb375c73e713fa367fc1b"
+   },
+   {
+    "path": "tests/golden/mushroom_shared/layers.ora",
+    "size": 15939,
+    "sha256": "50f3ea2f2538c40bc011f9bf29e5bafe07a5c01778e5a93710f3b45c71948c31"
+   },
+   {
+    "path": "tests/golden/slime_noline/layers.ora",
+    "size": 10171,
+    "sha256": "502c75180453c74addda7bb73a7c8e8f0d28cd5e7bc347c7121f9187ef7b6ebf"
+   }
+  ],
+  "commit": "f8ef9a6e37f7bc51a7883d0f97e5912598d296d9"
+ },
+ {
+  "repo": "pixyjones/comic-source",
+  "licence": "CC0-1.0",
+  "files": [
+   {
+    "path": "01-responsible-adult/responsible-adult.ora",
+    "size": 1296410,
+    "sha256": "52764785e5037c06c56613b13b1669485668810c9c30e989ffa412ecb03a8324"
+   },
+   {
+    "path": "02-booth-babes/booth-babes.ora",
+    "size": 2901807,
+    "sha256": "2a9cc3ccb779187c66fad8a11de35f09de738fb6c4f009172a110c846e2fc39c"
+   }
+  ],
+  "commit": "b483a28d75c3c62c5b3e34773a52a6e1c87e465d"
+ },
+ {
+  "repo": "polats/game-lego-nft-avatars",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "docs/img/AvatarImages.ora",
+    "size": 7458116,
+    "sha256": "7c6e79b0c579ac7037df7289ec0346a42e689e2362376fa14a0ba17ef46193eb"
+   }
+  ],
+  "commit": "57df1ae49adcdf777829b0be0020af5085a9b8de"
+ },
+ {
+  "repo": "replicraft/PaintCraft",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-fixtures/deflated.ora",
+    "size": 1372,
+    "sha256": "afedf82548c3f379a14ae035256fb9eede066bca96f0e5ba75a8380e6b0e39b7"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-fixtures/stored.ora",
+    "size": 1511,
+    "sha256": "afd94270c0c45dddf3cb4891a48303c7331814b295bcc857f88ff65394d567d8"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-group-fixtures/default-isolate.ora",
+    "size": 2301,
+    "sha256": "2c49d0036a790c1a212375030f2af464a9c435963ac3759de19c49a629dce7de"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-group-fixtures/different-projection.ora",
+    "size": 2318,
+    "sha256": "e5cb96681d3cee2f2fc9b413e9b4ecf78a677bc2bb6b5f9e604991bd3f261dbb"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-group-fixtures/explicit-isolate.ora",
+    "size": 2321,
+    "sha256": "04f3f825110379c8d7b4a0ec6791fd1263ae2972bcb191124d61799584822958"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-group-fixtures/exponent-one.ora",
+    "size": 2316,
+    "sha256": "1e39eb87698a26e6aa9f68d2079c37c08cd1c846d8da7b4bea13d89cc845ec57"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-group-fixtures/flat.ora",
+    "size": 2108,
+    "sha256": "582fa0da59d20e54bc4862c137c1142b1d27422a1603a892dbe215dda70eca3a"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-group-fixtures/group-blend.ora",
+    "size": 2318,
+    "sha256": "23a6ae9ac3b0d8afd8de5e4d795a3b1e2064d6a8bee70031d4bf589fbd9fa507"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-group-fixtures/group-offset.ora",
+    "size": 2326,
+    "sha256": "8ae226ab2087c954332f24ffb8430646331a4779b036d304ceb5d1c290b24278"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-group-fixtures/half-opacity.ora",
+    "size": 2316,
+    "sha256": "18b564ad0d9253f7ab8b05c930510a4e36ca91770d973d78ff2fbfc4f7994786"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-group-fixtures/hidden-isolate.ora",
+    "size": 2321,
+    "sha256": "4ee09083f8285790cb1a1410c20d13f4a1a06f5c9026e488cdb8f2aeca3fb6bb"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-group-fixtures/hidden-unknown.ora",
+    "size": 2285,
+    "sha256": "1c2294b752eca49b3f0897d4bf9108d68438a84f04d4230ed07e0b3e4bf5906a"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-group-fixtures/large-thumbnail.ora",
+    "size": 2301,
+    "sha256": "7b9ae4e62441c25fbaea2fc7143d251f4838888453cd6c2cff0409b07af19fad"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-group-fixtures/leaf-blend.ora",
+    "size": 2346,
+    "sha256": "1b3b6501f569d287d1568bb76b3e4726ee22ea8f14138bb74a9c11b109092161"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-group-fixtures/near-one.ora",
+    "size": 2340,
+    "sha256": "fd9b1e72e3ab34ba89210746eae450e618296c2e8f1c0c9d4fb6f68895670dcb"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-group-fixtures/neutral.ora",
+    "size": 2318,
+    "sha256": "ce5b72616fb4950951916271f7cd413402865c457e00510a4ee21e0c1cba2011"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-group-fixtures/old-version.ora",
+    "size": 2318,
+    "sha256": "3b01c4a5fdc03cf067b8864f56ae6cbabd66c93e35e6c7dcfa272a1a935dbe25"
+   },
+   {
+    "path": "crates/services/paintcraft-formats/tests/ora-group-fixtures/policy-before-pixels.ora",
+    "size": 1872,
+    "sha256": "e66b863bded241bc9b93f11cb9af144e43aadc2c7db9344930f92646facbf676"
+   }
+  ],
+  "commit": "e755163c625d4a3c479ada2df103087b99583858"
+ },
+ {
+  "repo": "setanarut/halftonism",
+  "licence": "GPL-3.0",
+  "files": [
+   {
+    "path": "example/example.ora",
+    "size": 7770464,
+    "sha256": "26ddd9ddf135567ed326a3160afa8aa50328fd99ba3cf842dc9cbd51e0be5583"
+   }
+  ],
+  "commit": "eb5dc26bc372522859d52a1edb2f1651d3dd4f28"
+ },
+ {
+  "repo": "ssserch/Kaint",
+  "licence": "GPL-3.0",
+  "files": [
+   {
+    "path": "img/other/kaintkde.ora",
+    "size": 327978,
+    "sha256": "d355ab7dafe547fa4a9e467ee58d7f53d7441859a6765f66d496847333d56238"
+   },
+   {
+    "path": "img/other/kaintqt6.ora",
+    "size": 319151,
+    "sha256": "7fd62010c8642dffb0d4f664ab42451e130c7f40d83951b52f5515f83cd403e4"
+   }
+  ],
+  "commit": "c54fcc7bc3405a5cff31959aeb98d5425c455489"
+ },
+ {
+  "repo": "vteam-com/fPaint",
+  "licence": "MIT",
+  "files": [
+   {
+    "path": "test/output/final.ora",
+    "size": 1830175,
+    "sha256": "5c9ce757d0365dfc3c03e873004396d11d8024173937a069d5e8f1208b220a53"
+   }
+  ],
+  "commit": "314dc54ee7f607c10fc926a9b971e5809a3d964d"
+ },
+ {
+  "repo": "mypaint/mypaint",
+  "licence": "GPL-2.0",
+  "files": [
+   {
+    "path": "tests/bigimage.ora",
+    "size": 128487,
+    "sha256": "108e04c36df1e84ca0f13dc35cbd86d92a23f4fb5862cf1c2cae46d309555f83"
+   },
+   {
+    "path": "tests/fill_outlines.ora",
+    "size": 188920,
+    "sha256": "3909051829882337597e2a4f430c5dea3a179f9c9c97cbdb4e9e9e4a9d5fb09f"
+   },
+   {
+    "path": "tests/smallimage.ora",
+    "size": 64316,
+    "sha256": "8eab0f0fe41fcb10b851125e7e1db0afa5dd9c428733d978b0c0a23f11a1c702"
+   }
+  ],
+  "commit": "fb6f7d6b12238d125294496b105f5f36e658bc61"
+ },
+ {
+  "repo": "lbalazscs/Pixelitor",
+  "licence": "GPL-3.0",
+  "files": [
+   {
+    "path": "src/test/resources/gimp_ora_test_input.ora",
+    "size": 39202,
+    "sha256": "53485227f6767d06d8df539b461e918fbbd4262a1cb2a04cbec91fa539d8198a"
+   }
+  ],
+  "commit": "2d58f762d3b1c41d71337818e569921fa87e3589"
+ }
+]

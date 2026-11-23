@@ -9,6 +9,9 @@ Every way a file can go wrong has one place in the score:
   a Photoshop that could not be asked) stays out of that editor's averages.
 - A component is eligible for a file only when some editor got a scored result on
   it: a reference nobody could be held to marks nobody down.
+- A composite stored in a file by any writer is a reference only while some editor
+  that composes the layers reproduces it (unreliable_reference): one that matches
+  nothing but itself leaves both picture components out for every editor.
 
 Components, each from 0 to 1 per file:
 
@@ -31,9 +34,18 @@ Each cell also gets one outcome, its first problem in pipeline order, for the
 
 from __future__ import annotations
 
-SCORING_VERSION = 1
+SCORING_VERSION = 2
 PSD_COMPONENTS = ("psdValid", "psdRender", "layers")
 COMPONENTS = ("render", *PSD_COMPONENTS)
+PICTURE_COMPONENTS = ("render", "psdRender")
+# Formats whose stored composite can come from any writer, so it is checked before it
+# is believed, each with the editors that show that stored picture instead of composing
+# the layers: their match says nothing about the layers. Photopea opens an OpenRaster
+# file as its stored picture (one flat layer, whatever the stack holds). A KRA's
+# composite is Krita's own and stays trusted.
+COMPOSITE_VIEWERS = {"ora": ("photopea",)}
+# How many editors must have composed the layers before their verdict counts.
+MIN_LAYER_READERS = 3
 # Pipeline order: a cell's outcome is the first of these that applies.
 OUTCOMES = (
     ("notMeasured", "Not measured"),
@@ -118,14 +130,36 @@ def _failed_before(cell: dict, name: str, judged: bool) -> bool:
     return judged and _psd_state(cell) in ("missing", "rejected")
 
 
-def outcome(cell: dict, judged: bool) -> str:
+def unreliable_reference(case: dict) -> str | None:
+    """Why this file's stored composite is not a reference, or None while it is one.
+
+    A composite that does not come from the format's own app is whatever its writer put
+    there: a thumbnail of an earlier state, a picture flattened onto a background, the
+    composite of another file. It is dropped when at least MIN_LAYER_READERS editors
+    composed the layers themselves and not one of them passes against it. One pass
+    keeps it: the others then failed a picture that can be reproduced."""
+    viewers = COMPOSITE_VIEWERS.get(case.get("format"))
+    if viewers is None or not case.get("storedComposite"):
+        return None
+    verdicts = [_status(cell.get("appearance")) for key, cell in (case.get("cells") or {}).items()
+                if key not in viewers and cell.get("opened") is True and cell.get("rendered")]
+    verdicts = [verdict for verdict in verdicts if verdict != "unscored"]
+    if len(verdicts) < MIN_LAYER_READERS or "pass" in verdicts:
+        return None
+    return (f"The composite stored in this file is not used as a reference: none of the {len(verdicts)} "
+            "editors that composed its layers matches it.")
+
+
+def outcome(cell: dict, judged: bool, pictures: bool = True) -> str:
+    """`pictures` is False for a file whose reference is not used: a picture that
+    differs from it is then no problem of the editor's."""
     if cell.get("opened") is None:
         return "notMeasured"
     if cell["opened"] is False:
         return "crashed" if cell.get("appFailure") else "refused"
     if not cell.get("rendered"):
         return "noRender"
-    if _status(cell.get("appearance")) == "fail":
+    if pictures and _status(cell.get("appearance")) == "fail":
         return "renderMismatch"
     if judged:
         if cell.get("savedPsd") is False:
@@ -135,7 +169,7 @@ def outcome(cell: dict, judged: bool) -> str:
             return "psdRejected"
         if psd.get("warnings"):
             return "psdWarning"
-        if _status(psd.get("appearance")) == "fail":
+        if pictures and _status(psd.get("appearance")) == "fail":
             return "psdRenderMismatch"
         if _status(psd.get("layers")) == "fail":
             return "layersLost"
@@ -148,9 +182,12 @@ def score_case(case: dict, judged: bool) -> dict:
     cells = case.get("cells") or {}
     measured = {key: _measured(cell, judged) for key, cell in cells.items()}
     eligible = {name: any(values[name] is not None for values in measured.values()) for name in COMPONENTS}
+    pictures = unreliable_reference(case) is None
+    if not pictures:
+        eligible.update(dict.fromkeys(PICTURE_COMPONENTS, False))
     scores = {}
     for key, cell in cells.items():
-        entry: dict = {"outcome": outcome(cell, judged)}
+        entry: dict = {"outcome": outcome(cell, judged, pictures)}
         if cell.get("opened") is None:
             scores[key] = entry  # the harness has no verdict: out of every average
             continue
@@ -191,20 +228,28 @@ def _aggregate(rows: list[dict]) -> dict:
 
 def apply(run: dict) -> dict | None:
     """Score a cross-editor run in place: run["scores"] = {"version", "judged", "formats":
-    {format: {editor: averages}}, "all": {editor: averages}} and each case's entries in
-    case["scores"]. Returns run["scores"]; None, changing nothing, for a plain run."""
+    {format: {editor: averages}}, "all": {editor: averages}, "referencesNotUsed": {format:
+    files}} and each case's entries in case["scores"], with case["referenceNotUsed"] saying
+    why where a stored composite was dropped. Returns run["scores"]; None, changing
+    nothing, for a plain run."""
     editors = run.get("editors")
     if not isinstance(editors, dict):
         return None
     judged = "psdJudge" in run
     by_format: dict = {}
     everything: dict = {key: [] for key in editors}
+    dropped: dict = {}
     for case in run.get("cases", []):
         scored = case["scores"] = score_case(case, judged)
+        reason = unreliable_reference(case)
+        case.pop("referenceNotUsed", None)
+        if reason:
+            case["referenceNotUsed"] = reason
+            dropped[case.get("format", "")] = dropped.get(case.get("format", ""), 0) + 1
         for key, entry in scored.items():
             by_format.setdefault(case.get("format", ""), {}).setdefault(key, []).append(entry)
             everything.setdefault(key, []).append(entry)
-    run["scores"] = {"version": SCORING_VERSION, "judged": judged,
+    run["scores"] = {"version": SCORING_VERSION, "judged": judged, "referencesNotUsed": dropped,
                      "formats": {fmt: {key: _aggregate(rows) for key, rows in rows_by_editor.items()}
                                  for fmt, rows_by_editor in sorted(by_format.items())},
                      "all": {key: _aggregate(rows) for key, rows in everything.items() if rows}}

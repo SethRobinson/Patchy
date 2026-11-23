@@ -307,6 +307,9 @@ def _case_html(outdir: Path, case: dict, run: dict | None = None) -> str:
         source = str(chosen.get("source") or "").rstrip(".")
         said = " ".join(_text(text) for text in (source and source + ".", checked, chosen.get("note")) if text)
         parts.append(f'<p><strong>Reference used</strong> {said}</p>')
+    if case.get("referenceNotUsed"):
+        parts.append(f'<p class="notice"><strong>Reference not used</strong> {_text(case["referenceNotUsed"])} '
+                     "The picture checks below are shown as measured and count toward no score.</p>")
     if run is not None and case.get("cells"):
         parts.append(_cells_html(outdir, run, case))
     folder = case.get("folder")
@@ -384,7 +387,9 @@ def write_report(outdir: Path, run: dict) -> None:
                        "opens its PSD without a warning, how much of Photoshop's picture of that PSD matches, and "
                        "the share of the source's layers still layers of their kind. " if judged else "")
                     + "A file an editor does not open, or crashes on, scores 0 on everything. A file the harness "
-                    "could not measure, and a check no editor could be scored on, are left out.</p>")
+                    "could not measure, and a check no editor could be scored on, are left out. So are the "
+                    "picture checks of an OpenRaster file whose stored composite no editor reproduces from "
+                    "its layers.</p>")
         page.append(_score_overview(run, scores))
         page.append("<h2>Editors by format</h2>")
         page.append("<p>Each editor was given the same files. Render match compares its own PNG with the "
@@ -397,6 +402,11 @@ def write_report(outdir: Path, run: dict) -> None:
             source = (run.get("references") or {}).get(fmt)
             page.append(f"<h3>{_text(_FORMATS.get(fmt, fmt))}</h3>"
                         + (f'<p class="meta">Reference: {_text(source)}</p>' if source else ""))
+            dropped = (scores.get("referencesNotUsed") or {}).get(fmt)
+            if dropped:
+                page.append(f'<p class="notice">{dropped} {"file" if dropped == 1 else "files"} left out of the '
+                            "picture scores: the composite stored in the file is matched by no editor that "
+                            "composes its layers. The render match columns still count them, as measured.</p>")
             page.append(_editor_summary(run, fmt, cases, judged, scores["formats"].get(fmt, {})))
             page.append(_outcome_table(run, scores["formats"].get(fmt, {})))
         page.append("<h2>Patchy import detail by format</h2>")
