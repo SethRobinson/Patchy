@@ -56,7 +56,19 @@ Split from [testy.md](testy.md): how Testy drives each editor (Photoshop over CO
   one run, blank on the next), so it is only the fallback when the script leaves no verdict.
   Krita's font matching still varies between launches (Arial Black on one, a fallback
   face on the next), so a PNG render is made twice, a third time if those differ, and
-  the most common picture is kept with a driver note on the cell.
+  the most common picture is kept with a driver note on the cell. Batch mode does not
+  silence every question: a KRA file layer whose linked file is missing asks where it
+  is, an OpenRaster layer stored as a 16-bit PNG with no profile asks which profile
+  to use (`KisDlgPngImport`), and Krita waits. From a timer the script answers any
+  message box "no" and accepts a dialog listed in its `_DEFAULTS` as it stands, writes
+  what it answered to `<report>.asked`, and the driver turns it into a note (never a
+  progress dialog: closing one cancels the work). A Krita cell that times out on a
+  small file is a dialog this list does not know: log `activeModalWidget()` from a
+  copy of the script to name it. Three timeouts in a row skip the rest of Krita's
+  column, so one unknown dialog can cost many cells. Never run a second Krita job beside a run
+  (another Testy run, `scripts/dev/ora/export_corpus_to_ora.py`): Krita instances share
+  one resource database, and one that starts while another is busy can stop on a
+  "could not synchronize with database" box that no script is running yet to answer.
 - PhotoDemon runs as a locally patched build; the stock app has no automation
   surface (its command line only loads files into the GUI). The patch lives in a
   PhotoDemon checkout next to this repository (`../PhotoDemon`, BSD-licensed): a
@@ -98,7 +110,9 @@ Split from [testy.md](testy.md): how Testy drives each editor (Photoshop over CO
   `../PhotoCraft/photocraft-cli.exe` (the portable zip unpacked beside this
   repository) before the Program Files install, or a `photocraft` path in
   config.local.json; the version comes from `--version` (the exes carry no
-  ProductVersion). Exit 1 is PhotoCraft refusing the file (counts as `fileRejected`),
+  ProductVersion). Before a benchmark run, compare it with the latest public release
+  (`gh release view --repo storytold/photocraft`) and unpack the newer portable zip
+  when the install is behind, between runs and never during one. Exit 1 is PhotoCraft refusing the file (counts as `fileRejected`),
   anything else nonzero a crash. stderr warnings other than the "layer(s) flattened"
   notice become driver notes. A 16/32-bit document exports a 16-bit PNG, split like
   Patchy's. 0.5.0 shows a type layer's stored pixels and draws nothing for one

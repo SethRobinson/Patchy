@@ -59,11 +59,14 @@ def _runner(exe: Path) -> Path | None:
     return runner if runner.exists() else None
 
 
-def _export_script(runner: Path, input_path: Path, output_path: Path) -> str:
+def _export_script(runner: Path, input_path: Path, output_path: Path, asked: list[str] | None = None) -> str:
     """Run the waiting export; returns the script's verdict ("ok", "failed: ...") or
-    "" when it left none (a crash, a hang, a Krita without Python)."""
+    "" when it left none (a crash, a hang, a Krita without Python). What Krita stopped
+    to ask, with the answer the script gave, is added to `asked`."""
     report = output_path.with_name(output_path.name + ".krita.txt")
+    questions = report.with_name(report.name + ".asked")
     report.unlink(missing_ok=True)
+    questions.unlink(missing_ok=True)
     output_path.unlink(missing_ok=True)
     try:
         with winproc.suppressed_error_dialogs():
@@ -80,7 +83,13 @@ def _export_script(runner: Path, input_path: Path, output_path: Path) -> str:
         verdict = report.read_text(encoding="utf-8").strip() if report.exists() else ""
     except OSError:
         verdict = ""
+    try:
+        if asked is not None and questions.exists():
+            asked.extend(line for line in questions.read_text(encoding="utf-8").splitlines() if line.strip())
+    except OSError:
+        pass
     report.unlink(missing_ok=True)
+    questions.unlink(missing_ok=True)
     return verdict
 
 
@@ -94,12 +103,14 @@ def _same_picture(first: Path, second: Path) -> bool:
         return bool(np.array_equal(np.asarray(a.convert("RGBA")), np.asarray(b.convert("RGBA"))))
 
 
-def _export_png_by_majority(runner: Path, input_path: Path, output_path: Path) -> tuple[bool, bool]:
+def _export_png_by_majority(runner: Path, input_path: Path, output_path: Path,
+                            asked: list[str] | None = None) -> tuple[bool, bool]:
     """(exported, the renders varied). Leaves the most common picture at output_path."""
     takes: list[Path] = []
     for index in range(3):
         take = output_path.with_name(f"{output_path.stem}.take{index}{output_path.suffix}")
-        if _export_script(runner, input_path, take) != "ok" or not take.exists() or take.stat().st_size == 0:
+        if (_export_script(runner, input_path, take, asked) != "ok" or not take.exists()
+                or take.stat().st_size == 0):
             take.unlink(missing_ok=True)
             break
         takes.append(take)
@@ -123,15 +134,18 @@ def export(exe: Path, input_path: Path, output_path: Path) -> dict:
     notes: list[str] = []
     runner = _runner(exe)
     exported = False
+    asked: list[str] = []
     if runner is not None:
         if output_path.suffix.lower() == ".png":
-            exported, varied = _export_png_by_majority(runner, input_path, output_path)
+            exported, varied = _export_png_by_majority(runner, input_path, output_path, asked)
             if varied:
                 notes.append("Krita drew this file differently from one launch to the next "
                              "(its font matching varies); the most common render of three is used")
         else:
-            exported = _export_script(runner, input_path, output_path) == "ok"
+            exported = _export_script(runner, input_path, output_path, asked) == "ok"
         exported = exported and output_path.exists() and output_path.stat().st_size > 0
+        for question in dict.fromkeys(asked):
+            notes.append(f"Krita stopped to ask and was {question}")
     if exported:
         exit_code, stderr = 0, ""
     else:

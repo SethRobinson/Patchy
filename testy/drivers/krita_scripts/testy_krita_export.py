@@ -34,10 +34,46 @@ def _settle(document):
         QThread.msleep(300)
 
 
+# Dialogs that offer a choice with a default already picked, by the class name Krita
+# reports for them, and what accepting that default means. Seen on an OpenRaster file
+# whose layers are 16-bit PNGs with no profile: the dialog waits with one OK button.
+_DEFAULTS = {"KisDlgPngImport": "the default color profile for a PNG that has none"}
+
+
+def _dismiss_questions(asked):
+    """Answer what Krita asks while it works. Batch mode does not silence everything: a
+    file layer whose linked file is missing asks where the file is, a PNG without a
+    profile asks which one to use, and the process then waits for an answer nobody is
+    there to give. A message box is answered "no"; a dialog in _DEFAULTS is accepted as
+    it stands. The timer fires inside the dialog's own event loop; what was answered is
+    kept for the driver's notes."""
+    from PyQt5.QtCore import QTimer
+    from PyQt5.QtWidgets import QApplication, QMessageBox
+
+    def dismiss():
+        box = QApplication.activeModalWidget()
+        if box is None:
+            return
+        default = _DEFAULTS.get(box.metaObject().className())
+        if default:
+            asked.append("given " + default)
+            box.accept()
+        elif isinstance(box, QMessageBox):  # never a progress dialog: closing one cancels the work
+            asked.append("answered no: " + " ".join(str(box.text()).split())[:300])
+            box.reject()  # the box's own "no" or "cancel"
+
+    timer = QTimer()
+    timer.timeout.connect(dismiss)
+    timer.start(250)
+    return timer
+
+
 def main(arguments):
     source, output, report = arguments[0], arguments[1], arguments[2]
     verdict = "failed: did not finish"
+    asked = []
     try:
+        timer = _dismiss_questions(asked)  # kept alive for the whole run: export can ask too
         application = Krita.instance()
         application.setBatchmode(True)
         document = application.openDocument(source)
@@ -49,7 +85,12 @@ def main(arguments):
             exported = document.exportImage(output, InfoObject())
             verdict = "ok" if exported else "failed: export"
             document.close()
+        timer.stop()
     except Exception as error:  # the report is the only way out of this process
         verdict = f"failed: {error}"
+    if asked:
+        # Beside the verdict, which stays one word for the driver to compare.
+        with open(report + ".asked", "w", encoding="utf-8") as handle:
+            handle.write("\n".join(dict.fromkeys(asked)))
     with open(report, "w", encoding="utf-8") as handle:
         handle.write(verdict)
