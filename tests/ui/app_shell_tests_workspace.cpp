@@ -1254,8 +1254,8 @@ void ui_start_panel_shows_about_info_and_update_status() {
   CHECK(panel != nullptr);
   CHECK(panel->isVisible());
 
-  // The about branding lives on the panel: the tagline, the credit and the links in the
-  // header beside the logo, the version in the footer (GitHub issue 750).
+  // The about branding lives on the panel: the tagline and the credit line in the header
+  // beside the logo, the version in the footer (GitHub issue 750).
   auto* column = window.findChild<QWidget*>(QStringLiteral("startPanelColumn"));
   CHECK(column != nullptr);
   auto* tagline = window.findChild<QLabel*>(QStringLiteral("startPanelTagline"));
@@ -1274,9 +1274,10 @@ void ui_start_panel_shows_about_info_and_update_status() {
   CHECK(credit != nullptr);
   CHECK(credit->textFormat() == Qt::RichText);
   CHECK(credit->openExternalLinks());
-  CHECK(credit->text().startsWith(QStringLiteral("Created by ")));
-  CHECK(credit->text().contains(QStringLiteral("href=\"https://github.com/SethRobinson\"")));
-  CHECK(credit->text().contains(QStringLiteral(">Seth A. Robinson</a>")));
+  // "Created by Seth A. Robinson (rtsoft.com)": the name is plain text, the website the link.
+  CHECK(credit->text().startsWith(QStringLiteral("Created by Seth A. Robinson (<a ")));
+  CHECK(credit->text().contains(QStringLiteral("href=\"https://rtsoft.com\">rtsoft.com</a>)")));
+  CHECK(!credit->text().contains(QStringLiteral("github.com")));
   CHECK(!credit->text().contains(QStringLiteral("@link_text")));
   // The credit sits in the header, under the tagline; the version row stays in the footer,
   // outside the column, with its build date.
@@ -1290,23 +1291,22 @@ void ui_start_panel_shows_about_info_and_update_status() {
   CHECK(window.findChild<QLabel*>(QStringLiteral("startPanelContributors")) == nullptr);
   CHECK(window.findChild<QLabel*>(QStringLiteral("startPanelHint")) == nullptr);
 
+  // The repository follows the credit on the same line (ui_start_panel_tagline_takes_one_line_
+  // and_wraps_when_narrow measures the line and its fold). "Seth's site:" is gone.
   const auto link_labels = panel->findChildren<QLabel*>(QStringLiteral("startPanelHome"));
-  CHECK(link_labels.size() == 2);
-  QString combined_text;
-  for (const auto* label : link_labels) {
-    CHECK(label->textFormat() == Qt::RichText);
-    CHECK(label->textInteractionFlags().testFlag(Qt::LinksAccessibleByMouse));
-    CHECK(label->openExternalLinks());
-    // Under the credit, in the header.
-    CHECK(column->isAncestorOf(label));
-    CHECK(label->mapTo(panel, QPoint(0, 0)).y() >= credit->mapTo(panel, QPoint(0, credit->height())).y());
-    combined_text += label->text();
-    combined_text += QLatin1Char('\n');
+  CHECK(link_labels.size() == 1);
+  const auto* repository = link_labels.front();
+  CHECK(repository->textFormat() == Qt::RichText);
+  CHECK(repository->textInteractionFlags().testFlag(Qt::LinksAccessibleByMouse));
+  CHECK(repository->openExternalLinks());
+  CHECK(column->isAncestorOf(repository));
+  CHECK(repository->text().startsWith(QStringLiteral("GitHub: <a ")));
+  CHECK(repository->text().contains(
+      QStringLiteral("href=\"https://github.com/SethRobinson/Patchy\">SethRobinson/Patchy</a>")));
+  CHECK(repository->mapTo(panel, QPoint(0, 0)).y() >= credit->mapTo(panel, QPoint(0, 0)).y());
+  for (const auto* label : panel->findChildren<QLabel*>()) {
+    CHECK(!label->text().contains(QStringLiteral("Seth's site")));
   }
-  CHECK(combined_text.contains(QStringLiteral("href=\"https://github.com/SethRobinson/Patchy\"")));
-  CHECK(combined_text.contains(QStringLiteral(">SethRobinson/Patchy</a>")));
-  CHECK(combined_text.contains(QStringLiteral("href=\"https://rtsoft.com\"")));
-  CHECK(combined_text.contains(QStringLiteral(">rtsoft.com</a>")));
 
   // The update-status footer line stays hidden until a status is pushed and
   // hides again when cleared. It is the footer's only other row.

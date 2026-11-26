@@ -41258,10 +41258,6 @@ Locked: %1</source>
         <translation>GitHub: %1</translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
-        <translation>Сайт Сета: %1</translation>
-    </message>
-    <message>
         <source>No matching recent files</source>
         <translation>Нет соответствующих последних файлов</translation>
     </message>

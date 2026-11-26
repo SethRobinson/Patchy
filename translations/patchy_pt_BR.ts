@@ -41133,10 +41133,6 @@ Bloqueado: %1</translation>
         <translation>GitHub: %1</translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
-        <translation>Site do Seth: %1</translation>
-    </message>
-    <message>
         <source>No matching recent files</source>
         <translation>Nenhum arquivo recente correspondente</translation>
     </message>

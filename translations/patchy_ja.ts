@@ -40972,10 +40972,6 @@ Locked: %1</source>
         <translation>GitHub: %1</translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
-        <translation>Seth のサイト: %1</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>開く...</translation>
     </message>

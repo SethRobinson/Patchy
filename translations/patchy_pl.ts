@@ -41258,10 +41258,6 @@ Zablokowano: %1</translation>
         <translation>GitHub: %1</translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
-        <translation>Strona Setha: %1</translation>
-    </message>
-    <message>
         <source>No matching recent files</source>
         <translation>Brak pasujących ostatnich plików</translation>
     </message>

@@ -9,7 +9,6 @@
 #include "ui/theme_qss.hpp"
 #include "ui/splash_artwork.hpp"
 #include "ui/main_window_shared.hpp"
-#include "ui/options_flow_layout.hpp"
 #include "ui/recent_file_list.hpp"
 #include "ui/recent_thumbnails.hpp"
 #include "ui/ui_text_size.hpp"
@@ -29,6 +28,8 @@
 #include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLayout>
+#include <QLayoutItem>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPainter>
@@ -37,13 +38,17 @@
 #include <QShowEvent>
 #include <QStyledItemDelegate>
 #include <QStyleOptionViewItem>
+#include <QTextDocument>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QUrl>
 
 #include <algorithm>
+#include <cmath>
+#include <cstddef>
 #include <initializer_list>
 #include <utility>
+#include <vector>
 
 #include "patchy_version.hpp"
 
@@ -62,11 +67,17 @@ constexpr int kMaxRecentEntries = 200;
 constexpr int kArtworkSize = 136;
 constexpr int kHeaderSpacing = 18;
 // The cap of the compact block at the top: the header and the three buttons. Its real width
-// is what its widest row asks for, which is the header: the logo, the gap and the tagline on
-// one line (469 px in English at the default text size, the tagline 313 of it, as
-// ui_start_panel_tagline_takes_one_line_and_wraps_when_narrow prints). A longer translation
-// or a larger text size wraps the tagline at this cap instead of widening the block further.
-constexpr int kColumnMaxWidth = 520;
+// is what its widest row asks for, which is the header: the logo, the gap and the widest of
+// its text rows on one line. In English at the default text size that is the credit line
+// (the credit with the website, a gap, the repository), then the tagline (313 px);
+// ui_start_panel_tagline_takes_one_line_and_wraps_when_narrow prints the widths. A longer
+// translation or a larger text size wraps the tagline and folds the credit line at this cap
+// instead of widening the block further.
+constexpr int kColumnMaxWidth = 560;
+// Between the credit and the repository on the header's credit line, and between its two
+// lines when it folds.
+constexpr int kCreditLineGap = 14;
+constexpr int kCreditLineFoldGap = 2;
 // The Recent Files section is as wide as the panel, up to these caps (at the default text
 // size). The grid uses most of a wide window: nine cells of about 210 px at the cap, so cells
 // do not sprawl from edge to edge of an ultrawide screen. The list stops sooner: a row that
@@ -92,10 +103,100 @@ class OneLineFirstLabel final : public QLabel {
   QSize sizeHint() const override {
     ensurePolished();
     const auto margins = contentsMargins();
+    int advance = 0;
+    if (textFormat() == Qt::RichText) {
+      // What the text needs unwrapped, laid out the way the label lays it out (no margin).
+      QTextDocument document;
+      document.setDefaultFont(font());
+      document.setDocumentMargin(0);
+      document.setHtml(text());
+      advance = static_cast<int>(std::ceil(document.idealWidth()));
+    } else {
+      advance = fontMetrics().horizontalAdvance(text());
+    }
     // Two pixels of slack: the advance and the wrapped bounding box round differently.
-    const int line = fontMetrics().horizontalAdvance(text()) + margins.left() + margins.right() + 2 * margin() + 2;
+    const int line = advance + margins.left() + margins.right() + 2 * margin() + 2;
     return {line, heightForWidth(line)};
   }
+};
+
+// The header's credit line: its parts side by side with a gap while the row has room for all
+// of them, else one under the other at the same left edge, each wrapping inside the row if it
+// is narrower still. It asks for the one line first, like the labels above. (FlowLayout, which
+// the Options bar uses, gives every item its full width and so cut a part wider than the row.)
+class CreditLineLayout final : public QLayout {
+ public:
+  using QLayout::QLayout;
+  ~CreditLineLayout() override {
+    for (auto* item : items_) {
+      delete item;
+    }
+  }
+
+  void addItem(QLayoutItem* item) override { items_.push_back(item); }
+  int count() const override { return static_cast<int>(items_.size()); }
+  QLayoutItem* itemAt(int index) const override {
+    return index >= 0 && index < count() ? items_[static_cast<std::size_t>(index)] : nullptr;
+  }
+  QLayoutItem* takeAt(int index) override {
+    if (index < 0 || index >= count()) {
+      return nullptr;
+    }
+    auto* item = items_[static_cast<std::size_t>(index)];
+    items_.erase(items_.begin() + index);
+    return item;
+  }
+  Qt::Orientations expandingDirections() const override { return {}; }
+  bool hasHeightForWidth() const override { return true; }
+  int heightForWidth(int width) const override { return arrange(QRect(0, 0, width, 0), false); }
+  void setGeometry(const QRect& rect) override {
+    QLayout::setGeometry(rect);
+    arrange(rect, true);
+  }
+  QSize sizeHint() const override {
+    const int line = one_line_width();
+    return {line, arrange(QRect(0, 0, line, 0), false)};
+  }
+  QSize minimumSize() const override {
+    QSize size;
+    for (const auto* item : items_) {
+      size = size.expandedTo(item->minimumSize());
+    }
+    return size;
+  }
+
+ private:
+  int one_line_width() const {
+    int line = 0;
+    for (const auto* item : items_) {
+      line += item->sizeHint().width();
+    }
+    return line + kCreditLineGap * std::max(0, count() - 1);
+  }
+
+  // Places the parts in `rect` (when `apply`) and returns the height they take.
+  int arrange(const QRect& rect, bool apply) const {
+    const bool one_line = one_line_width() <= rect.width();
+    int x = rect.x();
+    int y = rect.y();
+    int line_height = 0;
+    for (auto* item : items_) {
+      const int width = std::min(item->sizeHint().width(), std::max(rect.width(), 1));
+      const int height = item->hasHeightForWidth() ? item->heightForWidth(width) : item->sizeHint().height();
+      if (apply) {
+        item->setGeometry(QRect(x, y, width, height));
+      }
+      if (one_line) {
+        x += width + kCreditLineGap;
+        line_height = std::max(line_height, height);
+      } else {
+        y += height + kCreditLineFoldGap;
+      }
+    }
+    return one_line ? line_height : std::max(0, y - rect.y() - kCreditLineFoldGap);
+  }
+
+  std::vector<QLayoutItem*> items_;
 };
 
 }  // namespace
@@ -146,8 +247,8 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   content_layout->addLayout(center_row);
   // The Recent Files section and the stretch under it follow once they are built (below).
 
-  // About-style header: the logo card beside the title, the tagline, the author
-  // credit and the two links (GitHub issue 750 moved the last two up from the footer).
+  // About-style header: the logo card beside the title, the tagline and one credit line
+  // (GitHub issue 750 moved the credit and the links up from the footer, then onto one line).
   auto* header_row = new QHBoxLayout();
   header_row->setSpacing(kHeaderSpacing);
   auto* artwork = new SplashArtwork(column);
@@ -166,47 +267,43 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   tagline->setObjectName(QStringLiteral("startPanelTagline"));
   tagline->setWordWrap(true);
 
-  // The credit links to Seth's GitHub profile, in the themed link color like the row below.
-  // The contributor credits live in the About dialog only (Seth, October 2026).
-  auto* credit = new QLabel(column);
-  credit->setObjectName(QStringLiteral("startPanelCredit"));
-  credit->setTextFormat(Qt::RichText);
-  credit->setTextInteractionFlags(Qt::TextBrowserInteraction);
-  credit->setOpenExternalLinks(true);
-  retranslation_callbacks_.push_back([credit] {
-    set_themed_label_text(
-        *credit, tr("Created by %1")
-                     .arg(QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
-                                         "href=\"https://github.com/SethRobinson\">Seth A. Robinson</a>")));
-  });
-  const auto make_home_label = [this, column](const char* source, const QString& link) {
-    auto* label = new QLabel(column);
-    label->setObjectName(QStringLiteral("startPanelHome"));
+  // One line under the tagline (Seth, November 2026):
+  //   Created by Seth A. Robinson (rtsoft.com)   GitHub: SethRobinson/Patchy
+  // The name is plain text; the website and the repository are the two links, in the themed
+  // link color. The existing "Created by %1" and "GitHub: %1" translations are reused: the
+  // name with the website in parentheses goes into the credit's %1. The contributor credits
+  // live in the About dialog only (Seth, October 2026).
+  const auto make_credit_label = [this, column](const char* object_name, const char* source, const QString& argument) {
+    auto* label = new OneLineFirstLabel(column);
+    label->setObjectName(QString::fromLatin1(object_name));
     label->setTextFormat(Qt::RichText);
+    label->setWordWrap(true);  // only when the row is narrower than this part alone
     label->setTextInteractionFlags(Qt::TextBrowserInteraction);
     label->setOpenExternalLinks(true);
-    retranslation_callbacks_.push_back([label, source, link] {
-      set_themed_label_text(*label, tr(source).arg(link));
+    retranslation_callbacks_.push_back([label, source, argument] {
+      set_themed_label_text(*label, tr(source).arg(argument));
+      label->updateGeometry();
     });
     return label;
   };
+  const auto website_link = QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
+                                           "href=\"https://rtsoft.com\">rtsoft.com</a>");
   const auto github_link = QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
                                           "href=\"https://github.com/SethRobinson/Patchy\">SethRobinson/Patchy</a>");
-  const auto seth_site_link = QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
-                                             "href=\"https://rtsoft.com\">rtsoft.com</a>");
-  // The two links share a line and fold onto two when the header is narrower than both
-  // (a small window): the wrapping layout the Options bar uses.
+  // The two parts share the line and fold onto two, between them, when the header is narrower
+  // than both (a small window, a larger text size, a long translation).
   auto* home_row = new QWidget(column);
   home_row->setObjectName(QStringLiteral("startPanelHomeRow"));
-  auto* home_layout = new FlowLayout(home_row, 14, 2);
-  home_layout->addWidget(make_home_label(QT_TR_NOOP("GitHub: %1"), github_link));
-  home_layout->addWidget(make_home_label(QT_TR_NOOP("Seth's site: %1"), seth_site_link));
+  auto* home_layout = new CreditLineLayout(home_row);
+  home_layout->setContentsMargins(0, 0, 0, 0);
+  home_layout->addWidget(make_credit_label("startPanelCredit", QT_TR_NOOP("Created by %1"),
+                                           QStringLiteral("Seth A. Robinson (%1)").arg(website_link)));
+  home_layout->addWidget(make_credit_label("startPanelHome", QT_TR_NOOP("GitHub: %1"), github_link));
 
   header_text->addStretch(1);
   header_text->addWidget(title);
   header_text->addWidget(tagline);
   header_text->addSpacing(4);
-  header_text->addWidget(credit);
   header_text->addWidget(home_row);
   header_text->addStretch(1);
   header_row->addLayout(header_text);

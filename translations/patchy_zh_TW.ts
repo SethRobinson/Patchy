@@ -40992,10 +40992,6 @@ Locked: %1</source>
         <translation>GitHub：%1</translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
-        <translation>Seth 的網站：%1</translation>
-    </message>
-    <message>
         <source>No matching recent files</source>
         <translation>沒有相符的最近使用檔案</translation>
     </message>

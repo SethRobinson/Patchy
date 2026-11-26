@@ -41008,10 +41008,6 @@ Locked: %1</source>
         <translation>GitHub: %1</translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
-        <translation>Seth의 사이트: %1</translation>
-    </message>
-    <message>
         <source>No matching recent files</source>
         <translation>일치하는 최근 파일이 없습니다.</translation>
     </message>

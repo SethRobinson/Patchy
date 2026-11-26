@@ -21,10 +21,12 @@
 #include "ui/recent_thumbnail_sources.hpp"
 #include "ui/recent_thumbnails.hpp"
 #include "ui/start_panel.hpp"
+#include "ui/ui_text_size.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_support.hpp"
 #include "unicode_path_names.hpp"
 
+#include <QAccessible>
 #include <QAction>
 #include <QApplication>
 #include <QBuffer>
@@ -39,6 +41,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMap>
 #include <QMarginsF>
 #include <QMenu>
 #include <QPageSize>
@@ -47,6 +50,9 @@
 #include <QScrollBar>
 #include <QTabWidget>
 #include <QTest>
+#include <QTextBlock>
+#include <QTextCursor>
+#include <QTextDocument>
 #include <QTimer>
 #include <QToolButton>
 
@@ -59,6 +65,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -432,6 +439,29 @@ QByteArray gzip_bytes(const QByteArray& text) {
 
 // --- Header layout (part A of GitHub issue 750) -------------------------------------------
 
+// A rich-text label as it is shown: its plain text, and each link's address with the text it
+// covers.
+struct RenderedLabel {
+  QString plain;
+  QMap<QString, QString> links;  // address -> linked text
+};
+
+RenderedLabel rendered_label(const QLabel& label) {
+  QTextDocument document;
+  document.setHtml(label.text());
+  RenderedLabel rendered;
+  rendered.plain = document.toPlainText();
+  for (auto block = document.begin(); block != document.end(); block = block.next()) {
+    for (auto fragment = block.begin(); !fragment.atEnd(); ++fragment) {
+      const auto format = fragment.fragment().charFormat();
+      if (format.isAnchor()) {
+        rendered.links[format.anchorHref()] += fragment.fragment().text();
+      }
+    }
+  }
+  return rendered;
+}
+
 void ui_start_panel_tagline_takes_one_line_and_wraps_when_narrow() {
   using namespace patchy::test::ui;
   MainWindow window;
@@ -449,7 +479,9 @@ void ui_start_panel_tagline_takes_one_line_and_wraps_when_narrow() {
   CHECK(panel != nullptr && column != nullptr && title != nullptr && tagline != nullptr);
   CHECK(credit != nullptr && version != nullptr && new_button != nullptr);
   const auto links = panel->findChildren<QLabel*>(QStringLiteral("startPanelHome"));
-  CHECK(links.size() == 2);
+  CHECK(links.size() == 1);
+  auto* github = links.front();
+  CHECK(panel->findChildren<QLabel*>(QStringLiteral("startPanelCredit")).size() == 1);
   // The drop hint is gone (dropping still works: ui_drop_* cover it).
   CHECK(window.findChild<QLabel*>(QStringLiteral("startPanelHint")) == nullptr);
 
@@ -469,26 +501,111 @@ void ui_start_panel_tagline_takes_one_line_and_wraps_when_narrow() {
   CHECK(title->width() >= title_line);
   CHECK(title->height() < 2 * QFontMetrics(title->font()).lineSpacing());
 
-  // Order down the header: title, tagline, credit, links; all of it above the buttons. The
+  // Order down the header: title, tagline, the credit line; all of it above the buttons. The
   // version stays in the footer, under everything else.
   CHECK(bottom_in_panel(title) <= top_in_panel(tagline));
   CHECK(bottom_in_panel(tagline) <= top_in_panel(credit));
-  for (const auto* link : links) {
-    CHECK(bottom_in_panel(credit) <= top_in_panel(link));
-    CHECK(bottom_in_panel(link) <= top_in_panel(new_button));
-    CHECK(column->isAncestorOf(link));
-  }
-  CHECK(column->isAncestorOf(credit));
+  CHECK(bottom_in_panel(credit) <= top_in_panel(new_button));
+  CHECK(bottom_in_panel(github) <= top_in_panel(new_button));
+  CHECK(column->isAncestorOf(credit) && column->isAncestorOf(github));
   CHECK(!column->isAncestorOf(version));
   CHECK(top_in_panel(version) >= bottom_in_panel(new_button));
-  // The two links share a line while there is room.
-  CHECK(top_in_panel(links[0]) == top_in_panel(links[1]));
+
+  // The credit line (Seth, November 2026) reads
+  //   Created by Seth A. Robinson (rtsoft.com)   GitHub: SethRobinson/Patchy
+  // The name is plain text; the website and the repository are the line's two links.
+  const auto credit_shown = rendered_label(*credit);
+  const auto github_shown = rendered_label(*github);
+  CHECK(credit_shown.plain == QStringLiteral("Created by Seth A. Robinson (rtsoft.com)"));
+  CHECK(github_shown.plain == QStringLiteral("GitHub: SethRobinson/Patchy"));
+  CHECK(credit_shown.links.size() == 1);
+  CHECK(credit_shown.links.value(QStringLiteral("https://rtsoft.com")) == QStringLiteral("rtsoft.com"));
+  CHECK(github_shown.links.size() == 1);
+  CHECK(github_shown.links.value(QStringLiteral("https://github.com/SethRobinson/Patchy")) ==
+        QStringLiteral("SethRobinson/Patchy"));
+  {
+    // No link anywhere on the name, and none to the GitHub profile on this screen.
+    QTextDocument document;
+    document.setHtml(credit->text());
+    const auto name_at = document.toPlainText().indexOf(QStringLiteral("Seth A. Robinson"));
+    CHECK(name_at >= 0);
+    for (int offset = 0; offset < QStringLiteral("Seth A. Robinson").size(); ++offset) {
+      QTextCursor cursor(&document);
+      cursor.setPosition(name_at + offset + 1);
+      CHECK(!cursor.charFormat().isAnchor());
+    }
+    CHECK(!credit->text().contains(QStringLiteral("github.com/SethRobinson\"")));
+    CHECK(!github->text().contains(QStringLiteral("github.com/SethRobinson\"")));
+  }
+  CHECK(credit->toolTip().isEmpty() && github->toolTip().isEmpty());
+  for (const auto* label : {credit, github}) {
+    CHECK(label->textFormat() == Qt::RichText);
+    CHECK(label->openExternalLinks());
+    CHECK(label->textInteractionFlags().testFlag(Qt::LinksAccessibleByMouse));
+    CHECK(label->textInteractionFlags().testFlag(Qt::LinksAccessibleByKeyboard));
+    CHECK(!label->text().contains(QStringLiteral("@link_text")));  // the theme's link color is filled in
+  }
+#if QT_CONFIG(accessibility)
+  // Assistive technology reads each part as it is shown.
+  for (const auto& [label, shown] : {std::pair{credit, credit_shown.plain}, std::pair{github, github_shown.plain}}) {
+    auto* accessible = QAccessible::queryAccessibleInterface(label);
+    CHECK(accessible != nullptr);
+    CHECK(accessible->text(QAccessible::Name) == shown);
+  }
+#endif
+
+  // One line while there is room: the credit, a clear gap, the repository, both whole.
+  const int credit_line = credit->sizeHint().width();
+  const int github_line = github->sizeHint().width();
+  const int gap = github->mapTo(panel, QPoint(0, 0)).x() - credit->mapTo(panel, QPoint(credit->width(), 0)).x();
+  std::cout << "[i750] credit line: credit " << credit_line << " px, gap " << gap << " px, repository " << github_line
+            << " px, row " << credit->parentWidget()->width() << " px\n";
+  CHECK(top_in_panel(credit) == top_in_panel(github));
+  CHECK(gap >= 10 && gap <= 24);
+  CHECK(credit->width() >= credit_line && github->width() >= github_line);
+  CHECK(credit->height() < 2 * QFontMetrics(credit->font()).lineSpacing());
   CHECK(clipped_labels(*panel).isEmpty());
+  // The block stays compact and centered, and the header rows keep one left edge.
+  CHECK(column->width() <= patchy::ui::ui_text_length(560));
+  CHECK(std::abs((column->mapTo(panel, QPoint(0, 0)).x() + column->width() / 2) - panel->width() / 2) <= 1);
+  CHECK(credit->mapTo(panel, QPoint(0, 0)).x() == tagline->mapTo(panel, QPoint(0, 0)).x());
   save_widget_artifact("ui_start_panel_header_wide", window);
 
+  // Every part of the line lies inside the row, and the row inside the header: a part wider
+  // than its row would be cut by it without the label itself knowing.
+  auto* row = credit->parentWidget();
+  CHECK(row != nullptr && row == github->parentWidget());
+  const auto parts_inside_row = [&] {
+    return row->rect().contains(credit->geometry()) && row->rect().contains(github->geometry()) &&
+           row->mapTo(column, QPoint(0, 0)).x() >= 0 &&
+           row->mapTo(column, QPoint(row->width(), 0)).x() <= column->width() &&
+           credit->height() >= credit->heightForWidth(credit->width()) &&
+           github->height() >= github->heightForWidth(github->width());
+  };
+  CHECK(parts_inside_row());
+
+  // A little less room than the line needs: it folds between its two parts. Two lines, the
+  // repository under the credit at the same left edge, each part whole and on one line.
+  window.resize(900, 800);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  std::cout << "[i750] 900 px window: column " << column->width() << " px, row " << row->width() << " x "
+            << row->height() << " px\n";
+  CHECK(row->width() < credit_line + gap + github_line);
+  CHECK(top_in_panel(github) >= bottom_in_panel(credit));
+  CHECK(github->mapTo(panel, QPoint(0, 0)).x() == credit->mapTo(panel, QPoint(0, 0)).x());
+  CHECK(credit->width() >= credit_line && github->width() >= github_line);
+  CHECK(credit->height() < 2 * QFontMetrics(credit->font()).lineSpacing());
+  CHECK(github->height() < 2 * QFontMetrics(github->font()).lineSpacing());
+  CHECK(parts_inside_row());
+  CHECK(bottom_in_panel(github) <= top_in_panel(new_button));
+  CHECK(clipped_labels(*panel).isEmpty());
+  save_widget_artifact("ui_start_panel_header_folded", window);
+
   // A small window: the header narrows with it. The tagline wraps instead of being cut, the
-  // links fold onto two lines, and nothing reaches past the panel.
-  window.resize(820, 700);
+  // credit line folds, a part wider than what is left wraps inside it, and nothing reaches
+  // past the panel.
+  window.resize(800, 800);
   QApplication::processEvents();
   QApplication::processEvents();
   std::cout << "[i750] small window: panel " << panel->width() << " px, column " << column->width()
@@ -498,13 +615,19 @@ void ui_start_panel_tagline_takes_one_line_and_wraps_when_narrow() {
   CHECK(tagline->height() >= 2 * QFontMetrics(tagline->font()).lineSpacing() - 2);
   CHECK(tagline->height() >= tagline->heightForWidth(tagline->width()));
   for (const auto* label : {static_cast<const QWidget*>(title), static_cast<const QWidget*>(tagline),
-                            static_cast<const QWidget*>(credit), static_cast<const QWidget*>(links[0]),
-                            static_cast<const QWidget*>(links[1])}) {
+                            static_cast<const QWidget*>(credit), static_cast<const QWidget*>(github)}) {
     const int left = label->mapTo(panel, QPoint(0, 0)).x();
     CHECK(left >= 0);
     CHECK(left + label->width() <= panel->width());
   }
-  CHECK(top_in_panel(links[1]) >= bottom_in_panel(links[0]));
+  // The repository under the credit at the same left edge, nothing cut by the row.
+  std::cout << "[i750] small window: row " << row->width() << " x " << row->height() << " px, credit "
+            << credit->width() << " x " << credit->height() << " px, repository " << github->width() << " x "
+            << github->height() << " px\n";
+  CHECK(top_in_panel(github) >= bottom_in_panel(credit));
+  CHECK(github->mapTo(panel, QPoint(0, 0)).x() == credit->mapTo(panel, QPoint(0, 0)).x());
+  CHECK(parts_inside_row());
+  CHECK(bottom_in_panel(github) <= top_in_panel(new_button));
   CHECK(clipped_labels(*panel).isEmpty());
   save_widget_artifact("ui_start_panel_header_narrow", window);
 }

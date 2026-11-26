@@ -41033,10 +41033,6 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>No matching recent files</source>
         <translation type="unfinished"></translation>
     </message>

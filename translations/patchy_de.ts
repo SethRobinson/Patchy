@@ -41117,10 +41117,6 @@ Fixiert: %1</translation>
         <translation>GitHub: %1</translation>
     </message>
     <message>
-        <source>Seth&apos;s site: %1</source>
-        <translation>Seths Website: %1</translation>
-    </message>
-    <message>
         <source>No matching recent files</source>
         <translation>Keine passenden zuletzt verwendeten Dateien</translation>
     </message>
