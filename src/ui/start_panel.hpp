@@ -10,6 +10,7 @@ class QLabel;
 class QLineEdit;
 class QPushButton;
 class QToolButton;
+class QVBoxLayout;
 
 namespace patchy::ui {
 
@@ -20,8 +21,8 @@ class RecentThumbnailCache;
 // area) whenever no document sessions exist. Offers New, Clipboard and Open buttons
 // and the clickable recent files, as a list or as a grid of thumbnails in a section
 // that grows with the window, and carries
-// the app branding (artwork, tagline, credit and links in the header, the version in
-// the footer) plus the startup update-check status; MainWindow owns visibility and
+// the app branding (artwork, title, version, tagline, credit and links in the header)
+// plus the startup update-check status at the bottom; MainWindow owns visibility and
 // geometry.
 class StartPanel final : public QWidget {
   Q_OBJECT
@@ -105,6 +106,8 @@ class StartPanel final : public QWidget {
   RecentThumbnailCache* recent_thumbnails_{nullptr};
   bool recent_grid_view_{false};
   QLabel* update_status_label_{nullptr};
+  // The layout at the bottom of the panel that holds the status line (see the constructor).
+  QVBoxLayout* update_status_area_{nullptr};
   QPushButton* clipboard_button_{nullptr};
 };
 

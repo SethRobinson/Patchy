@@ -12,7 +12,9 @@
 #include "local_psd_fixtures.hpp"
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_tiff.hpp"
+#include "patchy_version.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/build_info.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "ui/network_mounts.hpp"
@@ -36,9 +38,11 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFontInfo>
 #include <QFontMetrics>
 #include <QImage>
 #include <QLabel>
+#include <QLayout>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMap>
@@ -501,15 +505,39 @@ void ui_start_panel_tagline_takes_one_line_and_wraps_when_narrow() {
   CHECK(title->width() >= title_line);
   CHECK(title->height() < 2 * QFontMetrics(title->font()).lineSpacing());
 
-  // Order down the header: title, tagline, the credit line; all of it above the buttons. The
-  // version stays in the footer, under everything else.
-  CHECK(bottom_in_panel(title) <= top_in_panel(tagline));
+  // Order down the header: title, version, tagline, the credit line; all of it above the
+  // buttons.
+  CHECK(bottom_in_panel(title) <= top_in_panel(version));
+  CHECK(bottom_in_panel(version) <= top_in_panel(tagline));
   CHECK(bottom_in_panel(tagline) <= top_in_panel(credit));
   CHECK(bottom_in_panel(credit) <= top_in_panel(new_button));
   CHECK(bottom_in_panel(github) <= top_in_panel(new_button));
   CHECK(column->isAncestorOf(credit) && column->isAncestorOf(github));
-  CHECK(!column->isAncestorOf(version));
-  CHECK(top_in_panel(version) >= bottom_in_panel(new_button));
+
+  // The version and build date sit directly under the title (Seth, November 26, 2026): in the
+  // header's text block, left edge on the title's, one line, close under the title and well
+  // clear of nothing else, smaller than the title and larger than the tagline.
+  const auto left_in_panel = [panel](const QWidget* widget) { return widget->mapTo(panel, QPoint(0, 0)).x(); };
+  CHECK(column->isAncestorOf(version));
+  CHECK(version->parentWidget() == title->parentWidget());
+  CHECK(version->text() == QStringLiteral("Version %1 (built %2)")
+                               .arg(QStringLiteral(PATCHY_VERSION), patchy::ui::build_timestamp_text()));
+  CHECK(left_in_panel(version) == left_in_panel(title));
+  CHECK(left_in_panel(version) == left_in_panel(tagline));
+  const int version_line = QFontMetrics(version->font()).horizontalAdvance(version->text());
+  std::cout << "[i750] version line: text " << version_line << " px in a label " << version->width() << " x "
+            << version->height() << " px, " << top_in_panel(version) - bottom_in_panel(title)
+            << " px under the title, " << top_in_panel(tagline) - bottom_in_panel(version) << " px over the tagline\n";
+  CHECK(version->width() >= version_line);
+  CHECK(version->height() < 2 * QFontMetrics(version->font()).lineSpacing());
+  CHECK(top_in_panel(version) - bottom_in_panel(title) <= 8);
+  CHECK(QFontInfo(version->font()).pixelSize() < QFontInfo(title->font()).pixelSize());
+  CHECK(QFontInfo(version->font()).pixelSize() > QFontInfo(tagline->font()).pixelSize());
+  CHECK(version->toolTip().isEmpty());
+  // Nothing but the update status is left at the bottom of the panel, and that is hidden.
+  auto* status = window.findChild<QLabel*>(QStringLiteral("startPanelUpdateStatus"));
+  CHECK(status != nullptr && !status->isVisible());
+  CHECK(!column->isAncestorOf(status));
 
   // The credit line (Seth, November 2026) reads
   //   Created by Seth A. Robinson (rtsoft.com)   GitHub: SethRobinson/Patchy
@@ -614,8 +642,16 @@ void ui_start_panel_tagline_takes_one_line_and_wraps_when_narrow() {
   CHECK(tagline->width() < tagline_line);
   CHECK(tagline->height() >= 2 * QFontMetrics(tagline->font()).lineSpacing() - 2);
   CHECK(tagline->height() >= tagline->heightForWidth(tagline->width()));
-  for (const auto* label : {static_cast<const QWidget*>(title), static_cast<const QWidget*>(tagline),
-                            static_cast<const QWidget*>(credit), static_cast<const QWidget*>(github)}) {
+  // The version wraps like the tagline does, whole, still under the title.
+  std::cout << "[i750] small window: version label " << version->width() << " x " << version->height() << " px\n";
+  CHECK(version->width() < version_line);
+  CHECK(version->height() >= version->heightForWidth(version->width()));
+  CHECK(version->height() >= 2 * QFontMetrics(version->font()).lineSpacing() - 2);
+  CHECK(bottom_in_panel(title) <= top_in_panel(version));
+  CHECK(bottom_in_panel(version) <= top_in_panel(tagline));
+  for (const auto* label : {static_cast<const QWidget*>(title), static_cast<const QWidget*>(version),
+                            static_cast<const QWidget*>(tagline), static_cast<const QWidget*>(credit),
+                            static_cast<const QWidget*>(github)}) {
     const int left = label->mapTo(panel, QPoint(0, 0)).x();
     CHECK(left >= 0);
     CHECK(left + label->width() <= panel->width());
@@ -1306,7 +1342,9 @@ struct SectionShape {
   QRect block;         // the compact header-and-buttons block, in panel coordinates
   int columns{0};      // cells in the first row (1 in list view)
   int rows_in_view{0}; // rows (of cells) wholly inside the box
-  int version_top{0};
+  // Where the room for the section ends: the panel's bottom margin, or the top of the update
+  // status line while that shows.
+  int floor{0};
   int panel_width{0};
 };
 
@@ -1315,13 +1353,14 @@ SectionShape section_shape(MainWindow& window, PanelParts& parts) {
   QApplication::processEvents();
   auto* section = window.findChild<QWidget*>(QStringLiteral("startPanelRecentSection"));
   auto* column = window.findChild<QWidget*>(QStringLiteral("startPanelColumn"));
-  auto* version = window.findChild<QLabel*>(QStringLiteral("startPanelVersion"));
-  CHECK(section != nullptr && column != nullptr && version != nullptr);
+  auto* status = window.findChild<QLabel*>(QStringLiteral("startPanelUpdateStatus"));
+  CHECK(section != nullptr && column != nullptr && status != nullptr && parts.panel->layout() != nullptr);
   SectionShape shape;
   shape.section = QRect(section->mapTo(parts.panel, QPoint(0, 0)), section->size());
   shape.box = QRect(parts.list->mapTo(parts.panel, QPoint(0, 0)), parts.list->size());
   shape.block = QRect(column->mapTo(parts.panel, QPoint(0, 0)), column->size());
-  shape.version_top = version->mapTo(parts.panel, QPoint(0, 0)).y();
+  shape.floor = status->isVisible() ? status->mapTo(parts.panel, QPoint(0, 0)).y()
+                                    : parts.panel->height() - parts.panel->layout()->contentsMargins().bottom();
   shape.panel_width = parts.panel->width();
   const int top = parts.list->visualItemRect(parts.list->item(0)).top();
   const QRect view = parts.list->viewport()->rect();
@@ -1341,7 +1380,7 @@ SectionShape section_shape(MainWindow& window, PanelParts& parts) {
 
 bool operator==(const SectionShape& a, const SectionShape& b) {
   return a.section == b.section && a.box == b.box && a.block == b.block && a.columns == b.columns &&
-         a.rows_in_view == b.rows_in_view && a.version_top == b.version_top && a.panel_width == b.panel_width;
+         a.rows_in_view == b.rows_in_view && a.floor == b.floor && a.panel_width == b.panel_width;
 }
 
 // The shape once the layout has come to rest: the block, the section and the panel around
@@ -1379,12 +1418,12 @@ QStringList seed_recent_pictures(GridTestSettings& settings, const QString& stem
   return recent;
 }
 
-// The whole section stays inside the panel, above the version row, and the compact block stays
-// one centered block of its own width.
+// The whole section stays inside the panel, above its bottom margin (and the update status
+// line while that shows), and the compact block stays one centered block of its own width.
 void check_section_fits(const SectionShape& shape) {
   CHECK(shape.section.left() >= 0 && shape.section.right() < shape.panel_width);
   CHECK(shape.box.left() >= shape.section.left() && shape.box.right() <= shape.section.right());
-  CHECK(shape.box.bottom() < shape.version_top);
+  CHECK(shape.box.bottom() < shape.floor);
   CHECK(shape.block.left() >= 0 && shape.block.right() < shape.panel_width);
   CHECK(shape.block.bottom() < shape.box.top());
   CHECK(std::abs(shape.block.center().x() - shape.panel_width / 2) <= 2);
@@ -1431,11 +1470,33 @@ void ui_start_panel_recent_section_grows_with_a_large_window() {
   CHECK(parts.list->grid_cell_size().width() >= patchy::ui::kRecentGridMinCellWidth);
   CHECK(parts.list->grid_cell_size().width() <= 260);
   // The list is long enough to fill the height: the block sits at the top margin and the box
-  // reaches down to the footer.
+  // reaches down to the panel's bottom margin, with nothing under it (the version is in the
+  // header now, and the hidden update status takes no height).
   CHECK(grid_large.block.top() <= 40);
-  CHECK(grid_large.version_top - grid_large.box.bottom() <= 40);
+  CHECK(grid_large.floor - grid_large.box.bottom() <= 2);
+  CHECK(grid_large.floor == parts.panel->height() - 24);
   CHECK(all_thumbnails_settled(parts));
   save_widget_artifact("ui_start_panel_section_grid_large", window);
+
+  // The update status appears a moment after the window shows. It takes its line from the
+  // bottom of the box: the header and the top of the box stay where they are.
+  {
+    auto* status = window.findChild<QLabel*>(QStringLiteral("startPanelUpdateStatus"));
+    CHECK(status != nullptr);
+    parts.panel->set_update_status(QStringLiteral("Update available: Patchy 9.99."));
+    const auto with_status = settled_shape(window, parts);
+    CHECK(status->isVisible());
+    check_section_fits(with_status);
+    CHECK(with_status.block == grid_large.block);
+    CHECK(with_status.box.top() == grid_large.box.top());
+    CHECK(with_status.box.bottom() < grid_large.box.bottom());
+    CHECK(with_status.floor - with_status.box.bottom() >= 8 && with_status.floor - with_status.box.bottom() <= 16);
+    CHECK(status->mapTo(parts.panel, QPoint(0, status->height())).y() <= parts.panel->height() - 24 + 1);
+    CHECK(std::abs(status->mapTo(parts.panel, QPoint(status->width() / 2, 0)).x() - parts.panel->width() / 2) <= 2);
+    save_widget_artifact("ui_start_panel_section_grid_large_update_status", window);
+    parts.panel->set_update_status(QString());
+    CHECK(settled_shape(window, parts) == grid_large);
+  }
 
   // List view on the same window: wider and taller than on the ordinary one, but not as wide
   // as the grid (a row that long is hard to read across).
@@ -1503,8 +1564,18 @@ void ui_start_panel_recent_section_is_only_as_large_as_few_entries_need() {
   CHECK(parts.list->verticalScrollBar()->maximum() == 0);
   // With this little content the whole block floats about in the middle, as it always did.
   CHECK(grid.block.top() > 150);
-  CHECK(grid.version_top - grid.box.bottom() > 150);
+  CHECK(grid.floor - grid.box.bottom() > 150);
   save_widget_artifact("ui_start_panel_section_grid_three_entries", window);
+  // The update status showing at the bottom moves neither the block nor the box.
+  parts.panel->set_update_status(QStringLiteral("Update available: Patchy 9.99."));
+  {
+    const auto with_status = settled_shape(window, parts);
+    CHECK(with_status.block == grid.block);
+    CHECK(with_status.box == grid.box);
+    CHECK(with_status.floor > with_status.box.bottom() + 150);
+  }
+  parts.panel->set_update_status(QString());
+  CHECK(settled_shape(window, parts) == grid);
 
   click(*parts.list_button, parts.list_button->rect().center());
   CHECK(process_events_until([&] { return !parts.list->shows_cells(); }));
@@ -1543,12 +1614,19 @@ void ui_start_panel_recent_section_fits_a_small_window() {
   save_widget_artifact("ui_start_panel_section_list_800", window);
   CHECK(no_clipped_labels(*parts.panel));
 
-  // Shorter still: the box gives way, down to one row, and scrolls; the footer stays in view.
+  // Shorter still: the box gives way, down to one row, and scrolls, inside the panel.
   window.resize(800, 560);
   const auto shorter = settled_shape(window, parts);
   CHECK(shorter.box.height() < list.box.height());
   CHECK(shorter.box.height() >= patchy::ui::recent_row_height());
-  CHECK(shorter.box.bottom() < shorter.version_top);
+  CHECK(shorter.box.bottom() < shorter.floor);
+  // The update status still has its line there.
+  parts.panel->set_update_status(QStringLiteral("Update available: Patchy 9.99."));
+  const auto shorter_with_status = settled_shape(window, parts);
+  CHECK(shorter_with_status.box.bottom() < shorter_with_status.floor);
+  CHECK(shorter_with_status.box.height() >= patchy::ui::recent_row_height());
+  CHECK(no_clipped_labels(*parts.panel));
+  parts.panel->set_update_status(QString());
 }
 
 // The grid is what a profile that never chose gets (GitHub issue 750 follow-up).

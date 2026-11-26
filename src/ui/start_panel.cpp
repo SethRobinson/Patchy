@@ -59,7 +59,7 @@ namespace {
 // The real bound is kMaxRecentFiles in main_window_files.cpp, which is what trims
 // the persisted list; this only keeps a hand-edited settings file from building
 // thousands of rows. The Recent Files box asks for the height of ALL its entries and
-// the panel's layout gives it what is free down to the footer: a tall window shows
+// the panel's layout gives it what is free down to the bottom margin: a tall window shows
 // more of them before the box scrolls, and a box with few entries is only as tall as
 // they need (GitHub issue 750 follow-up; it was a fixed 8 rows, or 3 rows of cells).
 constexpr int kMaxRecentEntries = 200;
@@ -86,10 +86,11 @@ constexpr int kCreditLineFoldGap = 2;
 #ifndef Q_OS_WASM
 constexpr int kRecentGridSectionMaxWidth = 1900;
 constexpr int kRecentListSectionMaxWidth = 900;
-// Space between the buttons and the section, and under it before the footer.
+// Space between the buttons and the section.
 constexpr int kRecentSectionTopGap = 28;
-constexpr int kRecentSectionBottomGap = 10;
 #endif
+// Space over the update status line at the bottom of the panel, while it shows.
+constexpr int kUpdateStatusTopGap = 10;
 
 // A word-wrapped label whose preferred size is its text on ONE line. QLabel's own hint for
 // wrapped text is a narrower box of several lines, so a layout never offered the tagline the
@@ -239,16 +240,26 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   column_layout->setContentsMargins(0, 0, 0, 0);
   column_layout->setSpacing(14);
 
+#ifndef Q_OS_WASM
+  // The panel's rows sit flush: the one gap between the block and the section is spelled out
+  // below, so the section's box can run down to the bottom margin with nothing under it.
+  const int row_gap = content_layout->spacing();
+  content_layout->setSpacing(0);
+#endif
   content_layout->addStretch(3);
   auto* center_row = new QHBoxLayout();
   center_row->addStretch(1);
   center_row->addWidget(column);
   center_row->addStretch(1);
   content_layout->addLayout(center_row);
+#ifndef Q_OS_WASM
+  content_layout->addSpacing(std::max(row_gap, 0));
+#endif
   // The Recent Files section and the stretch under it follow once they are built (below).
 
-  // About-style header: the logo card beside the title, the tagline and one credit line
-  // (GitHub issue 750 moved the credit and the links up from the footer, then onto one line).
+  // About-style header: the logo card beside the title, the version, the tagline and one credit
+  // line (GitHub issue 750 moved the credit and the links up from the footer, then onto one
+  // line, then the version up under the title).
   auto* header_row = new QHBoxLayout();
   header_row->setSpacing(kHeaderSpacing);
   auto* artwork = new SplashArtwork(column);
@@ -266,6 +277,19 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   bind_translated_text(tagline, QT_TR_NOOP("Open source photo editing. Free forever, no subscriptions."), "patchy::ui::StartPanel");
   tagline->setObjectName(QStringLiteral("startPanelTagline"));
   tagline->setWordWrap(true);
+
+  // The version and build date sit directly under the title (Seth, November 26, 2026; before
+  // that they had a row of their own at the bottom of the panel). It is what a bug report needs
+  // first, so it reads as part of the title block: one line while there is room, wrapping like
+  // the tagline when there is less.
+  auto* version = new OneLineFirstLabel(column);
+  version->setObjectName(QStringLiteral("startPanelVersion"));
+  version->setTextFormat(Qt::PlainText);
+  version->setWordWrap(true);
+  retranslation_callbacks_.push_back([version] {
+    version->setText(tr("Version %1 (built %2)").arg(QStringLiteral(PATCHY_VERSION), build_timestamp_text()));
+    version->updateGeometry();
+  });
 
   // One line under the tagline (Seth, November 2026):
   //   Created by Seth A. Robinson (rtsoft.com)   GitHub: SethRobinson/Patchy
@@ -302,6 +326,8 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
 
   header_text->addStretch(1);
   header_text->addWidget(title);
+  header_text->addWidget(version);
+  header_text->addSpacing(2);
   header_text->addWidget(tagline);
   header_text->addSpacing(4);
   header_text->addWidget(home_row);
@@ -405,7 +431,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
 #ifdef Q_OS_WASM
   section_layout->setContentsMargins(0, 0, 0, 0);
 #else
-  section_layout->setContentsMargins(0, kRecentSectionTopGap, 0, kRecentSectionBottomGap);
+  section_layout->setContentsMargins(0, kRecentSectionTopGap, 0, 0);
   // Never taller than its entries need (Maximum: the size hint is the ceiling), as wide as
   // the row lets it be up to the cap update_recent_section_width sets.
   recent_section_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
@@ -514,7 +540,8 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   // height of all its entries and may shrink to one row. While everything fits, the two
   // stretches share what is left and the block sits about in the middle, as it always did.
   // Once the entries need more than the panel has, the stretches are empty: the header is at
-  // the top margin and the box takes all the height down to the footer, scrolling the rest.
+  // the top margin and the box takes all the height down to the bottom margin (or to the
+  // update status line while that shows), scrolling the rest.
   // Nothing jumps between the two: the box is the only item that gives way.
   // Across, the section takes the row's width up to its cap and is centered in what is left.
   auto* recent_row = new QHBoxLayout();
@@ -523,41 +550,39 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   recent_row->addStretch(1);
   content_layout->addLayout(recent_row);
 #endif
-  content_layout->addStretch(4);
 
-  // Dim footer pinned to the bottom of the panel: the version and the startup
-  // update-check status. The credit and the links sit in the header (GitHub issue 750).
-  auto* footer = new QVBoxLayout();
-  footer->setSpacing(3);
-  const auto add_footer_row = [footer](std::initializer_list<QWidget*> widgets) {
-    auto* row = new QHBoxLayout();
-    row->setSpacing(14);
-    row->addStretch(1);
-    for (auto* widget : widgets) {
-      row->addWidget(widget);
-    }
-    row->addStretch(1);
-    footer->addLayout(row);
-  };
-
-  auto* version = new QLabel(this);
-  retranslation_callbacks_.push_back([version] {
-    version->setText(tr("Version %1 (built %2)").arg(QStringLiteral(PATCHY_VERSION), build_timestamp_text()));
-  });
-  version->setObjectName(QStringLiteral("startPanelVersion"));
-  version->setTextFormat(Qt::PlainText);
-  // The version keeps its own row, with the build date, so the number stands
-  // alone: it is what a bug report needs first (Seth, October 2026, kept in
-  // GitHub issue 750).
-  add_footer_row({version});
-
+  // The bottom of the panel holds one thing: the startup update-check status, hidden until the
+  // check has something to say. The version sits under the title and the credit and the links
+  // in the header (GitHub issue 750; Seth, November 26, 2026). The status stays down here
+  // because it appears a moment after the window shows: in the header it would push the
+  // tagline, the buttons and the grid down then. Here it only takes a line from the bottom.
   update_status_label_ = new QLabel(this);
   update_status_label_->setObjectName(QStringLiteral("startPanelUpdateStatus"));
   update_status_label_->setTextFormat(Qt::PlainText);
   update_status_label_->setVisible(false);
-  add_footer_row({update_status_label_});
-
-  outer->addLayout(footer);
+  auto* status_row = new QHBoxLayout();
+  status_row->addStretch(1);
+  status_row->addWidget(update_status_label_);
+  status_row->addStretch(1);
+#ifdef Q_OS_WASM
+  content_layout->addStretch(4);
+  // Outside the scrolling content, so it stays in view.
+  update_status_area_ = new QVBoxLayout();
+  update_status_area_->setContentsMargins(0, 0, 0, 0);
+  update_status_area_->addLayout(status_row);
+  outer->addLayout(update_status_area_);
+#else
+  // The space under the section, with the status line at its end. While the line is hidden
+  // this is the plain stretch it replaces and has no height of its own, so a long list's box
+  // reaches the bottom margin. When the line shows, its height comes out of this space alone
+  // (or out of the box, once the list fills the panel): the header does not move.
+  update_status_area_ = new QVBoxLayout();
+  update_status_area_->setContentsMargins(0, 0, 0, 0);
+  update_status_area_->setSpacing(0);
+  update_status_area_->addStretch(1);
+  update_status_area_->addLayout(status_row);
+  content_layout->addLayout(update_status_area_, 4);
+#endif
   for (const auto& callback : retranslation_callbacks_) callback();
 
   connect(new_button, &QPushButton::clicked, this, &StartPanel::new_document_requested);
@@ -612,8 +637,8 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
       font-size: 11px;
     }
     QLabel#startPanelVersion {
-      /* The version is what a bug report needs first: larger and brighter than
-         the rest of the footer (Seth, October 2026). */
+      /* Directly under the title (Seth, November 26, 2026). It is what a bug report
+         needs first: larger and heavier than the tagline under it, in the same color. */
       background: transparent;
       color: @start_panel_tagline_text;
       font-size: 14px;
@@ -901,6 +926,10 @@ void StartPanel::set_update_status(const QString& text) {
   }
   update_status_label_->setText(text);
   update_status_label_->setVisible(!text.isEmpty());
+  if (update_status_area_ != nullptr) {
+    // The gap over the line exists only with the line: hidden, the area has no height at all.
+    update_status_area_->setContentsMargins(0, text.isEmpty() ? 0 : kUpdateStatusTopGap, 0, 0);
+  }
 }
 
 }  // namespace patchy::ui

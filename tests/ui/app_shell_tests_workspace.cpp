@@ -531,27 +531,27 @@ void ui_start_panel_recent_files_scroll_and_context_menu() {
   CHECK(recent_list->isVisible());
 
   auto* panel = window.findChild<QWidget*>(QStringLiteral("startPanel"));
-  auto* version = window.findChild<QLabel*>(QStringLiteral("startPanelVersion"));
-  CHECK(panel != nullptr && version != nullptr);
+  CHECK(panel != nullptr && panel->layout() != nullptr);
   const auto box_bottom = [&] { return recent_list->mapTo(panel, QPoint(0, recent_list->height())).y(); };
-  const auto version_top = [&] { return version->mapTo(panel, QPoint(0, 0)).y(); };
+  // Where the panel's room ends: its bottom margin (the version sits in the header now).
+  const auto panel_floor = [&] { return panel->height() - panel->layout()->contentsMargins().bottom(); };
 
   // The box asks for every row (GitHub issue 750 follow-up; it was capped at eight). A
-  // window with no room for them all gives it what is free down to the footer and it
-  // scrolls for the rest, rather than pushing the panel footer off screen.
+  // window with no room for them all gives it what is free down to the bottom margin and it
+  // scrolls for the rest, rather than running off the panel.
   CHECK(recent_list->count() == kSeededFiles);
   CHECK(recent_list->sizeHint().height() == kSeededFiles * 40 + 14);
   CHECK(recent_list->height() < kSeededFiles * 40 + 14);
   CHECK(recent_list->height() >= 4 * 40);
   CHECK(recent_list->verticalScrollBar()->maximum() > 0);
-  CHECK(box_bottom() <= version_top());
+  CHECK(box_bottom() <= panel_floor());
 
   // Tall enough for every row: the box is exactly as tall as its rows and nothing scrolls.
   window.resize(1180, 1400);
   QApplication::processEvents();
   CHECK(process_events_until([&] { return recent_list->height() == kSeededFiles * 40 + 14; }));
   CHECK(recent_list->verticalScrollBar()->maximum() == 0);
-  CHECK(box_bottom() <= version_top());
+  CHECK(box_bottom() <= panel_floor());
 
   // In between, more rows show than the old cap of eight, and the rest scroll.
   window.resize(1180, 1000);
@@ -561,7 +561,7 @@ void ui_start_panel_recent_files_scroll_and_context_menu() {
   CHECK(recent_list->height() > 8 * 40 + 14);
   CHECK(recent_list->verticalScrollBar()->maximum() > 0);
   CHECK(recent_list->verticalScrollBar()->isVisible());
-  CHECK(box_bottom() <= version_top());
+  CHECK(box_bottom() <= panel_floor());
   CHECK(recent_list->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff);
   save_widget_artifact("ui_start_panel_recent_scroll", window);
 
@@ -1279,13 +1279,17 @@ void ui_start_panel_shows_about_info_and_update_status() {
   CHECK(credit->text().contains(QStringLiteral("href=\"https://rtsoft.com\">rtsoft.com</a>)")));
   CHECK(!credit->text().contains(QStringLiteral("github.com")));
   CHECK(!credit->text().contains(QStringLiteral("@link_text")));
-  // The credit sits in the header, under the tagline; the version row stays in the footer,
-  // outside the column, with its build date.
+  // The credit sits in the header, under the tagline; the version with its build date sits
+  // there too, directly under the title and above the tagline (Seth, November 26, 2026).
   CHECK(column->isAncestorOf(tagline));
   CHECK(column->isAncestorOf(credit));
   CHECK(credit->mapTo(panel, QPoint(0, 0)).y() >= tagline->mapTo(panel, QPoint(0, tagline->height())).y());
-  CHECK(!column->isAncestorOf(version));
-  CHECK(version->mapTo(panel, QPoint(0, 0)).y() > column->mapTo(panel, QPoint(0, column->height())).y() - 1);
+  auto* title = window.findChild<QLabel*>(QStringLiteral("startPanelTitle"));
+  CHECK(title != nullptr);
+  CHECK(column->isAncestorOf(version));
+  CHECK(version->mapTo(panel, QPoint(0, 0)).y() >= title->mapTo(panel, QPoint(0, title->height())).y());
+  CHECK(version->mapTo(panel, QPoint(0, version->height())).y() <= tagline->mapTo(panel, QPoint(0, 0)).y());
+  CHECK(version->mapTo(panel, QPoint(0, 0)).x() == title->mapTo(panel, QPoint(0, 0)).x());
   // The contributor credits belong to the About dialog alone, and the line about dropping
   // files is gone (dropping still works).
   CHECK(window.findChild<QLabel*>(QStringLiteral("startPanelContributors")) == nullptr);
@@ -1308,8 +1312,8 @@ void ui_start_panel_shows_about_info_and_update_status() {
     CHECK(!label->text().contains(QStringLiteral("Seth's site")));
   }
 
-  // The update-status footer line stays hidden until a status is pushed and
-  // hides again when cleared. It is the footer's only other row.
+  // The update-status line at the bottom of the panel stays hidden until a status is pushed
+  // and hides again when cleared. It is the only thing down there, under everything else.
   auto* status = window.findChild<QLabel*>(QStringLiteral("startPanelUpdateStatus"));
   CHECK(status != nullptr);
   CHECK(!status->isVisible());
@@ -1318,6 +1322,8 @@ void ui_start_panel_shows_about_info_and_update_status() {
   QApplication::processEvents();
   CHECK(status->isVisible());
   CHECK(status->text() == QStringLiteral("Update available: Patchy 9.99."));
+  CHECK(status->mapTo(panel, QPoint(0, 0)).y() >= column->mapTo(panel, QPoint(0, column->height())).y());
+  CHECK(status->mapTo(panel, QPoint(0, status->height())).y() <= panel->height());
   save_widget_artifact("ui_start_panel_about_info", window);
   panel->set_update_status(QString());
   CHECK(!status->isVisible());
