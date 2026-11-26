@@ -872,15 +872,16 @@ private:
   // current category. Reads the document only: no undo step.
   void add_selected_layers_to_assets();
   // The same for the given layers of `source` (a Layers-panel drag onto the panel). Returns
-  // how many assets were added.
+  // how many assets were handed to the library's worker to be written.
   int add_layers_to_assets(DocumentSession& source, std::vector<LayerId> ids);
   // The panel's double-click and Place entry: into the active document, centered.
   void place_assets_in_active_document(const QStringList& asset_ids);
   // An asset drag over a session canvas (tab page or float) or a document tab: accepts it
   // as a copy and defers the placement. File-drop and layer-drag handlers never see it.
   bool handle_asset_drag_event(QObject* watched, QEvent* event);
-  // The stored thumbnail, rendered again from the asset's layers when its file is gone.
-  QImage asset_thumbnail(const QString& asset_id);
+  // Lists every asset still being written by the library's worker (window close: an asset
+  // the user just added must not stay unlisted).
+  void finish_pending_asset_writes();
   // The Color panel (GitHub issue 365): a pick sets the foreground, or the background
   // when Alt was held at the press.
   void create_color_dock(std::vector<PanelSpec>& specs);

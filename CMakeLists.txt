@@ -1642,6 +1642,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/palette_panel.cpp
       src/ui/asset_library.hpp
       src/ui/asset_library.cpp
+      src/ui/asset_thumbnails.hpp
+      src/ui/asset_thumbnails.cpp
       src/ui/assets_panel.hpp
       src/ui/assets_panel.cpp
       src/ui/panel_column.hpp
@@ -2982,6 +2984,7 @@ if(PATCHY_BUILD_TESTS)
     add_executable(patchy_perf_tests
       tests/perf_tests.cpp
       tests/perf_startup.cpp
+      tests/perf_assets.cpp
       tests/test_harness.cpp
     )
     target_link_libraries(patchy_perf_tests PRIVATE patchy_ui)

@@ -152,6 +152,8 @@ These measurements precede [library preloading](#preloaded-libraries). Use the h
 | `mw.scripts` | 10 ms | 11 ms, fresh profile |
 | `mw.tabs_start_panel`, `mw.input_color_settings`, `mw.view_recent`, `mw.docks`, `mw.actions.translations_finish`, `main_window.show` and `mw.actions.menu_bar` | 5 ms or less each | |
 
+A panel open in the saved layout is part of startup too. The benchmark runs offscreen, which ignores the saved layout, so a launch that should measure one sets `PATCHY_PANEL_LAYOUT=1` with a settings folder that holds it ([right-docks.md](right-docks.md#saved-panel-layout)). `patchy_perf_tests assets` does that for the Assets panel with libraries of up to 5000 assets ([assets-panel.md](assets-panel.md#startup-and-large-libraries)): with the panel open the window is ready as fast as with it closed, because the library and its thumbnails are read on a worker after the first paint.
+
 For further profiling, the stylesheet is applied after widget construction. An earlier application changes when widgets see styled metrics and must preserve the scheme-change connection order. Building options pages on first use would affect hotkeys, translations and tests that find hidden widgets by name. Deferring the script scan would also defer registration of script hotkeys.
 
 For cold starts, identify actual DLL imports with `dumpbin /imports`. A string scan found Qt6Pdf, Qt6Qml, Qt6Network, Qt6PrintSupport, Qt6Svg and ONNX Runtime. Delay-loading can defer missing-DLL errors until first use, and the linker rejects a delay-loaded import of data such as a subclassed Qt type's `staticMetaObject` (LNK1194).
