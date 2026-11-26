@@ -73,6 +73,8 @@ class RecentFileList final : public QListWidget {
   [[nodiscard]] int width_for_grid_columns(int columns) const;
   // fill_recent_file_list calls this after it replaced the rows.
   void rows_changed();
+  // Repaints the cell or row of `path` when it is in view. False when no row has that path.
+  bool update_path(const QString& path);
 
   QSize sizeHint() const override;
   QSize minimumSizeHint() const override;

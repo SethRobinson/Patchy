@@ -5617,10 +5617,14 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   rebuild_recent_folders_menu();
   // The first existence check waits for the event loop, off the startup path.
   QTimer::singleShot(0, this, [this] { schedule_recent_history_check(true); });
-  if (start_panel_->recent_grid_view()) {
-    // The same sweep as turning the grid on, queued for the thumbnail worker.
-    start_panel_->recent_thumbnails().retain_only(recent_files_stored_);
-  }
+  // The sweep of the thumbnail folder (the same one as turning the grid on) is housekeeping: it
+  // waits until startup is well over, so no worker starts and no folder is listed while the
+  // window is being built or painting for the first time (docs/startup-performance.md).
+  QTimer::singleShot(kRecentThumbnailSweepDelayMs, this, [this] {
+    if (start_panel_ != nullptr && start_panel_->recent_grid_view()) {
+      start_panel_->recent_thumbnails().retain_only(recent_files_stored_);
+    }
+  });
   auto* recent_history_timer = new QTimer(this);
   recent_history_timer->setInterval(2000);
   connect(recent_history_timer, &QTimer::timeout, this, [this] {

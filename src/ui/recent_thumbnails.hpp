@@ -22,6 +22,7 @@
 #include <QStringList>
 
 #include <memory>
+#include <vector>
 
 namespace patchy::ui {
 
@@ -33,13 +34,18 @@ inline constexpr int kRecentThumbnailStoredSide = 512;
 // recently painted kRecentThumbnailLoadedFloor are never let go, whatever their size.
 inline constexpr qsizetype kRecentThumbnailLoadedBytes = 48 * 1024 * 1024;
 inline constexpr int kRecentThumbnailLoadedFloor = 64;
+// How long after the main window is built the thumbnail folder is swept of pictures no recent
+// entry owns: housekeeping that must stay off the startup path.
+inline constexpr int kRecentThumbnailSweepDelayMs = 4000;
 // A source file larger than this is never opened for a thumbnail.
 inline constexpr qint64 kRecentThumbnailMaxSourceBytes = 512LL * 1024 * 1024;
 // An image with more pixels than this is not decoded for a thumbnail, unless its format decodes
 // straight to a reduced size (JPEG).
 inline constexpr qint64 kRecentThumbnailMaxSourcePixels = 64LL * 1000 * 1000;
 
-// The cache folder: PATCHY_RECENT_THUMBNAILS_DIR when set (the test suites, isolated runs), else
+// The cache folder: PATCHY_RECENT_THUMBNAILS_DIR when set (the test suites), else a folder inside
+// a redirected settings root (PATCHY_SETTINGS_DIR: an isolated run keeps its own recent list, and
+// its sweep must never reach the user's real pictures), else
 // `<AppLocalDataLocation>/recent-thumbnails`. Never created by this call.
 [[nodiscard]] QString recent_thumbnails_directory();
 // The cache file that belongs to `path`: a name made from the path's text alone, so removing a
@@ -89,6 +95,12 @@ class RecentThumbnailCache final : public QObject {
 
   // True while a job is queued or running (tests wait on it).
   [[nodiscard]] bool busy() const;
+  // Loads asked for and not yet answered. The startup report waits for this to reach zero so
+  // the span of the first cells' pictures lands in it (background `recent_thumbnails.first_cells`:
+  // from the first request to the moment none is pending; docs/startup-performance.md).
+  [[nodiscard]] int loads_in_flight() const noexcept { return loads_in_flight_; }
+  // Requests made since construction (the startup guard tests read it).
+  [[nodiscard]] int requests_made() const noexcept { return requests_made_; }
 
  signals:
   void thumbnail_changed(const QString& path);
@@ -105,15 +117,28 @@ class RecentThumbnailCache final : public QObject {
   struct Job;
 
   void enqueue(Job job);
+  // Hands jobs to the worker, starting it when it is not running.
+  void send_to_worker(std::vector<Job> jobs);
+  // Releases the loads held for the event loop's first idle moment (see held_).
+  void release_held();
   // The worker's answer for one path, delivered on the UI thread.
-  void finish(const QString& key, QImage image, bool available, bool reduced, QSize box);
+  void finish(const QString& key, bool was_load, QImage image, bool available, bool reduced, QSize box);
   // Lets the pictures used longest ago go once the loaded ones pass their byte bound.
   void trim_loaded();
 
   QHash<QString, Entry> entries_;
   QSize display_box_{192, 144};
   quint64 clock_{0};
+  int loads_in_flight_{0};
+  int requests_made_{0};
+  double first_request_ms_{-1.0};  // startup trace clock; -1 when not tracing or already reported
   std::shared_ptr<Shared> shared_;
+  // Loads asked for before the event loop has gone idle once. The first paint asks for a
+  // screenful while startup still has work queued; they start when the loop is first about to
+  // block (startup is idle then), so their arrivals never stretch startup, or after
+  // kHoldLimitMs when the loop never rests. Later requests go straight to the worker.
+  std::vector<Job> held_;
+  bool released_once_{false};
 };
 
 // The picture MainWindow hands to RecentThumbnailCache::store: `composite` picked down to at most

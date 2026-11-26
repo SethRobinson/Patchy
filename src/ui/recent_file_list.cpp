@@ -174,6 +174,22 @@ void RecentFileList::apply_view_layout() {
   viewport()->update();
 }
 
+bool RecentFileList::update_path(const QString& path) {
+  // One cell, not the viewport: pictures arrive one at a time, forty or more after the first
+  // paint of a large window.
+  const auto visible = viewport()->rect();
+  for (int row = 0; row < count(); ++row) {
+    if (item(row)->data(kRecentPathRole).toString() != path) {
+      continue;
+    }
+    if (const auto rect = visualItemRect(item(row)); rect.intersects(visible)) {
+      viewport()->update(rect);
+    }
+    return true;  // found; a row scrolled out of view needs no repaint
+  }
+  return false;
+}
+
 void RecentFileList::resizeEvent(QResizeEvent* event) {
   QListWidget::resizeEvent(event);
   if (!cells_) {
@@ -392,7 +408,9 @@ int RecentFileList::grid_cell_height(int cell_width) {
 
 QSize RecentFileDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex&) const {
   if (const auto* list = dynamic_cast<const RecentFileList*>(option.widget); list != nullptr && list->shows_cells()) {
-    return list->grid_cell_size();
+    // The size the list set for its grid: asked once per cell on every layout, so it must be a
+    // stored value, not a fresh measurement of the viewport and the style.
+    return list->gridSize();
   }
   // A row is as wide as the viewport whatever this says (QListView widens it), so say as
   // little as possible: the hint is cached for every row, and a width taken while the box was

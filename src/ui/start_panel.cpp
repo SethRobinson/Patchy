@@ -372,9 +372,15 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
     recent_list_->set_remove_handler([this](const QString& path) { emit recent_file_remove_requested(path); },
                                      tr("Remove from Recent Files"));
   });
-  // A picture arrived from the worker: the cells are few, so the whole viewport repaints.
+  // A picture arrived from the worker: its own cell repaints, nothing else.
   connect(recent_thumbnails_, &RecentThumbnailCache::thumbnail_changed, this,
-          [this] { recent_list_->viewport()->update(); });
+          [this](const QString& path) {
+            // The cache names a picture by its cleaned path; a row whose stored text differs
+            // (a path with ".." in it) is not found by name and repaints with the viewport.
+            if (!recent_list_->update_path(path)) {
+              recent_list_->viewport()->update();
+            }
+          });
   connect(recent_list_view_button_, &QToolButton::clicked, this, [this] { set_recent_grid_view(false); });
   connect(recent_grid_view_button_, &QToolButton::clicked, this, [this] { set_recent_grid_view(true); });
 #ifndef Q_OS_WASM
