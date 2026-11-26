@@ -71,11 +71,14 @@ constexpr int kColumnMaxWidth = 520;
 // size). The grid uses most of a wide window: nine cells of about 210 px at the cap, so cells
 // do not sprawl from edge to edge of an ultrawide screen. The list stops sooner: a row that
 // long shows the whole of nearly any path, and longer ones are hard to read across.
+// (The browser build keeps no recent files and leaves the section in the column.)
+#ifndef Q_OS_WASM
 constexpr int kRecentGridSectionMaxWidth = 1900;
 constexpr int kRecentListSectionMaxWidth = 900;
 // Space between the buttons and the section, and under it before the footer.
 constexpr int kRecentSectionTopGap = 28;
 constexpr int kRecentSectionBottomGap = 10;
+#endif
 
 // A word-wrapped label whose preferred size is its text on ONE line. QLabel's own hint for
 // wrapped text is a narrower box of several lines, so a layout never offered the tagline the
