@@ -12,6 +12,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -60,7 +61,91 @@ struct LaunchConfig {
   bool onscreen = false;
   bool update_check = false;
   QString scratch;  // settings, fonts and recovery folders shared by every launch
+  // Empty the Home Screen's thumbnail cache before every launch (PATCHY_PERF_STARTUP_THUMBNAILS=empty):
+  // every visible cell of the grid then needs its picture made again.
+  bool empty_thumbnails = false;
 };
+
+// The seeded profile (docs/startup-performance.md, "A profile with recent files"): what a
+// long-time user's Home Screen holds, which the fresh profile never shows.
+struct ProfileSeed {
+  int recent_files = 0;  // PATCHY_PERF_STARTUP_RECENT
+  bool grid = false;     // PATCHY_PERF_STARTUP_GRID
+  QSize window;          // PATCHY_PERF_STARTUP_WINDOW=<width>x<height>
+};
+
+// A picture with enough detail that its file is a realistic size to read and decode.
+QImage seeded_picture(int width, int height, quint32 seed) {
+  QImage image(width, height, QImage::Format_RGB32);
+  quint32 state = seed;
+  for (int y = 0; y < height; ++y) {
+    auto* line = reinterpret_cast<QRgb*>(image.scanLine(y));
+    for (int x = 0; x < width; ++x) {
+      state = state * 1664525U + 1013904223U;
+      const int noise = static_cast<int>((state >> 24) & 31U);
+      line[x] = qRgb((x * 255 / width + noise) & 255, (y * 255 / height + noise) & 255,
+                     ((x + y) * 255 / (width + height) + noise) & 255);
+    }
+  }
+  return image;
+}
+
+// `count` local files of mixed kinds in `folder`: JPEG and PNG pictures, a PSD with an embedded
+// thumbnail, and kinds with no quick preview (an OpenRaster file, a GIMP file). Each kind is
+// made once and copied, so every entry is its own file with its own thumbnail.
+QStringList make_recent_files(const QString& folder, int count) {
+  QDir().mkpath(folder);
+  const QDir dir(folder);
+  QStringList masters;
+  const auto add_picture = [&](const QString& name, int width, int height, quint32 seed, const char* format) {
+    const auto path = dir.filePath(name);
+    if (seeded_picture(width, height, seed).save(path, format, 85)) {
+      masters << path;
+    }
+  };
+  add_picture(QStringLiteral("master-photo.jpg"), 2400, 1600, 11U, "JPG");
+  add_picture(QStringLiteral("master-art.png"), 1280, 960, 23U, "PNG");
+  add_picture(QStringLiteral("master-portrait.jpg"), 1200, 1800, 37U, "JPG");
+  for (const auto& fixture : {QStringLiteral(PATCHY_SOURCE_DIR "/test-fixtures/psd/arrows.psd"),
+                              QStringLiteral(PATCHY_SOURCE_DIR "/test-fixtures/ora/python-layers.ora")}) {
+    const auto path = dir.filePath(QStringLiteral("master-") + QFileInfo(fixture).fileName());
+    if (QFile::copy(fixture, path)) {
+      masters << path;
+    }
+  }
+  if (QFile gimp(dir.filePath(QStringLiteral("master-drawing.xcf"))); gimp.open(QIODevice::WriteOnly)) {
+    gimp.write(QByteArray(4096, 'x'));
+    masters << gimp.fileName();
+  }
+  QStringList recent;
+  for (int index = 0; index < count && !masters.isEmpty(); ++index) {
+    const auto& master = masters[index % masters.size()];
+    const auto path = dir.filePath(
+        QStringLiteral("recent-%1.%2").arg(index, 3, 10, QLatin1Char('0')).arg(QFileInfo(master).suffix()));
+    if (QFile::copy(master, path)) {
+      recent << path;
+    }
+  }
+  return recent;
+}
+
+// Writes the seed into the profile a launch will read (the settings file the app itself uses
+// under PATCHY_SETTINGS_DIR). A build from before the grid ignores the keys it does not know.
+void seed_profile(const LaunchConfig& config, const ProfileSeed& seed, const QStringList& recent) {
+  const auto ini = QDir(config.scratch).filePath(QStringLiteral("settings/RTsoft/Patchy/Patchy.ini"));
+  QDir().mkpath(QFileInfo(ini).absolutePath());
+  QSettings settings(ini, QSettings::IniFormat);
+  if (!recent.isEmpty()) {
+    settings.setValue(QStringLiteral("recentFiles"), recent);
+  }
+  if (seed.grid) {
+    settings.setValue(QStringLiteral("startPanel/recentFilesGridView"), true);
+  }
+  if (seed.window.isValid()) {
+    settings.setValue(QStringLiteral("window/normalGeometry"), QRect(QPoint(0, 0), seed.window));
+  }
+  settings.sync();
+}
 
 int env_int(const char* name, int fallback) {
   bool ok = false;
@@ -152,6 +237,13 @@ std::optional<Sample> launch_once(const LaunchConfig& config, const QString& rep
   environment.insert(QStringLiteral("PATCHY_SETTINGS_DIR"), scratch.filePath(QStringLiteral("settings")));
   environment.insert(QStringLiteral("PATCHY_USER_FONTS_DIR"), scratch.filePath(QStringLiteral("user-fonts")));
   environment.insert(QStringLiteral("PATCHY_RECOVERY_DIR"), scratch.filePath(QStringLiteral("recovery")));
+  // Always inside the scratch folder: with Grid on, the app sweeps this folder down to the
+  // profile's own recent list, which must never be the user's real thumbnail cache.
+  const auto thumbnails = scratch.filePath(QStringLiteral("recent-thumbnails"));
+  environment.insert(QStringLiteral("PATCHY_RECENT_THUMBNAILS_DIR"), thumbnails);
+  if (config.empty_thumbnails) {
+    (void)patchy::test::remove_test_scratch_tree(patchy::ui::to_filesystem_path(thumbnails));
+  }
   environment.insert(QStringLiteral("PATCHY_MCP_ENDPOINT"),
                      QStringLiteral("PatchyMcp-perf-startup-%1").arg(QCoreApplication::applicationPid()));
   environment.insert(QStringLiteral("PATCHY_NO_SINGLE_INSTANCE"), QStringLiteral("1"));
@@ -437,6 +529,13 @@ int run_startup_scenario() {
   const int cold_runs = std::max(1, env_int("PATCHY_PERF_STARTUP_COLD_RUNS", 5));
   const auto compare_exe = qEnvironmentVariable("PATCHY_PERF_STARTUP_COMPARE_EXE");
   const auto mode = std::string(config.onscreen ? "window" : "headless");
+  ProfileSeed seed;
+  seed.recent_files = std::clamp(env_int("PATCHY_PERF_STARTUP_RECENT", 0), 0, 200);
+  seed.grid = qEnvironmentVariableIsSet("PATCHY_PERF_STARTUP_GRID");
+  if (const auto parts = qEnvironmentVariable("PATCHY_PERF_STARTUP_WINDOW").split(QLatin1Char('x')); parts.size() == 2) {
+    seed.window = QSize(parts[0].toInt(), parts[1].toInt());
+  }
+  config.empty_thumbnails = qEnvironmentVariable("PATCHY_PERF_STARTUP_THUMBNAILS") == QStringLiteral("empty");
 #ifdef Q_OS_WIN
   // ssh and services run in session 0, which has no interactive desktop: a real window
   // never paints there (the launch would wait out its two-minute guard).
@@ -464,6 +563,18 @@ int run_startup_scenario() {
       return 1;
     }
     QDir().mkpath(reference_config.scratch);
+  }
+  if (seed.recent_files > 0 || seed.grid || seed.window.isValid()) {
+    const auto recent = make_recent_files(QDir(root).filePath(QStringLiteral("recent-files")), seed.recent_files);
+    seed_profile(config, seed, recent);
+    if (!compare_exe.isEmpty()) {
+      seed_profile(reference_config, seed, recent);
+    }
+    std::cout << "[PERF] startup seeded profile: recent=" << recent.size() << " grid=" << (seed.grid ? 1 : 0)
+              << " thumbnails=" << (config.empty_thumbnails ? "empty" : "kept") << " window="
+              << (seed.window.isValid() ? std::to_string(seed.window.width()) + "x" + std::to_string(seed.window.height())
+                                        : std::string("default"))
+              << '\n';
   }
 
   std::cout << "[PERF] startup exe=" << QDir::toNativeSeparators(config.exe).toStdString() << " mode=" << mode

@@ -1194,10 +1194,93 @@ void ui_start_panel_recent_section_fits_a_small_window() {
   CHECK(shorter.box.bottom() < shorter.version_top);
 }
 
+// --- Startup: nothing for the grid runs before the first paint (docs/startup-performance.md) ---
+
+void ui_start_panel_grid_does_no_thumbnail_work_before_its_first_paint() {
+  using namespace patchy::test::ui;
+  GridTestSettings settings;
+  settings.set_grid(true);
+  const auto recent = seed_recent_pictures(settings, QStringLiteral("startup"), 200);
+  CHECK(recent.size() == 200);
+  // A picture no recent entry owns: the sweep that removes it is housekeeping for later.
+  const auto orphan =
+      QDir(patchy::ui::recent_thumbnails_directory()).filePath(QString(40, QLatin1Char('a')) + QStringLiteral(".png"));
+  CHECK(QDir().mkpath(QFileInfo(orphan).absolutePath()));
+  write_png(orphan, QColor(1, 2, 3), QSize(8, 8));
+
+  MainWindow window;
+  auto* panel = window.findChild<StartPanel*>(QStringLiteral("startPanel"));
+  CHECK(panel != nullptr);
+  CHECK(panel->recent_grid_view());
+  auto& thumbnails = panel->recent_thumbnails();
+  // Built with Grid on and a full list: no picture was asked for, no worker was started and
+  // the folder sweep is not queued. The zero-timer startup tasks change none of that.
+  CHECK(thumbnails.requests_made() == 0);
+  CHECK(thumbnails.loads_in_flight() == 0);
+  CHECK(!thumbnails.busy());
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(thumbnails.requests_made() == 0);
+  CHECK(!thumbnails.busy());
+  CHECK(QFileInfo::exists(orphan));
+
+  show_window_empty(window);
+  window.resize(1280, 860);
+  auto parts = panel_parts(window);
+  CHECK(process_events_until([&] { return parts.list->count() == 200; }));
+  (void)settled_shape(window, parts);
+  parts.list->viewport()->repaint();
+  // After the first paint only the cells in view were asked for: a dozen or so, not 200.
+  int in_view = 0;
+  for (int row = 0; row < parts.list->count(); ++row) {
+    if (parts.list->visualItemRect(parts.list->item(row)).intersects(parts.list->viewport()->rect())) {
+      ++in_view;
+    }
+  }
+  CHECK(in_view > 0 && in_view < 40);
+  CHECK(thumbnails.requests_made() > 0);
+  CHECK(thumbnails.requests_made() <= in_view);
+  CHECK(all_thumbnails_settled(parts));
+  CHECK(process_events_until([&] { return thumbnails.loads_in_flight() == 0; }, 8000));
+  CHECK(thumbnails.requests_made() <= in_view);
+
+  // An arriving picture repaints its own cell: the list finds the row by its path.
+  CHECK(parts.list->update_path(recent[0]));
+  CHECK(!parts.list->update_path(QStringLiteral("C:/no/such/recent/file.png")));
+
+  // The sweep runs by itself once startup is well over.
+  CHECK(process_events_until([&] { return !QFileInfo::exists(orphan); },
+                             patchy::ui::kRecentThumbnailSweepDelayMs + 8000));
+  CHECK(QFileInfo::exists(patchy::ui::recent_thumbnail_cache_file(recent[0])));
+}
+
+void ui_recent_thumbnails_folder_stays_inside_an_isolated_settings_folder() {
+  // A run with its own settings folder has its own recent list; its pictures, and the sweep
+  // that deletes the ones no entry owns, must stay out of the user's real folder.
+  const auto isolated = scratch_file(QStringLiteral("isolated-settings"));
+  {
+    EnvironmentGuard no_override("PATCHY_RECENT_THUMBNAILS_DIR", QString());
+    EnvironmentGuard settings_root("PATCHY_SETTINGS_DIR", isolated);
+    CHECK(patchy::ui::recent_thumbnails_directory() ==
+          QDir(isolated).absoluteFilePath(QStringLiteral("RTsoft/Patchy/recent-thumbnails")));
+    // The explicit folder still wins.
+    const auto chosen = scratch_file(QStringLiteral("chosen-thumbnails"));
+    EnvironmentGuard override_dir("PATCHY_RECENT_THUMBNAILS_DIR", chosen);
+    CHECK(patchy::ui::recent_thumbnails_directory() == QDir(chosen).absolutePath());
+  }
+  // Back to this process's own folder, set by the test runner.
+  CHECK(patchy::ui::recent_thumbnails_directory() ==
+        QDir(qEnvironmentVariable("PATCHY_RECENT_THUMBNAILS_DIR")).absolutePath());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> start_panel_grid_tests() {
   return {
+      {"ui_start_panel_grid_does_no_thumbnail_work_before_its_first_paint",
+       ui_start_panel_grid_does_no_thumbnail_work_before_its_first_paint},
+      {"ui_recent_thumbnails_folder_stays_inside_an_isolated_settings_folder",
+       ui_recent_thumbnails_folder_stays_inside_an_isolated_settings_folder},
       {"ui_start_panel_recent_section_grows_with_a_large_window",
        ui_start_panel_recent_section_grows_with_a_large_window},
       {"ui_start_panel_recent_section_is_only_as_large_as_few_entries_need",

@@ -12,6 +12,8 @@
 #include "ui/document_recovery.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
+#include "ui/recent_thumbnails.hpp"
+#include "ui/start_panel.hpp"
 #include "ui/mcp_attachment.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/single_instance.hpp"
@@ -305,7 +307,11 @@ class StartupTraceObserver : public QObject {
   // The plug-in scan runs on a worker after the first paint; its span is reported
   // under "background", so the report waits for it (at most 20 s).
   void wait_for_background() {
-    if (window_.legacy_plugin_scan_in_flight() && idle_clock_.elapsed() < 20000) {
+    // So do the pictures the Home Screen's grid asked for at its first paint
+    // (background `recent_thumbnails.first_cells`).
+    auto* start_panel = window_.findChild<patchy::ui::StartPanel*>(QStringLiteral("startPanel"));
+    const bool thumbnails_loading = start_panel != nullptr && start_panel->recent_thumbnails().loads_in_flight() > 0;
+    if ((window_.legacy_plugin_scan_in_flight() || thumbnails_loading) && idle_clock_.elapsed() < 20000) {
       QTimer::singleShot(10, this, [this] { wait_for_background(); });
       return;
     }

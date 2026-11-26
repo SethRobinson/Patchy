@@ -4,11 +4,13 @@
 #include "support/atomic_file_write.hpp"
 #include "support/network_path.hpp"
 #include "support/path_utils.hpp"
+#include "support/startup_trace.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/network_mounts.hpp"
 #include "ui/qt_paths.hpp"
 
+#include <QAbstractEventDispatcher>
 #include <QBuffer>
 #include <QByteArray>
 #include <QCoreApplication>
@@ -24,6 +26,8 @@
 #include <QRegularExpression>
 #include <QSet>
 #include <QStandardPaths>
+#include <QThread>
+#include <QTimer>
 
 #include <algorithm>
 #include <cstdint>
@@ -257,6 +261,12 @@ QString recent_thumbnails_directory() {
   if (const auto redirected = qEnvironmentVariable("PATCHY_RECENT_THUMBNAILS_DIR"); !redirected.isEmpty()) {
     return QDir(redirected).absolutePath();
   }
+  // An isolated run (automation, the startup benchmark, a README capture) has its own recent
+  // list in its own settings folder. Its pictures go there too: with the user's folder, the
+  // sweep that keeps one picture per recent entry would delete the user's real thumbnails.
+  if (const auto settings_root = qEnvironmentVariable("PATCHY_SETTINGS_DIR"); !settings_root.isEmpty()) {
+    return QDir(settings_root).absoluteFilePath(QStringLiteral("RTsoft/Patchy/recent-thumbnails"));
+  }
   const auto root = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
   return root.isEmpty() ? QString() : QDir(root).filePath(QStringLiteral("recent-thumbnails"));
 }
@@ -369,9 +379,10 @@ void delete_cache_files_except(const QString& directory, const QStringList& keys
 
 }  // namespace
 
-RecentThumbnailCache::RecentThumbnailCache(QObject* parent) : QObject(parent), shared_(std::make_shared<Shared>()) {
-  shared_->directory = recent_thumbnails_directory();
-}
+// The folder is not looked up here: the constructor runs while the main window is built, and
+// the worker asks for it when its first job starts (recent_thumbnails_directory touches no disk,
+// but the known-folder lookup behind it is not free).
+RecentThumbnailCache::RecentThumbnailCache(QObject* parent) : QObject(parent), shared_(std::make_shared<Shared>()) {}
 
 RecentThumbnailCache::~RecentThumbnailCache() {
   const std::lock_guard<std::mutex> lock(shared_->mutex);
@@ -404,6 +415,11 @@ void RecentThumbnailCache::request(const QString& path) {
     return;
   }
   entry.state = RecentThumbnailState::pending;
+  ++requests_made_;
+  ++loads_in_flight_;
+  if (requests_made_ == 1 && startup_trace::enabled()) {
+    first_request_ms_ = startup_trace::now_ms();
+  }
   Job job;
   job.kind = Job::Kind::load;
   job.key = key;
@@ -484,7 +500,7 @@ void RecentThumbnailCache::refresh_all() {
 
 bool RecentThumbnailCache::busy() const {
   const std::lock_guard<std::mutex> lock(shared_->mutex);
-  return shared_->running || !shared_->jobs.empty();
+  return shared_->running || !shared_->jobs.empty() || !held_.empty();
 }
 
 void RecentThumbnailCache::trim_loaded() {
@@ -511,7 +527,13 @@ void RecentThumbnailCache::trim_loaded() {
   }
 }
 
-void RecentThumbnailCache::finish(const QString& key, QImage image, bool available, bool reduced, QSize box) {
+void RecentThumbnailCache::finish(const QString& key, bool was_load, QImage image, bool available, bool reduced,
+                                  QSize box) {
+  if (was_load && loads_in_flight_ > 0 && --loads_in_flight_ == 0 && first_request_ms_ >= 0.0) {
+    // Every picture the first paint asked for has arrived (or has none).
+    startup_trace::record_background("recent_thumbnails.first_cells", first_request_ms_, startup_trace::now_ms());
+    first_request_ms_ = -1.0;
+  }
   const auto found = entries_.find(key);
   if (found == entries_.end()) {
     return;  // forgotten, or out of the list, while the worker was on it
@@ -528,9 +550,43 @@ void RecentThumbnailCache::finish(const QString& key, QImage image, bool availab
 }
 
 void RecentThumbnailCache::enqueue(Job job) {
+  if (!released_once_ && job.kind == Job::Kind::load) {
+    held_.push_back(std::move(job));
+    if (held_.size() == 1) {
+      constexpr int kHoldLimitMs = 500;
+      if (auto* dispatcher = QAbstractEventDispatcher::instance(); dispatcher != nullptr) {
+        connect(dispatcher, &QAbstractEventDispatcher::aboutToBlock, this, &RecentThumbnailCache::release_held);
+      }
+      QTimer::singleShot(kHoldLimitMs, this, &RecentThumbnailCache::release_held);
+    }
+    return;
+  }
+  // Anything else (a stored picture, a deletion) keeps its place behind the held loads.
+  release_held();
+  std::vector<Job> jobs;
+  jobs.push_back(std::move(job));
+  send_to_worker(std::move(jobs));
+}
+
+void RecentThumbnailCache::release_held() {
+  if (released_once_) {
+    return;
+  }
+  released_once_ = true;
+  if (auto* dispatcher = QAbstractEventDispatcher::instance(); dispatcher != nullptr) {
+    disconnect(dispatcher, &QAbstractEventDispatcher::aboutToBlock, this, &RecentThumbnailCache::release_held);
+  }
+  if (!held_.empty()) {
+    send_to_worker(std::exchange(held_, {}));
+  }
+}
+
+void RecentThumbnailCache::send_to_worker(std::vector<Job> jobs) {
   {
     const std::lock_guard<std::mutex> lock(shared_->mutex);
-    shared_->jobs.push_back(std::move(job));
+    for (auto& job : jobs) {
+      shared_->jobs.push_back(std::move(job));
+    }
     if (shared_->running) {
       return;
     }
@@ -542,6 +598,17 @@ void RecentThumbnailCache::enqueue(Job job) {
   auto* app = QCoreApplication::instance();
   QPointer<RecentThumbnailCache> owner(this);
   run_tracked_background_worker([shared = shared_, app, owner] {
+    // Below the GUI thread's priority: pictures for the grid never compete with startup or
+    // with the user's own work for a core.
+    if (auto* thread = QThread::currentThread(); thread != nullptr) {
+      thread->setPriority(QThread::LowPriority);
+    }
+    {
+      const std::lock_guard<std::mutex> lock(shared->mutex);
+      if (shared->directory.isEmpty()) {
+        shared->directory = recent_thumbnails_directory();
+      }
+    }
     const auto mounts = read_system_mounts();  // cached kernel data; contacts nothing
     for (;;) {
       Job job;
@@ -576,9 +643,10 @@ void RecentThumbnailCache::enqueue(Job job) {
           }
           QMetaObject::invokeMethod(
               app,
-              [owner, key = job.key, box = job.display_box, result = std::move(result)]() mutable {
+              [owner, key = job.key, was_load = job.kind == Job::Kind::load, box = job.display_box,
+               result = std::move(result)]() mutable {
                 if (owner != nullptr) {
-                  owner->finish(key, std::move(result.image), result.available, result.reduced, box);
+                  owner->finish(key, was_load, std::move(result.image), result.available, result.reduced, box);
                 }
               },
               Qt::QueuedConnection);
