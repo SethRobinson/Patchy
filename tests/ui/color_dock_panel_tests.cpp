@@ -396,7 +396,10 @@ void ui_panel_layout_from_before_color_panel_keeps_its_panels() {
   show_window(window);
   CHECK(column->section_order() == (QStringList{QStringLiteral("layersDock"), QStringLiteral("historyDock"),
                                                 QStringLiteral("infoDock"), QStringLiteral("propertiesDock"),
-                                                kColorPanel, QStringLiteral("paletteDock")}));
+                                                kColorPanel, QStringLiteral("paletteDock"),
+                                                QStringLiteral("assetsDock")}));
+  // The Assets panel, which that record does not know either, stays closed at the end.
+  CHECK(!column->panel_visible(QStringLiteral("assetsDock")));
   CHECK(!column->panel_visible(QStringLiteral("historyDock")));
   CHECK(column->panel_in_front(QStringLiteral("channelsDock")));
   CHECK(column->panel_expanded(QStringLiteral("infoDock")));
@@ -412,7 +415,7 @@ void ui_panel_layout_from_before_color_panel_keeps_its_panels() {
         (QStringList{QStringLiteral("layersDock"), QStringLiteral("channelsDock"), QStringLiteral("pathsDock")}));
   // Saving writes the current version, which a later launch reads as is.
   MainWindowTestAccess::write_panel_layout(window);
-  CHECK(patchy::ui::app_settings().value(QStringLiteral("window/panelLayoutVersion")).toInt() == 4);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("window/panelLayoutVersion")).toInt() == 5);
   CHECK(patchy::ui::app_settings().value(QStringLiteral("window/panelGroups")).toStringList() ==
         QStringList{QStringLiteral("layersDock,channelsDock,pathsDock")});
   CHECK(patchy::ui::app_settings().value(QStringLiteral("window/panelOrder")).toStringList().contains(kColorPanel));

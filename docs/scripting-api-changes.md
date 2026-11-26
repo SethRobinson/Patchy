@@ -19,6 +19,12 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-26 (additive): the Assets panel (Window > Assets, GitHub issue 751). `patchy.ui.expandPanel`,
+`collapsePanel`, `closePanel` and `panelState` take the panel name `assets` (d.ts
+`PatchyPanelName`), a permanent identifier mapped to the panel id `assetsDock`. Not in the browser
+build, which has no Assets panel ([assets-panel.md](assets-panel.md)). Pinned by
+`ui_assets_panel_is_closed_by_default_and_opens_from_window_menu`.
+
 2026-11-22 (addition): a gradient's `interpolation` accepts `"smooth"` and `"stripes"` beside
 `"classic"`, `"perceptual"` and `"linear"`, wherever a gradient object is taken or returned
 ([gradients-methods.md](gradients-methods.md#smooth-and-stripes)). Existing values keep their meaning.

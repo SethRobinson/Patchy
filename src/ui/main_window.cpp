@@ -5652,6 +5652,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   docks_phase.end();
   startup_trace::Scope hotkeys_phase("mw.panel_entries_hotkeys");
   default_collapsed_panels_ = collapsed_panel_names();
+  // Closed panels of the first-launch column (the Assets panel).
+  for (const auto& id : panel_column_->panel_ids()) {
+    if (!panel_column_->panel_visible(id)) {
+      default_hidden_panels_ << id;
+    }
+  }
   default_panel_order_ = panel_column_->section_order();
   default_tab_groups_ = panel_column_->tab_groups();
   install_window_panel_entries();
@@ -6561,6 +6567,10 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   }
 
   if (handle_cross_document_layer_drag_event(watched, event)) {
+    return true;
+  }
+
+  if (handle_asset_drag_event(watched, event)) {
     return true;
   }
 

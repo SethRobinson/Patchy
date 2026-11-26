@@ -568,14 +568,15 @@ QString photoshop_style_template() {
       border-color: @text_bright;
     }
     QWidget#historyDockTitle, QWidget#channelsDockTitle, QWidget#propertiesDockTitle, QWidget#infoDockTitle,
-    QWidget#layersDockTitle, QWidget#pathsDockTitle, QWidget#colorDockTitle, QWidget#paletteDockTitle {
+    QWidget#layersDockTitle, QWidget#pathsDockTitle, QWidget#colorDockTitle, QWidget#paletteDockTitle,
+    QWidget#assetsDockTitle {
       background: @panel_title_bg;
       border-top: 1px solid @panel_title_bevel_top;
       border-bottom: 1px solid @panel_title_border_bottom;
     }
     QWidget#historyDockTitle QLabel, QWidget#channelsDockTitle QLabel, QWidget#propertiesDockTitle QLabel,
     QWidget#infoDockTitle QLabel, QWidget#layersDockTitle QLabel, QWidget#pathsDockTitle QLabel,
-    QWidget#colorDockTitle QLabel, QWidget#paletteDockTitle QLabel {
+    QWidget#colorDockTitle QLabel, QWidget#paletteDockTitle QLabel, QWidget#assetsDockTitle QLabel {
       color: @text_bright;
       font-weight: 600;
     }

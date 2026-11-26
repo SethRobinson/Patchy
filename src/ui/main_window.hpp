@@ -115,6 +115,8 @@ struct WebExportOpening;
 class ColorWellSwatch;
 class PanelColumn;
 struct PanelSpec;
+class AssetLibrary;
+class AssetsPanel;
 class ToolPaletteFooter;
 class ToolPaletteLayout;
 class ArtboardPresetPicker;
@@ -863,6 +865,22 @@ private:
   // entry's check mark together.
   void set_panel_titles_visible(bool visible);
   void create_palette_dock(std::vector<PanelSpec>& specs);
+  // The Assets panel (GitHub issue 751, docs/assets-panel.md): layers kept for reuse in any
+  // document. Not in the browser build, whose user libraries do not outlive the page.
+  void create_assets_dock(std::vector<PanelSpec>& specs);
+  // Saves each selected root layer (a group with its children) as one asset in the panel's
+  // current category. Reads the document only: no undo step.
+  void add_selected_layers_to_assets();
+  // The same for the given layers of `source` (a Layers-panel drag onto the panel). Returns
+  // how many assets were added.
+  int add_layers_to_assets(DocumentSession& source, std::vector<LayerId> ids);
+  // The panel's double-click and Place entry: into the active document, centered.
+  void place_assets_in_active_document(const QStringList& asset_ids);
+  // An asset drag over a session canvas (tab page or float) or a document tab: accepts it
+  // as a copy and defers the placement. File-drop and layer-drag handlers never see it.
+  bool handle_asset_drag_event(QObject* watched, QEvent* event);
+  // The stored thumbnail, rendered again from the asset's layers when its file is gone.
+  QImage asset_thumbnail(const QString& asset_id);
   // The Color panel (GitHub issue 365): a pick sets the foreground, or the background
   // when Alt was held at the press.
   void create_color_dock(std::vector<PanelSpec>& specs);
@@ -2187,6 +2205,11 @@ private:
                                                      std::vector<LayerId> ids, Document& target,
                                                      const QString& target_path, const CrossDocumentLayerPlacement& placement,
                                                      const std::function<bool()>& before_mutation, QString* error);
+  // Adds each asset's layers to the session with that id as independent copies, above its
+  // active layer and selected, one undo step for the whole call. The placement centers them
+  // on a canvas drop point or, without one, on the canvas.
+  bool place_assets(const QStringList& asset_ids, std::int64_t target_session_id,
+                    const CrossDocumentLayerPlacement& placement);
   // The interactive flow around copy_layers_between_sessions: the target's
   // undo snapshot, refresh, activation of the target, and selecting the
   // copies. Sessions are addressed by id: a document may close mid-drag.
@@ -4633,6 +4656,12 @@ private:
   QAction* window_show_panel_titles_action_{nullptr};
   QAction* window_reset_panels_action_{nullptr};
   QStringList default_collapsed_panels_;
+  // Panels a first launch and Reset Panels leave closed (the Assets panel): opened from
+  // the Window menu.
+  QStringList default_hidden_panels_;
+  AssetLibrary* asset_library_{nullptr};
+  AssetsPanel* assets_panel_{nullptr};
+  QAction* assets_add_selected_action_{nullptr};
   QStringList default_panel_order_;
   QList<QStringList> default_tab_groups_;
   std::vector<QAction*> window_document_actions_;

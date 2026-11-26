@@ -17353,6 +17353,144 @@ Do you want to replace it?</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::AssetLibrary</name>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>Не удалось записать %1: %2</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>Нет папки для хранения ресурсов</translation>
+    </message>
+    <message>
+        <source>Could not create %1</source>
+        <translation>Не удалось создать %1</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::AssetsPanel</name>
+    <message>
+        <source>General</source>
+        <translation>Общие</translation>
+    </message>
+    <message>
+        <source>Category</source>
+        <translation>Категория</translation>
+    </message>
+    <message>
+        <source>Manage</source>
+        <translation>Управление</translation>
+    </message>
+    <message>
+        <source>Add assets and manage categories</source>
+        <translation>Добавление ресурсов и управление категориями</translation>
+    </message>
+    <message>
+        <source>Search assets</source>
+        <translation>Поиск ресурсов</translation>
+    </message>
+    <message>
+        <source>Add Selected Layers</source>
+        <translation>Добавить выбранные слои</translation>
+    </message>
+    <message>
+        <source>Save the selected layers as assets</source>
+        <translation>Сохранить выбранные слои как ресурсы</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>Без названия</translation>
+    </message>
+    <message>
+        <source>%1 (in %2)</source>
+        <translation>%1 (в «%2»)</translation>
+    </message>
+    <message>
+        <source>No assets here yet. Select layers, then click Add Selected Layers.</source>
+        <translation>Здесь пока нет ресурсов. Выберите слои и нажмите «Добавить выбранные слои».</translation>
+    </message>
+    <message>
+        <source>No asset matches the search.</source>
+        <translation>Нет ресурсов, соответствующих запросу.</translation>
+    </message>
+    <message>
+        <source>New Category...</source>
+        <translation>Новая категория...</translation>
+    </message>
+    <message>
+        <source>Rename Category...</source>
+        <translation>Переименовать категорию...</translation>
+    </message>
+    <message>
+        <source>Delete Category...</source>
+        <translation>Удалить категорию...</translation>
+    </message>
+    <message>
+        <source>Sort by Name</source>
+        <translation>Сортировать по имени</translation>
+    </message>
+    <message>
+        <source>Place</source>
+        <translation>Разместить</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>Переименовать...</translation>
+    </message>
+    <message>
+        <source>Move to Category</source>
+        <translation>Переместить в категорию</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Удалить</translation>
+    </message>
+    <message>
+        <source>Rename Asset</source>
+        <translation>Переименовать ресурс</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Имя:</translation>
+    </message>
+    <message>
+        <source>Delete the asset &quot;%1&quot;? This cannot be undone.</source>
+        <translation>Удалить ресурс «%1»? Это действие нельзя отменить.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n asset(s)? This cannot be undone.</source>
+        <translation>
+            <numerusform>Удалить %n ресурс? Это действие нельзя отменить.</numerusform>
+            <numerusform>Удалить %n ресурса? Это действие нельзя отменить.</numerusform>
+            <numerusform>Удалить %n ресурсов? Это действие нельзя отменить.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete Asset</source>
+        <translation>Удалить ресурс</translation>
+    </message>
+    <message>
+        <source>New Category</source>
+        <translation>Новая категория</translation>
+    </message>
+    <message>
+        <source>Rename Category</source>
+        <translation>Переименовать категорию</translation>
+    </message>
+    <message>
+        <source>Delete Category</source>
+        <translation>Удалить категорию</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the category &quot;%1&quot; and the %n asset(s) in it? This cannot be undone.</source>
+        <translation>
+            <numerusform>Удалить категорию «%1» и %n ресурс в ней? Это действие нельзя отменить.</numerusform>
+            <numerusform>Удалить категорию «%1» и %n ресурса в ней? Это действие нельзя отменить.</numerusform>
+            <numerusform>Удалить категорию «%1» и %n ресурсов в ней? Это действие нельзя отменить.</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::BookScanDialog</name>
     <message>
         <source>Scan a Book to PDF</source>
@@ -22621,6 +22759,14 @@ Do you want to replace it?</source>
     <message>
         <source>Make a pattern from the image or selection</source>
         <translation>Создать узор из изображения или выделения</translation>
+    </message>
+    <message>
+        <source>Keep the selected layers in the Assets panel for reuse</source>
+        <translation>Сохранить выбранные слои в панели «Ресурсы» для повторного использования</translation>
+    </message>
+    <message>
+        <source>Show the Assets panel</source>
+        <translation>Показать панель «Ресурсы»</translation>
     </message>
 </context>
 <context>
@@ -37411,6 +37557,62 @@ Locked: %1</source>
     <message>
         <source>%MOVE_KEY%+drag moves the selected pixels.</source>
         <translation>%MOVE_KEY%+перетаскивание перемещает выделенные пиксели.</translation>
+    </message>
+    <message>
+        <source>Add to Assets</source>
+        <translation>Добавить в ресурсы</translation>
+    </message>
+    <message>
+        <source>Assets</source>
+        <translation>Ресурсы</translation>
+    </message>
+    <message>
+        <source>Select a layer to add to Assets</source>
+        <translation>Выберите слой для добавления в ресурсы</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>Нет папки для хранения ресурсов</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is too large to keep as an asset</source>
+        <translation>«%1» слишком велик, чтобы сохранить его как ресурс</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n asset(s)</source>
+        <translation>
+            <numerusform>Добавлен %n ресурс</numerusform>
+            <numerusform>Добавлено %n ресурса</numerusform>
+            <numerusform>Добавлено %n ресурсов</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open a document to place an asset in</source>
+        <translation>Откройте документ, чтобы поместить в него ресурс</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be read</source>
+        <translation>Не удалось прочитать ресурс «%1»</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be placed</source>
+        <translation>Не удалось поместить ресурс «%1»</translation>
+    </message>
+    <message>
+        <source>Place asset</source>
+        <translation>Поместить ресурс</translation>
+    </message>
+    <message>
+        <source>Placed the asset &quot;%1&quot;</source>
+        <translation>Ресурс «%1» помещён</translation>
+    </message>
+    <message numerus="yes">
+        <source>Placed %n asset(s)</source>
+        <translation>
+            <numerusform>Помещён %n ресурс</numerusform>
+            <numerusform>Помещено %n ресурса</numerusform>
+            <numerusform>Помещено %n ресурсов</numerusform>
+        </translation>
     </message>
 </context>
 <context>

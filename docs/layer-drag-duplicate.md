@@ -13,7 +13,8 @@ filter, ahead of the tab-bar tear-off branch: the tab bar has `setAcceptDrops` s
 becomes the DnD receiver, and non-layer mime stays unaccepted so file drops still reach
 the tab widget. Its own document, a missing or foreign source token, a gap between tabs, or the
 preview-dialog edit lock refuses the drop (file-drop handlers never see a layer drag); the
-hovered tab lights through `show_tab_strip_highlight`.
+hovered tab lights through `show_tab_strip_highlight`. The Assets panel takes the same drag and
+saves the rows as assets ([assets-panel.md](assets-panel.md#adding)).
 
 The drop returns before any document work: the payload is copied out and
 `duplicate_layers_to_session` runs from `QTimer::singleShot(0)` (the source panel's

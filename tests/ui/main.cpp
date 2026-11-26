@@ -301,6 +301,16 @@ int main(int argc, char* argv[]) {
     }
     qputenv("PATCHY_USER_SCRIPTS_DIR", scripts.toUtf8());
   }
+  // The Assets panel's library (#751) stays out of the developer's real assets folder. Per
+  // process and emptied at the start, like the user scripts folder above.
+  if (qEnvironmentVariableIsEmpty("PATCHY_ASSETS_DIR")) {
+    const auto assets = QDir::current().filePath(QStringLiteral("test-artifacts/assets/") +
+                                                 QString::number(QCoreApplication::applicationPid()));
+    if (QFileInfo::exists(assets)) {
+      patchy::test::ui::remove_test_scratch_dir(assets);
+    }
+    qputenv("PATCHY_ASSETS_DIR", assets.toUtf8());
+  }
   // Saved adjustment presets (#588) stay out of the developer's real presets folder.
   if (qEnvironmentVariableIsEmpty("PATCHY_ADJUSTMENT_PRESETS_DIR")) {
     const auto presets = QDir::current().filePath(QStringLiteral("test-artifacts/adjustment-presets/") +
@@ -481,6 +491,7 @@ int main(int argc, char* argv[]) {
            misc_visuals_outline_stress_tests,
            float_window_tests,
            canvas_file_drop_tests,
+           assets_panel_tests,
            vector_shape_tool_tests,
            vector_mask_editing_tests,
            batch_appearance_tests,

@@ -20,6 +20,7 @@ For editing tools, files and formats, see the [full feature list](features.md).
 
 - Drag a numeric field or its label to adjust the value. On platforms that support pointer wrapping, the drag can continue across screen edges until it reaches the field's limit.
 - **Panels**: group panels into tabs (drag, reorder) and collapse them; Window > Show Panel Titles hides the title rows of open panels to give them more room (tab groups keep their tabs, collapsed panels keep their row)
+- **Assets panel** (Window > Assets): keep layers for reuse in any document. Add the selected layers (pixel, text, shape, groups, Smart Objects, with their masks and styles) or drag them in from the Layers panel, sort them into categories and search by name; drag an asset onto a canvas or a document tab, or double-click it, to place an independent, still editable copy. Assets are stored on your computer only
 - **Color panel**: hue cube with hex and RGB boxes (right-click sets background, also in the Foreground Color window) or RGB/HSB/CMYK sliders (gear)
 - **Layers panel**
   - Previews blend modes while browsing (Shift+Plus/Minus steps them or a painting tool's Mode, Shift+Alt+letter sets one), with four thumbnail sizes aligned by nesting

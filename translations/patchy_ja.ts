@@ -17241,6 +17241,140 @@ Do you want to replace it?</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::AssetLibrary</name>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>%1 に書き込めませんでした: %2</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>アセットを保存するフォルダーがありません</translation>
+    </message>
+    <message>
+        <source>Could not create %1</source>
+        <translation>%1 を作成できませんでした</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::AssetsPanel</name>
+    <message>
+        <source>General</source>
+        <translation>一般</translation>
+    </message>
+    <message>
+        <source>Category</source>
+        <translation>カテゴリ</translation>
+    </message>
+    <message>
+        <source>Manage</source>
+        <translation>管理</translation>
+    </message>
+    <message>
+        <source>Add assets and manage categories</source>
+        <translation>アセットの追加とカテゴリの管理</translation>
+    </message>
+    <message>
+        <source>Search assets</source>
+        <translation>アセットを検索</translation>
+    </message>
+    <message>
+        <source>Add Selected Layers</source>
+        <translation>選択したレイヤーを追加</translation>
+    </message>
+    <message>
+        <source>Save the selected layers as assets</source>
+        <translation>選択したレイヤーをアセットとして保存</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>無題</translation>
+    </message>
+    <message>
+        <source>%1 (in %2)</source>
+        <translation>%1（%2 内）</translation>
+    </message>
+    <message>
+        <source>No assets here yet. Select layers, then click Add Selected Layers.</source>
+        <translation>アセットはまだありません。レイヤーを選択して「選択したレイヤーを追加」をクリックしてください。</translation>
+    </message>
+    <message>
+        <source>No asset matches the search.</source>
+        <translation>検索に一致するアセットはありません。</translation>
+    </message>
+    <message>
+        <source>New Category...</source>
+        <translation>新規カテゴリ...</translation>
+    </message>
+    <message>
+        <source>Rename Category...</source>
+        <translation>カテゴリ名を変更...</translation>
+    </message>
+    <message>
+        <source>Delete Category...</source>
+        <translation>カテゴリを削除...</translation>
+    </message>
+    <message>
+        <source>Sort by Name</source>
+        <translation>名前順に並べ替え</translation>
+    </message>
+    <message>
+        <source>Place</source>
+        <translation>配置</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>名前を変更...</translation>
+    </message>
+    <message>
+        <source>Move to Category</source>
+        <translation>カテゴリへ移動</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>削除</translation>
+    </message>
+    <message>
+        <source>Rename Asset</source>
+        <translation>アセット名を変更</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>名前:</translation>
+    </message>
+    <message>
+        <source>Delete the asset &quot;%1&quot;? This cannot be undone.</source>
+        <translation>アセット「%1」を削除しますか? この操作は取り消せません。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n asset(s)? This cannot be undone.</source>
+        <translation>
+            <numerusform>%n 個のアセットを削除しますか? この操作は取り消せません。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete Asset</source>
+        <translation>アセットを削除</translation>
+    </message>
+    <message>
+        <source>New Category</source>
+        <translation>新規カテゴリ</translation>
+    </message>
+    <message>
+        <source>Rename Category</source>
+        <translation>カテゴリ名を変更</translation>
+    </message>
+    <message>
+        <source>Delete Category</source>
+        <translation>カテゴリを削除</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the category &quot;%1&quot; and the %n asset(s) in it? This cannot be undone.</source>
+        <translation>
+            <numerusform>カテゴリ「%1」とその中の %n 個のアセットを削除しますか? この操作は取り消せません。</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::BookScanDialog</name>
     <message>
         <source>Scan a Book to PDF</source>
@@ -22497,6 +22631,14 @@ Do you want to replace it?</source>
     <message>
         <source>Make a pattern from the image or selection</source>
         <translation>画像または選択範囲からパターンを作成</translation>
+    </message>
+    <message>
+        <source>Keep the selected layers in the Assets panel for reuse</source>
+        <translation>選択したレイヤーをアセットパネルに保存して再利用</translation>
+    </message>
+    <message>
+        <source>Show the Assets panel</source>
+        <translation>アセットパネルを表示</translation>
     </message>
 </context>
 <context>
@@ -37179,6 +37321,58 @@ Locked: %1</source>
     <message>
         <source>%MOVE_KEY%+drag moves the selected pixels.</source>
         <translation>%MOVE_KEY%+ドラッグで選択したピクセルを移動します。</translation>
+    </message>
+    <message>
+        <source>Add to Assets</source>
+        <translation>アセットに追加</translation>
+    </message>
+    <message>
+        <source>Assets</source>
+        <translation>アセット</translation>
+    </message>
+    <message>
+        <source>Select a layer to add to Assets</source>
+        <translation>アセットに追加するレイヤーを選択してください</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>アセットを保存するフォルダーがありません</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is too large to keep as an asset</source>
+        <translation>「%1」は大きすぎるためアセットとして保存できません</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n asset(s)</source>
+        <translation>
+            <numerusform>%n 個のアセットを追加しました</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open a document to place an asset in</source>
+        <translation>アセットを配置するドキュメントを開いてください</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be read</source>
+        <translation>アセット「%1」を読み込めませんでした</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be placed</source>
+        <translation>アセット「%1」を配置できませんでした</translation>
+    </message>
+    <message>
+        <source>Place asset</source>
+        <translation>アセットを配置</translation>
+    </message>
+    <message>
+        <source>Placed the asset &quot;%1&quot;</source>
+        <translation>アセット「%1」を配置しました</translation>
+    </message>
+    <message numerus="yes">
+        <source>Placed %n asset(s)</source>
+        <translation>
+            <numerusform>%n 個のアセットを配置しました</numerusform>
+        </translation>
     </message>
 </context>
 <context>

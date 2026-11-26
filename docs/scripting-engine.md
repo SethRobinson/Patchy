@@ -146,7 +146,8 @@ Split from [scripting.md](scripting.md). Script and API identifiers are permanen
   wait for [Dynamic Vector Preview](vector-preview.md).
 - **`patchy.ui.expandPanel`/`collapsePanel`/`closePanel`/`panelState`** take permanent
   lowercase names that `kScriptSidePanels` (script_engine.cpp) maps to the panel ids of
-  [right-docks.md](right-docks.md); a new panel appends a name, none is ever renamed.
+  [right-docks.md](right-docks.md); a new panel appends a name, none is ever renamed. `assets`
+  is absent from the browser build, which has no Assets panel.
 - The script canvas window deliberately bypasses `run_non_modal_dialog` (its nested
   event loop would park the running script) and applies `keep_dialog_above_parent_window`
   directly, the macOS-critical part of the rule. The editor dialog uses

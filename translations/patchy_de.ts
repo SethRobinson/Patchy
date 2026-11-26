@@ -17297,6 +17297,142 @@ Möchten Sie die Datei ersetzen?</translation>
     </message>
 </context>
 <context>
+    <name>patchy::ui::AssetLibrary</name>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>%1 konnte nicht geschrieben werden: %2</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>Es gibt keinen Ordner zum Speichern von Assets</translation>
+    </message>
+    <message>
+        <source>Could not create %1</source>
+        <translation>%1 konnte nicht erstellt werden</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::AssetsPanel</name>
+    <message>
+        <source>General</source>
+        <translation>Allgemein</translation>
+    </message>
+    <message>
+        <source>Category</source>
+        <translation>Kategorie</translation>
+    </message>
+    <message>
+        <source>Manage</source>
+        <translation>Verwalten</translation>
+    </message>
+    <message>
+        <source>Add assets and manage categories</source>
+        <translation>Assets hinzufügen und Kategorien verwalten</translation>
+    </message>
+    <message>
+        <source>Search assets</source>
+        <translation>Assets suchen</translation>
+    </message>
+    <message>
+        <source>Add Selected Layers</source>
+        <translation>Ausgewählte Ebenen hinzufügen</translation>
+    </message>
+    <message>
+        <source>Save the selected layers as assets</source>
+        <translation>Die ausgewählten Ebenen als Assets speichern</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>Unbenannt</translation>
+    </message>
+    <message>
+        <source>%1 (in %2)</source>
+        <translation>%1 (in %2)</translation>
+    </message>
+    <message>
+        <source>No assets here yet. Select layers, then click Add Selected Layers.</source>
+        <translation>Hier sind noch keine Assets. Wählen Sie Ebenen aus und klicken Sie auf „Ausgewählte Ebenen hinzufügen“.</translation>
+    </message>
+    <message>
+        <source>No asset matches the search.</source>
+        <translation>Kein Asset entspricht der Suche.</translation>
+    </message>
+    <message>
+        <source>New Category...</source>
+        <translation>Neue Kategorie...</translation>
+    </message>
+    <message>
+        <source>Rename Category...</source>
+        <translation>Kategorie umbenennen...</translation>
+    </message>
+    <message>
+        <source>Delete Category...</source>
+        <translation>Kategorie löschen...</translation>
+    </message>
+    <message>
+        <source>Sort by Name</source>
+        <translation>Nach Name sortieren</translation>
+    </message>
+    <message>
+        <source>Place</source>
+        <translation>Platzieren</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>Umbenennen...</translation>
+    </message>
+    <message>
+        <source>Move to Category</source>
+        <translation>In Kategorie verschieben</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Löschen</translation>
+    </message>
+    <message>
+        <source>Rename Asset</source>
+        <translation>Asset umbenennen</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Name:</translation>
+    </message>
+    <message>
+        <source>Delete the asset &quot;%1&quot;? This cannot be undone.</source>
+        <translation>Das Asset „%1“ löschen? Dies kann nicht rückgängig gemacht werden.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n asset(s)? This cannot be undone.</source>
+        <translation>
+            <numerusform>%n Asset löschen? Dies kann nicht rückgängig gemacht werden.</numerusform>
+            <numerusform>%n Assets löschen? Dies kann nicht rückgängig gemacht werden.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete Asset</source>
+        <translation>Asset löschen</translation>
+    </message>
+    <message>
+        <source>New Category</source>
+        <translation>Neue Kategorie</translation>
+    </message>
+    <message>
+        <source>Rename Category</source>
+        <translation>Kategorie umbenennen</translation>
+    </message>
+    <message>
+        <source>Delete Category</source>
+        <translation>Kategorie löschen</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the category &quot;%1&quot; and the %n asset(s) in it? This cannot be undone.</source>
+        <translation>
+            <numerusform>Die Kategorie „%1“ und das %n Asset darin löschen? Dies kann nicht rückgängig gemacht werden.</numerusform>
+            <numerusform>Die Kategorie „%1“ und die %n Assets darin löschen? Dies kann nicht rückgängig gemacht werden.</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::BookScanDialog</name>
     <message>
         <source>Scan a Book to PDF</source>
@@ -22559,6 +22695,14 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Make a pattern from the image or selection</source>
         <translation>Ein Muster aus dem Bild oder der Auswahl erstellen</translation>
+    </message>
+    <message>
+        <source>Keep the selected layers in the Assets panel for reuse</source>
+        <translation>Die ausgewählten Ebenen im Bedienfeld Assets zur Wiederverwendung aufbewahren</translation>
+    </message>
+    <message>
+        <source>Show the Assets panel</source>
+        <translation>Das Bedienfeld Assets anzeigen</translation>
     </message>
 </context>
 <context>
@@ -37295,6 +37439,60 @@ Fixiert: %1</translation>
     <message>
         <source>%MOVE_KEY%+drag moves the selected pixels.</source>
         <translation>%MOVE_KEY%+Ziehen verschiebt die ausgewählten Pixel.</translation>
+    </message>
+    <message>
+        <source>Add to Assets</source>
+        <translation>Zu Assets hinzufügen</translation>
+    </message>
+    <message>
+        <source>Assets</source>
+        <translation>Assets</translation>
+    </message>
+    <message>
+        <source>Select a layer to add to Assets</source>
+        <translation>Wählen Sie eine Ebene aus, die zu den Assets hinzugefügt werden soll</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>Es gibt keinen Ordner zum Speichern von Assets</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is too large to keep as an asset</source>
+        <translation>„%1“ ist zu groß, um als Asset gespeichert zu werden</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n asset(s)</source>
+        <translation>
+            <numerusform>%n Asset hinzugefügt</numerusform>
+            <numerusform>%n Assets hinzugefügt</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open a document to place an asset in</source>
+        <translation>Öffnen Sie ein Dokument, um ein Asset darin zu platzieren</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be read</source>
+        <translation>Das Asset „%1“ konnte nicht gelesen werden</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be placed</source>
+        <translation>Das Asset „%1“ konnte nicht platziert werden</translation>
+    </message>
+    <message>
+        <source>Place asset</source>
+        <translation>Asset platzieren</translation>
+    </message>
+    <message>
+        <source>Placed the asset &quot;%1&quot;</source>
+        <translation>Asset „%1“ platziert</translation>
+    </message>
+    <message numerus="yes">
+        <source>Placed %n asset(s)</source>
+        <translation>
+            <numerusform>%n Asset platziert</numerusform>
+            <numerusform>%n Assets platziert</numerusform>
+        </translation>
     </message>
 </context>
 <context>

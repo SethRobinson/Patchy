@@ -1473,10 +1473,13 @@ void ui_window_menu_lists_panels_and_toolbars() {
   for (auto* action : window_menu->actions()) {
     if (action->isCheckable() && !action->objectName().startsWith(QStringLiteral("windowDocument"))) {
       entry_texts << action->text().remove(QLatin1Char('&'));
-      CHECK(action->isChecked());
+      // Every panel is open on a first launch but Assets, which Window > Assets opens
+      // (GitHub issue 751).
+      CHECK(action->isChecked() == (action->objectName() != QStringLiteral("windowPanelAssetsAction")));
     }
   }
-  CHECK(entry_texts == QStringList({QStringLiteral("Channels"), QStringLiteral("Color"), QStringLiteral("History"),
+  CHECK(entry_texts == QStringList({QStringLiteral("Assets"), QStringLiteral("Channels"), QStringLiteral("Color"),
+                                    QStringLiteral("History"),
                                     QStringLiteral("Info"), QStringLiteral("Layers"), QStringLiteral("Palette"),
                                     QStringLiteral("Paths"), QStringLiteral("Properties"),
                                     QStringLiteral("Tool Palette"), QStringLiteral("Tool Options"),
@@ -1899,10 +1902,10 @@ void ui_panel_title_drag_reorders_sections() {
   }
   auto* splitter = column->splitter();
   // The first-launch column: the Color and Palette group, the Layers group, then Properties,
-  // Info and History.
-  const QStringList defaults = {QStringLiteral("colorDock"), QStringLiteral("layersDock"),
+  // Info and History, and the closed Assets panel as the last section.
+  const QStringList defaults = {QStringLiteral("colorDock"),      QStringLiteral("layersDock"),
                                 QStringLiteral("propertiesDock"), QStringLiteral("infoDock"),
-                                QStringLiteral("historyDock")};
+                                QStringLiteral("historyDock"),    QStringLiteral("assetsDock")};
   CHECK(column->section_order() == defaults);
   const auto check_filled = [&](const char* context) {
     int expected_top = 0;
@@ -1964,7 +1967,7 @@ void ui_panel_title_drag_reorders_sections() {
   CHECK(!indicator->isVisible());
   CHECK(column->section_order() == (QStringList{QStringLiteral("infoDock"), QStringLiteral("colorDock"),
                                                 QStringLiteral("layersDock"), QStringLiteral("propertiesDock"),
-                                                QStringLiteral("historyDock")}));
+                                                QStringLiteral("historyDock"), QStringLiteral("assetsDock")}));
   CHECK(splitter->widget(0)->objectName() == QStringLiteral("infoDock"));
   CHECK(column->section_widget(QStringLiteral("infoDock"))->height() == info_height);
   check_filled("info to top");
@@ -1998,8 +2001,19 @@ void ui_panel_title_drag_reorders_sections() {
   CHECK(tabs->width() == column->section_widget(QStringLiteral("layersDock"))->width());
   CHECK(tabs->tabAt(beside_tabs) < 0);
   drag(tabs, beside_tabs, QPoint(20, column->height() - 2), true);
-  CHECK(column->section_order().last() == QStringLiteral("layersDock"));
-  CHECK(splitter->widget(splitter->count() - 1)->objectName() == QStringLiteral("panelTabGroup"));
+  // The last section on screen: the closed Assets panel keeps its place after it.
+  {
+    auto shown_order = column->section_order();
+    shown_order.removeAll(QStringLiteral("assetsDock"));
+    CHECK(shown_order.last() == QStringLiteral("layersDock"));
+    QWidget* last_shown = nullptr;
+    for (int index = 0; index < splitter->count(); ++index) {
+      if (splitter->widget(index)->isVisible()) {
+        last_shown = splitter->widget(index);
+      }
+    }
+    CHECK(last_shown != nullptr && last_shown->objectName() == QStringLiteral("panelTabGroup"));
+  }
   CHECK(column->section_panel_ids(QStringLiteral("layersDock")).size() == 3);
   CHECK(column->panel_in_front(QStringLiteral("layersDock")));
   check_filled("group to bottom");
@@ -3152,7 +3166,7 @@ void ui_panel_layout_returns_in_the_next_window() {
     CHECK(!patchy::ui::app_settings().contains(QStringLiteral("window/hiddenPanels")));
     patchy::ui::MainWindowTestAccess::write_panel_layout(window);
     const auto settings = patchy::ui::app_settings();
-    CHECK(settings.value(QStringLiteral("window/panelLayoutVersion")).toInt() == 4);
+    CHECK(settings.value(QStringLiteral("window/panelLayoutVersion")).toInt() == 5);
     CHECK(settings.value(QStringLiteral("window/panelGroups")).toStringList() ==
           (QStringList{QStringLiteral("paletteDock,colorDock"), moved_tabs.join(QLatin1Char(','))}));
     CHECK(settings.value(QStringLiteral("window/frontPanels")).toStringList() ==
@@ -3275,7 +3289,8 @@ void ui_reset_panels_restores_first_launch_layout() {
   QApplication::processEvents();
   QApplication::processEvents();
   for (const auto& id : column->panel_ids()) {
-    CHECK(column->panel_visible(id));
+    // Every panel reopens but Assets, which a first launch leaves closed.
+    CHECK(column->panel_visible(id) == (id != QStringLiteral("assetsDock")));
   }
   // Show Panel Titles is back on, and every section shows its title row: the front tab of
   // each group and each panel of its own.
@@ -3302,15 +3317,15 @@ void ui_reset_panels_restores_first_launch_layout() {
   }
   CHECK(column->section_order().first() == QStringLiteral("colorDock"));
   // Top to bottom in the first-launch order: the Color and Palette group, the Layers group,
-  // then Properties, Info and History.
+  // then Properties, Info and History, and the Assets panel, closed again.
   auto* splitter = column->splitter();
   const QStringList order = {QStringLiteral("panelTabGroup"), QStringLiteral("panelTabGroup"),
                              QStringLiteral("propertiesDock"), QStringLiteral("infoDock"),
-                             QStringLiteral("historyDock")};
+                             QStringLiteral("historyDock"),    QStringLiteral("assetsDock")};
   CHECK(splitter->count() == order.size());
   for (int index = 0; index < splitter->count(); ++index) {
     CHECK(splitter->widget(index)->objectName() == order.value(index));
-    CHECK(splitter->widget(index)->isVisible());
+    CHECK(splitter->widget(index)->isVisible() == (order.value(index) != QStringLiteral("assetsDock")));
   }
   CHECK(!tool_palette->isHidden());
   CHECK(window.toolBarArea(tool_palette) == Qt::LeftToolBarArea);

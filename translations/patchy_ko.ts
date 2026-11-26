@@ -17241,6 +17241,140 @@ Do you want to replace it?</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::AssetLibrary</name>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>%1에 쓸 수 없습니다: %2</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>에셋을 보관할 폴더가 없습니다</translation>
+    </message>
+    <message>
+        <source>Could not create %1</source>
+        <translation>%1을(를) 만들 수 없습니다</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::AssetsPanel</name>
+    <message>
+        <source>General</source>
+        <translation>일반</translation>
+    </message>
+    <message>
+        <source>Category</source>
+        <translation>카테고리</translation>
+    </message>
+    <message>
+        <source>Manage</source>
+        <translation>관리</translation>
+    </message>
+    <message>
+        <source>Add assets and manage categories</source>
+        <translation>에셋 추가 및 카테고리 관리</translation>
+    </message>
+    <message>
+        <source>Search assets</source>
+        <translation>에셋 검색</translation>
+    </message>
+    <message>
+        <source>Add Selected Layers</source>
+        <translation>선택한 레이어 추가</translation>
+    </message>
+    <message>
+        <source>Save the selected layers as assets</source>
+        <translation>선택한 레이어를 에셋으로 저장</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>제목 없음</translation>
+    </message>
+    <message>
+        <source>%1 (in %2)</source>
+        <translation>%1(%2에 있음)</translation>
+    </message>
+    <message>
+        <source>No assets here yet. Select layers, then click Add Selected Layers.</source>
+        <translation>아직 에셋이 없습니다. 레이어를 선택한 다음 선택한 레이어 추가를 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>No asset matches the search.</source>
+        <translation>검색과 일치하는 에셋이 없습니다.</translation>
+    </message>
+    <message>
+        <source>New Category...</source>
+        <translation>새 카테고리...</translation>
+    </message>
+    <message>
+        <source>Rename Category...</source>
+        <translation>카테고리 이름 바꾸기...</translation>
+    </message>
+    <message>
+        <source>Delete Category...</source>
+        <translation>카테고리 삭제...</translation>
+    </message>
+    <message>
+        <source>Sort by Name</source>
+        <translation>이름순 정렬</translation>
+    </message>
+    <message>
+        <source>Place</source>
+        <translation>배치</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>이름 바꾸기...</translation>
+    </message>
+    <message>
+        <source>Move to Category</source>
+        <translation>카테고리로 이동</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>삭제</translation>
+    </message>
+    <message>
+        <source>Rename Asset</source>
+        <translation>에셋 이름 바꾸기</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>이름:</translation>
+    </message>
+    <message>
+        <source>Delete the asset &quot;%1&quot;? This cannot be undone.</source>
+        <translation>에셋 &quot;%1&quot;을(를) 삭제할까요? 이 작업은 실행 취소할 수 없습니다.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n asset(s)? This cannot be undone.</source>
+        <translation>
+            <numerusform>에셋 %n개를 삭제할까요? 이 작업은 실행 취소할 수 없습니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete Asset</source>
+        <translation>에셋 삭제</translation>
+    </message>
+    <message>
+        <source>New Category</source>
+        <translation>새 카테고리</translation>
+    </message>
+    <message>
+        <source>Rename Category</source>
+        <translation>카테고리 이름 바꾸기</translation>
+    </message>
+    <message>
+        <source>Delete Category</source>
+        <translation>카테고리 삭제</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the category &quot;%1&quot; and the %n asset(s) in it? This cannot be undone.</source>
+        <translation>
+            <numerusform>카테고리 &quot;%1&quot;과(와) 그 안의 에셋 %n개를 삭제할까요? 이 작업은 실행 취소할 수 없습니다.</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::BookScanDialog</name>
     <message>
         <source>Scan a Book to PDF</source>
@@ -22497,6 +22631,14 @@ Do you want to replace it?</source>
     <message>
         <source>Make a pattern from the image or selection</source>
         <translation>이미지 또는 선택 영역으로 패턴 만들기</translation>
+    </message>
+    <message>
+        <source>Keep the selected layers in the Assets panel for reuse</source>
+        <translation>선택한 레이어를 에셋 패널에 보관하여 다시 사용</translation>
+    </message>
+    <message>
+        <source>Show the Assets panel</source>
+        <translation>에셋 패널 표시</translation>
     </message>
 </context>
 <context>
@@ -37179,6 +37321,58 @@ Locked: %1</source>
     <message>
         <source>%MOVE_KEY%+drag moves the selected pixels.</source>
         <translation>%MOVE_KEY%+드래그로 선택한 픽셀을 이동합니다.</translation>
+    </message>
+    <message>
+        <source>Add to Assets</source>
+        <translation>에셋에 추가</translation>
+    </message>
+    <message>
+        <source>Assets</source>
+        <translation>에셋</translation>
+    </message>
+    <message>
+        <source>Select a layer to add to Assets</source>
+        <translation>에셋에 추가할 레이어를 선택하세요</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>에셋을 보관할 폴더가 없습니다</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is too large to keep as an asset</source>
+        <translation>&quot;%1&quot;은(는) 너무 커서 에셋으로 보관할 수 없습니다</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n asset(s)</source>
+        <translation>
+            <numerusform>%n개의 에셋을 추가했습니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open a document to place an asset in</source>
+        <translation>에셋을 배치할 문서를 여세요</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be read</source>
+        <translation>에셋 &quot;%1&quot;을(를) 읽을 수 없습니다</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be placed</source>
+        <translation>에셋 &quot;%1&quot;을(를) 배치할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Place asset</source>
+        <translation>에셋 배치</translation>
+    </message>
+    <message>
+        <source>Placed the asset &quot;%1&quot;</source>
+        <translation>에셋 &quot;%1&quot;을(를) 배치했습니다</translation>
+    </message>
+    <message numerus="yes">
+        <source>Placed %n asset(s)</source>
+        <translation>
+            <numerusform>%n개의 에셋을 배치했습니다.</numerusform>
+        </translation>
     </message>
 </context>
 <context>

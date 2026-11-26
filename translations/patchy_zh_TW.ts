@@ -17241,6 +17241,140 @@ Do you want to replace it?</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::AssetLibrary</name>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>無法寫入 %1：%2</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>沒有可存放資源的資料夾</translation>
+    </message>
+    <message>
+        <source>Could not create %1</source>
+        <translation>無法建立 %1</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::AssetsPanel</name>
+    <message>
+        <source>General</source>
+        <translation>一般</translation>
+    </message>
+    <message>
+        <source>Category</source>
+        <translation>類別</translation>
+    </message>
+    <message>
+        <source>Manage</source>
+        <translation>管理</translation>
+    </message>
+    <message>
+        <source>Add assets and manage categories</source>
+        <translation>新增資源和管理類別</translation>
+    </message>
+    <message>
+        <source>Search assets</source>
+        <translation>搜尋資源</translation>
+    </message>
+    <message>
+        <source>Add Selected Layers</source>
+        <translation>加入選取的圖層</translation>
+    </message>
+    <message>
+        <source>Save the selected layers as assets</source>
+        <translation>將選取的圖層儲存為資源</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>未命名</translation>
+    </message>
+    <message>
+        <source>%1 (in %2)</source>
+        <translation>%1（位於 %2）</translation>
+    </message>
+    <message>
+        <source>No assets here yet. Select layers, then click Add Selected Layers.</source>
+        <translation>這裡還沒有資源。請選取圖層，然後按一下「加入選取的圖層」。</translation>
+    </message>
+    <message>
+        <source>No asset matches the search.</source>
+        <translation>沒有符合搜尋的資源。</translation>
+    </message>
+    <message>
+        <source>New Category...</source>
+        <translation>新增類別...</translation>
+    </message>
+    <message>
+        <source>Rename Category...</source>
+        <translation>重新命名類別...</translation>
+    </message>
+    <message>
+        <source>Delete Category...</source>
+        <translation>刪除類別...</translation>
+    </message>
+    <message>
+        <source>Sort by Name</source>
+        <translation>依名稱排序</translation>
+    </message>
+    <message>
+        <source>Place</source>
+        <translation>放置</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>重新命名...</translation>
+    </message>
+    <message>
+        <source>Move to Category</source>
+        <translation>移至類別</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>刪除</translation>
+    </message>
+    <message>
+        <source>Rename Asset</source>
+        <translation>重新命名資源</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>名稱:</translation>
+    </message>
+    <message>
+        <source>Delete the asset &quot;%1&quot;? This cannot be undone.</source>
+        <translation>刪除資源「%1」？此動作無法還原。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n asset(s)? This cannot be undone.</source>
+        <translation>
+            <numerusform>刪除 %n 個資源？此動作無法還原。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete Asset</source>
+        <translation>刪除資源</translation>
+    </message>
+    <message>
+        <source>New Category</source>
+        <translation>新增類別</translation>
+    </message>
+    <message>
+        <source>Rename Category</source>
+        <translation>重新命名類別</translation>
+    </message>
+    <message>
+        <source>Delete Category</source>
+        <translation>刪除類別</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the category &quot;%1&quot; and the %n asset(s) in it? This cannot be undone.</source>
+        <translation>
+            <numerusform>刪除類別「%1」及其中的 %n 個資源？此動作無法還原。</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::BookScanDialog</name>
     <message>
         <source>Scan a Book to PDF</source>
@@ -22497,6 +22631,14 @@ Do you want to replace it?</source>
     <message>
         <source>Make a pattern from the image or selection</source>
         <translation>用影像或選取範圍建立圖樣</translation>
+    </message>
+    <message>
+        <source>Keep the selected layers in the Assets panel for reuse</source>
+        <translation>將選取的圖層保留在資源面板中以便重複使用</translation>
+    </message>
+    <message>
+        <source>Show the Assets panel</source>
+        <translation>顯示資源面板</translation>
     </message>
 </context>
 <context>
@@ -37179,6 +37321,58 @@ Locked: %1</source>
     <message>
         <source>%MOVE_KEY%+drag moves the selected pixels.</source>
         <translation>%MOVE_KEY%+拖曳可移動選取的像素。</translation>
+    </message>
+    <message>
+        <source>Add to Assets</source>
+        <translation>加入資源</translation>
+    </message>
+    <message>
+        <source>Assets</source>
+        <translation>資源</translation>
+    </message>
+    <message>
+        <source>Select a layer to add to Assets</source>
+        <translation>請選取要加入資源的圖層</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>沒有可存放資源的資料夾</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is too large to keep as an asset</source>
+        <translation>「%1」太大，無法保存為資源</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n asset(s)</source>
+        <translation>
+            <numerusform>已加入 %n 個資源</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open a document to place an asset in</source>
+        <translation>請先開啟文件再置入資源</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be read</source>
+        <translation>無法讀取資源「%1」</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be placed</source>
+        <translation>無法置入資源「%1」</translation>
+    </message>
+    <message>
+        <source>Place asset</source>
+        <translation>置入資源</translation>
+    </message>
+    <message>
+        <source>Placed the asset &quot;%1&quot;</source>
+        <translation>已置入資源「%1」</translation>
+    </message>
+    <message numerus="yes">
+        <source>Placed %n asset(s)</source>
+        <translation>
+            <numerusform>已置入 %n 個資源</numerusform>
+        </translation>
     </message>
 </context>
 <context>

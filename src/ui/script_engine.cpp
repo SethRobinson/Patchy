@@ -4137,7 +4137,7 @@ struct ScriptSidePanel {
 constexpr ScriptSidePanel kScriptSidePanels[] = {
     {"layers", "layersDock"},   {"channels", "channelsDock"},     {"paths", "pathsDock"},
     {"history", "historyDock"}, {"properties", "propertiesDock"}, {"info", "infoDock"},
-    {"palette", "paletteDock"}, {"color", "colorDock"},
+    {"palette", "paletteDock"}, {"color", "colorDock"},         {"assets", "assetsDock"},
 };
 
 }  // namespace

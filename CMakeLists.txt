@@ -1557,6 +1557,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/main_window_save_metadata.cpp
       src/ui/main_window_appimage_menu_entry.cpp
       src/ui/main_window_layer_panel.cpp
+      src/ui/main_window_assets.cpp
       src/ui/main_window_layer_thumbnails.cpp
       src/ui/main_window_palette.cpp
       src/ui/main_window_missing_fonts.cpp
@@ -1639,6 +1640,10 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/palette_convert_dialog.cpp
       src/ui/palette_panel.hpp
       src/ui/palette_panel.cpp
+      src/ui/asset_library.hpp
+      src/ui/asset_library.cpp
+      src/ui/assets_panel.hpp
+      src/ui/assets_panel.cpp
       src/ui/panel_column.hpp
       src/ui/panel_column.cpp
       src/ui/pattern_library.hpp
@@ -2862,6 +2867,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/misc_visuals_outline_stress_tests.cpp
       tests/ui/float_window_tests.cpp
       tests/ui/canvas_file_drop_tests.cpp
+      tests/ui/assets_panel_tests.cpp
       tests/ui/document_rename_tests.cpp
       tests/ui/vector_shape_tool_tests.cpp
       tests/ui/vector_mask_editing_tests.cpp

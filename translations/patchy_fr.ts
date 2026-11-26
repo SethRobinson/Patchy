@@ -17297,6 +17297,142 @@ Voulez-vous le remplacer ?</translation>
     </message>
 </context>
 <context>
+    <name>patchy::ui::AssetLibrary</name>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>Impossible d&apos;écrire %1 : %2</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>Aucun dossier où conserver les ressources</translation>
+    </message>
+    <message>
+        <source>Could not create %1</source>
+        <translation>Impossible de créer %1</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::AssetsPanel</name>
+    <message>
+        <source>General</source>
+        <translation>Général</translation>
+    </message>
+    <message>
+        <source>Category</source>
+        <translation>Catégorie</translation>
+    </message>
+    <message>
+        <source>Manage</source>
+        <translation>Gérer</translation>
+    </message>
+    <message>
+        <source>Add assets and manage categories</source>
+        <translation>Ajouter des ressources et gérer les catégories</translation>
+    </message>
+    <message>
+        <source>Search assets</source>
+        <translation>Rechercher des ressources</translation>
+    </message>
+    <message>
+        <source>Add Selected Layers</source>
+        <translation>Ajouter les calques sélectionnés</translation>
+    </message>
+    <message>
+        <source>Save the selected layers as assets</source>
+        <translation>Enregistrer les calques sélectionnés comme ressources</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>Sans titre</translation>
+    </message>
+    <message>
+        <source>%1 (in %2)</source>
+        <translation>%1 (dans %2)</translation>
+    </message>
+    <message>
+        <source>No assets here yet. Select layers, then click Add Selected Layers.</source>
+        <translation>Aucune ressource ici pour le moment. Sélectionnez des calques, puis cliquez sur Ajouter les calques sélectionnés.</translation>
+    </message>
+    <message>
+        <source>No asset matches the search.</source>
+        <translation>Aucune ressource ne correspond à la recherche.</translation>
+    </message>
+    <message>
+        <source>New Category...</source>
+        <translation>Nouvelle catégorie...</translation>
+    </message>
+    <message>
+        <source>Rename Category...</source>
+        <translation>Renommer la catégorie...</translation>
+    </message>
+    <message>
+        <source>Delete Category...</source>
+        <translation>Supprimer la catégorie...</translation>
+    </message>
+    <message>
+        <source>Sort by Name</source>
+        <translation>Trier par nom</translation>
+    </message>
+    <message>
+        <source>Place</source>
+        <translation>Placer</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>Renommer...</translation>
+    </message>
+    <message>
+        <source>Move to Category</source>
+        <translation>Déplacer vers la catégorie</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Supprimer</translation>
+    </message>
+    <message>
+        <source>Rename Asset</source>
+        <translation>Renommer la ressource</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Nom :</translation>
+    </message>
+    <message>
+        <source>Delete the asset &quot;%1&quot;? This cannot be undone.</source>
+        <translation>Supprimer la ressource « %1 » ? Cette action est irréversible.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n asset(s)? This cannot be undone.</source>
+        <translation>
+            <numerusform>Supprimer %n ressource ? Cette action est irréversible.</numerusform>
+            <numerusform>Supprimer %n ressources ? Cette action est irréversible.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete Asset</source>
+        <translation>Supprimer la ressource</translation>
+    </message>
+    <message>
+        <source>New Category</source>
+        <translation>Nouvelle catégorie</translation>
+    </message>
+    <message>
+        <source>Rename Category</source>
+        <translation>Renommer la catégorie</translation>
+    </message>
+    <message>
+        <source>Delete Category</source>
+        <translation>Supprimer la catégorie</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the category &quot;%1&quot; and the %n asset(s) in it? This cannot be undone.</source>
+        <translation>
+            <numerusform>Supprimer la catégorie « %1 » et la %n ressource qu&apos;elle contient ? Cette action est irréversible.</numerusform>
+            <numerusform>Supprimer la catégorie « %1 » et les %n ressources qu&apos;elle contient ? Cette action est irréversible.</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::BookScanDialog</name>
     <message>
         <source>Scan a Book to PDF</source>
@@ -22559,6 +22695,14 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Make a pattern from the image or selection</source>
         <translation>Créer un motif à partir de l&apos;image ou de la sélection</translation>
+    </message>
+    <message>
+        <source>Keep the selected layers in the Assets panel for reuse</source>
+        <translation>Conserver les calques sélectionnés dans le panneau Ressources pour les réutiliser</translation>
+    </message>
+    <message>
+        <source>Show the Assets panel</source>
+        <translation>Afficher le panneau Ressources</translation>
     </message>
 </context>
 <context>
@@ -37295,6 +37439,60 @@ Verrouillé : %1</translation>
     <message>
         <source>%MOVE_KEY%+drag moves the selected pixels.</source>
         <translation>%MOVE_KEY%+glisser déplace les pixels sélectionnés.</translation>
+    </message>
+    <message>
+        <source>Add to Assets</source>
+        <translation>Ajouter aux ressources</translation>
+    </message>
+    <message>
+        <source>Assets</source>
+        <translation>Ressources</translation>
+    </message>
+    <message>
+        <source>Select a layer to add to Assets</source>
+        <translation>Sélectionnez un calque à ajouter aux ressources</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>Aucun dossier où conserver les ressources</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is too large to keep as an asset</source>
+        <translation>« %1 » est trop grand pour être conservé comme ressource</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n asset(s)</source>
+        <translation>
+            <numerusform>%n ressource ajoutée</numerusform>
+            <numerusform>%n ressources ajoutées</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open a document to place an asset in</source>
+        <translation>Ouvrez un document pour y placer une ressource</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be read</source>
+        <translation>Impossible de lire la ressource « %1 »</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be placed</source>
+        <translation>Impossible de placer la ressource « %1 »</translation>
+    </message>
+    <message>
+        <source>Place asset</source>
+        <translation>Placer la ressource</translation>
+    </message>
+    <message>
+        <source>Placed the asset &quot;%1&quot;</source>
+        <translation>Ressource « %1 » placée</translation>
+    </message>
+    <message numerus="yes">
+        <source>Placed %n asset(s)</source>
+        <translation>
+            <numerusform>%n ressource placée</numerusform>
+            <numerusform>%n ressources placées</numerusform>
+        </translation>
     </message>
 </context>
 <context>

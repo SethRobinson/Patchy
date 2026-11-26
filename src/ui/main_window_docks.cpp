@@ -985,6 +985,8 @@ void MainWindow::install_window_panel_entries() {
        "window.panel_color", Qt::Key_F6},
       {"paletteDock", "windowPanelPaletteAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Palette"),
        "window.panel_palette", Qt::Key_unknown},
+      {"assetsDock", "windowPanelAssetsAction", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Assets"),
+       "window.panel_assets", Qt::Key_unknown},
   };
   for (const auto& panel : kPanels) {
     const auto id = QString::fromLatin1(panel.panel_id);
@@ -1336,7 +1338,11 @@ namespace {
 // compatibility contract. The version guards what the values mean: a release that adds,
 // renames or regroups panels bumps it, and an older record is then ignored rather than
 // half applied, unless read_panel_layout knows how to carry it forward.
-constexpr int kPanelLayoutVersion = 4;
+constexpr int kPanelLayoutVersion = 5;
+// Version 4 is version 5 without the Assets panel (GitHub issue 751): read_panel_layout
+// keeps such a layout and leaves the panel closed, as a first launch does.
+constexpr int kPanelLayoutVersionBeforeAssets = 4;
+constexpr char kAssetsPanel[] = "assetsDock";
 // Version 3 is version 4 without the tab groups (window/panelGroups, window/frontPanels):
 // read_panel_layout keeps it with the groups and order those versions had (below).
 constexpr int kPanelLayoutVersionBeforeTabOrder = 3;
@@ -1477,15 +1483,18 @@ void MainWindow::read_panel_layout() {
   }
   // A view choice, not part of the versioned layout: it stands whatever the version.
   set_panel_titles_visible(settings.value(show_panel_titles_key(), true).toBool());
-  if (version != kPanelLayoutVersion && version != kPanelLayoutVersionBeforeTabOrder &&
-      version != kPanelLayoutVersionBeforeColor) {
+  if (version != kPanelLayoutVersion && version != kPanelLayoutVersionBeforeAssets &&
+      version != kPanelLayoutVersionBeforeTabOrder && version != kPanelLayoutVersionBeforeColor) {
     return;
   }
+  // Records from before tab groups could change (versions 2 and 3) describe the column of
+  // their time; version 4 already has today's keys.
+  const bool before_tab_order = version == kPanelLayoutVersionBeforeTabOrder || version == kPanelLayoutVersionBeforeColor;
   const auto color_panel = QString::fromLatin1(kColorPanel);
   const bool add_color_panel = version == kPanelLayoutVersionBeforeColor && panel_column_->has_panel(color_panel);
   // The tab groups first. An older record describes the column those versions had, with
   // Color and Palette apart, and keeps it.
-  if (version != kPanelLayoutVersion) {
+  if (before_tab_order) {
     panel_column_->set_tab_groups(panel_groups_before_version_4());
   } else if (settings.contains(panel_groups_key())) {
     QList<QStringList> groups;
@@ -1499,10 +1508,17 @@ void MainWindow::read_panel_layout() {
     collapsed << color_panel;
   }
   apply_collapsed_panels(collapsed);
-  const auto hidden = settings.value(hidden_panels_key()).toStringList();
+  auto hidden = settings.value(hidden_panels_key()).toStringList();
+  if (version != kPanelLayoutVersion) {
+    // A record from before the Assets panel knows nothing of it: it stays closed, at the
+    // end of the column (set_section_order appends sections the saved order leaves out).
+    hidden << QString::fromLatin1(kAssetsPanel);
+  }
   for (const auto& id : panel_column_->panel_ids()) {
-    if (hidden.contains(id)) {
-      panel_column_->set_panel_visible(id, false);
+    // Both ways: a panel the column starts closed (the Assets panel) opens when the
+    // record says it was open.
+    if (panel_column_->panel_visible(id) == hidden.contains(id)) {
+      panel_column_->set_panel_visible(id, !hidden.contains(id));
     }
   }
   auto fronts = settings.value(front_panels_key()).toStringList();
@@ -1523,7 +1539,7 @@ void MainWindow::read_panel_layout() {
   // The order first: the heights state is by position. A record without one (saved
   // before panels could move) keeps the order of its time.
   auto order = settings.value(panel_order_key()).toStringList();
-  if (order.isEmpty() && version != kPanelLayoutVersion) {
+  if (order.isEmpty() && before_tab_order) {
     order = panel_order_before_version_4();
   }
   if (add_color_panel) {
@@ -1582,7 +1598,7 @@ void MainWindow::reset_panels() {
   // The titles first, so the heights below are measured with the rows in place.
   set_panel_titles_visible(true);
   for (const auto& id : panel_column_->panel_ids()) {
-    panel_column_->set_panel_visible(id, true);
+    panel_column_->set_panel_visible(id, !default_hidden_panels_.contains(id));
   }
   panel_column_->set_tab_groups(default_tab_groups_);
   panel_column_->set_section_order(default_panel_order_);
@@ -2905,6 +2921,10 @@ void MainWindow::create_docks() {
 
   create_color_dock(panel_specs);
   create_palette_dock(panel_specs);
+#ifndef Q_OS_WASM
+  // Last, so it sits at the end of the column and older saved layouts keep their heights.
+  create_assets_dock(panel_specs);
+#endif
 
   // The first-launch column, which Reset Panels returns to (Seth, October 2026): Color and
   // Palette as one tab group, expanded with Color in front, above the Layers, Channels and
@@ -2921,6 +2941,11 @@ void MainWindow::create_docks() {
   panel_column_->set_section_order({QString::fromLatin1(kColorPanel), QString::fromLatin1(kFirstPanel),
                                     QStringLiteral("propertiesDock"), QStringLiteral("infoDock"),
                                     QStringLiteral("historyDock")});
+  // The Assets panel starts closed (Window > Assets opens it), so nobody's column grows
+  // unasked; Reset Panels closes it again (default_hidden_panels_).
+  if (panel_column_->has_panel(QString::fromLatin1(kAssetsPanel))) {
+    panel_column_->set_panel_visible(QString::fromLatin1(kAssetsPanel), false);
+  }
   // Each title shares its panel's translation; the tab texts follow the titles.
   static constexpr std::pair<const char*, const char*> kPanelTitles[] = {
       {"layersDock", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Layers")},
@@ -2931,9 +2956,12 @@ void MainWindow::create_docks() {
       {"infoDock", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Info")},
       {"colorDock", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Color")},
       {"paletteDock", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Palette")},
+      {"assetsDock", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Assets")},
   };
   for (const auto& [id, title] : kPanelTitles) {
-    bind_widget_text(panel_column_->title_label(QLatin1String(id)), title);
+    if (panel_column_->has_panel(QLatin1String(id))) {
+      bind_widget_text(panel_column_->title_label(QLatin1String(id)), title);
+    }
   }
   panel_column_->refresh_tab_titles();
   register_retranslation([this] { panel_column_->refresh_tab_titles(); });

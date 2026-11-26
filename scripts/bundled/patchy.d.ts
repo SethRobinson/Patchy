@@ -339,7 +339,7 @@ interface PatchySmartFilter {
 /** An artboard's background: "color" paints `color`. */
 type PatchyArtboardBackground = "white" | "black" | "transparent" | "color";
 /** The right column's panels, by permanent name (patchy.ui.expandPanel and friends). */
-type PatchyPanelName = "layers" | "channels" | "paths" | "history" | "properties" | "info" | "palette" | "color";
+type PatchyPanelName = "layers" | "channels" | "paths" | "history" | "properties" | "info" | "palette" | "color" | "assets";
 
 /** An artboard's rect (document pixels) and background, as layer.artboard reads it. */
 interface PatchyArtboard {

@@ -17353,6 +17353,144 @@ Czy chcesz go zastąpić?</translation>
     </message>
 </context>
 <context>
+    <name>patchy::ui::AssetLibrary</name>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>Nie można zapisać %1: %2</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>Brak folderu do przechowywania zasobów</translation>
+    </message>
+    <message>
+        <source>Could not create %1</source>
+        <translation>Nie można utworzyć %1</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::AssetsPanel</name>
+    <message>
+        <source>General</source>
+        <translation>Ogólne</translation>
+    </message>
+    <message>
+        <source>Category</source>
+        <translation>Kategoria</translation>
+    </message>
+    <message>
+        <source>Manage</source>
+        <translation>Zarządzaj</translation>
+    </message>
+    <message>
+        <source>Add assets and manage categories</source>
+        <translation>Dodawaj zasoby i zarządzaj kategoriami</translation>
+    </message>
+    <message>
+        <source>Search assets</source>
+        <translation>Szukaj zasobów</translation>
+    </message>
+    <message>
+        <source>Add Selected Layers</source>
+        <translation>Dodaj zaznaczone warstwy</translation>
+    </message>
+    <message>
+        <source>Save the selected layers as assets</source>
+        <translation>Zapisz zaznaczone warstwy jako zasoby</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>Bez tytułu</translation>
+    </message>
+    <message>
+        <source>%1 (in %2)</source>
+        <translation>%1 (w: %2)</translation>
+    </message>
+    <message>
+        <source>No assets here yet. Select layers, then click Add Selected Layers.</source>
+        <translation>Nie ma tu jeszcze zasobów. Zaznacz warstwy, a potem kliknij Dodaj zaznaczone warstwy.</translation>
+    </message>
+    <message>
+        <source>No asset matches the search.</source>
+        <translation>Żaden zasób nie pasuje do wyszukiwania.</translation>
+    </message>
+    <message>
+        <source>New Category...</source>
+        <translation>Nowa kategoria...</translation>
+    </message>
+    <message>
+        <source>Rename Category...</source>
+        <translation>Zmień nazwę kategorii...</translation>
+    </message>
+    <message>
+        <source>Delete Category...</source>
+        <translation>Usuń kategorię...</translation>
+    </message>
+    <message>
+        <source>Sort by Name</source>
+        <translation>Sortuj według nazwy</translation>
+    </message>
+    <message>
+        <source>Place</source>
+        <translation>Umieść</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>Zmień nazwę...</translation>
+    </message>
+    <message>
+        <source>Move to Category</source>
+        <translation>Przenieś do kategorii</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Usuń</translation>
+    </message>
+    <message>
+        <source>Rename Asset</source>
+        <translation>Zmień nazwę zasobu</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Nazwa:</translation>
+    </message>
+    <message>
+        <source>Delete the asset &quot;%1&quot;? This cannot be undone.</source>
+        <translation>Usunąć zasób „%1”? Tej operacji nie można cofnąć.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n asset(s)? This cannot be undone.</source>
+        <translation>
+            <numerusform>Usunąć %n zasób? Tej operacji nie można cofnąć.</numerusform>
+            <numerusform>Usunąć %n zasoby? Tej operacji nie można cofnąć.</numerusform>
+            <numerusform>Usunąć %n zasobów? Tej operacji nie można cofnąć.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete Asset</source>
+        <translation>Usuń zasób</translation>
+    </message>
+    <message>
+        <source>New Category</source>
+        <translation>Nowa kategoria</translation>
+    </message>
+    <message>
+        <source>Rename Category</source>
+        <translation>Zmień nazwę kategorii</translation>
+    </message>
+    <message>
+        <source>Delete Category</source>
+        <translation>Usuń kategorię</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the category &quot;%1&quot; and the %n asset(s) in it? This cannot be undone.</source>
+        <translation>
+            <numerusform>Usunąć kategorię „%1” i %n zasób, który zawiera? Tej operacji nie można cofnąć.</numerusform>
+            <numerusform>Usunąć kategorię „%1” i %n zasoby, które zawiera? Tej operacji nie można cofnąć.</numerusform>
+            <numerusform>Usunąć kategorię „%1” i %n zasobów, które zawiera? Tej operacji nie można cofnąć.</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::BookScanDialog</name>
     <message>
         <source>Scan a Book to PDF</source>
@@ -22621,6 +22759,14 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Make a pattern from the image or selection</source>
         <translation>Utwórz wzorek z obrazu lub zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Keep the selected layers in the Assets panel for reuse</source>
+        <translation>Zachowaj zaznaczone warstwy w panelu Zasoby do ponownego użycia</translation>
+    </message>
+    <message>
+        <source>Show the Assets panel</source>
+        <translation>Pokaż panel Zasoby</translation>
     </message>
 </context>
 <context>
@@ -37411,6 +37557,62 @@ Zablokowano: %1</translation>
     <message>
         <source>%MOVE_KEY%+drag moves the selected pixels.</source>
         <translation>%MOVE_KEY%+przeciąganie przesuwa zaznaczone piksele.</translation>
+    </message>
+    <message>
+        <source>Add to Assets</source>
+        <translation>Dodaj do zasobów</translation>
+    </message>
+    <message>
+        <source>Assets</source>
+        <translation>Zasoby</translation>
+    </message>
+    <message>
+        <source>Select a layer to add to Assets</source>
+        <translation>Wybierz warstwę, którą chcesz dodać do zasobów</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>Brak folderu do przechowywania zasobów</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is too large to keep as an asset</source>
+        <translation>„%1” jest zbyt duże, aby zachować je jako zasób</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n asset(s)</source>
+        <translation>
+            <numerusform>Dodano %n zasób</numerusform>
+            <numerusform>Dodano %n zasoby</numerusform>
+            <numerusform>Dodano %n zasobów</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open a document to place an asset in</source>
+        <translation>Otwórz dokument, w którym chcesz umieścić zasób</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be read</source>
+        <translation>Nie można odczytać zasobu „%1”</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be placed</source>
+        <translation>Nie można umieścić zasobu „%1”</translation>
+    </message>
+    <message>
+        <source>Place asset</source>
+        <translation>Umieść zasób</translation>
+    </message>
+    <message>
+        <source>Placed the asset &quot;%1&quot;</source>
+        <translation>Umieszczono zasób „%1”</translation>
+    </message>
+    <message numerus="yes">
+        <source>Placed %n asset(s)</source>
+        <translation>
+            <numerusform>Umieszczono %n zasób</numerusform>
+            <numerusform>Umieszczono %n zasoby</numerusform>
+            <numerusform>Umieszczono %n zasobów</numerusform>
+        </translation>
     </message>
 </context>
 <context>

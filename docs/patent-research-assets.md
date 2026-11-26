@@ -1,0 +1,48 @@
+# Patent research: asset and library panels
+
+Research record for the Assets panel (GitHub issue 751). The binding summary is the "Assets panel" section of [legal-constraints-panels.md](legal-constraints-panels.md#assets-panel); this file is an engineering record and follows the conventions of [patent-research.md](patent-research.md). Read November 26, 2026, before any code was written: the claims below from the USPTO Patent Public Search full text ([how](patent-research.md#reading-patent-text)). End dates are the earliest filing date plus 20 years plus the term adjustment that service lists, before any terminal disclaimer and without fee status; re-check them before changing the feature. The design is in [assets-panel.md](assets-panel.md).
+
+## Searches
+
+- USPTO full text, issued patents: assignee Adobe with "asset" or "assets" in the title and library, panel or reuse in the text (29 results, titles read); "design library" with assignee Adobe; "library panel" or "library palette" with drag and layers; "asset panel" or "asset palette" with drag, layers and image editing (17 results, all Best Apps LLC custom product designers); reusable assets or elements with drag, layers and image editing; layers near library with drag and thumbnails; titles with "library" from Apple and "reuse" from Microsoft; assignees Figma (39 results, titles read) and Canva (titles with library, asset or element); assignee Serif (no results).
+- The web: the feature names with "Adobe patent" (Creative Cloud Libraries, Libraries panel), "Serif Affinity Assets panel patent", and reusable design element library panels. The results were product documentation only.
+- Watch item: the queries were title and full-text queries on US documents. No CPC class sweep was run, published applications without an assignee field were not listed by the assignee queries, and no EP, GB or JP family was read. Repeat the search with a class sweep before the panel gains any behavior under "Rule" below.
+
+## Patents read
+
+- **Adobe US 12020209 B2**, "Digital asset and design component tracking in a collaborative environment" (filed 2015-05-29, 767 days of adjustment: 2037-07-04). Independent claims 1 and 18: a design component extracted from a second asset is shown in a design library interface; a layer identifier in the component's metadata names the layer of the second asset it was extracted from; from it a newer version of the component in that asset is identified; and the library shows a notice that the component is outdated. Independent claim 10: components curated from different source assets are shown in a library; on selecting one, the source asset it was curated from is identified and shown at the same time as the component. Dependent claims add update monitoring, a graphical indicator beside the component, an asset preview beside the library and a drag from that preview into the library.
+- **Adobe US 11635908 B2** and its continuation **US 12327036 B2**, "Managing digital assets stored as components and packaged files" (filed 2017-06-22, no adjustment on either: 2037-06-22). Independent claims 1, 16 and 19 of US 11635908: a local database with a mapping that says where the layers of an image are stored, each layer stored as an independent file; a composite image formed by copying those layer files out of the database, with a manifest listing them; the mapping updated to the copies; and, on an edit, only the modified layers replaced in the composite. Claim 1 of US 12327036 has the same layer database and manifest, synchronized with cloud storage, and a packaged image file updated with only the modified layers. **Adobe US 10970302 B2** and its continuation **US 11693880 B2**, "Component-based synchronization of digital assets" (filed 2017-06-22, 254 and 105 days: 2038-03-03 and 2037-10-05): components of an asset stored as independent component files with identifiers and a mapping, and a new component file and a changed mapping on each modification; claim 1 of US 11693880 adds the transfer of both to a remote device.
+- **Adobe US 10416855 B2**, "Integrating remote assets from content management service with content developed by content creation applications" (filed 2017-11-13: 2037-11-13). Claim 1: a session with a content management server; a lower-resolution placement copy of a remote source asset added to the document and tied to a network link to the source; a change of the source detected; a notice that the placement copy is outdated.
+- **Adobe US 10204318 B2** and its continuation **US 11386393 B2**, "Project asset and preference sharing" (filed 2015-06-30, 674 and 834 days: 2037-05-04 and 2037-10-11): a request assigns a project asset and a preference to a team member, the member's teams are looked up, and a response over a network lets the member's device download and show them; claim 1 of the continuation adds an administrator's interface for the assignment.
+- **Adobe US 10423712 B2**, "Creating and managing chattels to control design asset behaviors" (filed 2017-04-17, 163 days: 2037-09-27): a script that says how an asset responds to actions, access levels per user type, and both packaged with the asset's visual form.
+- **Adobe US 11321582 B2**, "Extracting and organizing reusable assets from an arbitrary arrangement of vector geometry" (filed 2020-06-23, 170 days: 2040-12-10): clustering the geometric objects of an image, finding repeating patterns in sequences of cluster names, scoring them and generating reusable assets from the scores.
+- **Apple US 11295087 B2**, "Shape library suggestions based on document content" (filed 2019-06-18: 2039-06-18): on a modification of a picture in a document, pictures are given to an image classifier, and content of the application's library is suggested from the classification when the user asks to insert content.
+- **Microsoft US 10339183 B2** and **US 10740349 B2**, "Document storage for reuse of content within documents" (filed 2015-09-18, 463 and 371 days: 2036-12-24 and 2036-09-23): user labels from session logs stored in a document graph and searched for reusable content; content components extracted from a document by type and tracked in a graph of documents, users and components as they are reused.
+- **Canva US 12412002 B2**, "Systems and methods for adding a design element to a design" (priority 2021-12-03, filed 2022-11-27, 282 days: 2043-09-05). Claim 1: on an insert interaction, a quick-add interface with a text field is shown in the design preview area; the typed text is submitted; when it matches a defined element string, that design element is added to the design and shown on the canvas.
+
+## Patchy's form
+
+- Against US 12020209: an asset stores no identifier of the document or layer it was made from, and a placed layer stores none of its asset. The panel never identifies or shows a source document, never compares versions and never shows an outdated notice; each independent claim needs one of those.
+- Against US 11635908, US 12327036, US 10970302 and US 11693880: an asset is one whole PSD holding all of its layers, written once when the asset is added. There is no file per layer, no map of layer locations, no manifest, and no replacement of single layers after an edit (an asset's layers are never edited in place; rename, move and sort change the index only).
+- Against US 10416855: there is no server, no lower-resolution stand-in and no link from a placed layer to anything. Placing copies the asset's layers in full.
+- Against US 10204318, US 11386393 and US 10423712: the library is one user's local folder. Nothing is assigned, shared or downloaded, and an asset carries no script and no access data.
+- Against US 11321582, US 11295087, US 10339183 and US 10740349: assets are made only from the layers the user selects, one asset per selected root layer, and are shown only by category and by a name filter. Nothing is clustered, classified, scored, suggested or logged.
+- Against US 12412002: the panel's search box sits in the panel, filters the grid by asset name as the user types, and has no submit step; no text entered anywhere adds an asset to a document. Assets are placed by a drag, a double-click or the Place entry on a chosen asset.
+
+## Rule
+
+Without a new claim read (dates above):
+
+- An asset is one whole local file. Never one file per layer with a location map or manifest, and never an asset updated layer by layer.
+- No reference from an asset to its source document or layer, and none from a placed layer to its asset: no "show source", no update of placed copies, no outdated or changed notices, no version comparison.
+- No cloud storage, sync, sharing, team libraries or per-user access data, and no script or behavior stored with an asset.
+- No assets made by analysis of a document (repeated shapes, detected objects), no suggestions, no classification or automatic tags, no use tracking.
+- The search box only filters the panel. Typed text never inserts an asset into a document, in the panel, on the canvas or in Search Commands.
+
+## Published earlier work
+
+A palette that keeps reusable objects as thumbnails, takes objects dragged into it and gives back a copy dragged out into any document is long published: QuarkXPress 3 (1990) shipped library palettes that work that way, and object libraries of the same form followed in page layout and illustration programs through the 1990s. That form is what the Assets panel is.
+
+## Names
+
+"Assets" is a descriptive word for reusable material. The panel's layout, menu wording and arrangement are Patchy's own ([assets-panel.md](assets-panel.md)); the reporter's recording of another editor's panel was used only to understand the request.

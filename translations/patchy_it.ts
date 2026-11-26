@@ -17297,6 +17297,142 @@ Sostituirlo?</translation>
     </message>
 </context>
 <context>
+    <name>patchy::ui::AssetLibrary</name>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>Impossibile scrivere %1: %2</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>Non c&apos;è una cartella in cui conservare le risorse</translation>
+    </message>
+    <message>
+        <source>Could not create %1</source>
+        <translation>Impossibile creare %1</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::AssetsPanel</name>
+    <message>
+        <source>General</source>
+        <translation>Generale</translation>
+    </message>
+    <message>
+        <source>Category</source>
+        <translation>Categoria</translation>
+    </message>
+    <message>
+        <source>Manage</source>
+        <translation>Gestisci</translation>
+    </message>
+    <message>
+        <source>Add assets and manage categories</source>
+        <translation>Aggiungi risorse e gestisci le categorie</translation>
+    </message>
+    <message>
+        <source>Search assets</source>
+        <translation>Cerca risorse</translation>
+    </message>
+    <message>
+        <source>Add Selected Layers</source>
+        <translation>Aggiungi livelli selezionati</translation>
+    </message>
+    <message>
+        <source>Save the selected layers as assets</source>
+        <translation>Salva i livelli selezionati come risorse</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>Senza titolo</translation>
+    </message>
+    <message>
+        <source>%1 (in %2)</source>
+        <translation>%1 (in %2)</translation>
+    </message>
+    <message>
+        <source>No assets here yet. Select layers, then click Add Selected Layers.</source>
+        <translation>Qui non ci sono ancora risorse. Seleziona dei livelli, quindi fai clic su Aggiungi livelli selezionati.</translation>
+    </message>
+    <message>
+        <source>No asset matches the search.</source>
+        <translation>Nessuna risorsa corrisponde alla ricerca.</translation>
+    </message>
+    <message>
+        <source>New Category...</source>
+        <translation>Nuova categoria...</translation>
+    </message>
+    <message>
+        <source>Rename Category...</source>
+        <translation>Rinomina categoria...</translation>
+    </message>
+    <message>
+        <source>Delete Category...</source>
+        <translation>Elimina categoria...</translation>
+    </message>
+    <message>
+        <source>Sort by Name</source>
+        <translation>Ordina per nome</translation>
+    </message>
+    <message>
+        <source>Place</source>
+        <translation>Posiziona</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>Rinomina...</translation>
+    </message>
+    <message>
+        <source>Move to Category</source>
+        <translation>Sposta nella categoria</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Elimina</translation>
+    </message>
+    <message>
+        <source>Rename Asset</source>
+        <translation>Rinomina risorsa</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Nome:</translation>
+    </message>
+    <message>
+        <source>Delete the asset &quot;%1&quot;? This cannot be undone.</source>
+        <translation>Eliminare la risorsa &quot;%1&quot;? L&apos;operazione non può essere annullata.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n asset(s)? This cannot be undone.</source>
+        <translation>
+            <numerusform>Eliminare %n risorsa? L&apos;operazione non può essere annullata.</numerusform>
+            <numerusform>Eliminare %n risorse? L&apos;operazione non può essere annullata.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete Asset</source>
+        <translation>Elimina risorsa</translation>
+    </message>
+    <message>
+        <source>New Category</source>
+        <translation>Nuova categoria</translation>
+    </message>
+    <message>
+        <source>Rename Category</source>
+        <translation>Rinomina categoria</translation>
+    </message>
+    <message>
+        <source>Delete Category</source>
+        <translation>Elimina categoria</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the category &quot;%1&quot; and the %n asset(s) in it? This cannot be undone.</source>
+        <translation>
+            <numerusform>Eliminare la categoria &quot;%1&quot; e la %n risorsa che contiene? L&apos;operazione non può essere annullata.</numerusform>
+            <numerusform>Eliminare la categoria &quot;%1&quot; e le %n risorse che contiene? L&apos;operazione non può essere annullata.</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::BookScanDialog</name>
     <message>
         <source>Scan a Book to PDF</source>
@@ -22559,6 +22695,14 @@ Sostituirlo?</translation>
     <message>
         <source>Make a pattern from the image or selection</source>
         <translation>Crea un pattern dall&apos;immagine o dalla selezione</translation>
+    </message>
+    <message>
+        <source>Keep the selected layers in the Assets panel for reuse</source>
+        <translation>Conserva i livelli selezionati nel pannello Risorse per riutilizzarli</translation>
+    </message>
+    <message>
+        <source>Show the Assets panel</source>
+        <translation>Mostra il pannello Risorse</translation>
     </message>
 </context>
 <context>
@@ -37295,6 +37439,60 @@ Bloccato: %1</translation>
     <message>
         <source>%MOVE_KEY%+drag moves the selected pixels.</source>
         <translation>%MOVE_KEY%+trascina sposta i pixel selezionati.</translation>
+    </message>
+    <message>
+        <source>Add to Assets</source>
+        <translation>Aggiungi alle risorse</translation>
+    </message>
+    <message>
+        <source>Assets</source>
+        <translation>Risorse</translation>
+    </message>
+    <message>
+        <source>Select a layer to add to Assets</source>
+        <translation>Seleziona un livello da aggiungere alle risorse</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>Non c&apos;è una cartella in cui conservare le risorse</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is too large to keep as an asset</source>
+        <translation>&quot;%1&quot; è troppo grande per essere conservato come risorsa</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n asset(s)</source>
+        <translation>
+            <numerusform>%n risorsa aggiunta</numerusform>
+            <numerusform>%n risorse aggiunte</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open a document to place an asset in</source>
+        <translation>Apri un documento in cui inserire una risorsa</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be read</source>
+        <translation>Impossibile leggere la risorsa &quot;%1&quot;</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be placed</source>
+        <translation>Impossibile inserire la risorsa &quot;%1&quot;</translation>
+    </message>
+    <message>
+        <source>Place asset</source>
+        <translation>Inserisci risorsa</translation>
+    </message>
+    <message>
+        <source>Placed the asset &quot;%1&quot;</source>
+        <translation>Risorsa &quot;%1&quot; inserita</translation>
+    </message>
+    <message numerus="yes">
+        <source>Placed %n asset(s)</source>
+        <translation>
+            <numerusform>%n risorsa inserita</numerusform>
+            <numerusform>%n risorse inserite</numerusform>
+        </translation>
     </message>
 </context>
 <context>

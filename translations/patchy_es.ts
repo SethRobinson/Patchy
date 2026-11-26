@@ -17297,6 +17297,142 @@ Do you want to replace it?</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::AssetLibrary</name>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>No se pudo escribir %1: %2</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>No hay ninguna carpeta donde guardar los recursos</translation>
+    </message>
+    <message>
+        <source>Could not create %1</source>
+        <translation>No se pudo crear %1</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::AssetsPanel</name>
+    <message>
+        <source>General</source>
+        <translation>General</translation>
+    </message>
+    <message>
+        <source>Category</source>
+        <translation>Categoría</translation>
+    </message>
+    <message>
+        <source>Manage</source>
+        <translation>Administrar</translation>
+    </message>
+    <message>
+        <source>Add assets and manage categories</source>
+        <translation>Añadir recursos y administrar categorías</translation>
+    </message>
+    <message>
+        <source>Search assets</source>
+        <translation>Buscar recursos</translation>
+    </message>
+    <message>
+        <source>Add Selected Layers</source>
+        <translation>Añadir capas seleccionadas</translation>
+    </message>
+    <message>
+        <source>Save the selected layers as assets</source>
+        <translation>Guardar las capas seleccionadas como recursos</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>Sin título</translation>
+    </message>
+    <message>
+        <source>%1 (in %2)</source>
+        <translation>%1 (en %2)</translation>
+    </message>
+    <message>
+        <source>No assets here yet. Select layers, then click Add Selected Layers.</source>
+        <translation>Aún no hay recursos aquí. Seleccione capas y haga clic en Añadir capas seleccionadas.</translation>
+    </message>
+    <message>
+        <source>No asset matches the search.</source>
+        <translation>Ningún recurso coincide con la búsqueda.</translation>
+    </message>
+    <message>
+        <source>New Category...</source>
+        <translation>Nueva categoría...</translation>
+    </message>
+    <message>
+        <source>Rename Category...</source>
+        <translation>Cambiar nombre de categoría...</translation>
+    </message>
+    <message>
+        <source>Delete Category...</source>
+        <translation>Eliminar categoría...</translation>
+    </message>
+    <message>
+        <source>Sort by Name</source>
+        <translation>Ordenar por nombre</translation>
+    </message>
+    <message>
+        <source>Place</source>
+        <translation>Colocar</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>Cambiar nombre...</translation>
+    </message>
+    <message>
+        <source>Move to Category</source>
+        <translation>Mover a la categoría</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Eliminar</translation>
+    </message>
+    <message>
+        <source>Rename Asset</source>
+        <translation>Cambiar nombre del recurso</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Nombre:</translation>
+    </message>
+    <message>
+        <source>Delete the asset &quot;%1&quot;? This cannot be undone.</source>
+        <translation>¿Eliminar el recurso «%1»? Esta acción no se puede deshacer.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n asset(s)? This cannot be undone.</source>
+        <translation>
+            <numerusform>¿Eliminar %n recurso? Esta acción no se puede deshacer.</numerusform>
+            <numerusform>¿Eliminar %n recursos? Esta acción no se puede deshacer.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete Asset</source>
+        <translation>Eliminar recurso</translation>
+    </message>
+    <message>
+        <source>New Category</source>
+        <translation>Nueva categoría</translation>
+    </message>
+    <message>
+        <source>Rename Category</source>
+        <translation>Cambiar nombre de categoría</translation>
+    </message>
+    <message>
+        <source>Delete Category</source>
+        <translation>Eliminar categoría</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the category &quot;%1&quot; and the %n asset(s) in it? This cannot be undone.</source>
+        <translation>
+            <numerusform>¿Eliminar la categoría «%1» y el %n recurso que contiene? Esta acción no se puede deshacer.</numerusform>
+            <numerusform>¿Eliminar la categoría «%1» y los %n recursos que contiene? Esta acción no se puede deshacer.</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::BookScanDialog</name>
     <message>
         <source>Scan a Book to PDF</source>
@@ -22559,6 +22695,14 @@ Do you want to replace it?</source>
     <message>
         <source>Make a pattern from the image or selection</source>
         <translation>Crear un motivo a partir de la imagen o la selección</translation>
+    </message>
+    <message>
+        <source>Keep the selected layers in the Assets panel for reuse</source>
+        <translation>Guardar las capas seleccionadas en el panel Recursos para reutilizarlas</translation>
+    </message>
+    <message>
+        <source>Show the Assets panel</source>
+        <translation>Mostrar el panel Recursos</translation>
     </message>
 </context>
 <context>
@@ -37295,6 +37439,60 @@ Bloqueada: %1</translation>
     <message>
         <source>%MOVE_KEY%+drag moves the selected pixels.</source>
         <translation>%MOVE_KEY%+arrastrar mueve los píxeles seleccionados.</translation>
+    </message>
+    <message>
+        <source>Add to Assets</source>
+        <translation>Añadir a Recursos</translation>
+    </message>
+    <message>
+        <source>Assets</source>
+        <translation>Recursos</translation>
+    </message>
+    <message>
+        <source>Select a layer to add to Assets</source>
+        <translation>Seleccione una capa para añadirla a Recursos</translation>
+    </message>
+    <message>
+        <source>There is no folder to keep assets in</source>
+        <translation>No hay ninguna carpeta donde guardar los recursos</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is too large to keep as an asset</source>
+        <translation>«%1» es demasiado grande para guardarse como recurso</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n asset(s)</source>
+        <translation>
+            <numerusform>%n recurso añadido</numerusform>
+            <numerusform>%n recursos añadidos</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open a document to place an asset in</source>
+        <translation>Abra un documento para colocar un recurso en él</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be read</source>
+        <translation>No se pudo leer el recurso «%1»</translation>
+    </message>
+    <message>
+        <source>The asset &quot;%1&quot; could not be placed</source>
+        <translation>No se pudo colocar el recurso «%1»</translation>
+    </message>
+    <message>
+        <source>Place asset</source>
+        <translation>Colocar recurso</translation>
+    </message>
+    <message>
+        <source>Placed the asset &quot;%1&quot;</source>
+        <translation>Recurso «%1» colocado</translation>
+    </message>
+    <message numerus="yes">
+        <source>Placed %n asset(s)</source>
+        <translation>
+            <numerusform>%n recurso colocado</numerusform>
+            <numerusform>%n recursos colocados</numerusform>
+        </translation>
     </message>
 </context>
 <context>
