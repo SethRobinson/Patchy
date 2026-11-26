@@ -40742,10 +40742,6 @@ Locked: %1</source>
         <translation>篩選最近使用的檔案...</translation>
     </message>
     <message>
-        <source>You can also drop image files anywhere in the window</source>
-        <translation>您也可以將影像檔案拖放到視窗中的任何位置</translation>
-    </message>
-    <message>
         <source>Everything runs locally in your browser. Nothing you make is ever sent online.</source>
         <translation>一切都在您的瀏覽器中本機執行。您製作的內容絕不會傳送到網路上。</translation>
     </message>
@@ -40804,6 +40800,22 @@ Locked: %1</source>
     <message>
         <source>New document from the image on the clipboard</source>
         <translation>以剪貼簿中的影像開新檔案</translation>
+    </message>
+    <message>
+        <source>List</source>
+        <translation>清單</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a list with their folders</source>
+        <translation>以含資料夾的清單顯示最近使用的檔案</translation>
+    </message>
+    <message>
+        <source>Grid</source>
+        <translation>格線</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a grid of thumbnails</source>
+        <translation>以縮圖格線顯示最近使用的檔案</translation>
     </message>
 </context>
 <context>

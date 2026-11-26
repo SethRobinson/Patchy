@@ -1,5 +1,6 @@
 #include "ui/start_panel.hpp"
 
+#include "ui/app_settings.hpp"
 #include "ui/build_info.hpp"
 #include "ui/desktop_only_feature.hpp"
 #include "ui/dialog_utils.hpp"
@@ -8,7 +9,9 @@
 #include "ui/theme_qss.hpp"
 #include "ui/splash_artwork.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/options_flow_layout.hpp"
 #include "ui/recent_file_list.hpp"
+#include "ui/recent_thumbnails.hpp"
 #include "ui/ui_text_size.hpp"
 
 #include <QEvent>
@@ -22,6 +25,7 @@
 #include <QDesktopServices>
 #include <QFileInfo>
 #include <QFont>
+#include <QButtonGroup>
 #include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -33,6 +37,7 @@
 #include <QShowEvent>
 #include <QStyledItemDelegate>
 #include <QStyleOptionViewItem>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QUrl>
 
@@ -52,6 +57,35 @@ namespace {
 // are reached by scrolling, so the box never grows however long the list gets.
 constexpr int kMaxRecentEntries = 200;
 constexpr int kVisibleRecentRows = 8;
+// Rows of thumbnail cells the grid shows before it scrolls: about the list's height.
+constexpr int kVisibleRecentGridRows = 3;
+
+constexpr int kArtworkSize = 136;
+constexpr int kHeaderSpacing = 18;
+// The column's cap. Its real width is what its widest row asks for, which is the header: the
+// logo, the gap and the tagline on one line (469 px in English at the default text size, the
+// tagline 313 of it, as ui_start_panel_tagline_takes_one_line_and_wraps_when_narrow prints).
+// A longer translation or a larger text size wraps the tagline at this cap instead of
+// widening the panel further.
+constexpr int kColumnMaxWidth = 520;
+
+// A word-wrapped label whose preferred size is its text on ONE line. QLabel's own hint for
+// wrapped text is a narrower box of several lines, so a layout never offered the tagline the
+// line it fits on (GitHub issue 750). With this hint the text takes one line whenever the
+// column has the room and still wraps when a long translation, a large text size or a narrow
+// window leaves less: the minimum stays QLabel's, the width of the longest word.
+class OneLineFirstLabel final : public QLabel {
+ public:
+  using QLabel::QLabel;
+
+  QSize sizeHint() const override {
+    ensurePolished();
+    const auto margins = contentsMargins();
+    // Two pixels of slack: the advance and the wrapped bounding box round differently.
+    const int line = fontMetrics().horizontalAdvance(text()) + margins.left() + margins.right() + 2 * margin() + 2;
+    return {line, heightForWidth(line)};
+  }
+};
 
 }  // namespace
 
@@ -83,7 +117,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
 
   auto* column = new QWidget(this);
   column->setObjectName(QStringLiteral("startPanelColumn"));
-  column->setMaximumWidth(ui_text_length(460));
+  column->setMaximumWidth(ui_text_length(kColumnMaxWidth));
   auto* column_layout = new QVBoxLayout(column);
   column_layout->setContentsMargins(0, 0, 0, 0);
   column_layout->setSpacing(14);
@@ -96,28 +130,68 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   content_layout->addLayout(center_row);
   content_layout->addStretch(4);
 
-  // About-style header: the logo card beside the title and tagline.
+  // About-style header: the logo card beside the title, the tagline, the author
+  // credit and the two links (GitHub issue 750 moved the last two up from the footer).
   auto* header_row = new QHBoxLayout();
-  header_row->setSpacing(18);
+  header_row->setSpacing(kHeaderSpacing);
   auto* artwork = new SplashArtwork(column);
   artwork->setObjectName(QStringLiteral("startPanelArtwork"));
-  artwork->setFixedSize(136, 136);
+  artwork->setFixedSize(kArtworkSize, kArtworkSize);
   header_row->addStretch(1);
   header_row->addWidget(artwork);
   auto* header_text = new QVBoxLayout();
   header_text->setSpacing(4);
-  auto* title = new QLabel(tr("Patchy Image Editor"), column);
+  auto* title = new OneLineFirstLabel(tr("Patchy Image Editor"), column);
   bind_translated_text(title, QT_TR_NOOP("Patchy Image Editor"), "patchy::ui::StartPanel");
   title->setObjectName(QStringLiteral("startPanelTitle"));
   title->setWordWrap(true);
-  auto* tagline = new QLabel(tr("Open source photo editing. Free forever, no subscriptions."), column);
+  auto* tagline = new OneLineFirstLabel(tr("Open source photo editing. Free forever, no subscriptions."), column);
   bind_translated_text(tagline, QT_TR_NOOP("Open source photo editing. Free forever, no subscriptions."), "patchy::ui::StartPanel");
   tagline->setObjectName(QStringLiteral("startPanelTagline"));
   tagline->setWordWrap(true);
-  tagline->setMaximumWidth(ui_text_length(240));
+
+  // The credit links to Seth's GitHub profile, in the themed link color like the row below.
+  // The contributor credits live in the About dialog only (Seth, October 2026).
+  auto* credit = new QLabel(column);
+  credit->setObjectName(QStringLiteral("startPanelCredit"));
+  credit->setTextFormat(Qt::RichText);
+  credit->setTextInteractionFlags(Qt::TextBrowserInteraction);
+  credit->setOpenExternalLinks(true);
+  retranslation_callbacks_.push_back([credit] {
+    set_themed_label_text(
+        *credit, tr("Created by %1")
+                     .arg(QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
+                                         "href=\"https://github.com/SethRobinson\">Seth A. Robinson</a>")));
+  });
+  const auto make_home_label = [this, column](const char* source, const QString& link) {
+    auto* label = new QLabel(column);
+    label->setObjectName(QStringLiteral("startPanelHome"));
+    label->setTextFormat(Qt::RichText);
+    label->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    label->setOpenExternalLinks(true);
+    retranslation_callbacks_.push_back([label, source, link] {
+      set_themed_label_text(*label, tr(source).arg(link));
+    });
+    return label;
+  };
+  const auto github_link = QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
+                                          "href=\"https://github.com/SethRobinson/Patchy\">SethRobinson/Patchy</a>");
+  const auto seth_site_link = QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
+                                             "href=\"https://rtsoft.com\">rtsoft.com</a>");
+  // The two links share a line and fold onto two when the header is narrower than both
+  // (a small window): the wrapping layout the Options bar uses.
+  auto* home_row = new QWidget(column);
+  home_row->setObjectName(QStringLiteral("startPanelHomeRow"));
+  auto* home_layout = new FlowLayout(home_row, 14, 2);
+  home_layout->addWidget(make_home_label(QT_TR_NOOP("GitHub: %1"), github_link));
+  home_layout->addWidget(make_home_label(QT_TR_NOOP("Seth's site: %1"), seth_site_link));
+
   header_text->addStretch(1);
   header_text->addWidget(title);
   header_text->addWidget(tagline);
+  header_text->addSpacing(4);
+  header_text->addWidget(credit);
+  header_text->addWidget(home_row);
   header_text->addStretch(1);
   header_row->addLayout(header_text);
   header_row->addStretch(1);
@@ -204,8 +278,8 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   column_layout->addWidget(desktop_card);
 #endif
 
-  // Section header: the label on the left, the name filter riding the empty space
-  // on the right so it lines up with the list's edge.
+  // Section header: the label on the left, then the name filter riding the empty space
+  // and the List and Grid view buttons, which end at the list's right edge.
   auto* recent_header = new QHBoxLayout();
   recent_header->setSpacing(10);
   recent_label_ = new QLabel(tr("Recent Files"), column);
@@ -223,28 +297,56 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   recent_filter_edit_->setMinimumWidth(ui_text_length(140));
   recent_filter_edit_->setMaximumWidth(ui_text_length(230));
   recent_header->addWidget(recent_filter_edit_, 1);
+  // The view pair every list-or-grid picker in Patchy has (the Shapes picker, Layer Style >
+  // Styles): two text buttons, the current view's checked.
+  const auto make_view_button = [column](const char* name, const char* text, const char* tooltip) {
+    auto* button = new QToolButton(column);
+    button->setObjectName(QString::fromLatin1(name));
+    button->setText(tr(text));
+    bind_translated_text(button, text, "patchy::ui::StartPanel");
+    button->setToolTip(tr(tooltip));
+    bind_translated_tooltip(button, tooltip, "patchy::ui::StartPanel");
+    button->setCheckable(true);
+    button->setAutoRaise(true);
+    button->setCursor(Qt::PointingHandCursor);
+    button->setFixedHeight(ui_text_length(24));
+    return button;
+  };
+  recent_list_view_button_ =
+      make_view_button("startPanelRecentListViewButton", QT_TR_NOOP("List"),
+                       QT_TR_NOOP("Show the recent files as a list with their folders"));
+  recent_grid_view_button_ =
+      make_view_button("startPanelRecentGridViewButton", QT_TR_NOOP("Grid"),
+                       QT_TR_NOOP("Show the recent files as a grid of thumbnails"));
+  auto* view_buttons = new QButtonGroup(this);
+  view_buttons->setExclusive(true);
+  view_buttons->addButton(recent_list_view_button_);
+  view_buttons->addButton(recent_grid_view_button_);
+  auto* view_row = new QHBoxLayout();
+  view_row->setSpacing(2);
+  view_row->addWidget(recent_list_view_button_);
+  view_row->addWidget(recent_grid_view_button_);
+  recent_header->addLayout(view_row);
   column_layout->addLayout(recent_header);
 
-  auto* recent_list = new RecentFileList(column, kVisibleRecentRows);
-  recent_list_ = recent_list;
+  recent_thumbnails_ = new RecentThumbnailCache(this);
+  recent_list_ = new RecentFileList(column, kVisibleRecentRows);
   recent_list_->setObjectName(QStringLiteral("startPanelRecentList"));
-  retranslation_callbacks_.push_back([this, recent_list] {
-    recent_list->set_remove_handler([this](const QString& path) { emit recent_file_remove_requested(path); },
-                                    tr("Remove from Recent Files"));
+  retranslation_callbacks_.push_back([this] {
+    recent_list_->set_remove_handler([this](const QString& path) { emit recent_file_remove_requested(path); },
+                                     tr("Remove from Recent Files"));
   });
+  // A picture arrived from the worker: the cells are few, so the whole viewport repaints.
+  connect(recent_thumbnails_, &RecentThumbnailCache::thumbnail_changed, this,
+          [this] { recent_list_->viewport()->update(); });
+  connect(recent_list_view_button_, &QToolButton::clicked, this, [this] { set_recent_grid_view(false); });
+  connect(recent_grid_view_button_, &QToolButton::clicked, this, [this] { set_recent_grid_view(true); });
+#ifndef Q_OS_WASM
+  recent_grid_view_ = stored_start_panel_recent_grid_view();
+#endif
   recent_list_->setSelectionMode(QAbstractItemView::NoSelection);
   recent_list_->setFocusPolicy(Qt::NoFocus);
   column_layout->addWidget(recent_list_);
-
-  auto* hint = new QLabel(tr("You can also drop image files anywhere in the window"), column);
-  bind_translated_text(hint, QT_TR_NOOP("You can also drop image files anywhere in the window"), "patchy::ui::StartPanel");
-  hint->setObjectName(QStringLiteral("startPanelHint"));
-  hint->setAlignment(Qt::AlignHCenter);
-#ifdef Q_OS_WASM
-  hint->setWordWrap(true);
-#endif
-  column_layout->addSpacing(2);
-  column_layout->addWidget(hint);
 
 #ifdef Q_OS_WASM
   // Browser guidance. The privacy sentence is deliberate:
@@ -266,8 +368,8 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   column_layout->addWidget(wasm_note);
 #endif
 
-  // Dim footer pinned to the bottom of the panel: version, credit, links, and
-  // the startup update-check status.
+  // Dim footer pinned to the bottom of the panel: the version and the startup
+  // update-check status. The credit and the links sit in the header (GitHub issue 750).
   auto* footer = new QVBoxLayout();
   footer->setSpacing(3);
   const auto add_footer_row = [footer](std::initializer_list<QWidget*> widgets) {
@@ -287,41 +389,10 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   });
   version->setObjectName(QStringLiteral("startPanelVersion"));
   version->setTextFormat(Qt::PlainText);
-  // The credit links to Seth's GitHub profile, in the themed link color like the rows below.
-  auto* credit = new QLabel(this);
-  credit->setObjectName(QStringLiteral("startPanelCredit"));
-  credit->setTextFormat(Qt::RichText);
-  credit->setTextInteractionFlags(Qt::TextBrowserInteraction);
-  credit->setOpenExternalLinks(true);
-  retranslation_callbacks_.push_back([credit] {
-    set_themed_label_text(
-        *credit, tr("Created by %1")
-                     .arg(QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
-                                         "href=\"https://github.com/SethRobinson\">Seth A. Robinson</a>")));
-  });
-  // The contributor credits live in the About dialog only: every name added
-  // here would take a row from the recent-files list (Seth, October 2026). The
-  // version gets its own row so the number stands alone; the author follows.
+  // The version keeps its own row, with the build date, so the number stands
+  // alone: it is what a bug report needs first (Seth, October 2026, kept in
+  // GitHub issue 750).
   add_footer_row({version});
-  add_footer_row({credit});
-
-  const auto make_home_label = [this](const char* source, const QString& link) {
-    auto* label = new QLabel(this);
-    label->setObjectName(QStringLiteral("startPanelHome"));
-    label->setTextFormat(Qt::RichText);
-    label->setTextInteractionFlags(Qt::TextBrowserInteraction);
-    label->setOpenExternalLinks(true);
-    retranslation_callbacks_.push_back([label, source, link] {
-      set_themed_label_text(*label, tr(source).arg(link));
-    });
-    return label;
-  };
-  const auto github_link = QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
-                                          "href=\"https://github.com/SethRobinson/Patchy\">SethRobinson/Patchy</a>");
-  const auto seth_site_link = QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
-                                             "href=\"https://rtsoft.com\">rtsoft.com</a>");
-  add_footer_row({make_home_label(QT_TR_NOOP("GitHub: %1"), github_link),
-                  make_home_label(QT_TR_NOOP("Seth's site: %1"), seth_site_link)});
 
   update_status_label_ = new QLabel(this);
   update_status_label_->setObjectName(QStringLiteral("startPanelUpdateStatus"));
@@ -359,7 +430,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
     QWidget#startPanel {
       background: @window_bg;
     }
-    QWidget#startPanelColumn, QWidget#startPanelArtwork {
+    QWidget#startPanelColumn, QWidget#startPanelArtwork, QWidget#startPanelHomeRow {
       background: transparent;
     }
     QScrollArea#startPanelWebScroll, QWidget#startPanelWebContent {
@@ -402,7 +473,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
       font-weight: 700;
       padding-left: 2px;
     }
-    QLabel#startPanelHint, QLabel#startPanelWasmNote {
+    QLabel#startPanelWasmNote {
       background: transparent;
       color: @start_panel_hint_text;
       font-size: 11px;
@@ -490,8 +561,47 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
     QLineEdit#startPanelRecentFilterEdit:focus {
       border-color: @accent_bright;
     }
+    QToolButton#startPanelRecentListViewButton, QToolButton#startPanelRecentGridViewButton {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      color: @start_panel_section_text;
+      font-size: 11px;
+      padding: 0 7px;
+    }
+    QToolButton#startPanelRecentListViewButton:hover, QToolButton#startPanelRecentGridViewButton:hover {
+      background: @start_panel_row_hover_bg;
+      color: @text_primary;
+    }
+    QToolButton#startPanelRecentListViewButton:checked, QToolButton#startPanelRecentGridViewButton:checked {
+      background: @list_surface_bg;
+      border-color: @list_surface_border;
+      color: @text_primary;
+    }
   )"));
+  apply_recent_view();
   rebuild_recent_rows();  // no entries yet: hides the Recent section
+}
+
+void StartPanel::set_recent_grid_view(bool grid) {
+#ifdef Q_OS_WASM
+  grid = false;  // no recent files in the browser build, so no grid of them
+#endif
+  if (grid == recent_grid_view_) {
+    apply_recent_view();  // a click on the checked button of the pair leaves it checked
+    return;
+  }
+  recent_grid_view_ = grid;
+  set_stored_start_panel_recent_grid_view(grid);
+  apply_recent_view();
+  emit recent_grid_view_changed(grid);
+}
+
+void StartPanel::apply_recent_view() {
+  recent_list_view_button_->setChecked(!recent_grid_view_);
+  recent_grid_view_button_->setChecked(recent_grid_view_);
+  recent_list_->set_grid_view(recent_grid_view_, recent_thumbnails_, kVisibleRecentGridRows);
+  recent_list_->updateGeometry();
 }
 
 void StartPanel::set_recent_files(const QStringList& paths) {
@@ -508,6 +618,9 @@ void StartPanel::set_recent_files(const QStringList& paths) {
     return;
   }
   recent_paths_ = std::move(shown);
+  // Loaded pictures of entries that left the list are dropped; their cache files are
+  // MainWindow's to delete, which knows a removed entry from one that is only missing.
+  recent_thumbnails_->keep_loaded_only(recent_paths_);
   rebuild_recent_rows();
 }
 
@@ -523,6 +636,13 @@ void StartPanel::rebuild_recent_rows() {
   const bool has_entries = !recent_paths_.isEmpty();
   recent_label_->setVisible(has_entries);
   recent_filter_edit_->setVisible(has_entries);
+#ifdef Q_OS_WASM
+  const bool view_buttons = false;
+#else
+  const bool view_buttons = has_entries;
+#endif
+  recent_list_view_button_->setVisible(view_buttons);
+  recent_grid_view_button_->setVisible(view_buttons);
   recent_list_->setVisible(has_entries);
   recent_list_->updateGeometry();  // RecentFileList sizes itself from the new row count
 }
@@ -579,6 +699,9 @@ void StartPanel::showEvent(QShowEvent* event) {
   // found by typing its name without clicking first, and at the top of the list,
   // where the file just closed is.
   show_newest_recent_file();
+  // A file may have changed while a document was open: each picture gets one more look at
+  // its file's size and time (on the worker) the next time its cell is painted.
+  recent_thumbnails_->refresh_all();
   if (!recent_paths_.isEmpty()) {
     recent_filter_edit_->setFocus(Qt::OtherFocusReason);
   }

@@ -301,6 +301,16 @@ int main(int argc, char* argv[]) {
     }
     qputenv("PATCHY_USER_SCRIPTS_DIR", scripts.toUtf8());
   }
+  // The Home Screen grid's thumbnail cache (#750) stays out of the real per-user folder; per
+  // process and emptied at the start, like the folders around it.
+  if (qEnvironmentVariableIsEmpty("PATCHY_RECENT_THUMBNAILS_DIR")) {
+    const auto thumbnails = QDir::current().filePath(QStringLiteral("test-artifacts/recent-thumbnails/") +
+                                                     QString::number(QCoreApplication::applicationPid()));
+    if (QFileInfo::exists(thumbnails)) {
+      patchy::test::ui::remove_test_scratch_dir(thumbnails);
+    }
+    qputenv("PATCHY_RECENT_THUMBNAILS_DIR", thumbnails.toUtf8());
+  }
   // Saved adjustment presets (#588) stay out of the developer's real presets folder.
   if (qEnvironmentVariableIsEmpty("PATCHY_ADJUSTMENT_PRESETS_DIR")) {
     const auto presets = QDir::current().filePath(QStringLiteral("test-artifacts/adjustment-presets/") +
@@ -511,6 +521,7 @@ int main(int argc, char* argv[]) {
            single_instance_tests,
            openai_images_tests,
            unicode_path_tests,
+           start_panel_grid_tests,
            legacy_plugin_tests,
            gegl_filter_tests,
            gmic_ui_tests,

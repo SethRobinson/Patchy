@@ -187,6 +187,7 @@
 #include "ui/smart_object_render.hpp"
 #include "ui/scanner_import.hpp"
 #include "ui/script_folders.hpp"
+#include "ui/recent_thumbnails.hpp"
 #include "ui/start_panel.hpp"
 #include "ui/text_layer_painter.hpp"
 #include "ui/text_layout.hpp"
@@ -5545,6 +5546,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
           });
   connect(start_panel_, &StartPanel::recent_file_remove_requested, this,
           [this](const QString& path) { remove_recent_path(path, /*is_folder=*/false); });
+  // Turning the grid on sweeps the thumbnail folder down to the stored recent entries: what
+  // another process removed, or a session that ended early left, goes.
+  connect(start_panel_, &StartPanel::recent_grid_view_changed, this, [this](bool grid) {
+    if (grid) {
+      start_panel_->recent_thumbnails().retain_only(recent_files_stored_);
+    }
+  });
   connect(QApplication::clipboard(), &QClipboard::dataChanged, this,
           [this] {
             clear_internal_clipboard_on_external_change();
@@ -5609,6 +5617,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   rebuild_recent_folders_menu();
   // The first existence check waits for the event loop, off the startup path.
   QTimer::singleShot(0, this, [this] { schedule_recent_history_check(true); });
+  if (start_panel_->recent_grid_view()) {
+    // The same sweep as turning the grid on, queued for the thumbnail worker.
+    start_panel_->recent_thumbnails().retain_only(recent_files_stored_);
+  }
   auto* recent_history_timer = new QTimer(this);
   recent_history_timer->setInterval(2000);
   connect(recent_history_timer, &QTimer::timeout, this, [this] {

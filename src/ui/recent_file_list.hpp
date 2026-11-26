@@ -23,6 +23,17 @@ inline constexpr int kRecentRowHeight = 40;
 [[nodiscard]] int recent_row_height();
 inline constexpr int kRecentListChrome = 14;  // the list's own frame and padding
 
+// Grid view cells: a picture box over one line of file name. The cells share the viewport's
+// width equally, each at least kRecentGridMinCellWidth wide.
+inline constexpr int kRecentGridMinCellWidth = 104;
+inline constexpr int kRecentGridPictureHeight = 84;
+inline constexpr int kRecentGridCellInset = 8;
+// A cell's height: the picture, the name line (grown with the interface text size) and the
+// spacing around them.
+[[nodiscard]] int recent_grid_cell_height();
+
+class RecentThumbnailCache;
+
 // The shared filter rule: every whitespace-separated token of `filter_text`, anywhere in
 // the native path, case-insensitive, so a folder name narrows as well as a file name.
 [[nodiscard]] QStringList recent_filter_tokens(const QString& filter_text);
@@ -40,6 +51,23 @@ class RecentFileList final : public QListWidget {
   // Recent menus pin this to the unfiltered list so filtering never resizes the menu.
   void set_fixed_rows(int rows);
 
+  // Grid view (the Home Screen's Recent Files grid, GitHub issue 750): the same rows laid
+  // out as equal cells, left to right, each a picture from `thumbnails` over the file name;
+  // at most `visible_rows` rows of cells show before the box scrolls. The items, their path
+  // role, clicks, the context menu and the remove button are those of list view. The list
+  // never owns `thumbnails`, which must outlive it or be cleared with another call here.
+  void set_grid_view(bool grid, RecentThumbnailCache* thumbnails = nullptr, int visible_rows = 3);
+  [[nodiscard]] bool grid_view() const noexcept { return grid_view_; }
+  // True while the rows are laid out as cells: grid view with at least one real row. The
+  // no-match placeholder keeps list view's full-width row, where its text fits.
+  [[nodiscard]] bool shows_cells() const noexcept { return cells_; }
+  [[nodiscard]] RecentThumbnailCache* thumbnails() const noexcept { return thumbnails_; }
+  [[nodiscard]] QSize grid_cell_size() const;
+  // The picture box inside a cell's rectangle (viewport coordinates).
+  [[nodiscard]] static QRect grid_picture_rect(const QRect& cell_rect);
+  // fill_recent_file_list calls this after it replaced the rows.
+  void rows_changed();
+
   QSize sizeHint() const override;
   QSize minimumSizeHint() const override;
 
@@ -52,6 +80,10 @@ class RecentFileList final : public QListWidget {
   [[nodiscard]] bool remove_button_hovered(int row_index) const noexcept { return remove_hover_row_ == row_index; }
   // The remove button inside a row's rectangle (viewport coordinates).
   [[nodiscard]] static QRect remove_button_rect(const QRect& row_rect);
+  // The same button inside a grid cell: the cell's top right corner, over the picture.
+  [[nodiscard]] static QRect grid_remove_button_rect(const QRect& cell_rect);
+  // Whichever of the two this list is showing now.
+  [[nodiscard]] QRect remove_button_rect_in(const QRect& item_rect) const;
 
  protected:
   void mousePressEvent(QMouseEvent* event) override;
@@ -59,14 +91,27 @@ class RecentFileList final : public QListWidget {
   void mouseMoveEvent(QMouseEvent* event) override;
   void leaveEvent(QEvent* event) override;
   bool viewportEvent(QEvent* event) override;
+  void resizeEvent(QResizeEvent* event) override;
 
  private:
   // The real row whose remove button contains `position`, or -1.
   [[nodiscard]] int remove_button_row_at(const QPoint& position) const;
   void set_remove_hover_row(int row);
+  // The width a row of cells is laid out in (the viewport, less the vertical bar's room).
+  [[nodiscard]] int grid_layout_width() const;
+  // Cells across that width: as many as fit at the minimum cell width, at least one.
+  [[nodiscard]] int grid_columns() const;
+  // Rows of cells the box is as tall as (1 to the visible cap).
+  [[nodiscard]] int grid_rows_shown() const;
+  void apply_view_layout();
 
   int visible_rows_;
   int fixed_rows_{0};
+  bool grid_view_{false};
+  bool cells_{false};
+  int visible_grid_rows_{3};
+  int grid_rows_laid_out_{0};
+  RecentThumbnailCache* thumbnails_{nullptr};
   std::function<void(const QString&)> remove_handler_;
   QString remove_tooltip_;
   int remove_hover_row_{-1};

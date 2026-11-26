@@ -195,7 +195,7 @@ Three per-user folders, all named from the organization name set in `src/app/mai
 |---|---|---|---|---|
 | AppDataLocation | `user-fonts/`, `scripts/` (`MainWindow::user_scripts_directory()`), `themes/`, `plugins/`, `adjustment-presets/`, `companions/`, `gegl-filters/` (the GEGL operation list cache) | `%APPDATA%\RTsoft\Patchy` | `~/Library/Application Support/RTsoft/Patchy` | `~/.local/share/RTsoft/Patchy` |
 | Settings (`app_settings_file_path()`) | `Patchy.ini` and the libraries built beside it: `brushes/`, `brush-presets/`, `gradients/`, `looks/`, `patterns/`, `shapes/`, `styles/` | same as AppDataLocation | same as AppDataLocation | `~/.config/RTsoft/Patchy` |
-| AppLocalDataLocation | machine-specific data: `ai-models/` (downloads), `AutoRecover/`, `stress-reports/`, `updates/`, `font-style-cache.txt` | `%LOCALAPPDATA%\RTsoft\Patchy` | same as AppDataLocation | same as AppDataLocation |
+| AppLocalDataLocation | machine-specific data: `ai-models/` (downloads), `AutoRecover/`, `stress-reports/`, `updates/`, `font-style-cache.txt`, `recent-thumbnails/` (the Home Screen grid's pictures, [ui-conventions-menus.md](ui-conventions-menus.md#recent-file-thumbnails)) | `%LOCALAPPDATA%\RTsoft\Patchy` | same as AppDataLocation | same as AppDataLocation |
 
 Local data stays out of Windows' roaming profile: models are hundreds of MB that download again,
 recovery and timings belong to one machine. The settings root is `<root>/RTsoft/Patchy`, where

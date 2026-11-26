@@ -40863,10 +40863,6 @@ Bloccato: %1</translation>
         <translation>Filtra i file recenti...</translation>
     </message>
     <message>
-        <source>You can also drop image files anywhere in the window</source>
-        <translation>Puoi anche trascinare file immagine in un punto qualsiasi della finestra</translation>
-    </message>
-    <message>
         <source>Everything runs locally in your browser. Nothing you make is ever sent online.</source>
         <translation>Tutto viene eseguito localmente nel browser. Nulla di ciò che crei viene mai inviato online.</translation>
     </message>
@@ -40925,6 +40921,22 @@ Bloccato: %1</translation>
     <message>
         <source>New document from the image on the clipboard</source>
         <translation>Nuovo documento dall&apos;immagine negli appunti</translation>
+    </message>
+    <message>
+        <source>List</source>
+        <translation>Elenco</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a list with their folders</source>
+        <translation>Mostra i file recenti come elenco con le loro cartelle</translation>
+    </message>
+    <message>
+        <source>Grid</source>
+        <translation>Griglia</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a grid of thumbnails</source>
+        <translation>Mostra i file recenti come griglia di miniature</translation>
     </message>
 </context>
 <context>

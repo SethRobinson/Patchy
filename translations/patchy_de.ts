@@ -40863,10 +40863,6 @@ Fixiert: %1</translation>
         <translation>Zuletzt verwendete Dateien filtern...</translation>
     </message>
     <message>
-        <source>You can also drop image files anywhere in the window</source>
-        <translation>Sie können Bilddateien auch an einer beliebigen Stelle im Fenster ablegen</translation>
-    </message>
-    <message>
         <source>Everything runs locally in your browser. Nothing you make is ever sent online.</source>
         <translation>Alles läuft lokal in Ihrem Browser. Nichts, was Sie erstellen, wird jemals online gesendet.</translation>
     </message>
@@ -40925,6 +40921,22 @@ Fixiert: %1</translation>
     <message>
         <source>New document from the image on the clipboard</source>
         <translation>Neues Dokument aus dem Bild in der Zwischenablage</translation>
+    </message>
+    <message>
+        <source>List</source>
+        <translation>Liste</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a list with their folders</source>
+        <translation>Zuletzt verwendete Dateien als Liste mit ihren Ordnern anzeigen</translation>
+    </message>
+    <message>
+        <source>Grid</source>
+        <translation>Raster</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a grid of thumbnails</source>
+        <translation>Zuletzt verwendete Dateien als Raster aus Miniaturen anzeigen</translation>
     </message>
 </context>
 <context>

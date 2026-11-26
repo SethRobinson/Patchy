@@ -40863,10 +40863,6 @@ Verrouillé : %1</translation>
         <translation>Filtrer les fichiers récents...</translation>
     </message>
     <message>
-        <source>You can also drop image files anywhere in the window</source>
-        <translation>Vous pouvez aussi déposer des fichiers image n&apos;importe où dans la fenêtre</translation>
-    </message>
-    <message>
         <source>Everything runs locally in your browser. Nothing you make is ever sent online.</source>
         <translation>Tout s&apos;exécute localement dans votre navigateur. Rien de ce que vous créez n&apos;est jamais envoyé en ligne.</translation>
     </message>
@@ -40925,6 +40921,22 @@ Verrouillé : %1</translation>
     <message>
         <source>New document from the image on the clipboard</source>
         <translation>Nouveau document à partir de l&apos;image du presse-papiers</translation>
+    </message>
+    <message>
+        <source>List</source>
+        <translation>Liste</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a list with their folders</source>
+        <translation>Afficher les fichiers récents en liste avec leurs dossiers</translation>
+    </message>
+    <message>
+        <source>Grid</source>
+        <translation>Grille</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a grid of thumbnails</source>
+        <translation>Afficher les fichiers récents en grille de vignettes</translation>
     </message>
 </context>
 <context>
