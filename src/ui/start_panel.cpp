@@ -53,21 +53,32 @@ namespace {
 
 // The real bound is kMaxRecentFiles in main_window_files.cpp, which is what trims
 // the persisted list; this only keeps a hand-edited settings file from building
-// thousands of rows. kVisibleRecentRows is what the box actually shows: the rest
-// are reached by scrolling, so the box never grows however long the list gets.
+// thousands of rows. The Recent Files box asks for the height of ALL its entries and
+// the panel's layout gives it what is free down to the footer: a tall window shows
+// more of them before the box scrolls, and a box with few entries is only as tall as
+// they need (GitHub issue 750 follow-up; it was a fixed 8 rows, or 3 rows of cells).
 constexpr int kMaxRecentEntries = 200;
-constexpr int kVisibleRecentRows = 8;
-// Rows of thumbnail cells the grid shows before it scrolls: about the list's height.
-constexpr int kVisibleRecentGridRows = 3;
 
 constexpr int kArtworkSize = 136;
 constexpr int kHeaderSpacing = 18;
-// The column's cap. Its real width is what its widest row asks for, which is the header: the
-// logo, the gap and the tagline on one line (469 px in English at the default text size, the
-// tagline 313 of it, as ui_start_panel_tagline_takes_one_line_and_wraps_when_narrow prints).
-// A longer translation or a larger text size wraps the tagline at this cap instead of
-// widening the panel further.
+// The cap of the compact block at the top: the header and the three buttons. Its real width
+// is what its widest row asks for, which is the header: the logo, the gap and the tagline on
+// one line (469 px in English at the default text size, the tagline 313 of it, as
+// ui_start_panel_tagline_takes_one_line_and_wraps_when_narrow prints). A longer translation
+// or a larger text size wraps the tagline at this cap instead of widening the block further.
 constexpr int kColumnMaxWidth = 520;
+// The Recent Files section is as wide as the panel, up to these caps (at the default text
+// size). The grid uses most of a wide window: nine cells of about 210 px at the cap, so cells
+// do not sprawl from edge to edge of an ultrawide screen. The list stops sooner: a row that
+// long shows the whole of nearly any path, and longer ones are hard to read across.
+// (The browser build keeps no recent files and leaves the section in the column.)
+#ifndef Q_OS_WASM
+constexpr int kRecentGridSectionMaxWidth = 1900;
+constexpr int kRecentListSectionMaxWidth = 900;
+// Space between the buttons and the section, and under it before the footer.
+constexpr int kRecentSectionTopGap = 28;
+constexpr int kRecentSectionBottomGap = 10;
+#endif
 
 // A word-wrapped label whose preferred size is its text on ONE line. QLabel's own hint for
 // wrapped text is a narrower box of several lines, so a layout never offered the tagline the
@@ -118,6 +129,11 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   auto* column = new QWidget(this);
   column->setObjectName(QStringLiteral("startPanelColumn"));
   column->setMaximumWidth(ui_text_length(kColumnMaxWidth));
+  // No minimum width of its own: the panel's layout works out the block's height for the
+  // width it really gives it. With the layout's own minimum (the widest row that cannot
+  // shrink) a panel narrower than that measured the wrapped title at a width it never got and
+  // cut its last line.
+  column->setMinimumWidth(1);
   auto* column_layout = new QVBoxLayout(column);
   column_layout->setContentsMargins(0, 0, 0, 0);
   column_layout->setSpacing(14);
@@ -128,7 +144,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   center_row->addWidget(column);
   center_row->addStretch(1);
   content_layout->addLayout(center_row);
-  content_layout->addStretch(4);
+  // The Recent Files section and the stretch under it follow once they are built (below).
 
   // About-style header: the logo card beside the title, the tagline, the author
   // credit and the two links (GitHub issue 750 moved the last two up from the footer).
@@ -223,13 +239,16 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   bind_translated_text(open_button, QT_TR_NOOP("Open..."), "patchy::ui::StartPanel");
   open_button->setObjectName(QStringLiteral("startPanelOpenButton"));
   open_button->setCursor(Qt::PointingHandCursor);
-  buttons_row->addStretch(1);
   buttons_row->addWidget(new_button);
   buttons_row->addWidget(clipboard_button_);
   buttons_row->addWidget(open_button);
-  buttons_row->addStretch(1);
   column_layout->addLayout(buttons_row);
+  // Centered as a row of its own width (no stretches, whose spacing cost 20 px): the three
+  // buttons fit the panel of an 800 px window, where the last one used to be cut.
+  column_layout->setAlignment(buttons_row, Qt::AlignHCenter);
+#ifdef Q_OS_WASM
   column_layout->addSpacing(6);
+#endif
 
 #ifdef Q_OS_WASM
   auto* desktop_card = new QWidget(column);
@@ -276,6 +295,23 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   desktop_layout->addWidget(download_button);
   add_desktop_label(QT_TR_NOOP("Free · Windows, macOS & Linux"), "startPanelDesktopPlatforms");
   column_layout->addWidget(desktop_card);
+#endif
+
+  // The Recent Files section: its header row over the box. On the desktop it is its own row
+  // of the panel, under the compact block, and grows with the window in both directions (see
+  // the end of this constructor); the browser build, which keeps no recent files, leaves it in
+  // the column where it always was.
+  recent_section_ = new QWidget(this);
+  recent_section_->setObjectName(QStringLiteral("startPanelRecentSection"));
+  auto* section_layout = new QVBoxLayout(recent_section_);
+  section_layout->setSpacing(14);
+#ifdef Q_OS_WASM
+  section_layout->setContentsMargins(0, 0, 0, 0);
+#else
+  section_layout->setContentsMargins(0, kRecentSectionTopGap, 0, kRecentSectionBottomGap);
+  // Never taller than its entries need (Maximum: the size hint is the ceiling), as wide as
+  // the row lets it be up to the cap update_recent_section_width sets.
+  recent_section_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
 #endif
 
   // Section header: the label on the left, then the name filter riding the empty space
@@ -327,10 +363,10 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   view_row->addWidget(recent_list_view_button_);
   view_row->addWidget(recent_grid_view_button_);
   recent_header->addLayout(view_row);
-  column_layout->addLayout(recent_header);
+  section_layout->addLayout(recent_header);
 
   recent_thumbnails_ = new RecentThumbnailCache(this);
-  recent_list_ = new RecentFileList(column, kVisibleRecentRows);
+  recent_list_ = new RecentFileList(recent_section_, kMaxRecentEntries);
   recent_list_->setObjectName(QStringLiteral("startPanelRecentList"));
   retranslation_callbacks_.push_back([this] {
     recent_list_->set_remove_handler([this](const QString& path) { emit recent_file_remove_requested(path); },
@@ -346,7 +382,10 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
 #endif
   recent_list_->setSelectionMode(QAbstractItemView::NoSelection);
   recent_list_->setFocusPolicy(Qt::NoFocus);
-  column_layout->addWidget(recent_list_);
+  section_layout->addWidget(recent_list_);
+#ifdef Q_OS_WASM
+  column_layout->addWidget(recent_section_);
+#endif
 
 #ifdef Q_OS_WASM
   // Browser guidance. The privacy sentence is deliberate:
@@ -366,7 +405,22 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   });
   column_layout->addSpacing(2);
   column_layout->addWidget(wasm_note);
+#else
+  // How the panel uses its height (GitHub issue 750 follow-up): the compact block, then the
+  // section, between a stretch of 3 above and one of 4 below. The section's box asks for the
+  // height of all its entries and may shrink to one row. While everything fits, the two
+  // stretches share what is left and the block sits about in the middle, as it always did.
+  // Once the entries need more than the panel has, the stretches are empty: the header is at
+  // the top margin and the box takes all the height down to the footer, scrolling the rest.
+  // Nothing jumps between the two: the box is the only item that gives way.
+  // Across, the section takes the row's width up to its cap and is centered in what is left.
+  auto* recent_row = new QHBoxLayout();
+  recent_row->addStretch(1);
+  recent_row->addWidget(recent_section_, 1000);
+  recent_row->addStretch(1);
+  content_layout->addLayout(recent_row);
 #endif
+  content_layout->addStretch(4);
 
   // Dim footer pinned to the bottom of the panel: the version and the startup
   // update-check status. The credit and the links sit in the header (GitHub issue 750).
@@ -430,7 +484,8 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
     QWidget#startPanel {
       background: @window_bg;
     }
-    QWidget#startPanelColumn, QWidget#startPanelArtwork, QWidget#startPanelHomeRow {
+    QWidget#startPanelColumn, QWidget#startPanelArtwork, QWidget#startPanelHomeRow,
+    QWidget#startPanelRecentSection {
       background: transparent;
     }
     QScrollArea#startPanelWebScroll, QWidget#startPanelWebContent {
@@ -483,7 +538,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
       border: 1px solid @field_border;
       border-radius: 14px;
       color: @text_bright;
-      min-width: 84px;
+      min-width: 76px;
       min-height: 28px;
       padding: 0 12px;
     }
@@ -600,8 +655,27 @@ void StartPanel::set_recent_grid_view(bool grid) {
 void StartPanel::apply_recent_view() {
   recent_list_view_button_->setChecked(!recent_grid_view_);
   recent_grid_view_button_->setChecked(recent_grid_view_);
-  recent_list_->set_grid_view(recent_grid_view_, recent_thumbnails_, kVisibleRecentGridRows);
+  recent_list_->set_grid_view(recent_grid_view_, recent_thumbnails_, kMaxRecentEntries);
+  update_recent_section_width();
   recent_list_->updateGeometry();
+}
+
+void StartPanel::update_recent_section_width() {
+#ifndef Q_OS_WASM
+  int cap = ui_text_length(kRecentListSectionMaxWidth);
+  if (recent_grid_view_) {
+    // A few entries get a box of their own size, not a wide frame around three cells: the
+    // width at which they fill one row at the target cell width, but never narrower than the
+    // compact block above. From the unfiltered count, so the filter never resizes the box.
+    recent_list_->ensurePolished();
+    const int entries = std::max(1, static_cast<int>(recent_paths_.size()));
+    cap = std::clamp(recent_list_->width_for_grid_columns(entries), ui_text_length(kColumnMaxWidth),
+                     kRecentGridSectionMaxWidth);
+  }
+  if (recent_section_->maximumWidth() != cap) {
+    recent_section_->setMaximumWidth(cap);
+  }
+#endif
 }
 
 void StartPanel::set_recent_files(const QStringList& paths) {
@@ -632,8 +706,13 @@ void StartPanel::show_newest_recent_file() {
 }
 
 void StartPanel::rebuild_recent_rows() {
+  // The box keeps the height of the whole list while a filter narrows it: typing must not
+  // resize the box or move the header (the Open Recent menus pin theirs the same way).
+  recent_list_->set_fixed_rows(static_cast<int>(recent_paths_.size()));
   fill_recent_file_list(*recent_list_, recent_paths_, recent_filter_edit_->text(), tr("No matching recent files"));
+  update_recent_section_width();
   const bool has_entries = !recent_paths_.isEmpty();
+  recent_section_->setVisible(has_entries);
   recent_label_->setVisible(has_entries);
   recent_filter_edit_->setVisible(has_entries);
 #ifdef Q_OS_WASM

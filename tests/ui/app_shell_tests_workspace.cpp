@@ -505,7 +505,7 @@ void ui_large_document_session_keeps_loading_responsive() {
 
 void ui_start_panel_recent_files_scroll_and_context_menu() {
   ensure_artifact_dir();
-  constexpr int kSeededFiles = 14;  // more than the eight rows the box shows at once
+  constexpr int kSeededFiles = 14;  // more rows than the default test window has room for
   QStringList recent_files;
   for (int index = 0; index < kSeededFiles; ++index) {
     const auto path =
@@ -530,25 +530,38 @@ void ui_start_panel_recent_files_scroll_and_context_menu() {
   CHECK(recent_list != nullptr);
   CHECK(recent_list->isVisible());
 
-  // A window with no room for eight rows shrinks the box and still scrolls, rather
-  // than pushing the panel footer off screen.
+  auto* panel = window.findChild<QWidget*>(QStringLiteral("startPanel"));
+  auto* version = window.findChild<QLabel*>(QStringLiteral("startPanelVersion"));
+  CHECK(panel != nullptr && version != nullptr);
+  const auto box_bottom = [&] { return recent_list->mapTo(panel, QPoint(0, recent_list->height())).y(); };
+  const auto version_top = [&] { return version->mapTo(panel, QPoint(0, 0)).y(); };
+
+  // The box asks for every row (GitHub issue 750 follow-up; it was capped at eight). A
+  // window with no room for them all gives it what is free down to the footer and it
+  // scrolls for the rest, rather than pushing the panel footer off screen.
   CHECK(recent_list->count() == kSeededFiles);
-  CHECK(recent_list->height() < 8 * 40 + 14);
+  CHECK(recent_list->sizeHint().height() == kSeededFiles * 40 + 14);
+  CHECK(recent_list->height() < kSeededFiles * 40 + 14);
   CHECK(recent_list->height() >= 4 * 40);
   CHECK(recent_list->verticalScrollBar()->maximum() > 0);
+  CHECK(box_bottom() <= version_top());
 
-  // Tall enough for the whole panel, so the box reaches its eight-row cap instead.
+  // Tall enough for every row: the box is exactly as tall as its rows and nothing scrolls.
+  window.resize(1180, 1400);
+  QApplication::processEvents();
+  CHECK(process_events_until([&] { return recent_list->height() == kSeededFiles * 40 + 14; }));
+  CHECK(recent_list->verticalScrollBar()->maximum() == 0);
+  CHECK(box_bottom() <= version_top());
+
+  // In between, more rows show than the old cap of eight, and the rest scroll.
   window.resize(1180, 1000);
   QApplication::processEvents();
-
-  // Every remembered file is a row, but the box stops at eight and scrolls for
-  // the rest. Before this cap the list took QAbstractScrollArea's default hint
-  // and silently clipped everything past the fourth row.
+  CHECK(process_events_until([&] { return recent_list->height() < kSeededFiles * 40 + 14; }));
   CHECK(recent_list->count() == kSeededFiles);
-  CHECK(recent_list->sizeHint().height() == 8 * 40 + 14);
-  CHECK(recent_list->height() == 8 * 40 + 14);
+  CHECK(recent_list->height() > 8 * 40 + 14);
   CHECK(recent_list->verticalScrollBar()->maximum() > 0);
   CHECK(recent_list->verticalScrollBar()->isVisible());
+  CHECK(box_bottom() <= version_top());
   CHECK(recent_list->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff);
   save_widget_artifact("ui_start_panel_recent_scroll", window);
 

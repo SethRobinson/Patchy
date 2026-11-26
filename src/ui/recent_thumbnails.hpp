@@ -25,8 +25,14 @@
 
 namespace patchy::ui {
 
-// Longest side of a stored thumbnail, in pixels: twice the grid's picture box, for 200% displays.
-inline constexpr int kRecentThumbnailStoredSide = 256;
+// Longest side of a stored thumbnail, in pixels: twice the grid's picture box (up to about
+// 250 px wide in a row of two or more cells), so a cell stays sharp on a 200% display.
+inline constexpr int kRecentThumbnailStoredSide = 512;
+// The pictures kept loaded are bounded: past this many bytes the ones painted longest ago are
+// let go (their cache files stay) and load again when their cells are painted next. The most
+// recently painted kRecentThumbnailLoadedFloor are never let go, whatever their size.
+inline constexpr qsizetype kRecentThumbnailLoadedBytes = 48 * 1024 * 1024;
+inline constexpr int kRecentThumbnailLoadedFloor = 64;
 // A source file larger than this is never opened for a thumbnail.
 inline constexpr qint64 kRecentThumbnailMaxSourceBytes = 512LL * 1024 * 1024;
 // An image with more pixels than this is not decoded for a thumbnail, unless its format decodes
@@ -57,11 +63,15 @@ class RecentThumbnailCache final : public QObject {
   [[nodiscard]] RecentThumbnailState state(const QString& path) const;
   // The loaded thumbnail, or null. Still returned while a refresh of the same path is pending.
   [[nodiscard]] const QImage* image(const QString& path) const;
-  // Queues the load of a path whose state is unknown; anything else is a no-op, so a delegate may
-  // call it from every paint.
+  // Queues the load of a path whose state is unknown, or whose loaded picture was scaled down for
+  // a smaller box than the current one; anything else is a hash lookup, so a delegate may call
+  // it from every paint. It also marks the path as just used.
   void request(const QString& path);
-  // The size, in device pixels, a loaded thumbnail is scaled down to before it is kept in memory.
+  // The size, in device pixels, a loaded thumbnail is scaled down to before it is kept in
+  // memory. Rounded up to a coarse step, so a window being dragged wider reloads its pictures
+  // a few times, not on every pixel.
   void set_display_box(QSize device_pixels);
+  [[nodiscard]] QSize display_box() const noexcept { return display_box_; }
 
   // Stores the picture of a document Patchy has open, as the thumbnail of the file it was just
   // opened from or saved to. `composite` is an 8-bit display image (never linear floats).
@@ -87,21 +97,27 @@ class RecentThumbnailCache final : public QObject {
   struct Entry {
     RecentThumbnailState state{RecentThumbnailState::unknown};
     QImage image;
+    QSize loaded_box;      // the display box the image was fitted to
+    bool reduced{false};   // the stored picture is larger than what is loaded
+    quint64 last_used{0};  // the cache's clock at the latest request
   };
   struct Shared;
   struct Job;
 
   void enqueue(Job job);
   // The worker's answer for one path, delivered on the UI thread.
-  void finish(const QString& key, QImage image, bool available);
+  void finish(const QString& key, QImage image, bool available, bool reduced, QSize box);
+  // Lets the pictures used longest ago go once the loaded ones pass their byte bound.
+  void trim_loaded();
 
   QHash<QString, Entry> entries_;
-  QSize display_box_{160, 120};
+  QSize display_box_{192, 144};
+  quint64 clock_{0};
   std::shared_ptr<Shared> shared_;
 };
 
 // The picture MainWindow hands to RecentThumbnailCache::store: `composite` picked down to at most
-// four times the stored side without smoothing, so the UI thread touches about a megapixel
+// twice the stored side without smoothing, so the UI thread touches about a megapixel
 // whatever the document's size. The smooth scale to the stored size happens on the worker.
 [[nodiscard]] QImage recent_thumbnail_source(const QImage& composite);
 

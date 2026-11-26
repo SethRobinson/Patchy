@@ -42,7 +42,10 @@ namespace {
 // Text keys of a cache file. The thumbnail belongs to the file as it was when its size and
 // modified time were these; a file that changed gets a new picture. The path is not written.
 constexpr auto kVersionKey = "PatchyThumbnail";
-constexpr auto kVersionValue = "1";
+// "1" was a 256 px picture (Patchy 1.42's first grid). It is still shown for a file that has
+// no cheap preview to make a new one from, and replaced as soon as there is one.
+constexpr auto kVersionValue = "2";
+constexpr auto kOlderVersionValue = "1";
 constexpr auto kSourceSizeKey = "PatchySourceSize";
 constexpr auto kSourceModifiedKey = "PatchySourceModified";
 
@@ -227,17 +230,25 @@ bool write_cache_file(const QString& directory, const QString& file, const QImag
   return true;
 }
 
-QImage read_cache_file(const QString& file, const SourceStamp& stamp) {
+struct CachedPicture {
+  QImage image;         // null: no cache file for the file as it is now
+  bool current{false};  // written at the current stored size
+};
+
+CachedPicture read_cache_file(const QString& file, const SourceStamp& stamp) {
   QImage image;
   if (!QFileInfo::exists(file) || !image.load(file, "PNG")) {
     return {};
   }
-  if (image.text(QString::fromLatin1(kVersionKey)) != QString::fromLatin1(kVersionValue) ||
-      image.text(QString::fromLatin1(kSourceSizeKey)) != QString::number(stamp.bytes) ||
+  if (image.text(QString::fromLatin1(kSourceSizeKey)) != QString::number(stamp.bytes) ||
       image.text(QString::fromLatin1(kSourceModifiedKey)) != QString::number(stamp.modified_ms)) {
     return {};
   }
-  return image;
+  const auto version = image.text(QString::fromLatin1(kVersionKey));
+  if (version == QString::fromLatin1(kVersionValue)) {
+    return {image, true};
+  }
+  return version == QString::fromLatin1(kOlderVersionValue) ? CachedPicture{image, false} : CachedPicture{};
 }
 
 }  // namespace
@@ -260,7 +271,7 @@ QString recent_thumbnail_cache_file(const QString& path) {
 }
 
 QImage recent_thumbnail_source(const QImage& composite) {
-  constexpr int kCoarseSide = 4 * kRecentThumbnailStoredSide;
+  constexpr int kCoarseSide = 2 * kRecentThumbnailStoredSide;
   if (composite.isNull() || (composite.width() <= kCoarseSide && composite.height() <= kCoarseSide)) {
     return composite;
   }
@@ -289,6 +300,7 @@ namespace {
 struct LoadResult {
   QImage image;
   bool available{false};
+  bool reduced{false};  // the stored picture is larger than `image`
 };
 
 // Runs on the worker. Returns the picture for the grid, or no picture.
@@ -303,19 +315,28 @@ LoadResult make_thumbnail(const QString& directory, const QString& key, const QI
   }
   const SourceStamp stamp{info.size(), info.lastModified().toMSecsSinceEpoch()};
   const auto file = QDir(directory).filePath(cache_file_name(key));
-  QImage image;
+  CachedPicture cached;
   if (stored_source.isNull()) {
-    image = read_cache_file(file, stamp);
+    cached = read_cache_file(file, stamp);
   }
+  QImage image = cached.current ? cached.image : QImage();
   if (image.isNull()) {
     image = stored_source.isNull() ? decoded_thumbnail(key, stamp.bytes) : stored_source;
+    if (!image.isNull()) {
+      image = fitted(display_image(std::move(image)), {kRecentThumbnailStoredSide, kRecentThumbnailStoredSide});
+      write_cache_file(directory, file, image, stamp);  // one file per path: an older picture is replaced
+    } else {
+      // Nothing to make a new picture from (a kind with no cheap preview): the older, smaller
+      // one Patchy stored for this same file is still its picture.
+      image = cached.image;
+    }
     if (image.isNull()) {
       return {};
     }
-    image = fitted(display_image(std::move(image)), {kRecentThumbnailStoredSide, kRecentThumbnailStoredSide});
-    write_cache_file(directory, file, image, stamp);
   }
-  return {fitted(image, display_box).convertToFormat(QImage::Format_ARGB32_Premultiplied), true};
+  auto shown = fitted(image, display_box);
+  const bool reduced = shown.size() != image.size();
+  return {shown.convertToFormat(QImage::Format_ARGB32_Premultiplied), true, reduced};
 }
 
 void delete_cache_files(const QString& directory, const QStringList& keys) {
@@ -373,7 +394,13 @@ void RecentThumbnailCache::request(const QString& path) {
     return;
   }
   auto& entry = entries_[key];
-  if (entry.state != RecentThumbnailState::unknown) {
+  entry.last_used = ++clock_;
+  // A picture fitted to a smaller box than today's (the window grew) would be drawn enlarged:
+  // it is loaded again at the new size, and stays shown until that arrives.
+  const bool outgrown = entry.state == RecentThumbnailState::ready && entry.reduced &&
+                        (entry.loaded_box.width() < display_box_.width() ||
+                         entry.loaded_box.height() < display_box_.height());
+  if (entry.state != RecentThumbnailState::unknown && !outgrown) {
     return;
   }
   entry.state = RecentThumbnailState::pending;
@@ -385,9 +412,12 @@ void RecentThumbnailCache::request(const QString& path) {
 }
 
 void RecentThumbnailCache::set_display_box(QSize device_pixels) {
-  if (!device_pixels.isEmpty()) {
-    display_box_ = device_pixels;
+  if (device_pixels.isEmpty()) {
+    return;
   }
+  constexpr int kStep = 48;
+  display_box_ = QSize((device_pixels.width() + kStep - 1) / kStep * kStep,
+                       (device_pixels.height() + kStep - 1) / kStep * kStep);
 }
 
 void RecentThumbnailCache::store(const QString& path, const QImage& composite) {
@@ -457,7 +487,31 @@ bool RecentThumbnailCache::busy() const {
   return shared_->running || !shared_->jobs.empty();
 }
 
-void RecentThumbnailCache::finish(const QString& key, QImage image, bool available) {
+void RecentThumbnailCache::trim_loaded() {
+  qsizetype bytes = 0;
+  std::vector<std::pair<quint64, QString>> loaded;
+  for (auto entry = entries_.cbegin(); entry != entries_.cend(); ++entry) {
+    if (!entry->image.isNull()) {
+      bytes += entry->image.sizeInBytes();
+      loaded.emplace_back(entry->last_used, entry.key());
+    }
+  }
+  if (bytes <= kRecentThumbnailLoadedBytes || loaded.size() <= static_cast<std::size_t>(kRecentThumbnailLoadedFloor)) {
+    return;
+  }
+  std::sort(loaded.begin(), loaded.end());
+  const auto spare = loaded.size() - static_cast<std::size_t>(kRecentThumbnailLoadedFloor);
+  for (std::size_t index = 0; index < spare && bytes > kRecentThumbnailLoadedBytes; ++index) {
+    auto& entry = entries_[loaded[index].second];
+    bytes -= entry.image.sizeInBytes();
+    entry.image = QImage();
+    if (entry.state == RecentThumbnailState::ready) {
+      entry.state = RecentThumbnailState::unknown;  // loads again when its cell is painted
+    }
+  }
+}
+
+void RecentThumbnailCache::finish(const QString& key, QImage image, bool available, bool reduced, QSize box) {
   const auto found = entries_.find(key);
   if (found == entries_.end()) {
     return;  // forgotten, or out of the list, while the worker was on it
@@ -467,6 +521,9 @@ void RecentThumbnailCache::finish(const QString& key, QImage image, bool availab
   }
   found->state = available ? RecentThumbnailState::ready : RecentThumbnailState::unavailable;
   found->image = available ? std::move(image) : QImage();
+  found->reduced = available && reduced;
+  found->loaded_box = box;
+  trim_loaded();
   emit thumbnail_changed(key);
 }
 
@@ -519,9 +576,9 @@ void RecentThumbnailCache::enqueue(Job job) {
           }
           QMetaObject::invokeMethod(
               app,
-              [owner, key = job.key, result = std::move(result)]() mutable {
+              [owner, key = job.key, box = job.display_box, result = std::move(result)]() mutable {
                 if (owner != nullptr) {
-                  owner->finish(key, std::move(result.image), result.available);
+                  owner->finish(key, std::move(result.image), result.available, result.reduced, box);
                 }
               },
               Qt::QueuedConnection);

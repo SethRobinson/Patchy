@@ -83,14 +83,14 @@ void RecentFileList::set_fixed_rows(int rows) {
 
 QSize RecentFileList::sizeHint() const {
   if (grid_view_) {
-    return {QListWidget::sizeHint().width(), grid_rows_shown() * recent_grid_cell_height() + kRecentListChrome};
+    return {QListWidget::sizeHint().width(), grid_rows_shown() * grid_cell_size().height() + kRecentListChrome};
   }
   const auto rows = fixed_rows_ > 0 ? fixed_rows_ : count();
   return {QListWidget::sizeHint().width(), std::clamp(rows, 1, visible_rows_) * recent_row_height() + kRecentListChrome};
 }
 
 QSize RecentFileList::minimumSizeHint() const {
-  const int row = grid_view_ ? recent_grid_cell_height() : recent_row_height();
+  const int row = grid_view_ ? grid_cell_size().height() : recent_row_height();
   return {QListWidget::minimumSizeHint().width(), row + kRecentListChrome};
 }
 
@@ -122,24 +122,37 @@ int RecentFileList::grid_layout_width() const {
 }
 
 int RecentFileList::grid_columns() const {
-  return std::max(1, grid_layout_width() / kRecentGridMinCellWidth);
+  // Rounded, not floored: 3.6 target widths become four cells a little under the target,
+  // 3.4 become three a little over it.
+  return std::max(1, (2 * grid_layout_width() + kRecentGridTargetCellWidth) / (2 * kRecentGridTargetCellWidth));
+}
+
+int RecentFileList::width_for_grid_columns(int columns) const {
+  // What the widget's frame, its padding and the vertical bar's room take is the same at
+  // every width.
+  return std::max(1, columns) * kRecentGridTargetCellWidth + (width() - grid_layout_width());
 }
 
 int RecentFileList::grid_rows_shown() const {
-  if (!cells_) {
+  // The pinned count when there is one (the box keeps its height while a filter narrows it,
+  // down to the no-match placeholder row); otherwise the cells themselves.
+  const int entries = fixed_rows_ > 0 ? fixed_rows_ : (cells_ ? count() : 0);
+  if (entries <= 0) {
     return 1;
   }
   const int columns = grid_columns();
-  return std::clamp((count() + columns - 1) / columns, 1, visible_grid_rows_);
+  return std::clamp((entries + columns - 1) / columns, 1, visible_grid_rows_);
 }
 
 QSize RecentFileList::grid_cell_size() const {
-  return {std::max(1, grid_layout_width() / grid_columns()), recent_grid_cell_height()};
+  const int width = std::max(1, grid_layout_width() / grid_columns());
+  return {width, grid_cell_height(width)};
 }
 
 QRect RecentFileList::grid_picture_rect(const QRect& cell_rect) {
-  return {cell_rect.left() + kRecentGridCellInset, cell_rect.top() + kRecentGridCellInset,
-          std::max(1, cell_rect.width() - 2 * kRecentGridCellInset), kRecentGridPictureHeight};
+  const int width = std::max(1, cell_rect.width() - 2 * kRecentGridCellInset);
+  return {cell_rect.left() + kRecentGridCellInset, cell_rect.top() + kRecentGridCellInset, width,
+          std::max(1, width * 3 / 4)};
 }
 
 void RecentFileList::apply_view_layout() {
@@ -156,7 +169,7 @@ void RecentFileList::apply_view_layout() {
     thumbnails_->set_display_box(grid_picture_rect(QRect(QPoint(0, 0), grid_cell_size())).size() *
                                  devicePixelRatioF());
   }
-  grid_rows_laid_out_ = grid_rows_shown();
+  grid_height_laid_out_ = grid_rows_shown() * grid_cell_size().height();
   updateGeometry();
   viewport()->update();
 }
@@ -166,16 +179,17 @@ void RecentFileList::resizeEvent(QResizeEvent* event) {
   if (!cells_) {
     return;
   }
-  // The cells share the new width; a width that changes how many fit changes the row count
-  // the box is as tall as.
+  // The cells share the new width.
   if (const auto cell = grid_cell_size(); gridSize() != cell) {
     setGridSize(cell);
     if (thumbnails_ != nullptr) {
       thumbnails_->set_display_box(grid_picture_rect(QRect(QPoint(0, 0), cell)).size() * devicePixelRatioF());
     }
   }
-  if (const int rows = grid_rows_shown(); rows != grid_rows_laid_out_) {
-    grid_rows_laid_out_ = rows;
+  // The height the box asks for follows both: the rows the entries fill at this width and
+  // the cells' own height, which grows with their width.
+  if (const int height = grid_rows_shown() * grid_cell_size().height(); height != grid_height_laid_out_) {
+    grid_height_laid_out_ = height;
     updateGeometry();
   }
 }
@@ -371,15 +385,20 @@ void paint_grid_cell(QPainter* painter, const QStyleOptionViewItem& option, cons
 
 }  // namespace
 
-int recent_grid_cell_height() {
-  return kRecentGridCellInset + kRecentGridPictureHeight + kGridNameGap + ui_text_length(kGridNameLine) + kGridBottom;
+int RecentFileList::grid_cell_height(int cell_width) {
+  return kRecentGridCellInset + grid_picture_rect(QRect(0, 0, cell_width, 0)).height() + kGridNameGap +
+         ui_text_length(kGridNameLine) + kGridBottom;
 }
 
 QSize RecentFileDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex&) const {
   if (const auto* list = dynamic_cast<const RecentFileList*>(option.widget); list != nullptr && list->shows_cells()) {
     return list->grid_cell_size();
   }
-  return QSize(option.rect.width(), recent_row_height());
+  // A row is as wide as the viewport whatever this says (QListView widens it), so say as
+  // little as possible: the hint is cached for every row, and a width taken while the box was
+  // wide would keep the rows that wide, their text and remove button out of view, once the
+  // window narrows.
+  return QSize(1, recent_row_height());
 }
 
 void RecentFileDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const {

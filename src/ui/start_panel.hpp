@@ -18,7 +18,8 @@ class RecentThumbnailCache;
 
 // The empty-workspace start panel: shown (as an overlay filling the document tab
 // area) whenever no document sessions exist. Offers New, Clipboard and Open buttons
-// and the clickable recent files, as a list or as a grid of thumbnails, and carries
+// and the clickable recent files, as a list or as a grid of thumbnails in a section
+// that grows with the window, and carries
 // the app branding (artwork, tagline, credit and links in the header, the version in
 // the footer) plus the startup update-check status; MainWindow owns visibility and
 // geometry.
@@ -87,6 +88,9 @@ class StartPanel final : public QWidget {
   void open_first_recent_match();
   // Puts the list widget and the two view buttons in step with recent_grid_view_.
   void apply_recent_view();
+  // Sets how wide the Recent Files section may grow: by view, and in the grid by how many
+  // entries there are to fill a row.
+  void update_recent_section_width();
 
   // Every existing recent file, filter or no filter; the list widget holds only
   // the rows the filter currently keeps.
@@ -94,6 +98,7 @@ class StartPanel final : public QWidget {
   QStringList recent_paths_;
   QLabel* recent_label_{nullptr};
   QLineEdit* recent_filter_edit_{nullptr};
+  QWidget* recent_section_{nullptr};
   RecentFileList* recent_list_{nullptr};
   QToolButton* recent_list_view_button_{nullptr};
   QToolButton* recent_grid_view_button_{nullptr};
