@@ -37154,6 +37154,10 @@ Locked: %1</source>
         <source>Defined pattern: %1 (%2 x %3 px)</source>
         <translation>정의된 패턴: %1 (%2 x %3 px)</translation>
     </message>
+    <message>
+        <source>%MOVE_KEY%+drag moves the selected pixels.</source>
+        <translation>%MOVE_KEY%+드래그로 선택한 픽셀을 이동합니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -543,6 +543,16 @@ void CanvasWidget::update_tool_cursor() {
       return;
     }
   }
+  if (tool_has_selection_temporary_move(tool_)) {
+    // The selection tools' temporary Move (GitHub issue 753): the four-way cursor during the
+    // layer drag and while the key is held where a press would move.
+    const auto modifiers = retouch_cursor_modifier_override_.value_or(QApplication::keyboardModifiers());
+    if (moving_layer_ || move_drag_pending_ || paint_ctrl_click_.has_value() ||
+        (selection_temporary_move_held(modifiers) && selection_temporary_move_available(last_mouse_position_))) {
+      setCursor(Qt::SizeAllCursor);
+      return;
+    }
+  }
   // Marquee/elliptical/lasso/wand show a crosshair (or wand) badged with the
   // active combine mode (+ add, - subtract, x intersect) from the toolbar mode
   // and live Shift/Alt.

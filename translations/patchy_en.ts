@@ -37185,6 +37185,10 @@ Locked: %1</source>
         <source>Defined pattern: %1 (%2 x %3 px)</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>%MOVE_KEY%+drag moves the selected pixels.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

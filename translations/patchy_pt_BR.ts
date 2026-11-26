@@ -37269,6 +37269,10 @@ Bloqueado: %1</translation>
         <source>Defined pattern: %1 (%2 x %3 px)</source>
         <translation>Padrão definido: %1 (%2 x %3 px)</translation>
     </message>
+    <message>
+        <source>%MOVE_KEY%+drag moves the selected pixels.</source>
+        <translation>%MOVE_KEY%+arrastar move os pixels selecionados.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

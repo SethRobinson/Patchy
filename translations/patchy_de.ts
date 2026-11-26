@@ -37269,6 +37269,10 @@ Fixiert: %1</translation>
         <source>Defined pattern: %1 (%2 x %3 px)</source>
         <translation>Muster festgelegt: %1 (%2 x %3 px)</translation>
     </message>
+    <message>
+        <source>%MOVE_KEY%+drag moves the selected pixels.</source>
+        <translation>%MOVE_KEY%+Ziehen verschiebt die ausgewählten Pixel.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

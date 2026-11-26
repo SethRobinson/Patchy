@@ -358,6 +358,25 @@ const char* tool_activation_hint_source(CanvasTool tool) {
   }
 }
 
+// The sentence the selection tools' hints end with (GitHub issue 753): the temporary Move, on
+// the tools whose hint names their modifier combinations. Patch and Content-Aware Move have
+// the gesture too, but their hints describe the workflow only.
+const char* selection_tool_move_hint_source(CanvasTool tool) {
+  switch (tool) {
+    case CanvasTool::Marquee:
+    case CanvasTool::EllipticalMarquee:
+    case CanvasTool::Lasso:
+    case CanvasTool::PolygonLasso:
+    case CanvasTool::MagneticLasso:
+    case CanvasTool::MagicWand:
+    case CanvasTool::QuickSelect:
+    case CanvasTool::ObjectSelect:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "%MOVE_KEY%+drag moves the selected pixels.");
+    default:
+      return nullptr;
+  }
+}
+
 // The painting tools' hint (GitHub issue 421), %1 the tool name: only the gestures a
 // user would not find by painting (Shift+click line, the Alt clicks, Alt+right-drag),
 // kept short for small screens. The Ctrl move and layer pick work but are not named.
@@ -2016,7 +2035,11 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     // Tools whose gestures the name does not explain get a one-line hint.
     if (const auto* hint = tool_activation_hint_source(selected); hint != nullptr) {
       // The role tokens name the key the active tool modifiers give it (GitHub issue 302).
-      statusBar()->showMessage(resolve_tool_modifier_names(tr(hint), selected));
+      auto message = resolve_tool_modifier_names(tr(hint), selected);
+      if (const auto* move_hint = selection_tool_move_hint_source(selected); move_hint != nullptr) {
+        message += QLatin1Char(' ') + resolve_tool_modifier_names(tr(move_hint), selected);
+      }
+      statusBar()->showMessage(message);
     } else if (const auto* paint_hint = paint_tool_hint_source(selected); paint_hint != nullptr) {
       const auto opposite = alt_swapped_toning_tool(selected);
       statusBar()->showMessage(resolve_tool_modifier_names(
