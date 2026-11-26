@@ -23,14 +23,13 @@ inline constexpr int kRecentRowHeight = 40;
 [[nodiscard]] int recent_row_height();
 inline constexpr int kRecentListChrome = 14;  // the list's own frame and padding
 
-// Grid view cells: a picture box over one line of file name. The cells share the viewport's
-// width equally, each at least kRecentGridMinCellWidth wide.
-inline constexpr int kRecentGridMinCellWidth = 104;
-inline constexpr int kRecentGridPictureHeight = 84;
+// Grid view cells: a picture box (4:3) over one line of file name. The cells share the row's
+// width equally. As many columns as bring a cell closest to kRecentGridTargetCellWidth are
+// used, so a wide box gets more columns of about that width instead of a few stretched ones;
+// with two or more columns a cell is never narrower than kRecentGridMinCellWidth.
+inline constexpr int kRecentGridTargetCellWidth = 200;
+inline constexpr int kRecentGridMinCellWidth = 150;
 inline constexpr int kRecentGridCellInset = 8;
-// A cell's height: the picture, the name line (grown with the interface text size) and the
-// spacing around them.
-[[nodiscard]] int recent_grid_cell_height();
 
 class RecentThumbnailCache;
 
@@ -47,13 +46,14 @@ class RecentFileList final : public QListWidget {
  public:
   RecentFileList(QWidget* parent, int visible_rows);
 
-  // Rows the height is computed from instead of count(); 0 follows count(). The Open
-  // Recent menus pin this to the unfiltered list so filtering never resizes the menu.
+  // Entries the height is computed from instead of count(); 0 follows count(). The Open
+  // Recent menus and the Home Screen pin this to the unfiltered list so filtering never
+  // resizes the box (in grid view the entries are counted in rows of cells).
   void set_fixed_rows(int rows);
 
   // Grid view (the Home Screen's Recent Files grid, GitHub issue 750): the same rows laid
   // out as equal cells, left to right, each a picture from `thumbnails` over the file name;
-  // at most `visible_rows` rows of cells show before the box scrolls. The items, their path
+  // at most `visible_rows` rows of cells are asked for before the box scrolls. The items, their path
   // role, clicks, the context menu and the remove button are those of list view. The list
   // never owns `thumbnails`, which must outlive it or be cleared with another call here.
   void set_grid_view(bool grid, RecentThumbnailCache* thumbnails = nullptr, int visible_rows = 3);
@@ -63,8 +63,14 @@ class RecentFileList final : public QListWidget {
   [[nodiscard]] bool shows_cells() const noexcept { return cells_; }
   [[nodiscard]] RecentThumbnailCache* thumbnails() const noexcept { return thumbnails_; }
   [[nodiscard]] QSize grid_cell_size() const;
+  // A cell's height at a width: the 4:3 picture, the name line (grown with the interface text
+  // size) and the spacing around them.
+  [[nodiscard]] static int grid_cell_height(int cell_width);
   // The picture box inside a cell's rectangle (viewport coordinates).
   [[nodiscard]] static QRect grid_picture_rect(const QRect& cell_rect);
+  // The widget width at which exactly `columns` cells of the target width fit in a row: what
+  // a box holding only a few entries is sized to, so they do not sit in a wide empty frame.
+  [[nodiscard]] int width_for_grid_columns(int columns) const;
   // fill_recent_file_list calls this after it replaced the rows.
   void rows_changed();
 
@@ -99,7 +105,7 @@ class RecentFileList final : public QListWidget {
   void set_remove_hover_row(int row);
   // The width a row of cells is laid out in (the viewport, less the vertical bar's room).
   [[nodiscard]] int grid_layout_width() const;
-  // Cells across that width: as many as fit at the minimum cell width, at least one.
+  // Cells across that width: the count that brings a cell closest to the target width.
   [[nodiscard]] int grid_columns() const;
   // Rows of cells the box is as tall as (1 to the visible cap).
   [[nodiscard]] int grid_rows_shown() const;
@@ -110,7 +116,7 @@ class RecentFileList final : public QListWidget {
   bool grid_view_{false};
   bool cells_{false};
   int visible_grid_rows_{3};
-  int grid_rows_laid_out_{0};
+  int grid_height_laid_out_{0};
   RecentThumbnailCache* thumbnails_{nullptr};
   std::function<void(const QString&)> remove_handler_;
   QString remove_tooltip_;
