@@ -37269,6 +37269,29 @@ Bloccato: %1</translation>
         <source>Defined pattern: %1 (%2 x %3 px)</source>
         <translation>Pattern definito: %1 (%2 x %3 px)</translation>
     </message>
+    <message numerus="yes">
+        <source>Placed %n file(s) as smart objects</source>
+        <translation>
+            <numerusform>%n file inserito come oggetto avanzato</numerusform>
+            <numerusform>%n file inseriti come oggetti avanzati</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open in a new tab</source>
+        <translation>Apri in una nuova scheda</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object</source>
+        <translation>Inserisci come oggetto avanzato</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object embeds an image dropped on a document&apos;s canvas in that document, as File &gt; Place &gt; Place Embedded does. A file dropped on the document tabs still opens in a new tab, and so do PDFs and camera raw files.</source>
+        <translation>Inserisci come oggetto avanzato incorpora nel documento l&apos;immagine rilasciata sul suo quadro, come File &gt; Inserisci &gt; Inserisci elementi incorporati. Un file rilasciato sulle schede dei documenti si apre comunque in una nuova scheda, così come i PDF e i file camera raw.</translation>
+    </message>
+    <message>
+        <source>Files dropped on a canvas:</source>
+        <translation>File rilasciati su un quadro:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

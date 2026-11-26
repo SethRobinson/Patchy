@@ -37269,6 +37269,29 @@ Bloqueado: %1</translation>
         <source>Defined pattern: %1 (%2 x %3 px)</source>
         <translation>Padrão definido: %1 (%2 x %3 px)</translation>
     </message>
+    <message numerus="yes">
+        <source>Placed %n file(s) as smart objects</source>
+        <translation>
+            <numerusform>%n arquivo inserido como objeto inteligente</numerusform>
+            <numerusform>%n arquivos inseridos como objetos inteligentes</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open in a new tab</source>
+        <translation>Abrir em uma nova aba</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object</source>
+        <translation>Inserir como objeto inteligente</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object embeds an image dropped on a document&apos;s canvas in that document, as File &gt; Place &gt; Place Embedded does. A file dropped on the document tabs still opens in a new tab, and so do PDFs and camera raw files.</source>
+        <translation>Inserir como objeto inteligente incorpora no documento a imagem solta sobre a tela dele, como Arquivo &gt; Inserir &gt; Inserir incorporado. Um arquivo solto sobre as abas dos documentos continua abrindo em uma nova aba, assim como PDFs e arquivos Camera Raw.</translation>
+    </message>
+    <message>
+        <source>Files dropped on a canvas:</source>
+        <translation>Arquivos soltos em uma tela:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

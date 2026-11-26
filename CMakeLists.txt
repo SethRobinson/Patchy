@@ -2861,6 +2861,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/ai_selection_tests.cpp
       tests/ui/misc_visuals_outline_stress_tests.cpp
       tests/ui/float_window_tests.cpp
+      tests/ui/canvas_file_drop_tests.cpp
       tests/ui/document_rename_tests.cpp
       tests/ui/vector_shape_tool_tests.cpp
       tests/ui/vector_mask_editing_tests.cpp

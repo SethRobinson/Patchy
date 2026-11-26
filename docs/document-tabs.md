@@ -114,6 +114,11 @@ already open"; nothing reloads and no prompt asks about unsaved changes (GitHub 
 Open Folder skips images already open the same way. Untitled and pathless sessions (browser
 picks, PDF pages after the first) never match; a renamed file matches by its new path.
 
+A file dropped on a document's canvas opens a tab the same way unless Preferences >
+Application "Files dropped on a canvas:" is "Place as Smart Object"; then it is embedded in
+that document instead, and only drops on the tab bar or outside a canvas open tabs
+([smart-object-editing.md](smart-object-editing.md), "Canvas drops").
+
 `OpenExisting::LoadCopy` keeps the old behavior: `app.open` in scripts (documented to return
 a new document), Edit Contents of a linked Smart Object (an open copy may belong to another
 parent), the stress test's PSD reloads, and the test helper `MainWindowTestAccess::open_document_path`

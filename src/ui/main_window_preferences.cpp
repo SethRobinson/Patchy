@@ -1008,6 +1008,23 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   const auto pdf_layers_index = pdf_layers_combo->findData(pdf_layers_policy);
   pdf_layers_combo->setCurrentIndex(pdf_layers_index >= 0 ? pdf_layers_index : 0);
   application_form->addRow(tr("Saving layered documents as PDF:"), pdf_layers_combo);
+#ifndef Q_OS_WASM
+  // What a file dropped on a document's canvas does (GitHub issue 749). The browser build
+  // has no row: its drops arrive as bare paths with no drop target (handle_web_file_drop).
+  auto* canvas_file_drop_combo = new QComboBox(application_group);
+  canvas_file_drop_combo->setObjectName(QStringLiteral("preferencesCanvasFileDropCombo"));
+  canvas_file_drop_combo->addItem(tr("Open in a new tab"), QStringLiteral("tab"));
+  canvas_file_drop_combo->addItem(tr("Place as Smart Object"), QStringLiteral("smartObject"));
+  canvas_file_drop_combo->setToolTip(
+      tr("Place as Smart Object embeds an image dropped on a document's canvas in that document, as "
+         "File > Place > Place Embedded does. A file dropped on the document tabs still opens in a new "
+         "tab, and so do PDFs and camera raw files."));
+  const auto canvas_file_drop_policy =
+      settings.value(QStringLiteral("imports/canvasFileDrop"), QStringLiteral("tab")).toString();
+  const auto canvas_file_drop_index = canvas_file_drop_combo->findData(canvas_file_drop_policy);
+  canvas_file_drop_combo->setCurrentIndex(canvas_file_drop_index >= 0 ? canvas_file_drop_index : 0);
+  application_form->addRow(tr("Files dropped on a canvas:"), canvas_file_drop_combo);
+#endif
   // Fonts dropped onto the window persist (desktop: the AppData user-fonts
   // directory; wasm: IndexedDB). This is the one way to empty that store;
   // already-registered fonts stay usable because application fonts are never
@@ -2525,6 +2542,9 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     settings.setValue(QStringLiteral("imports/xcfPaintedTextLayers"), xcf_painted_text_combo->currentData().toString());
     settings.setValue(QStringLiteral("imports/tiffPagesOpen"), tiff_pages_combo->currentData().toString());
     settings.setValue(QStringLiteral("saveOptions/pdfLayerPolicy"), pdf_layers_combo->currentData().toString());
+#ifndef Q_OS_WASM
+    settings.setValue(QStringLiteral("imports/canvasFileDrop"), canvas_file_drop_combo->currentData().toString());
+#endif
 #if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
     if (system_title_bar_check->isChecked() != entry_system_title_bar) {
       set_stored_system_title_bar(system_title_bar_check->isChecked());

@@ -37269,6 +37269,29 @@ Fixiert: %1</translation>
         <source>Defined pattern: %1 (%2 x %3 px)</source>
         <translation>Muster festgelegt: %1 (%2 x %3 px)</translation>
     </message>
+    <message numerus="yes">
+        <source>Placed %n file(s) as smart objects</source>
+        <translation>
+            <numerusform>%n Datei als Smartobjekt platziert</numerusform>
+            <numerusform>%n Dateien als Smartobjekte platziert</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open in a new tab</source>
+        <translation>In neuem Tab öffnen</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object</source>
+        <translation>Als Smartobjekt platzieren</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object embeds an image dropped on a document&apos;s canvas in that document, as File &gt; Place &gt; Place Embedded does. A file dropped on the document tabs still opens in a new tab, and so do PDFs and camera raw files.</source>
+        <translation>„Als Smartobjekt platzieren“ bettet ein Bild, das auf die Arbeitsfläche eines Dokuments gezogen wird, in dieses Dokument ein, wie Datei &gt; Platzieren &gt; Eingebettet platzieren. Eine auf die Dokument-Tabs gezogene Datei wird weiterhin in einem neuen Tab geöffnet, ebenso PDFs und Camera-Raw-Dateien.</translation>
+    </message>
+    <message>
+        <source>Files dropped on a canvas:</source>
+        <translation>Auf eine Arbeitsfläche gezogene Dateien:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

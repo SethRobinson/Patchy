@@ -480,6 +480,7 @@ int main(int argc, char* argv[]) {
            ai_selection_ui_tests,
            misc_visuals_outline_stress_tests,
            float_window_tests,
+           canvas_file_drop_tests,
            vector_shape_tool_tests,
            vector_mask_editing_tests,
            batch_appearance_tests,

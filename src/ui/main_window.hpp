@@ -1497,7 +1497,13 @@ private:
   void set_tile_preview_visible(bool visible, QAction* toggle_action);
   void toggle_animation_preview_window();
   bool accept_open_file_drag(QDropEvent* event);
-  bool open_dropped_files(QDropEvent* event);
+  // place_target_session_id: the document whose canvas took the drop while canvas drops
+  // place smart objects (handle_canvas_file_drop_event); every other drop leaves it unset.
+  bool open_dropped_files(QDropEvent* event, std::optional<std::int64_t> place_target_session_id = std::nullopt);
+  // The event filter's share of a file drag over a session canvas (tab page or float):
+  // takes it only while Preferences sets canvas drops to place smart objects, so the
+  // drop knows its document. Otherwise the drag reaches the window handlers as before.
+  bool handle_canvas_file_drop_event(QObject* watched, QEvent* event);
   // Browser drops on wasm: the page-side glue reads the dropped files and
   // reports them here one MEMFS path at a time (Qt's own drag-drop path never
   // fires for external files there). Unused on desktop builds.
@@ -2833,10 +2839,17 @@ private:
   // placement of a file the document already links shares that element. before_mutation
   // runs once, right before the document changes (the caller's undo snapshot);
   // returning false abandons the placement. Returns the new layer's id, or nullopt
-  // with *error set. No refresh or status message: callers own those.
+  // with *error set. No refresh or status message: callers own those. A caller that
+  // already read the file (load_smart_object_file_probe) passes it as loaded_contents.
   std::optional<LayerId> place_file_as_smart_object(DocumentSession& target, const QString& path,
                                                     const SmartObjectPlaceOptions& options,
-                                                    const std::function<bool()>& before_mutation, QString* error);
+                                                    const std::function<bool()>& before_mutation, QString* error,
+                                                    const SmartObjectSource* loaded_contents = nullptr);
+  // A canvas drop under Preferences > Application "Files dropped on a canvas: Place as
+  // Smart Object" (GitHub issue 749; docs/smart-object-editing.md, "Canvas drops"):
+  // embeds every file Place Embedded takes into the session with that id, one undo step
+  // for the whole drop, and returns the paths that still open as tabs.
+  QStringList place_dropped_files_as_smart_objects(std::int64_t target_session_id, const QStringList& paths);
   void delete_active_layer();
   void delete_layers(std::vector<LayerId> ids);
   // delete_layers without its own undo entry: the caller already opened one

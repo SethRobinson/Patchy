@@ -37154,6 +37154,28 @@ Locked: %1</source>
         <source>Defined pattern: %1 (%2 x %3 px)</source>
         <translation>정의된 패턴: %1 (%2 x %3 px)</translation>
     </message>
+    <message numerus="yes">
+        <source>Placed %n file(s) as smart objects</source>
+        <translation>
+            <numerusform>%n개의 파일을 스마트 개체로 배치했습니다</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open in a new tab</source>
+        <translation>새 탭에서 열기</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object</source>
+        <translation>스마트 개체로 배치</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object embeds an image dropped on a document&apos;s canvas in that document, as File &gt; Place &gt; Place Embedded does. A file dropped on the document tabs still opens in a new tab, and so do PDFs and camera raw files.</source>
+        <translation>&apos;스마트 개체로 배치&apos;는 문서의 캔버스에 놓은 이미지를 파일 &gt; 배치 &gt; 포함하여 가져오기와 같은 방식으로 해당 문서에 포함합니다. 문서 탭에 놓은 파일은 계속 새 탭에서 열리며, PDF와 Camera Raw 파일도 마찬가지입니다.</translation>
+    </message>
+    <message>
+        <source>Files dropped on a canvas:</source>
+        <translation>캔버스에 놓은 파일:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
