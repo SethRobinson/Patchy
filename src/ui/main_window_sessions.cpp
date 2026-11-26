@@ -703,6 +703,14 @@ bool MainWindow::close_document_session(DocumentSession& target_session, CloseCo
   if (confirmation == CloseConfirmation::Ask && !confirm_close_session(*live_session)) {
     return false;
   }
+  // The Home Screen grid's picture of this file, taken while the canvas still exists: for an
+  // open whose first render came after add_recent_file's tries, or a file opened before the
+  // grid was turned on. A document with discarded edits is skipped there (it no longer shows
+  // what the file holds). A negative attempt asks for this one try only: the canvas is going
+  // away.
+  if (!live_session->path.isEmpty()) {
+    capture_recent_thumbnail(live_session->path, -1);
+  }
 #ifndef Q_OS_WASM
   // The session is going away with the user's consent: its recovery copy has no
   // purpose any more (a copy that outlived the session would be "recovered" as a

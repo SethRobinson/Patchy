@@ -3644,6 +3644,10 @@ private:
   void refresh_recent_history();
   void schedule_recent_history_check(bool force);
   void add_recent_file(QString path);
+  // Stores the Home Screen grid's thumbnail of a file this window just opened or saved, from
+  // the canvas's own composite (GitHub issue 750). Tries again a few times while the first
+  // render is still on its way; nothing happens while Recent Files is in list view.
+  void capture_recent_thumbnail(const QString& path, int attempt = 0);
   // A renamed file: its entry takes the new path where it stands (no move to the top).
   void replace_recent_file(const QString& old_path, const QString& new_path);
   void rebuild_recent_files_menu();

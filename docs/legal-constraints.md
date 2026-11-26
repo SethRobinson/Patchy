@@ -1,11 +1,12 @@
 # Binding legal and licensing constraints
 
-Read before touching a feature below or one near it. Licensing, file formats, trademarks, bundled assets, the GEGL bundle and the Flatpak's SANE and libgphoto2: [legal-licensing.md](legal-licensing.md). Claim-level records: [patent-research.md](patent-research.md), [audit](patent-research-audit.md), [inpainting](patent-research-inpainting.md), [content-aware move](patent-research-content-aware-move.md), [content-aware scale](patent-research-content-aware-scale.md), [alignment](patent-research-alignment.md), [selection](patent-research-selection.md), [G'MIC](patent-research-gmic.md), [soft proofing](patent-research-proofing.md), [formats and codecs](patent-research-formats.md), [artboards](patent-research-artboards.md), [Blur Gallery](patent-research-blur-gallery.md), [adjustments](patent-research-adjustments.md), [Smart Sharpen](patent-research-smart-sharpen.md), [watermarks](patent-research-watermarks.md), [perspective](patent-research-perspective.md), [filters](patent-research-filters.md), [Lens Flare and Flame](patent-research-fire.md), [prompt-driven generation](patent-research-generative.md), [book scanning](patent-research-book-scanning.md), [text recognition](patent-research-text-recognition.md), [shape drag points](patent-research-shape-handles.md), [crop interaction](patent-research-crop.md), [cylinder warp](patent-research-cylinder-warp.md); compatibility records: [smart-objects.md](smart-objects.md), [selection-tools.md](selection-tools.md), [liquify.md](liquify.md), [brushes.md](brushes.md), [vector-tools.md](vector-tools.md), [image-trace.md](image-trace.md), [file-formats.md](file-formats.md), [af-format.md](af-format.md), [pdn-format.md](pdn-format.md).
+Read before touching a feature below or one near it. Licensing, file formats, trademarks, bundled assets, the GEGL bundle and the Flatpak's SANE and libgphoto2: [legal-licensing.md](legal-licensing.md). Claim-level records: [patent-research.md](patent-research.md), [audit](patent-research-audit.md), [inpainting](patent-research-inpainting.md), [content-aware move](patent-research-content-aware-move.md), [content-aware scale](patent-research-content-aware-scale.md), [alignment](patent-research-alignment.md), [selection](patent-research-selection.md), [G'MIC](patent-research-gmic.md), [soft proofing](patent-research-proofing.md), [formats and codecs](patent-research-formats.md), [artboards](patent-research-artboards.md), [Blur Gallery](patent-research-blur-gallery.md), [adjustments](patent-research-adjustments.md), [Smart Sharpen](patent-research-smart-sharpen.md), [watermarks](patent-research-watermarks.md), [perspective](patent-research-perspective.md), [filters](patent-research-filters.md), [Lens Flare and Flame](patent-research-fire.md), [prompt-driven generation](patent-research-generative.md), [book scanning](patent-research-book-scanning.md), [text recognition](patent-research-text-recognition.md), [shape drag points](patent-research-shape-handles.md), [crop interaction](patent-research-crop.md), [cylinder warp](patent-research-cylinder-warp.md), [home screen](patent-research-home-screen.md); compatibility records: [smart-objects.md](smart-objects.md), [selection-tools.md](selection-tools.md), [liquify.md](liquify.md), [brushes.md](brushes.md), [vector-tools.md](vector-tools.md), [image-trace.md](image-trace.md), [file-formats.md](file-formats.md), [af-format.md](af-format.md), [pdn-format.md](pdn-format.md).
 
 These docs and the records they link are engineering comparisons: each states what a claim requires, what Patchy's design does, how they differ, and dated watch items, with decisions dated rather than attributed to a person. No verdicts or conclusions; `scripts/check-docs.py` rejects that wording. When the patent sites refuse requests, read claim text through the USPTO service: [patent-research.md](patent-research.md#reading-patent-text).
 
 Related documents:
 
+- [legal-constraints-interface.md](legal-constraints-interface.md): the canvas context menu, Layers panel filter and Home Screen recent files entries.
 - [legal-constraints-filters.md](legal-constraints-filters.md): the filter, Smart Object, retouching and G'MIC entries, indexed below under "Filters and Smart Objects" and "G'MIC engine".
 - [legal-constraints-selection.md](legal-constraints-selection.md): the selection tool and command entries (Quick Select, automatic selection, Magnetic Lasso, Color Range), the Color Replacement tool and the Background Eraser, indexed below under "Selection tools".
 - [legal-constraints-scanning.md](legal-constraints-scanning.md): the Divide Scanned Photos, Scan a Book to PDF and text recognition (OCR) entries, indexed below under "Scanned-photo division", "Book scanning" and "Text recognition".
@@ -113,11 +114,15 @@ These entries are in [legal-constraints-scanning.md](legal-constraints-scanning.
 
 ## Canvas context menus
 
-- **Context menus use only Patchy's own commands** (GitHub issue 323): never another editor's menu set, order or grouping, even when an issue posts its screenshots ([canvas-context-menu.md](canvas-context-menu.md)).
+Moved to [legal-constraints-interface.md](legal-constraints-interface.md#canvas-context-menus).
 
 ## Layers panel filter
 
-- **The filter menu is Patchy's own and filters stored layer properties only** (GitHub issue 671, decided 2026-11-08, [record](patent-research.md), [design](layer-panel-filter.md)). One button opens checkable criteria that combine (Layer Type, Properties, Row Color, Selected Only); never another editor's filter row, mode list, order, one-mode dropdown or row of kind toggles, even when an issue posts its screenshots. Criteria read what the layer already stores (kind, mask, style, blend mode, visibility, locks, link group, Smart Filter stack, color label, selection); never labels or classes a model assigns or updates for the filter (Adobe US 12056791, claim 12 builds on that, to 2042-10-15).
+Moved to [legal-constraints-interface.md](legal-constraints-interface.md#layers-panel-filter).
+
+## Home Screen recent files
+
+In [legal-constraints-interface.md](legal-constraints-interface.md#home-screen-recent-files) (GitHub issue 750, decided 2026-11-26): one flat recent list, one cached picture of one size per file.
 
 ## Shape drag points
 

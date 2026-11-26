@@ -40,6 +40,7 @@
 #include "ui/theme_qss.hpp"
 #include "ui/tiff_jpeg_reader.hpp"
 #include "ui/recent_file_list.hpp"
+#include "ui/recent_thumbnails.hpp"
 #include "ui/network_mounts.hpp"
 #include "ui/model_download_dialog.hpp"
 #include "ui/object_selection_model_download.hpp"
@@ -252,16 +253,7 @@ constexpr qint64 kRecentHistoryCheckIntervalMs = 30000;
 // Linux mount network shares under ordinary directories, so only the table
 // tells them apart); Windows answers from the drive type instead.
 bool is_network_recent_path(const QString& path, const std::vector<MountEntry>& mounts) {
-  if (path.startsWith(QStringLiteral("\\\\")) || path.startsWith(QStringLiteral("//"))) {
-    return true;
-  }
-#ifdef Q_OS_WIN
-  if (path.size() >= 2 && path[1] == QLatin1Char(':') && path[0].isLetter()) {
-    const wchar_t root[] = {static_cast<wchar_t>(path[0].unicode()), L':', L'\\', L'\0'};
-    return GetDriveTypeW(root) == DRIVE_REMOTE;
-  }
-#endif
-  return path_is_on_network_mount(path, mounts);
+  return path_is_on_network_location(path, mounts);
 }
 
 void trim_recent_files(QStringList& recent_files) {
@@ -7529,6 +7521,20 @@ void MainWindow::load_recent_files() {
 
 void MainWindow::set_recent_files_from_stored(QStringList stored) {
   trim_recent_files(stored);
+  if (start_panel_ != nullptr && stored != recent_files_stored_) {
+    // An entry that left the stored list (removed, cleared, pushed past the cap, or dropped by
+    // another process) takes its cached thumbnail with it: no picture of a file the user
+    // removed stays on disk (GitHub issue 750). An entry that is only missing stays stored.
+    QStringList gone;
+    for (const auto& path : std::as_const(recent_files_stored_)) {
+      if (!stored.contains(path)) {
+        gone << path;
+      }
+    }
+    if (!gone.isEmpty()) {
+      start_panel_->recent_thumbnails().forget(gone);
+    }
+  }
   recent_files_stored_ = stored;
   stored.erase(std::remove_if(stored.begin(), stored.end(),
                               [this](const QString& path) {
@@ -7644,6 +7650,46 @@ void MainWindow::add_recent_file(QString path) {
     start_panel_->show_newest_recent_file();
   }
   add_recent_folder(QFileInfo(path).absolutePath());
+  capture_recent_thumbnail(path);
+}
+
+void MainWindow::capture_recent_thumbnail(const QString& path, int attempt) {
+#ifdef Q_OS_WASM
+  Q_UNUSED(path);
+  Q_UNUSED(attempt);
+#else
+  // Only for the grid: a user who keeps the list gets no pictures of their files written.
+  if (start_panel_ == nullptr || !start_panel_->recent_grid_view()) {
+    return;
+  }
+  // No session (the PDF viewer, a flat copy saved beside the document) or edits the file does
+  // not hold: the worker's own read of the file is the only picture then.
+  auto* session = session_for_file_path(path);
+  if (session == nullptr || session->canvas == nullptr || session_is_modified(*session)) {
+    return;
+  }
+  // Only a file that is in the recent list has a picture: an entry the user removed while its
+  // document was open stays without one.
+  const auto listed = QFileInfo(path).absoluteFilePath();
+  if (std::none_of(recent_files_stored_.cbegin(), recent_files_stored_.cend(),
+                   [&listed](const QString& entry) { return QFileInfo(entry).absoluteFilePath() == listed; })) {
+    return;
+  }
+  const auto composite = session->canvas->current_composite();
+  if (composite.isNull()) {
+    // Just opened: the first render has not landed. A few short waits, then give up (closing
+    // the document tries once more, with a negative attempt for "this try only").
+    constexpr int kAttempts = 4;
+    constexpr int kRetryMs = 400;
+    if (attempt >= 0 && attempt + 1 < kAttempts) {
+      QTimer::singleShot(kRetryMs, this, [this, path, attempt] { capture_recent_thumbnail(path, attempt + 1); });
+    }
+    return;
+  }
+  // The canvas composite is the display image (8-bit, a deep document already encoded), and
+  // the reduced copy costs about a megapixel however large the document is.
+  start_panel_->recent_thumbnails().store(path, recent_thumbnail_source(composite));
+#endif
 }
 
 void MainWindow::replace_recent_file(const QString& old_path, const QString& new_path) {
@@ -7664,6 +7710,7 @@ void MainWindow::replace_recent_file(const QString& old_path, const QString& new
         }
       }));
   rebuild_recent_files_menu();
+  capture_recent_thumbnail(target);
 }
 
 void MainWindow::rebuild_recent_files_menu() {

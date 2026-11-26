@@ -11,7 +11,7 @@ for API lifetime and resume rules.
 Related documents:
 
 - [ui-conventions-dialogs.md](ui-conventions-dialogs.md): dialog chrome, closing, async-work guards, placement and prompts, the field controls that dialogs and the options bar share (scrub labels, spin boxes, unit fields, sliders, the `current_*` tool-state mirror), and settings pages.
-- [ui-conventions-menus.md](ui-conventions-menus.md): menu-bar and context-menu structure, the Open Recent menus and the start panel's recent list, and the recent-file history.
+- [ui-conventions-menus.md](ui-conventions-menus.md): menu-bar and context-menu structure, the Open Recent menus and the start panel's recent list, its thumbnail grid and header layout, and the recent-file history.
 
 ## Patchy-only options
 

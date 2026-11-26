@@ -40968,10 +40968,6 @@ Zablokowano: %1</translation>
         <translation>Filtruj najnowsze pliki...</translation>
     </message>
     <message>
-        <source>You can also drop image files anywhere in the window</source>
-        <translation>Możesz także upuścić pliki obrazów w dowolnym miejscu okna</translation>
-    </message>
-    <message>
         <source>Everything runs locally in your browser. Nothing you make is ever sent online.</source>
         <translation>Wszystko działa lokalnie w Twojej przeglądarce. Nic, co tworzysz, nie jest nigdy wysyłane online.</translation>
     </message>
@@ -41018,6 +41014,22 @@ Zablokowano: %1</translation>
     <message>
         <source>New document from the image on the clipboard</source>
         <translation>Nowy dokument z obrazu w schowku</translation>
+    </message>
+    <message>
+        <source>List</source>
+        <translation>Lista</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a list with their folders</source>
+        <translation>Pokaż ostatnie pliki jako listę z folderami</translation>
+    </message>
+    <message>
+        <source>Grid</source>
+        <translation>Siatka</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a grid of thumbnails</source>
+        <translation>Pokaż ostatnie pliki jako siatkę miniatur</translation>
     </message>
 </context>
 <context>

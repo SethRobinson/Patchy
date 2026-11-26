@@ -8,16 +8,20 @@
 
 class QLabel;
 class QLineEdit;
-class QListWidget;
 class QPushButton;
+class QToolButton;
 
 namespace patchy::ui {
 
+class RecentFileList;
+class RecentThumbnailCache;
+
 // The empty-workspace start panel: shown (as an overlay filling the document tab
 // area) whenever no document sessions exist. Offers New, Clipboard and Open buttons
-// and a clickable recent-files list, and carries the app branding (artwork,
-// tagline, version, links) plus the startup update-check status; MainWindow owns
-// visibility and geometry.
+// and the clickable recent files, as a list or as a grid of thumbnails, and carries
+// the app branding (artwork, tagline, credit and links in the header, the version in
+// the footer) plus the startup update-check status; MainWindow owns visibility and
+// geometry.
 class StartPanel final : public QWidget {
   Q_OBJECT
 
@@ -45,6 +49,16 @@ class StartPanel final : public QWidget {
   // enabled state here (an image on the clipboard). Always off in the browser build.
   void set_clipboard_available(bool available);
 
+  // Recent Files as a grid of thumbnails instead of the list (GitHub issue 750). The two
+  // buttons beside the filter switch it; the choice is stored (`startPanel/recentFilesGridView`,
+  // app_settings.hpp) and the list is the default. The browser build keeps no recent files, so
+  // it has the list only and no buttons.
+  [[nodiscard]] bool recent_grid_view() const noexcept { return recent_grid_view_; }
+  void set_recent_grid_view(bool grid);
+  // The pictures behind the grid. MainWindow gives it the composite of a document it just
+  // opened or saved and tells it which entries left the stored recent list.
+  [[nodiscard]] RecentThumbnailCache& recent_thumbnails() { return *recent_thumbnails_; }
+
  signals:
   void new_document_requested();
   void open_clipboard_requested();
@@ -55,6 +69,8 @@ class StartPanel final : public QWidget {
   void recent_file_context_menu_requested(const QString& path, const QPoint& global_position);
   // The remove (x) button on a hovered recent row (GitHub issue 157).
   void recent_file_remove_requested(const QString& path);
+  // The user switched between the list and the grid.
+  void recent_grid_view_changed(bool grid);
 
  protected:
   void showEvent(QShowEvent* event) override;
@@ -69,6 +85,8 @@ class StartPanel final : public QWidget {
   void rebuild_recent_rows();
   // Opens the topmost row that is a real file; the no-match placeholder is skipped.
   void open_first_recent_match();
+  // Puts the list widget and the two view buttons in step with recent_grid_view_.
+  void apply_recent_view();
 
   // Every existing recent file, filter or no filter; the list widget holds only
   // the rows the filter currently keeps.
@@ -76,7 +94,11 @@ class StartPanel final : public QWidget {
   QStringList recent_paths_;
   QLabel* recent_label_{nullptr};
   QLineEdit* recent_filter_edit_{nullptr};
-  QListWidget* recent_list_{nullptr};
+  RecentFileList* recent_list_{nullptr};
+  QToolButton* recent_list_view_button_{nullptr};
+  QToolButton* recent_grid_view_button_{nullptr};
+  RecentThumbnailCache* recent_thumbnails_{nullptr};
+  bool recent_grid_view_{false};
   QLabel* update_status_label_{nullptr};
   QPushButton* clipboard_button_{nullptr};
 };
