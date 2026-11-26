@@ -2,15 +2,21 @@
 
 // Thumbnails for the Home Screen's Recent Files grid (GitHub issue 750; docs/ui-conventions-menus.md,
 // "Recent file thumbnails"). One small PNG per recent file in a per-user cache folder, made and read
-// on a background worker; the panel paints a placeholder until one arrives.
+// on a background worker; the panel paints a placeholder until one arrives. Where the worker gets
+// a file's picture is recent_thumbnail_sources.hpp: every kind Patchy opens has one, quick sources
+// (an embedded preview, an image Qt decodes) before slow ones (Patchy's own readers, a PDF's
+// first page).
 //
 // Rules this file keeps:
 // - Nothing here decodes, stats or reads on the UI thread, and nothing runs per repaint: the list
 //   asks for a path once, and every later paint is a hash lookup.
 // - A path on a network location (path_is_on_network_location, classify_path_location) is never
 //   stat'ed or read. It gets no thumbnail.
-// - A file that is missing, unreadable, of a kind with no cheap preview, or too large gets no
-//   thumbnail and no message.
+// - A file that is missing, unreadable, damaged or past a cap gets no thumbnail and no message.
+//   A file that has none is marked (a `.none` text file beside the pictures, stamped like them),
+//   so it is not decoded again until it changes.
+// - Every load whose quick source has nothing waits behind all quick loads, stored pictures and
+//   deletions: one slow file never holds the rest of the grid.
 // - One picture per file, in one size, each in a file of its own (docs/legal-constraints.md,
 //   "Home Screen recent files").
 
@@ -56,7 +62,7 @@ enum class RecentThumbnailState {
   unknown,      // never asked for
   pending,      // queued or being made
   ready,        // image() returns it
-  unavailable,  // no thumbnail: network location, missing, unreadable, unsupported or too large
+  unavailable,  // no thumbnail: network location, missing, unreadable, damaged or past a cap
 };
 
 class RecentThumbnailCache final : public QObject {
@@ -82,10 +88,11 @@ class RecentThumbnailCache final : public QObject {
   // Stores the picture of a document Patchy has open, as the thumbnail of the file it was just
   // opened from or saved to. `composite` is an 8-bit display image (never linear floats).
   void store(const QString& path, const QImage& composite);
-  // Deletes the cached thumbnails of `paths` (a removed or cleared recent entry) and forgets them.
+  // Deletes the cached thumbnails and markers of `paths` (a removed or cleared recent entry) and
+  // forgets them.
   void forget(const QStringList& paths);
-  // Deletes every cache file that belongs to none of `paths`: what bounds the folder to one
-  // thumbnail per recent entry.
+  // Deletes every cache file (picture or "no picture" marker) that belongs to none of `paths`:
+  // what bounds the folder to one thumbnail per recent entry.
   void retain_only(const QStringList& paths);
   // Forgets every loaded picture and deletes every cache file: Recent Files went to list view,
   // which keeps no pictures of the user's files on disk.
@@ -128,6 +135,8 @@ class RecentThumbnailCache final : public QObject {
   void finish(const QString& key, bool was_load, QImage image, bool available, bool reduced, QSize box);
   // Lets the pictures used longest ago go once the loaded ones pass their byte bound.
   void trim_loaded();
+  // One load asked for has its answer, or will never get one (its slow pass was dropped).
+  void load_answered();
 
   QHash<QString, Entry> entries_;
   QSize display_box_{192, 144};

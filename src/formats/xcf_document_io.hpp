@@ -64,6 +64,29 @@ void set_effect_runner(EffectRunner runner);
 [[nodiscard]] const char* skipped_effects_notice_prefix() noexcept;
 [[nodiscard]] const char* skipped_effects_notice_suffix() noexcept;
 
+// Limits for the reads a thread makes while a ScopedReadLimits lives on it: what a caller
+// that only wants a small picture of the file sets (the Home Screen's recent file thumbnails).
+// Past a size limit the read throws before any tile is decoded.
+struct ReadLimits {
+  std::uint64_t max_canvas_pixels{0};        // 0: no limit
+  // The layers' own sizes as RGBA at the file's precision, summed (masks and channels not
+  // counted). 0: no limit.
+  std::uint64_t max_decoded_layer_bytes{0};
+  // False leaves GIMP 3 layer effects to the reader's own code: the effect runner (a helper
+  // process per effect) is never called, as in a build without one.
+  bool run_layer_effects{true};
+};
+class ScopedReadLimits {
+public:
+  explicit ScopedReadLimits(ReadLimits limits);
+  ~ScopedReadLimits();
+  ScopedReadLimits(const ScopedReadLimits&) = delete;
+  ScopedReadLimits& operator=(const ScopedReadLimits&) = delete;
+
+private:
+  ReadLimits limits_;
+  const ReadLimits* previous_{nullptr};
+};
 class DocumentIo {
 public:
   // The layer tree (groups, pass-through, masks, offsets, opacity, visibility, locks,

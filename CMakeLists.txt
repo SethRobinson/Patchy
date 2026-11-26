@@ -1760,6 +1760,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/recent_file_list.cpp
       src/ui/recent_thumbnails.hpp
       src/ui/recent_thumbnails.cpp
+      src/ui/recent_thumbnail_sources.hpp
+      src/ui/recent_thumbnail_sources.cpp
       src/ui/start_panel.hpp
       src/ui/start_panel.cpp
       src/ui/smart_object_render.hpp

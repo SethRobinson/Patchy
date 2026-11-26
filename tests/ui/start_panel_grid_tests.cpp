@@ -4,13 +4,21 @@
 #include "test_harness.hpp"
 #include "ui_test_groups.hpp"
 
+#include "core/pdf_encrypted_fixture.hpp"
+#include "formats/format_registry.hpp"
 #include "formats/metadata/iptc_iim.hpp"
+#include "formats/ora_document_io.hpp"
+#include "formats/xcf_document_io.hpp"
 #include "local_psd_fixtures.hpp"
+#include "psd/psd_document_io.hpp"
+#include "psd/psd_tiff.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "ui/network_mounts.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/recent_file_list.hpp"
+#include "ui/recent_thumbnail_sources.hpp"
 #include "ui/recent_thumbnails.hpp"
 #include "ui/start_panel.hpp"
 #include "ui_test_access.hpp"
@@ -31,18 +39,26 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMarginsF>
 #include <QMenu>
+#include <QPageSize>
+#include <QPainter>
+#include <QPdfWriter>
 #include <QScrollBar>
 #include <QTabWidget>
 #include <QTest>
 #include <QTimer>
 #include <QToolButton>
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <exception>
 #include <iostream>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -256,6 +272,164 @@ bool all_thumbnails_settled(PanelParts& parts) {
       8000);
 }
 
+// --- Files and checks for the pictures of the kinds a reader opens ---------------------------
+
+QString marker_file(const QString& path) {
+  auto file = patchy::ui::recent_thumbnail_cache_file(path);
+  CHECK(file.endsWith(QStringLiteral(".png")));
+  file.chop(4);
+  return file + QStringLiteral(".none");
+}
+
+QByteArray read_bytes(const QString& path) {
+  QFile file(path);
+  CHECK(file.open(QIODevice::ReadOnly));
+  return file.readAll();
+}
+
+QString write_bytes(const QString& path, const QByteArray& bytes) {
+  QFile file(path);
+  CHECK(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+  CHECK(file.write(bytes) == bytes.size());
+  return path;
+}
+
+QString write_bytes(const QString& path, const std::vector<std::uint8_t>& bytes) {
+  return write_bytes(path, QByteArray(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())));
+}
+
+std::vector<std::uint8_t> to_vector(const QByteArray& bytes) {
+  return {reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+          reinterpret_cast<const std::uint8_t*>(bytes.constData()) + bytes.size()};
+}
+
+QByteArray png_bytes(QColor color, QSize size) {
+  QImage image(size, QImage::Format_RGB32);
+  image.fill(color);
+  QByteArray bytes;
+  QBuffer buffer(&bytes);
+  CHECK(buffer.open(QIODevice::WriteOnly));
+  CHECK(image.save(&buffer, "PNG"));
+  return bytes;
+}
+
+// A committed fixture copied under `name` into the test's own folder.
+QString copy_fixture(std::string_view format_dir, std::string_view fixture, const QString& target) {
+  const auto source = patchy::ui::to_qstring(patchy::test::committed_format_fixture_path(format_dir, fixture));
+  CHECK(QFileInfo::exists(source));
+  QFile::remove(target);
+  CHECK(QFile::copy(source, target));
+  return target;
+}
+
+// The canvas of a file as Patchy's own reader opens it.
+QSize reader_canvas(const QString& path, const char* extension) {
+  const auto* handler = patchy::builtin_format_registry().find_by_extension(extension);
+  CHECK(handler != nullptr);
+  const auto bytes = to_vector(read_bytes(path));
+  const auto document = handler->read(bytes).document;
+  return {document.width(), document.height()};
+}
+
+bool has_visible_pixel(const QImage& image) {
+  const auto pixels = image.convertToFormat(QImage::Format_RGBA8888);
+  for (int y = 0; y < pixels.height(); ++y) {
+    const auto* row = pixels.constScanLine(y);
+    for (int x = 0; x < pixels.width(); ++x) {
+      if (row[4 * x + 3] != 0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool same_shape(QSize picture, QSize canvas) {
+  if (picture.isEmpty() || canvas.isEmpty()) {
+    return false;
+  }
+  const double difference = std::abs(static_cast<double>(picture.width()) * canvas.height() -
+                                     static_cast<double>(picture.height()) * canvas.width());
+  // A stored side is rounded to a whole pixel: one pixel of the short side at most.
+  return difference <= static_cast<double>(std::max(canvas.width(), canvas.height())) * 1.5;
+}
+
+// The stored picture of `path`, checked: made, at most the stored size, shaped like `canvas`
+// (an empty `canvas` skips that), with something in it.
+QImage stored_picture(RecentThumbnailCache& cache, const QString& path, QSize canvas) {
+  if (settled_state(cache, path) != RecentThumbnailState::ready) {
+    std::cerr << "no picture for " << path.toStdString() << std::endl;
+    CHECK(false);
+  }
+  CHECK(cache.image(path) != nullptr);
+  CHECK(wait_until_idle(cache));
+  QImage stored;
+  CHECK(stored.load(patchy::ui::recent_thumbnail_cache_file(path), "PNG"));
+  CHECK(stored.width() <= patchy::ui::kRecentThumbnailStoredSide);
+  CHECK(stored.height() <= patchy::ui::kRecentThumbnailStoredSide);
+  if (!canvas.isEmpty() && !same_shape(stored.size(), canvas)) {
+    std::cerr << "picture of " << path.toStdString() << " is " << stored.width() << " x " << stored.height()
+              << " for a canvas of " << canvas.width() << " x " << canvas.height() << std::endl;
+    CHECK(false);
+  }
+  CHECK(has_visible_pixel(stored));
+  CHECK(!QFileInfo::exists(marker_file(path)));
+  return stored;
+}
+
+QString fresh_cache_dir(const QString& name) {
+  const auto cache_dir = scratch_file(name);
+  if (QFileInfo::exists(cache_dir)) {
+    CHECK(patchy::test::ui::remove_test_scratch_dir(cache_dir));
+  }
+  return cache_dir;
+}
+
+// A zip holding `entries` after the stored "mimetype" entry the OpenRaster and Krita sniffers
+// look for.
+QString write_container(const QString& path, const char* mime_type,
+                        std::vector<patchy::ora::detail::ZipEntry> entries) {
+  std::vector<patchy::ora::detail::ZipEntry> all;
+  all.push_back({"mimetype", to_vector(QByteArray(mime_type)), false});
+  for (auto& entry : entries) {
+    all.push_back(std::move(entry));
+  }
+  return write_bytes(path, patchy::ora::detail::zip_archive(all));
+}
+
+#ifdef PATCHY_HAVE_QT_PDF
+// A PDF of 2:1 pages, each filled with one color.
+QString write_pdf(const QString& path, const std::vector<QColor>& pages) {
+  QFile::remove(path);
+  QPdfWriter writer(path);
+  writer.setPageSize(QPageSize(QSizeF(400, 200), QPageSize::Point));
+  writer.setPageMargins(QMarginsF(0, 0, 0, 0));
+  QPainter painter(&writer);
+  for (std::size_t index = 0; index < pages.size(); ++index) {
+    if (index > 0) {
+      CHECK(writer.newPage());
+    }
+    painter.fillRect(QRect(0, 0, writer.width(), writer.height()), pages[index]);
+  }
+  painter.end();
+  CHECK(QFileInfo(path).size() > 0);
+  return path;
+}
+#endif
+
+// `text` as a one-member gzip stream (an .svgz). The checksum is left zero: nothing here reads it.
+QByteArray gzip_bytes(const QByteArray& text) {
+  const auto zlib = qCompress(text, 9);  // 4 bytes of length, a 2-byte zlib header, deflate data, 4 bytes of Adler-32
+  QByteArray gz = QByteArray::fromHex("1f8b0800000000000003");
+  gz.append(zlib.mid(6, zlib.size() - 10));
+  gz.append(QByteArray(4, '\0'));
+  const auto size = static_cast<quint32>(text.size());
+  for (int shift = 0; shift < 32; shift += 8) {
+    gz.append(static_cast<char>((size >> shift) & 0xFFU));
+  }
+  return gz;
+}
+
 // --- Header layout (part A of GitHub issue 750) -------------------------------------------
 
 void ui_start_panel_tagline_takes_one_line_and_wraps_when_narrow() {
@@ -448,8 +622,10 @@ void ui_recent_thumbnails_cache_reads_and_writes_unicode_paths() {
     CHECK(replaced.text(QStringLiteral("PatchyThumbnail")) == QStringLiteral("2"));
     CHECK(QDir(cache_dir).entryList(QDir::Files).size() == paths.size() + 1);
   }
-  // A file with no cheap preview keeps the older picture Patchy stored for it: there is
-  // nothing to make a new one from until it is opened or saved again.
+  // A file the worker cannot picture (this one is not a real XCF) keeps the older picture
+  // Patchy stored for it: there is nothing to make a new one from until it is opened or saved
+  // again. It is marked, so the next start does not read it again, and forgetting the entry
+  // deletes the marker with the picture.
   {
     const auto no_preview = root + QStringLiteral("/kept-picture.xcf");
     {
@@ -474,9 +650,15 @@ void ui_recent_thumbnails_cache_reads_and_writes_unicode_paths() {
       RecentThumbnailCache cache;
       CHECK(settled_state(cache, no_preview) == RecentThumbnailState::ready);
       CHECK(near_color(center_color(*cache.image(no_preview)), QColor(30, 200, 120)));
+      CHECK(wait_until_idle(cache));
+      auto marker = cache_file;
+      marker.chop(4);
+      marker += QStringLiteral(".none");
+      CHECK(QFileInfo::exists(marker));
       cache.forget({no_preview});
       CHECK(wait_until_idle(cache));
       CHECK(!QFileInfo::exists(cache_file));
+      CHECK(!QFileInfo::exists(marker));
     }
   }
 
@@ -548,7 +730,7 @@ void ui_recent_thumbnails_skip_network_missing_and_unreadable_files() {
     CHECK(file.open(QIODevice::WriteOnly));
     file.write(QByteArray(4096, 'x'));
   }
-  // A kind with no cheap preview: only Patchy opening or saving it gives it a picture.
+  // An XCF header with nothing after it: Patchy's reader refuses it.
   const auto unsupported = scratch_file(QStringLiteral("layers.xcf"));
   {
     QFile file(unsupported);
@@ -586,23 +768,48 @@ void ui_recent_thumbnails_skip_network_missing_and_unreadable_files() {
   const auto folder = scratch_file(QStringLiteral("a-folder.png"));
   CHECK(QDir().mkpath(folder));
 
+  // Network names of the kinds the slower readers open: refused just the same.
+  QStringList not_local = network_paths;
+  not_local << QStringLiteral("\\\\patchy-test-host.invalid\\share\\layers.xcf")
+            << QStringLiteral("//patchy-test-host.invalid/share/pages.pdf")
+            << QStringLiteral("\\\\patchy-test-host.invalid\\share\\drawing.svg")
+            << QStringLiteral("\\\\patchy-test-host.invalid\\share\\photo.nef")
+            << QStringLiteral("\\\\patchy-test-host.invalid\\share\\painting.kra");
   RecentThumbnailCache cache;
-  QStringList all = network_paths;
-  all << missing << garbage << unsupported << huge << folder;
-  for (const auto& path : all) {
+  {
+    const int opens = patchy::ui::recent_thumbnail_file_opens_for_testing();
+    const int reads = patchy::ui::recent_thumbnail_document_reads_for_testing();
+    QStringList untouched = not_local;
+    untouched << missing << folder;
+    for (const auto& path : untouched) {
+      CHECK(settled_state(cache, path) == RecentThumbnailState::unavailable);
+      CHECK(cache.image(path) == nullptr);
+    }
+    CHECK(wait_until_idle(cache));
+    // No reader was reached, and nothing was written: the folder was not even created.
+    CHECK(patchy::ui::recent_thumbnail_file_opens_for_testing() == opens);
+    CHECK(patchy::ui::recent_thumbnail_document_reads_for_testing() == reads);
+    CHECK(!QFileInfo::exists(cache_dir) || QDir(cache_dir).entryList(QDir::Files).isEmpty());
+  }
+  // Files that are there and have no picture: each gets a "no picture" marker (so it is not
+  // read again at every start) and never a picture.
+  const QStringList no_picture{garbage, unsupported, huge};
+  for (const auto& path : no_picture) {
     CHECK(settled_state(cache, path) == RecentThumbnailState::unavailable);
     CHECK(cache.image(path) == nullptr);
   }
   CHECK(wait_until_idle(cache));
-  // No picture was made, so nothing was written: the folder was not even created.
-  CHECK(!QFileInfo::exists(cache_dir) || QDir(cache_dir).entryList(QDir::Files).isEmpty());
+  CHECK(QDir(cache_dir).entryList({QStringLiteral("*.png")}, QDir::Files).isEmpty());
+  CHECK(QDir(cache_dir).entryList({QStringLiteral("*.none")}, QDir::Files).size() == no_picture.size());
+  cache.retain_only({});
+  CHECK(wait_until_idle(cache));
   // The picture of an open document is refused for a network path too.
   QImage composite(64, 64, QImage::Format_RGBA8888);
   composite.fill(Qt::blue);
   cache.store(network_paths[0], composite);
   CHECK(process_events_until([&] { return cache.state(network_paths[0]) == RecentThumbnailState::unavailable; }, 8000));
   CHECK(wait_until_idle(cache));
-  CHECK(!QFileInfo::exists(cache_dir) || QDir(cache_dir).entryList(QDir::Files).isEmpty());
+  CHECK(QDir(cache_dir).entryList(QDir::Files).isEmpty());
   // An empty path (the no-match placeholder row) is never a request.
   cache.request(QString());
   CHECK(cache.state(QString()) == RecentThumbnailState::unknown);
@@ -920,13 +1127,19 @@ void ui_start_panel_recent_grid_stores_the_opened_documents_picture() {
   GridTestSettings settings;
   settings.set_grid(true);
   settings.set_recent({});
-  // An OpenRaster file: no cheap preview a worker could read, so its only picture is the one
-  // the window stores from the document it opened.
-  const auto source = patchy::ui::to_qstring(patchy::test::committed_format_fixture_path("ora", "python-layers.ora"));
-  CHECK(QFileInfo::exists(source));
-  const auto path = scratch_file(QStringLiteral("stored-picture.ora"));
-  QFile::remove(path);
-  CHECK(QFile::copy(source, path));
+  // An OpenRaster file whose own merged image (green) is not what its layer holds (red). The
+  // worker's picture is the file's merged image; once Patchy has opened the file, the picture
+  // is the document as Patchy opened it.
+  const QColor file_preview(40, 190, 70);
+  const QColor layer_color(210, 50, 50);
+  const auto path = write_container(
+      scratch_file(QStringLiteral("stored-picture.ora")), "image/openraster",
+      {{"stack.xml",
+        to_vector(QByteArray("<?xml version='1.0' encoding='UTF-8'?><image version=\"0.0.3\" w=\"240\" h=\"120\">"
+                             "<stack><layer name=\"Layer\" src=\"data/layer.png\" x=\"0\" y=\"0\"/></stack></image>")),
+        true},
+       {"data/layer.png", to_vector(png_bytes(layer_color, QSize(240, 120))), true},
+       {"mergedimage.png", to_vector(png_bytes(file_preview, QSize(240, 120))), true}});
   QFile::remove(patchy::ui::recent_thumbnail_cache_file(path));
 
   MainWindow window;
@@ -934,19 +1147,21 @@ void ui_start_panel_recent_grid_stores_the_opened_documents_picture() {
   window.resize(1280, 860);
   QApplication::processEvents();
   auto parts = panel_parts(window);
+  const auto cache_file = patchy::ui::recent_thumbnail_cache_file(path);
   {
-    // Before Patchy has opened it, the file has no picture.
+    // Before Patchy has opened it, the picture is the one the file carries.
     RecentThumbnailCache probe;
-    CHECK(settled_state(probe, path) == RecentThumbnailState::unavailable);
+    CHECK(settled_state(probe, path) == RecentThumbnailState::ready);
+    CHECK(near_color(center_color(*probe.image(path)), file_preview));
+    CHECK(wait_until_idle(probe));
   }
 
   MainWindowTestAccess::open_document_path(window, path);
   CHECK(parts.tabs->count() == 1);
   // The first render lands a moment after the open; the window stores the picture then.
-  const auto cache_file = patchy::ui::recent_thumbnail_cache_file(path);
-  CHECK(process_events_until([&] { return QFileInfo::exists(cache_file); }, 10000));
   QImage stored;
-  CHECK(process_events_until([&] { return stored.load(cache_file, "PNG"); }, 4000));
+  CHECK(process_events_until(
+      [&] { return stored.load(cache_file, "PNG") && near_color(center_color(stored), layer_color); }, 10000));
   CHECK(stored.width() <= patchy::ui::kRecentThumbnailStoredSide);
   CHECK(stored.height() <= patchy::ui::kRecentThumbnailStoredSide);
   CHECK(std::max(stored.width(), stored.height()) > 16);
@@ -1357,8 +1572,458 @@ void ui_recent_thumbnails_folder_stays_inside_an_isolated_settings_folder() {
 
 }  // namespace
 
+// --- A picture for every kind Patchy opens (GitHub issue 750 follow-up 4) -----------------------
+
+const char* const kSvgText =
+    "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"20\" viewBox=\"0 0 40 20\">"
+    "<rect width=\"40\" height=\"20\" fill=\"#2060d0\"/></svg>";
+
+void ui_recent_thumbnails_picture_every_kind_patchy_opens() {
+  using namespace patchy::test::ui;
+  const auto cache_dir = fresh_cache_dir(QStringLiteral("kinds-cache"));
+  EnvironmentGuard cache_guard("PATCHY_RECENT_THUMBNAILS_DIR", cache_dir);
+  const auto root = scratch_file(QStringLiteral("kinds"));
+  CHECK(QDir().mkpath(root));
+  const auto in_root = [&](const char* name) { return root + QLatin1Char('/') + QString::fromLatin1(name); };
+
+  RecentThumbnailCache cache;
+  const int reads_before = patchy::ui::recent_thumbnail_document_reads_for_testing();
+
+  // Kinds Patchy's own reader opens and composites: the picture has the reader's canvas.
+  struct ReaderKind {
+    const char* format_dir;
+    const char* fixture;
+    const char* extension;
+  };
+  const std::vector<ReaderKind> reader_kinds{
+      {"xcf", "plain-rgba.xcf", "xcf"},   {"xcf", "groups.xcf", "xcf"},
+      {"xcf", "compressed.xcf", "xcf"},   {"xcf", "gegl-effects.xcf", "xcf"},
+      {"af", "tiny-rgba8.af", "af"},      {"aseprite", "aseprite-layered.aseprite", "aseprite"},
+      {"avif", "frames.avif", "avif"},    {"dds", "pillow-dxt5-16x16.dds", "dds"},
+      {"jxl", "conformance-patches-lossless.jxl", "jxl"},
+      {"rttex", "rgba-64x32.rttex", "rttex"},
+  };
+  int slow_kinds = 0;
+  for (const auto& kind : reader_kinds) {
+    const auto path = copy_fixture(kind.format_dir, kind.fixture, in_root(kind.fixture));
+    stored_picture(cache, path, reader_canvas(path, kind.extension));
+    ++slow_kinds;
+  }
+  CHECK(patchy::ui::recent_thumbnail_document_reads_for_testing() == reads_before + slow_kinds);
+
+  // Kinds whose decoder the platform supplies: a picture wherever Patchy itself can open the file.
+  for (const auto& kind :
+       std::vector<ReaderKind>{{"heif", "quadrants.heic", "heic"}, {"jxr", "hdr-ramp.jxr", "jxr"}}) {
+    const auto path = copy_fixture(kind.format_dir, kind.fixture, in_root(kind.fixture));
+    QSize canvas;
+    try {
+      canvas = reader_canvas(path, kind.extension);
+    } catch (const std::exception&) {
+      // No decoder on this machine: Patchy cannot open the file either.
+    }
+    if (!canvas.isEmpty()) {
+      stored_picture(cache, path, canvas);
+    } else if (settled_state(cache, path) == RecentThumbnailState::ready) {
+      CHECK(has_visible_pixel(*cache.image(path)));  // Qt's own plug-in read it
+    } else if (std::string_view(kind.extension) == "heic") {
+      // A missing HEIF codec can be installed later: no marker, so the next start looks again.
+      CHECK(wait_until_idle(cache));
+      CHECK(!QFileInfo::exists(marker_file(path)));
+    }
+  }
+
+  // Flat kinds written here with Patchy's own writers: 32-bit float (EXR, Radiance HDR) and
+  // JPEG 2000. A float picture is display-encoded, so the color comes back.
+  QImage flat(96, 48, QImage::Format_RGBA8888);
+  flat.fill(QColor(200, 90, 40));
+  const auto flat_document = patchy::ui::document_from_qimage(flat, "Background");
+  for (const char* extension : {"exr", "hdr", "jp2", "tga", "pcx", "bmp"}) {
+    const auto* handler = patchy::builtin_format_registry().find_by_extension(extension);
+    CHECK(handler != nullptr && handler->can_write());
+    const auto path = write_bytes(in_root("written.") + QString::fromLatin1(extension), handler->write(flat_document));
+    const auto stored = stored_picture(cache, path, QSize(96, 48));
+    if (!near_color(center_color(stored), QColor(200, 90, 40), 16)) {
+      std::cerr << extension << " picture center is " << center_color(stored).name().toStdString() << std::endl;
+      CHECK(false);
+    }
+  }
+
+  // A PSD saved without a thumbnail resource: the composite the file ends with.
+  {
+    const auto path = write_bytes(in_root("no-thumbnail.psd"), patchy::psd::DocumentIo::write_layered_rgb8(flat_document));
+    const auto stored = stored_picture(cache, path, QSize(96, 48));
+    CHECK(near_color(center_color(stored), QColor(200, 90, 40), 16));
+  }
+
+  // SVG, plain and compressed: drawn at the stored size, however small the file says it is.
+  for (const auto& path : {write_bytes(in_root("icon.svg"), QByteArray(kSvgText)),
+                           write_bytes(in_root("icon.svgz"), gzip_bytes(QByteArray(kSvgText)))}) {
+    const auto stored = stored_picture(cache, path, QSize(40, 20));
+    CHECK(stored.width() == patchy::ui::kRecentThumbnailStoredSide);
+    CHECK(near_color(center_color(stored), QColor(0x20, 0x60, 0xd0)));
+  }
+  stored_picture(cache, copy_fixture("svg", "hot_air_balloons_cc0.svg", in_root("balloons.svg")), QSize());
+
+#ifdef PATCHY_HAVE_QT_PDF
+  // PDF: page 1, by position, whatever the other pages hold.
+  {
+    const auto path = write_pdf(in_root("three-pages.pdf"), {QColor(210, 40, 40), QColor(40, 40, 210), QColor(40, 180, 40)});
+    const auto stored = stored_picture(cache, path, QSize(400, 200));
+    CHECK(near_color(center_color(stored), QColor(210, 40, 40), 16));
+    CHECK(stored.width() == patchy::ui::kRecentThumbnailStoredSide);
+  }
+#endif
+  CHECK(QApplication::activeModalWidget() == nullptr);
+}
+
+void ui_recent_thumbnails_use_the_preview_a_file_carries() {
+  using namespace patchy::test::ui;
+  const auto cache_dir = fresh_cache_dir(QStringLiteral("embedded-cache"));
+  EnvironmentGuard cache_guard("PATCHY_RECENT_THUMBNAILS_DIR", cache_dir);
+  const auto root = scratch_file(QStringLiteral("embedded"));
+  CHECK(QDir().mkpath(root));
+  const auto in_root = [&](const char* name) { return root + QLatin1Char('/') + QString::fromLatin1(name); };
+  const QColor merged(40, 190, 70);
+  const QColor small(200, 60, 160);
+
+  RecentThumbnailCache cache;
+  const int reads_before = patchy::ui::recent_thumbnail_document_reads_for_testing();
+
+  // OpenRaster and Krita: the application's own render of the whole image, straight from the
+  // zip. These files hold nothing else, so no reader could have opened them.
+  const auto ora = write_container(in_root("merged.ora"), "image/openraster",
+                                   {{"mergedimage.png", to_vector(png_bytes(merged, QSize(300, 100))), true},
+                                    {"Thumbnails/thumbnail.png", to_vector(png_bytes(small, QSize(120, 40))), true}});
+  CHECK(near_color(center_color(stored_picture(cache, ora, QSize(300, 100))), merged));
+  const auto kra = write_container(in_root("merged.kra"), "application/x-krita",
+                                   {{"preview.png", to_vector(png_bytes(small, QSize(120, 40))), true},
+                                    {"mergedimage.png", to_vector(png_bytes(merged, QSize(300, 100))), true}});
+  CHECK(near_color(center_color(stored_picture(cache, kra, QSize(300, 100))), merged));
+  // Without the merged image, the small preview each format has.
+  const auto ora_small = write_container(in_root("small.ora"), "image/openraster",
+                                         {{"Thumbnails/thumbnail.png", to_vector(png_bytes(small, QSize(120, 40))), true}});
+  CHECK(near_color(center_color(stored_picture(cache, ora_small, QSize(120, 40))), small));
+  const auto kra_small = write_container(in_root("small.kra"), "application/x-krita",
+                                         {{"preview.png", to_vector(png_bytes(small, QSize(120, 40))), true}});
+  CHECK(near_color(center_color(stored_picture(cache, kra_small, QSize(120, 40))), small));
+
+  // Paint.NET: the thumbnail in the file's header.
+  const auto pdn = copy_fixture("pdn", "blend-modes.pdn", in_root("blend-modes.pdn"));
+  stored_picture(cache, pdn, reader_canvas(pdn, "pdn"));
+
+  // A committed OpenRaster file with real layers has its merged image too.
+  const auto layers = copy_fixture("ora", "python-layers.ora", in_root("python-layers.ora"));
+  stored_picture(cache, layers, reader_canvas(layers, "ora"));
+
+  CHECK(patchy::ui::recent_thumbnail_document_reads_for_testing() == reads_before);
+}
+
+void ui_recent_thumbnails_camera_raw_and_refused_tiff_use_local_fixtures() {
+  using namespace patchy::test::ui;
+  const auto raw_fixture = patchy::test::local_format_fixture_path("raw", "nikon_d80.nef");
+  const auto tiff_fixture = patchy::test::local_format_fixture_path("tiff-flat", "shapes_lzw_14bps.tif");
+  patchy::test::skip_unless_exists(raw_fixture);
+  patchy::test::skip_unless_exists(tiff_fixture);
+  const auto cache_dir = fresh_cache_dir(QStringLiteral("local-fixture-cache"));
+  EnvironmentGuard cache_guard("PATCHY_RECENT_THUMBNAILS_DIR", cache_dir);
+  const auto root = scratch_file(QStringLiteral("local-fixture-kinds"));
+  CHECK(QDir().mkpath(root));
+
+  RecentThumbnailCache cache;
+  // A camera raw: the JPEG the camera embedded, with no develop.
+  const int reads_before = patchy::ui::recent_thumbnail_document_reads_for_testing();
+  const auto raw = root + QStringLiteral("/nikon_d80.nef");
+  QFile::remove(raw);
+  CHECK(QFile::copy(patchy::ui::to_qstring(raw_fixture), raw));
+  const auto stored = stored_picture(cache, raw, QSize());
+  // The D80's sensor is 3:2, whichever way the camera was held.
+  CHECK(same_shape(stored.size(), QSize(3, 2)) || same_shape(stored.size(), QSize(2, 3)));
+  CHECK(patchy::ui::recent_thumbnail_document_reads_for_testing() == reads_before);
+
+  // A TIFF layout Qt's plug-in refuses: Patchy's flat decoder, as the open path does.
+  const auto tiff = root + QStringLiteral("/shapes_lzw_14bps.tif");
+  QFile::remove(tiff);
+  CHECK(QFile::copy(patchy::ui::to_qstring(tiff_fixture), tiff));
+  const auto document = patchy::psd::read_flat_tiff(to_vector(read_bytes(tiff)));
+  stored_picture(cache, tiff, QSize(document.width(), document.height()));
+}
+
+void ui_recent_thumbnails_damaged_files_get_a_marker_and_no_retry() {
+  using namespace patchy::test::ui;
+  const auto cache_dir = fresh_cache_dir(QStringLiteral("marker-cache"));
+  EnvironmentGuard cache_guard("PATCHY_RECENT_THUMBNAILS_DIR", cache_dir);
+  const auto root = scratch_file(QStringLiteral("damaged"));
+  CHECK(QDir().mkpath(root));
+  const auto in_root = [&](const char* name) { return root + QLatin1Char('/') + QString::fromLatin1(name); };
+  const auto fixture_bytes = [](std::string_view format_dir, std::string_view fixture) {
+    return read_bytes(patchy::ui::to_qstring(patchy::test::committed_format_fixture_path(format_dir, fixture)));
+  };
+  const auto cut_in_half = [](const QByteArray& bytes) { return bytes.left(bytes.size() / 2); };
+
+  QStringList damaged;
+  // One damaged file per kind a reader or renderer opens: cut off inside its header (a reader
+  // that opens what is left of a longer file gives that file its picture, as Patchy would open
+  // it), or garbage after the signature.
+  damaged << write_bytes(in_root("cut.xcf"), fixture_bytes("xcf", "groups.xcf").left(30));
+  damaged << write_bytes(in_root("garbage.xcf"), QByteArray("gimp xcf v011\0", 14) + QByteArray(4000, '\x7f'));
+  damaged << write_bytes(in_root("cut.ora"), cut_in_half(fixture_bytes("ora", "python-layers.ora")));
+  damaged << write_bytes(in_root("cut.pdn"), fixture_bytes("pdn", "blend-modes.pdn").left(64));
+  damaged << write_bytes(in_root("cut.af"), fixture_bytes("af", "tiny-rgba8.af").left(48));
+  damaged << write_bytes(in_root("cut.avif"), fixture_bytes("avif", "frames.avif").left(48));
+  damaged << write_bytes(in_root("cut.jxl"), fixture_bytes("jxl", "conformance-patches-lossless.jxl").left(24));
+  damaged << write_bytes(in_root("cut.dds"), fixture_bytes("dds", "pillow-dxt5-16x16.dds").left(60));
+  damaged << write_bytes(in_root("garbage.kra"), QByteArray(3000, 'k'));
+  damaged << write_bytes(in_root("garbage.exr"), QByteArray(3000, 'e'));
+  damaged << write_bytes(in_root("garbage.nef"), QByteArray(3000, 'n'));
+  damaged << write_bytes(in_root("garbage.psd"), QByteArray("8BPS") + QByteArray(3000, 'p'));
+  damaged << write_bytes(in_root("garbage.tif"), QByteArray("II*\0", 4) + QByteArray(3000, 't'));
+  damaged << write_bytes(in_root("garbage.svg"), QByteArray("not an SVG at all"));
+  damaged << write_bytes(in_root("cut.svgz"), gzip_bytes(QByteArray(kSvgText)).left(40));
+  damaged << write_bytes(in_root("garbage.pdf"), QByteArray("%PDF-1.4\n") + QByteArray(3000, 'x'));
+  // A PDF that opens only with a password: no picture and no question.
+  damaged << write_bytes(in_root("password.pdf"), encrypted_aesv2_pdf_bytes());
+  // An SVG that places an outside image file (here on a server, which nothing may reach unasked),
+  // and one whose entity definitions could hide such a reference.
+  damaged << write_bytes(in_root("outside-image.svg"),
+                         QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" "
+                                    "width=\"40\" height=\"20\"><rect width=\"40\" height=\"20\" fill=\"red\"/>"
+                                    "<image width=\"10\" height=\"10\" "
+                                    "xlink:href=\"//patchy-test-host.invalid/share/picture.png\"/></svg>"));
+  damaged << write_bytes(in_root("entities.svg"),
+                         QByteArray("<!DOCTYPE svg [<!ENTITY e \"x\">]><svg xmlns=\"http://www.w3.org/2000/svg\" "
+                                    "width=\"40\" height=\"20\"><rect width=\"40\" height=\"20\" fill=\"red\"/></svg>"));
+
+  {
+    RecentThumbnailCache cache;
+    for (const auto& path : damaged) {
+      if (settled_state(cache, path) != RecentThumbnailState::unavailable) {
+        std::cerr << "a picture was made for " << path.toStdString() << std::endl;
+        CHECK(false);
+      }
+      CHECK(cache.image(path) == nullptr);
+    }
+    CHECK(wait_until_idle(cache));
+    CHECK(QApplication::activeModalWidget() == nullptr);
+  }
+  // Each has its marker and no picture; nothing else is in the folder.
+  for (const auto& path : damaged) {
+    if (!QFileInfo::exists(marker_file(path))) {
+      std::cerr << "no marker for " << path.toStdString() << std::endl;
+      CHECK(false);
+    }
+    CHECK(!QFileInfo::exists(patchy::ui::recent_thumbnail_cache_file(path)));
+  }
+  CHECK(QDir(cache_dir).entryList(QDir::Files).size() == damaged.size());
+
+  // The next start: the markers answer, and no file is opened or read again.
+  {
+    const int opens = patchy::ui::recent_thumbnail_file_opens_for_testing();
+    const int reads = patchy::ui::recent_thumbnail_document_reads_for_testing();
+    RecentThumbnailCache cache;
+    for (const auto& path : damaged) {
+      CHECK(settled_state(cache, path) == RecentThumbnailState::unavailable);
+    }
+    CHECK(wait_until_idle(cache));
+    CHECK(patchy::ui::recent_thumbnail_file_opens_for_testing() == opens);
+    CHECK(patchy::ui::recent_thumbnail_document_reads_for_testing() == reads);
+
+    // A file that changed is looked at again: this one is whole now and gets its picture,
+    // and its marker goes.
+    const auto repaired = damaged[0];
+    write_bytes(repaired, fixture_bytes("xcf", "groups.xcf"));
+    RecentThumbnailCache next;
+    stored_picture(next, repaired, reader_canvas(repaired, "xcf"));
+    CHECK(patchy::ui::recent_thumbnail_document_reads_for_testing() == reads + 1);
+
+    // Removing an entry deletes its marker; the sweep deletes the markers no entry owns;
+    // choosing the list (clear) deletes the rest. Never anything that is not the cache's.
+    const auto foreign = cache_dir + QStringLiteral("/notes.none");
+    write_bytes(foreign, QByteArray("mine"));
+    next.forget({damaged[1]});
+    CHECK(wait_until_idle(next));
+    CHECK(!QFileInfo::exists(marker_file(damaged[1])));
+    CHECK(QFileInfo::exists(marker_file(damaged[2])));
+    next.retain_only({damaged[2], damaged[3], repaired});
+    CHECK(wait_until_idle(next));
+    CHECK(QFileInfo::exists(marker_file(damaged[2])) && QFileInfo::exists(marker_file(damaged[3])));
+    CHECK(!QFileInfo::exists(marker_file(damaged[4])));
+    CHECK(QFileInfo::exists(patchy::ui::recent_thumbnail_cache_file(repaired)));
+    next.clear();
+    CHECK(wait_until_idle(next));
+    CHECK(QDir(cache_dir).entryList(QDir::Files) == QStringList{QStringLiteral("notes.none")});
+    for (const auto& path : damaged) {
+      CHECK(QFileInfo::exists(path));  // the user's files are never touched
+    }
+  }
+}
+
+void ui_recent_thumbnails_caps_refuse_a_file_before_it_is_decoded() {
+  using namespace patchy::test::ui;
+  const auto cache_dir = fresh_cache_dir(QStringLiteral("caps-cache"));
+  EnvironmentGuard cache_guard("PATCHY_RECENT_THUMBNAILS_DIR", cache_dir);
+  const auto root = scratch_file(QStringLiteral("caps"));
+  CHECK(QDir().mkpath(root));
+  const auto in_root = [&](const char* name) { return root + QLatin1Char('/') + QString::fromLatin1(name); };
+  const auto grown = [&](const char* name, qint64 bytes) {
+    const auto path = in_root(name);
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    CHECK(file.resize(bytes));
+    return path;
+  };
+
+  // The XCF reader's limits, as the worker sets them: refused from the header and the layer
+  // sizes, before a tile is decoded; untouched reads are as before.
+  const auto xcf_bytes = to_vector(read_bytes(
+      patchy::ui::to_qstring(patchy::test::committed_format_fixture_path("xcf", "groups.xcf"))));
+  const auto xcf_canvas = patchy::xcf::DocumentIo::read(xcf_bytes);
+  const auto canvas_pixels = static_cast<std::uint64_t>(xcf_canvas.width()) * static_cast<std::uint64_t>(xcf_canvas.height());
+  const auto refused = [&](patchy::xcf::ReadLimits limits) {
+    const patchy::xcf::ScopedReadLimits scope(limits);
+    try {
+      (void)patchy::xcf::DocumentIo::read(xcf_bytes);
+    } catch (const std::exception&) {
+      return true;
+    }
+    return false;
+  };
+  CHECK(refused({canvas_pixels - 1, 0, true}));
+  CHECK(!refused({canvas_pixels, 0, true}));
+  CHECK(refused({0, 16, true}));
+  CHECK(!refused({0, canvas_pixels * 4 * 64, false}));
+  CHECK(!refused({}));
+  (void)patchy::xcf::DocumentIo::read(xcf_bytes);  // the limits ended with their scope
+
+  // Files past the byte caps are never opened: only their size is looked at.
+  QStringList over;
+  over << grown("large.xcf", patchy::ui::kRecentThumbnailMaxDocumentBytes + 1);
+  over << grown("large.jxl", patchy::ui::kRecentThumbnailMaxDocumentBytes + 1);
+  over << grown("large.svg", patchy::ui::kRecentThumbnailMaxSvgBytes + 1);
+  {
+    const int opens = patchy::ui::recent_thumbnail_file_opens_for_testing();
+    const int reads = patchy::ui::recent_thumbnail_document_reads_for_testing();
+    RecentThumbnailCache cache;
+    for (const auto& path : over) {
+      CHECK(settled_state(cache, path) == RecentThumbnailState::unavailable);
+    }
+    CHECK(wait_until_idle(cache));
+    CHECK(patchy::ui::recent_thumbnail_file_opens_for_testing() == opens);
+    CHECK(patchy::ui::recent_thumbnail_document_reads_for_testing() == reads);
+  }
+  for (const auto& path : over) {
+    CHECK(QFileInfo::exists(marker_file(path)));
+    CHECK(QFile::remove(path));
+  }
+
+  // A canvas past the pixel cap, told from the header: an XCF and a PSD of 9000 x 9000 whose
+  // pixel data is not even there.
+  QByteArray xcf_header("gimp xcf v011\0", 14);
+  put_u32(xcf_header, 9000);
+  put_u32(xcf_header, 9000);
+  put_u32(xcf_header, 0);    // RGB
+  put_u32(xcf_header, 150);  // 8-bit perceptual
+  xcf_header.append(QByteArray(64, '\0'));  // no properties, no layers, no channels
+  QByteArray psd_header("8BPS");
+  put_u16(psd_header, 1);
+  psd_header.append(QByteArray(6, '\0'));
+  put_u16(psd_header, 3);
+  put_u32(psd_header, 9000);
+  put_u32(psd_header, 9000);
+  put_u16(psd_header, 8);
+  put_u16(psd_header, 3);
+  psd_header.append(QByteArray(64, '\0'));  // empty color mode, resource and layer sections
+  RecentThumbnailCache cache;
+  for (const auto& path : {write_bytes(in_root("wide.xcf"), xcf_header), write_bytes(in_root("wide.psd"), psd_header)}) {
+    CHECK(settled_state(cache, path) == RecentThumbnailState::unavailable);
+    CHECK(wait_until_idle(cache));
+    CHECK(QFileInfo::exists(marker_file(path)));
+  }
+}
+
+void ui_recent_thumbnails_quick_pictures_come_before_slow_ones() {
+  using namespace patchy::test::ui;
+  const auto cache_dir = fresh_cache_dir(QStringLiteral("order-cache"));
+  EnvironmentGuard cache_guard("PATCHY_RECENT_THUMBNAILS_DIR", cache_dir);
+  const auto root = scratch_file(QStringLiteral("order"));
+  CHECK(QDir().mkpath(root));
+  const auto in_root = [&](const char* name) { return root + QLatin1Char('/') + QString::fromLatin1(name); };
+
+  const auto slow_a = copy_fixture("xcf", "groups.xcf", in_root("a.xcf"));
+  const auto slow_b = copy_fixture("xcf", "modes.xcf", in_root("b.xcf"));
+  const auto quick_a = write_png(in_root("a.png"), QColor(10, 200, 10));
+  const auto quick_b = write_png(in_root("b.png"), QColor(10, 10, 200));
+  const auto removed = copy_fixture("xcf", "plain-rgba.xcf", in_root("removed.xcf"));
+
+  RecentThumbnailCache cache;
+  QStringList answered;
+  QObject::connect(&cache, &RecentThumbnailCache::thumbnail_changed, &cache,
+                   [&answered](const QString& path) { answered << QFileInfo(path).fileName(); });
+  // Asked for in the order a grid paints them: the two layered files first. The loads of a
+  // first paint go to the worker together, so the worker's own order is what answers.
+  cache.request(slow_a);
+  cache.request(removed);
+  cache.request(slow_b);
+  cache.request(quick_a);
+  cache.request(quick_b);
+  // An entry removed while its file waits for the slow pass: its picture is never made.
+  cache.forget({removed});
+  CHECK(wait_until_idle(cache));
+  CHECK(process_events_until([&] { return answered.size() >= 4; }, 8000));
+  CHECK(answered == QStringList({QStringLiteral("a.png"), QStringLiteral("b.png"), QStringLiteral("a.xcf"),
+                                 QStringLiteral("b.xcf")}));
+  for (const auto& path : {slow_a, slow_b, quick_a, quick_b}) {
+    CHECK(cache.state(path) == RecentThumbnailState::ready);
+  }
+  CHECK(cache.loads_in_flight() == 0);
+  CHECK(!QFileInfo::exists(patchy::ui::recent_thumbnail_cache_file(removed)));
+  CHECK(!QFileInfo::exists(marker_file(removed)));
+}
+
+void ui_recent_thumbnails_new_kinds_read_unicode_paths() {
+  using namespace patchy::test::ui;
+  const auto root =
+      QFileInfo(patchy::ui::to_qstring(patchy::test::unicode_artifact_dir(u8"recent-thumbnail-kinds"))).absoluteFilePath();
+  const auto cache_dir = root + QStringLiteral("/") + q(patchy::test::kUnicodeDirName) + QStringLiteral(" cache");
+  EnvironmentGuard cache_guard("PATCHY_RECENT_THUMBNAILS_DIR", cache_dir);
+  const auto named = [&](const char* extension) {
+    return root + QLatin1Char('/') + q(patchy::test::kUnicodeCombinedStem) + QLatin1Char('.') +
+           QString::fromLatin1(extension);
+  };
+
+  RecentThumbnailCache cache;
+  // Every way a file is opened for its picture: a reader's whole-file read (XCF), the PSD
+  // front read, the zip preview (OpenRaster, Krita), the header read (Paint.NET), the SVG
+  // read, and Qt PDF's own load.
+  const auto xcf = copy_fixture("xcf", "groups.xcf", named("xcf"));
+  stored_picture(cache, xcf, reader_canvas(xcf, "xcf"));
+  CHECK(near_color(center_color(stored_picture(cache, write_psd_with_thumbnail(named("psd"), QColor(20, 150, 170)), QSize())),
+                   QColor(20, 150, 170), 20));
+  const auto ora = copy_fixture("ora", "python-layers.ora", named("ora"));
+  stored_picture(cache, ora, reader_canvas(ora, "ora"));
+  const auto kra = write_container(named("kra"), "application/x-krita",
+                                   {{"mergedimage.png", to_vector(png_bytes(QColor(40, 190, 70), QSize(300, 100))), true}});
+  stored_picture(cache, kra, QSize(300, 100));
+  const auto pdn = copy_fixture("pdn", "blend-modes.pdn", named("pdn"));
+  stored_picture(cache, pdn, reader_canvas(pdn, "pdn"));
+  stored_picture(cache, write_bytes(named("svg"), QByteArray(kSvgText)), QSize(40, 20));
+#ifdef PATCHY_HAVE_QT_PDF
+  stored_picture(cache, write_pdf(named("pdf"), {QColor(210, 40, 40), QColor(40, 40, 210)}), QSize(400, 200));
+#endif
+}
+
 std::vector<patchy::test::TestCase> start_panel_grid_tests() {
   return {
+      {"ui_recent_thumbnails_picture_every_kind_patchy_opens", ui_recent_thumbnails_picture_every_kind_patchy_opens},
+      {"ui_recent_thumbnails_use_the_preview_a_file_carries", ui_recent_thumbnails_use_the_preview_a_file_carries},
+      {"ui_recent_thumbnails_camera_raw_and_refused_tiff_use_local_fixtures",
+       ui_recent_thumbnails_camera_raw_and_refused_tiff_use_local_fixtures},
+      {"ui_recent_thumbnails_damaged_files_get_a_marker_and_no_retry",
+       ui_recent_thumbnails_damaged_files_get_a_marker_and_no_retry},
+      {"ui_recent_thumbnails_caps_refuse_a_file_before_it_is_decoded",
+       ui_recent_thumbnails_caps_refuse_a_file_before_it_is_decoded},
+      {"ui_recent_thumbnails_quick_pictures_come_before_slow_ones",
+       ui_recent_thumbnails_quick_pictures_come_before_slow_ones},
+      {"ui_recent_thumbnails_new_kinds_read_unicode_paths", ui_recent_thumbnails_new_kinds_read_unicode_paths},
       {"ui_start_panel_recent_files_open_in_grid_by_default", ui_start_panel_recent_files_open_in_grid_by_default},
       {"ui_start_panel_grid_does_no_thumbnail_work_before_its_first_paint",
        ui_start_panel_grid_does_no_thumbnail_work_before_its_first_paint},

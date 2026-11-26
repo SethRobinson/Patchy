@@ -64,6 +64,14 @@ bake's padded RGBA copy, the canvas-sized clip-to-backdrop alpha plane) past 2^3
 nesting past 64 and hostile counts read as damage. Truncated and mutated files are swept by
 `xcf_hostile_input_never_crashes`.
 
+A caller that only wants a small picture of the file (the Home Screen's thumbnail worker,
+[ui-conventions-menus.md](ui-conventions-menus.md#recent-file-thumbnails)) sets tighter limits
+for its own thread with `xcf::ScopedReadLimits`: a canvas pixel cap and a cap on the layers'
+decoded bytes (each layer's width and height from its header, as RGBA at the file's
+precision), both checked after the layer pointer list is read and before any tile is decoded,
+and `run_layer_effects = false`, which keeps the effect runner from being called. Reads on
+other threads, and reads after the scope ends, are untouched.
+
 ## Precision and color
 
 | GIMP precision | Patchy document |

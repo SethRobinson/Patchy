@@ -24,6 +24,15 @@ Claims read from the USPTO service on 2026-11-26. End dates are the filing date 
 - Read by title and found unrelated to the design: Oracle US 9710443 (recent lists shared between two installations of an editor), Microsoft US 9501490 and US 9455939 (most recently used lists synchronized across devices, and for attaching files), Samsung US 10078421 and US 10915225 (a rotating touch menu), the Apple placeshifting and multiple-display families.
 - No claim was found on: an application's own recent files shown as a grid of thumbnails, a control that switches that list between rows and cells, a per-user cache of one picture per recent file, or deleting a picture with its recent entry.
 
+## Pictures for every kind (follow-up, 2026-11-26)
+
+The worker now makes a picture for every kind of file Patchy opens: the preview a file embeds (OpenRaster, Krita, Paint.NET, camera raw), the file through Patchy's own reader, an SVG drawn whole, and page 1 of a PDF. Checked against the findings above, with no new search:
+
+- **Page 1 of a PDF, and the first frame of an animation.** US 8046717's independent claims need the pages analyzed for rich content, a score per page and the highest-scoring page designated. Taking page 1 because it is first analyzes nothing and scores nothing; the page a viewer opens on is the oldest convention there is for a document's picture. The same holds for the first frame of an animated GIF, AVIF or JPEG XL (what Patchy shows when it opens the file). The limit is now written out: by position alone.
+- **One picture, one size, one file** is unchanged (US 9672225): the "no picture" marker beside the cache files is a few lines of text, not a second set of thumbnail data, and nothing is stored in regions of one file.
+- **Nothing is composed or chosen from content** (US 10878024, US 9679050): every source is the whole image, the whole document, or the whole first page.
+- **Files Patchy has not opened** stay out: the worker only looks at entries of Patchy's own recent list.
+
 ## Limits recorded
 
 Kept in [legal-constraints-interface.md](legal-constraints-interface.md#home-screen-recent-files): no time groups and no command that opens several recent entries together, and no files gathered from other applications (US 10572103); one picture of one size per file, each in a file of its own (US 9672225); a picture is the whole document or the whole image, never chosen, cropped or composed by analyzing content or by the filter text (US 8046717, US 10878024, US 9679050).
