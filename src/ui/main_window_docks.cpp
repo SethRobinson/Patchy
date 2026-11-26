@@ -1393,6 +1393,11 @@ bool MainWindow::panel_layout_persists() {
   // Offscreen runs (the UI tests, --headless scripts, the MCP connector's own window)
   // neither read nor write the user's layout: a test that closes a panel must not leave
   // it closed for the next one, and a headless run must not change the desktop layout.
+  // PATCHY_PANEL_LAYOUT=1 makes such a run use the record all the same: the startup
+  // benchmark of a given layout, in an isolated settings folder (docs/startup-performance.md).
+  if (qEnvironmentVariableIntValue("PATCHY_PANEL_LAYOUT") == 1) {
+    return true;
+  }
   return QGuiApplication::platformName().compare(QStringLiteral("offscreen"), Qt::CaseInsensitive) != 0;
 }
 

@@ -422,6 +422,9 @@ Verdict print_set(const std::string& title, const std::vector<std::string>& orde
 
 }  // namespace
 
+// The assets scenario (tests/perf_assets.cpp) times cold reads of a library with the same purge.
+bool purge_file_cache_for_cold_start(std::string& why) { return purge_file_cache(why); }
+
 int run_startup_scenario() {
   LaunchConfig config;
   config.exe = qEnvironmentVariable("PATCHY_PERF_STARTUP_EXE", default_patchy_exe());

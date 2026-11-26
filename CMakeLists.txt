@@ -2982,6 +2982,7 @@ if(PATCHY_BUILD_TESTS)
     add_executable(patchy_perf_tests
       tests/perf_tests.cpp
       tests/perf_startup.cpp
+      tests/perf_assets.cpp
       tests/test_harness.cpp
     )
     target_link_libraries(patchy_perf_tests PRIVATE patchy_ui)

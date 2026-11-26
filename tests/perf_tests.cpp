@@ -114,6 +114,7 @@
 
 namespace patchy::perf {
 int run_startup_scenario();  // tests/perf_startup.cpp
+int run_assets_scenario();   // tests/perf_assets.cpp
 }
 
 namespace patchy::ui {
@@ -173,9 +174,51 @@ class MainWindowTestAccess {
   static void new_document(MainWindow& window, int width, int height, double ppi) {
     window.reset_document(width, height, Qt::white, QStringLiteral("New document"), ppi);
   }
+  // The assets scenario (tests/perf_assets.cpp).
+  static std::int64_t active_session_id(MainWindow& window) { return window.session().session_id; }
+  static void select_layers(MainWindow& window, const std::vector<patchy::LayerId>& ids) {
+    window.select_layers_in_layer_list(ids, ids.front());
+  }
+  static bool duplicate_layers_to_session(MainWindow& window, std::int64_t source, std::vector<patchy::LayerId> ids,
+                                          std::int64_t target) {
+    MainWindow::CrossDocumentLayerPlacement placement;
+    placement.keep_source_position = true;
+    return window.duplicate_layers_to_session(source, std::move(ids), target, placement);
+  }
+  static bool add_files_as_layers(MainWindow& window, const QStringList& paths) {
+    return window.add_files_as_layers_interactive(paths, std::nullopt, QStringLiteral("Files as Layers"));
+  }
+  static void activate_session(MainWindow& window, std::int64_t session) {
+    if (auto* target = window.session_with_id(session); target != nullptr) {
+      window.activate_document_session(*target);
+    }
+  }
 };
 
 }  // namespace patchy::ui
+
+namespace patchy::perf {
+
+// What tests/perf_assets.cpp needs of the private MainWindow, through this file's access class.
+Document& assets_active_document(ui::MainWindow& window) { return ui::MainWindowTestAccess::document(window); }
+std::int64_t assets_active_session_id(ui::MainWindow& window) {
+  return ui::MainWindowTestAccess::active_session_id(window);
+}
+void assets_select_layers(ui::MainWindow& window, const std::vector<LayerId>& ids) {
+  ui::MainWindowTestAccess::select_layers(window, ids);
+}
+bool assets_duplicate_layers_to_session(ui::MainWindow& window, std::int64_t source, std::vector<LayerId> ids,
+                                        std::int64_t target) {
+  return ui::MainWindowTestAccess::duplicate_layers_to_session(window, source, std::move(ids), target);
+}
+bool assets_add_files_as_layers(ui::MainWindow& window, const QStringList& paths) {
+  return ui::MainWindowTestAccess::add_files_as_layers(window, paths);
+}
+void assets_activate_session(ui::MainWindow& window, std::int64_t session) {
+  ui::MainWindowTestAccess::activate_session(window, session);
+}
+
+}  // namespace patchy::perf
 
 namespace {
 
@@ -8840,6 +8883,14 @@ int main(int argc, char* argv[]) {
     if (argc > 1 && std::string_view(argv[1]) == "presetimport") {
       run_scenario("presetimport", preset_import_perf);
       return 0;
+    }
+    // Explicit only: writes libraries of up to 5000 assets and launches the app dozens of
+    // times (docs/assets-panel.md, "Startup and large libraries").
+    if (argc > 1 && std::string_view(argv[1]) == "assets") {
+      watchdog.begin("assets");
+      const int result = patchy::perf::run_assets_scenario();
+      watchdog.end();
+      return result;
     }
     // Explicit only: launches the app a dozen times (docs/startup-performance.md).
     if (argc > 1 && std::string_view(argv[1]) == "startup") {
