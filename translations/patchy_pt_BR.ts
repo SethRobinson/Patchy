@@ -41073,10 +41073,6 @@ Bloqueado: %1</translation>
         <translation>Filtrar arquivos recentes...</translation>
     </message>
     <message>
-        <source>You can also drop image files anywhere in the window</source>
-        <translation>Você também pode soltar arquivos de imagem em qualquer lugar da janela</translation>
-    </message>
-    <message>
         <source>Everything runs locally in your browser. Nothing you make is ever sent online.</source>
         <translation>Tudo é executado localmente no seu navegador. Nada do que você faz é enviado online.</translation>
     </message>
@@ -41123,6 +41119,22 @@ Bloqueado: %1</translation>
     <message>
         <source>New document from the image on the clipboard</source>
         <translation>Novo documento a partir da imagem na área de transferência</translation>
+    </message>
+    <message>
+        <source>List</source>
+        <translation>Lista</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a list with their folders</source>
+        <translation>Mostrar os arquivos recentes como lista com suas pastas</translation>
+    </message>
+    <message>
+        <source>Grid</source>
+        <translation>Grade</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a grid of thumbnails</source>
+        <translation>Mostrar os arquivos recentes como grade de miniaturas</translation>
     </message>
 </context>
 <context>

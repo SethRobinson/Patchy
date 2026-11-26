@@ -1,6 +1,6 @@
 # Patent research: asset and library panels
 
-Research record for the Assets panel (GitHub issue 751). The binding summary is the "Assets panel" section of [legal-constraints-panels.md](legal-constraints-panels.md#assets-panel); this file is an engineering record and follows the conventions of [patent-research.md](patent-research.md). Read November 26, 2026, before any code was written: the claims below from the USPTO Patent Public Search full text ([how](patent-research.md#reading-patent-text)). End dates are the earliest filing date plus 20 years plus the term adjustment that service lists, before any terminal disclaimer and without fee status; re-check them before changing the feature. The design is in [assets-panel.md](assets-panel.md).
+Research record for the Assets panel (GitHub issue 751). The binding summary is the "Assets panel" section of [legal-constraints-interface.md](legal-constraints-interface.md#assets-panel); this file is an engineering record and follows the conventions of [patent-research.md](patent-research.md). Read November 26, 2026, before any code was written: the claims below from the USPTO Patent Public Search full text ([how](patent-research.md#reading-patent-text)). End dates are the earliest filing date plus 20 years plus the term adjustment that service lists, before any terminal disclaimer and without fee status; re-check them before changing the feature. The design is in [assets-panel.md](assets-panel.md).
 
 ## Searches
 

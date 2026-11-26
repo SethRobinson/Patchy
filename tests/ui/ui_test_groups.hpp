@@ -127,6 +127,7 @@ std::vector<patchy::test::TestCase> companion_tests();
 std::vector<patchy::test::TestCase> single_instance_tests();
 std::vector<patchy::test::TestCase> openai_images_tests();
 std::vector<patchy::test::TestCase> unicode_path_tests();
+std::vector<patchy::test::TestCase> start_panel_grid_tests();
 std::vector<patchy::test::TestCase> history_panel_tests();
 std::vector<patchy::test::TestCase> color_dock_panel_tests();
 std::vector<patchy::test::TestCase> hdr_color_choice_tests();

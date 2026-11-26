@@ -41198,10 +41198,6 @@ Locked: %1</source>
         <translation>Фильтровать последние файлы...</translation>
     </message>
     <message>
-        <source>You can also drop image files anywhere in the window</source>
-        <translation>Вы также можете переместить файлы изображений в любое место окна.</translation>
-    </message>
-    <message>
         <source>Everything runs locally in your browser. Nothing you make is ever sent online.</source>
         <translation>Все работает локально в вашем браузере. Ничего из того, что вы делаете, никогда не отправляется в Интернет.</translation>
     </message>
@@ -41248,6 +41244,22 @@ Locked: %1</source>
     <message>
         <source>New document from the image on the clipboard</source>
         <translation>Новый документ из изображения в буфере обмена</translation>
+    </message>
+    <message>
+        <source>List</source>
+        <translation>Список</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a list with their folders</source>
+        <translation>Показывать последние файлы списком с папками</translation>
+    </message>
+    <message>
+        <source>Grid</source>
+        <translation>Сетка</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a grid of thumbnails</source>
+        <translation>Показывать последние файлы сеткой миниатюр</translation>
     </message>
 </context>
 <context>

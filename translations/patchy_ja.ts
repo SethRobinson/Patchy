@@ -40952,10 +40952,6 @@ Locked: %1</source>
         <translation>一致する最近使ったファイルはありません</translation>
     </message>
     <message>
-        <source>You can also drop image files anywhere in the window</source>
-        <translation>画像ファイルをウィンドウにドロップして開くこともできます</translation>
-    </message>
-    <message>
         <source>Everything runs locally in your browser. Nothing you make is ever sent online.</source>
         <translation>すべての処理はブラウザー内でローカルに実行されます。作品がオンラインに送信されることは一切ありません。</translation>
     </message>
@@ -40998,6 +40994,22 @@ Locked: %1</source>
     <message>
         <source>New document from the image on the clipboard</source>
         <translation>クリップボードの画像から新規ドキュメントを作成</translation>
+    </message>
+    <message>
+        <source>List</source>
+        <translation>リスト</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a list with their folders</source>
+        <translation>最近使用したファイルをフォルダー付きのリストで表示</translation>
+    </message>
+    <message>
+        <source>Grid</source>
+        <translation>グリッド</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a grid of thumbnails</source>
+        <translation>最近使用したファイルをサムネイルのグリッドで表示</translation>
     </message>
 </context>
 <context>

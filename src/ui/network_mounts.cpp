@@ -10,6 +10,13 @@
 #include <array>
 #include <cstddef>
 
+#if defined(Q_OS_WIN)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #if defined(Q_OS_MACOS)
 #include <sys/mount.h>
 #include <sys/param.h>
@@ -101,6 +108,19 @@ const MountEntry* mount_for_path(const QString& path, const std::vector<MountEnt
 bool path_is_on_network_mount(const QString& path, const std::vector<MountEntry>& mounts) {
   const auto* entry = mount_for_path(path, mounts);
   return entry != nullptr && (!entry->local || is_network_file_system_type(entry->file_system));
+}
+
+bool path_is_on_network_location(const QString& path, const std::vector<MountEntry>& mounts) {
+  if (path.startsWith(QStringLiteral("\\\\")) || path.startsWith(QStringLiteral("//"))) {
+    return true;
+  }
+#ifdef Q_OS_WIN
+  if (path.size() >= 2 && path[1] == QLatin1Char(':') && path[0].isLetter()) {
+    const wchar_t root[] = {static_cast<wchar_t>(path[0].unicode()), L':', L'\\', L'\0'};
+    return GetDriveTypeW(root) == DRIVE_REMOTE;
+  }
+#endif
+  return path_is_on_network_mount(path, mounts);
 }
 
 std::vector<MountEntry> parse_proc_mounts(const QByteArray& text) {

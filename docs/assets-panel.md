@@ -1,6 +1,6 @@
 # Assets panel
 
-Layers kept for reuse in any document (GitHub issue 751). The user saves selected layers as assets and places copies of them into documents later. Read the binding limits before changing it: [legal-constraints-panels.md](legal-constraints-panels.md#assets-panel) ([record](patent-research-assets.md)). In short: one whole local file per asset, no tie between an asset and its source or its placed copies, nothing synced or shared, nothing suggested or classified, and a search box that only filters. The panel's layout, wording and menus are Patchy's own; never model them on another editor's panel.
+Layers kept for reuse in any document (GitHub issue 751). The user saves selected layers as assets and places copies of them into documents later. Read the binding limits before changing it: [legal-constraints-interface.md](legal-constraints-interface.md#assets-panel) ([record](patent-research-assets.md)). In short: one whole local file per asset, no tie between an asset and its source or its placed copies, nothing synced or shared, nothing suggested or classified, and a search box that only filters. The panel's layout, wording and menus are Patchy's own; never model them on another editor's panel.
 
 Code: `src/ui/asset_library.{hpp,cpp}` (storage), `src/ui/assets_panel.{hpp,cpp}` (the panel), `src/ui/main_window_assets.cpp` (adding, placing, the drag over canvases and tabs). Tests: `tests/ui/assets_panel_tests.cpp`.
 

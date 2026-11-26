@@ -1756,6 +1756,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/selection_outline.cpp
       src/ui/recent_file_list.hpp
       src/ui/recent_file_list.cpp
+      src/ui/recent_thumbnails.hpp
+      src/ui/recent_thumbnails.cpp
       src/ui/start_panel.hpp
       src/ui/start_panel.cpp
       src/ui/smart_object_render.hpp
@@ -2901,6 +2903,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/single_instance_tests.cpp
       tests/ui/openai_images_tests.cpp
       tests/ui/unicode_path_tests.cpp
+      tests/ui/start_panel_grid_tests.cpp
       tests/ui/legacy_plugin_tests.cpp
       tests/ui/gegl_filter_tests.cpp
       tests/ui/gmic_tests.cpp

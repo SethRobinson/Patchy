@@ -3,7 +3,7 @@
 // The per-user asset library behind the Assets panel (docs/assets-panel.md, GitHub issue
 // 751): layers the user saved for reuse. One whole PSD per asset plus one index file.
 //
-// Design limits recorded in docs/legal-constraints-panels.md ("Assets panel"): an asset is
+// Design limits recorded in docs/legal-constraints-interface.md ("Assets panel"): an asset is
 // one whole local file written once, it keeps no reference to the document or layer it came
 // from, and nothing here syncs, shares, suggests or classifies.
 

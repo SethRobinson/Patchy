@@ -40948,10 +40948,6 @@ Locked: %1</source>
         <translation>최근 파일 필터링...</translation>
     </message>
     <message>
-        <source>You can also drop image files anywhere in the window</source>
-        <translation>창의 어느 곳에나 이미지 파일을 놓을 수도 있습니다.</translation>
-    </message>
-    <message>
         <source>Everything runs locally in your browser. Nothing you make is ever sent online.</source>
         <translation>모든 것이 브라우저에서 로컬로 실행됩니다. 당신이 만든 어떤 것도 온라인으로 전송되지 않습니다.</translation>
     </message>
@@ -40998,6 +40994,22 @@ Locked: %1</source>
     <message>
         <source>New document from the image on the clipboard</source>
         <translation>클립보드의 이미지로 새 문서 만들기</translation>
+    </message>
+    <message>
+        <source>List</source>
+        <translation>목록</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a list with their folders</source>
+        <translation>최근 파일을 폴더와 함께 목록으로 표시</translation>
+    </message>
+    <message>
+        <source>Grid</source>
+        <translation>격자</translation>
+    </message>
+    <message>
+        <source>Show the recent files as a grid of thumbnails</source>
+        <translation>최근 파일을 축소판 격자로 표시</translation>
     </message>
 </context>
 <context>

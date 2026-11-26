@@ -1241,7 +1241,10 @@ void ui_start_panel_shows_about_info_and_update_status() {
   CHECK(panel != nullptr);
   CHECK(panel->isVisible());
 
-  // The about branding lives on the panel now: tagline, version, credit, and links.
+  // The about branding lives on the panel: the tagline, the credit and the links in the
+  // header beside the logo, the version in the footer (GitHub issue 750).
+  auto* column = window.findChild<QWidget*>(QStringLiteral("startPanelColumn"));
+  CHECK(column != nullptr);
   auto* tagline = window.findChild<QLabel*>(QStringLiteral("startPanelTagline"));
   CHECK(tagline != nullptr);
   CHECK(tagline->text() == QStringLiteral("Open source photo editing. Free forever, no subscriptions."));
@@ -1262,9 +1265,17 @@ void ui_start_panel_shows_about_info_and_update_status() {
   CHECK(credit->text().contains(QStringLiteral("href=\"https://github.com/SethRobinson\"")));
   CHECK(credit->text().contains(QStringLiteral(">Seth A. Robinson</a>")));
   CHECK(!credit->text().contains(QStringLiteral("@link_text")));
-  // The contributor credits belong to the About dialog alone; the start panel
-  // keeps its footer short so the recent-files list gets the room.
+  // The credit sits in the header, under the tagline; the version row stays in the footer,
+  // outside the column, with its build date.
+  CHECK(column->isAncestorOf(tagline));
+  CHECK(column->isAncestorOf(credit));
+  CHECK(credit->mapTo(panel, QPoint(0, 0)).y() >= tagline->mapTo(panel, QPoint(0, tagline->height())).y());
+  CHECK(!column->isAncestorOf(version));
+  CHECK(version->mapTo(panel, QPoint(0, 0)).y() > column->mapTo(panel, QPoint(0, column->height())).y() - 1);
+  // The contributor credits belong to the About dialog alone, and the line about dropping
+  // files is gone (dropping still works).
   CHECK(window.findChild<QLabel*>(QStringLiteral("startPanelContributors")) == nullptr);
+  CHECK(window.findChild<QLabel*>(QStringLiteral("startPanelHint")) == nullptr);
 
   const auto link_labels = panel->findChildren<QLabel*>(QStringLiteral("startPanelHome"));
   CHECK(link_labels.size() == 2);
@@ -1273,6 +1284,9 @@ void ui_start_panel_shows_about_info_and_update_status() {
     CHECK(label->textFormat() == Qt::RichText);
     CHECK(label->textInteractionFlags().testFlag(Qt::LinksAccessibleByMouse));
     CHECK(label->openExternalLinks());
+    // Under the credit, in the header.
+    CHECK(column->isAncestorOf(label));
+    CHECK(label->mapTo(panel, QPoint(0, 0)).y() >= credit->mapTo(panel, QPoint(0, credit->height())).y());
     combined_text += label->text();
     combined_text += QLatin1Char('\n');
   }
@@ -1282,10 +1296,11 @@ void ui_start_panel_shows_about_info_and_update_status() {
   CHECK(combined_text.contains(QStringLiteral(">rtsoft.com</a>")));
 
   // The update-status footer line stays hidden until a status is pushed and
-  // hides again when cleared.
+  // hides again when cleared. It is the footer's only other row.
   auto* status = window.findChild<QLabel*>(QStringLiteral("startPanelUpdateStatus"));
   CHECK(status != nullptr);
   CHECK(!status->isVisible());
+  CHECK(!column->isAncestorOf(status));
   panel->set_update_status(QStringLiteral("Update available: Patchy 9.99."));
   QApplication::processEvents();
   CHECK(status->isVisible());

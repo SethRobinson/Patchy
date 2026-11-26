@@ -124,6 +124,12 @@ void set_stored_tool_flyout_open_mode(ToolFlyoutOpenMode mode);
 [[nodiscard]] bool stored_use_shift_for_tool_switch();
 void set_stored_use_shift_for_tool_switch(bool use_shift);
 
+// Home Screen > Recent Files shown as a grid of thumbnails instead of the list (GitHub issue
+// 750). Stored under `startPanel/recentFilesGridView` (a compatibility contract); the list is
+// the default and is stored as no key.
+[[nodiscard]] bool stored_start_panel_recent_grid_view();
+void set_stored_start_panel_recent_grid_view(bool grid);
+
 // Automatic document recovery (docs/document-recovery.md): the timer interval steps
 // offered in Preferences, in minutes. Photoshop's own list.
 inline constexpr std::array<int, 5> kRecoveryIntervalMinutes{5, 10, 15, 30, 60};

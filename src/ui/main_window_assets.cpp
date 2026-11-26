@@ -2,7 +2,7 @@
 // layers as assets, placing assets into documents, and the asset drag over canvases and
 // document tabs.
 //
-// Design limits (docs/legal-constraints-panels.md, "Assets panel"): an asset is one whole
+// Design limits (docs/legal-constraints-interface.md, "Assets panel"): an asset is one whole
 // PSD written once; it stores no reference to the document or layer it was made from, and
 // a placed layer stores none to its asset, so nothing here updates, tracks or notifies.
 
