@@ -177,18 +177,25 @@ void book_scan_uniform_page_size_median_and_largest() {
   CHECK(patchy::median_page_size({}).width == 0.0);
 }
 
-void book_scan_extract_anchors_fore_edge() {
+void book_scan_extract_anchors_inner_edge() {
   SpreadLayout layout;
   layout.spread = {300.0, 200.0, 400.0, 200.0, 0.0};
   layout.gutter = 0.45;
-  // Uniform page 190 x 180 px: the left page starts at the spread's left edge (x = 100),
-  // the right page ends at its right edge (x = 500), both vertically centered.
-  const OrientedBox left = patchy::uniform_spread_page_box(layout, BookPageSide::Left, 190.0, 180.0);
-  const OrientedBox right = patchy::uniform_spread_page_box(layout, BookPageSide::Right, 190.0, 180.0);
-  CHECK(near(left.center_x - left.width / 2.0, 100.0, 1e-9));
-  CHECK(near(right.center_x + right.width / 2.0, 500.0, 1e-9));
-  CHECK(near(left.center_y, 200.0, 1e-9));
+  // Uniform page 190 x 180 px on a spread from x = 100 to 500 with its divider at x = 280:
+  // the left page ends at the divider and the right page starts there, both vertically
+  // centered. (They were anchored at the spread's outer edges before, x = 100 and 500,
+  // which left the wider page short of the divider.)
+  const OrientedBox left = patchy::uniform_spread_page_box(layout, BookPageSide::Left, 190.0, 180.0, 0.0);
+  const OrientedBox right = patchy::uniform_spread_page_box(layout, BookPageSide::Right, 190.0, 180.0, 0.0);
+  CHECK(near(left.center_x + left.width / 2.0, 280.0, 1e-9));
+  CHECK(near(right.center_x - right.width / 2.0, 280.0, 1e-9));
+  CHECK(near(left.center_y, 200.0, 1e-9) && near(right.center_y, 200.0, 1e-9));
   CHECK(left.width == 190.0 && left.height == 180.0);
+  // A binding margin moves each inner edge that far from the divider.
+  const OrientedBox left_margin = patchy::uniform_spread_page_box(layout, BookPageSide::Left, 190.0, 180.0, 10.0);
+  const OrientedBox right_margin = patchy::uniform_spread_page_box(layout, BookPageSide::Right, 190.0, 180.0, 10.0);
+  CHECK(near(left_margin.center_x + left_margin.width / 2.0, 270.0, 1e-9));
+  CHECK(near(right_margin.center_x - right_margin.width / 2.0, 290.0, 1e-9));
 
   // Cutting an axis-aligned page out of a known gradient reproduces it exactly, and
   // whatever lies beyond the source is white.
@@ -321,114 +328,137 @@ void book_scan_half_turn_keeps_layouts() {
   CHECK(cover_turned.spine_left < cover_turned.spine_right);
 }
 
-// A source where every pixel says which side of a spread's divider its center lies on:
-// 200 on `side`'s own side (beyond the binding margin), 0 on the other side and inside the
-// margin strip. A page cut that never takes a pixel from past the divider holds nothing
-// below 200: white only raises a value.
-PixelBuffer side_marked_source(std::int32_t width, std::int32_t height, const SpreadLayout& layout, BookPageSide side,
-                               double margin_px) {
+// A source where every pixel says whether its center lies in a page's own part of a
+// spread: 200 from the outline's outer edge to the divider less the binding margin, 0 on
+// the other page, inside the margin strip and beside the outline. A page cut that takes
+// nothing from past the divider or from outside the outline holds nothing below 200:
+// white only raises a value.
+PixelBuffer own_part_marked_source(std::int32_t width, std::int32_t height, const SpreadLayout& layout,
+                                   BookPageSide side, double margin_px) {
   PixelBuffer pixels(width, height, PixelFormat::gray8());
   const double radians = layout.spread.angle_degrees * kPi / 180.0;
   const double c = std::cos(radians);
   const double s = std::sin(radians);
   const double divider = layout.gutter * layout.spread.width;
+  // A hair of slack at the limits themselves, where rounding may fall either way.
+  const double slack = 1e-6;
   for (std::int32_t y = 0; y < height; ++y) {
     for (std::int32_t x = 0; x < width; ++x) {
       const double dx = x + 0.5 - layout.spread.center_x;
       const double dy = y + 0.5 - layout.spread.center_y;
       const double along = dx * c + dy * s + layout.spread.width / 2.0;
-      // A hair of slack at the limit itself, where rounding may fall either way.
-      const bool other = side == BookPageSide::Left ? along > divider - margin_px + 1e-6
-                                                    : along < divider + margin_px - 1e-6;
-      pixels.pixel(x, y)[0] = other ? 0 : 200;
+      const bool own = side == BookPageSide::Left
+                           ? along >= -slack && along <= divider - margin_px + slack
+                           : along >= divider + margin_px - slack && along <= layout.spread.width + slack;
+      pixels.pixel(x, y)[0] = own ? 200 : 0;
     }
   }
   return pixels;
 }
 
-// The divider limits each page to its own side: with the page box wider than the side,
-// upright or tilted, with and without a binding margin, at the scan's size, shrunk and
-// enlarged, no pixel from past the divider reaches the page.
-void book_scan_page_cut_stops_at_the_divider() {
+// Both pages follow the divider: each page's inner edge is the divider less the binding
+// margin, wherever the divider is (on the fold, far left, far right), upright or tilted,
+// at the scan's size, shrunk and enlarged. The page runs outward from there; nothing from
+// past the divider or from outside the outline reaches it, and where its box passes the
+// outline's outer edge it is white.
+void book_scan_page_cut_starts_at_the_divider() {
   for (const double angle : {0.0, 7.5, -4.0}) {
     for (const double margin : {0.0, 12.0}) {
-      for (const BookPageSide side : {BookPageSide::Left, BookPageSide::Right}) {
-        SpreadLayout layout;
-        layout.spread = {320.0, 220.0, 400.0, 240.0, angle};
-        layout.gutter = 0.56;
-        const PixelBuffer source = side_marked_source(640, 440, layout, side, margin);
-        // A page 248 px wide: both pages reach past the divider (224 px from the left edge,
-        // 176 px from the right).
-        const double page_width = 248.0;
-        const patchy::BookPageCut cut = patchy::uniform_spread_page_cut(layout, side, page_width, 240.0, margin);
-        const double own = side == BookPageSide::Left ? 224.0 - margin : 176.0 - margin;
-        CHECK(near(patchy::spread_page_width(layout, side, margin), own, 1e-9));
-        if (side == BookPageSide::Left) {
-          CHECK(near(cut.source_to, own, 1e-9) && cut.source_from < -1e100);
-        } else {
-          CHECK(near(cut.source_from, page_width - own, 1e-9) && cut.source_to > 1e100);
-        }
-        CHECK(cut.box == patchy::uniform_spread_page_box(layout, side, page_width, 240.0));
-        for (const double zoom : {1.0, 0.5, 1.5}) {
-          const auto out_width = static_cast<std::int32_t>(std::lround(page_width * zoom));
-          const auto out_height = static_cast<std::int32_t>(std::lround(240.0 * zoom));
-          const PixelBuffer page = patchy::extract_book_page_cut(source, cut, out_width, out_height);
-          CHECK(page.width() == out_width && page.height() == out_height);
-          if (page.width() != out_width || page.height() != out_height) {
-            continue;
+      for (const double gutter : {0.56, 0.2, 0.8}) {
+        for (const BookPageSide side : {BookPageSide::Left, BookPageSide::Right}) {
+          SpreadLayout layout;
+          layout.spread = {320.0, 220.0, 400.0, 240.0, angle};
+          layout.gutter = gutter;
+          const bool left = side == BookPageSide::Left;
+          const PixelBuffer source = own_part_marked_source(640, 440, layout, side, margin);
+          // A page 248 px wide on a 400 px spread: narrower than the wide side of a divider
+          // at 0.2 or 0.8, wider than every other side.
+          const double page_width = 248.0;
+          const double own = (left ? gutter : 1.0 - gutter) * 400.0 - margin;
+          const double taken = std::min(own, page_width);
+          const patchy::BookPageCut cut = patchy::uniform_spread_page_cut(layout, side, page_width, 240.0, margin);
+          CHECK(near(patchy::spread_page_width(layout, side, margin), own, 1e-9));
+          CHECK(cut.box == patchy::uniform_spread_page_box(layout, side, page_width, 240.0, margin));
+          CHECK(cut.box.width == page_width && cut.box.height == 240.0 && cut.box.angle_degrees == angle);
+          // The box's inner edge lies on the divider less the margin, at the spread's height.
+          const double radians = angle * kPi / 180.0;
+          const double dx = cut.box.center_x - layout.spread.center_x;
+          const double dy = cut.box.center_y - layout.spread.center_y;
+          const double center_along = dx * std::cos(radians) + dy * std::sin(radians) + 200.0;
+          const double inner_edge = left ? center_along + page_width / 2.0 : center_along - page_width / 2.0;
+          CHECK(near(inner_edge, left ? gutter * 400.0 - margin : gutter * 400.0 + margin, 1e-9));
+          CHECK(near(-dx * std::sin(radians) + dy * std::cos(radians), 0.0, 1e-9));
+          // The source range runs from the inner edge to the outline's outer edge.
+          if (left) {
+            CHECK(near(cut.source_from, page_width - own, 1e-9) && near(cut.source_to, page_width, 1e-9));
+          } else {
+            CHECK(near(cut.source_from, 0.0, 1e-9) && near(cut.source_to, own, 1e-9));
           }
+          for (const double zoom : {1.0, 0.5, 1.5}) {
+            const auto out_width = static_cast<std::int32_t>(std::lround(page_width * zoom));
+            const auto out_height = static_cast<std::int32_t>(std::lround(240.0 * zoom));
+            const PixelBuffer page = patchy::extract_book_page_cut(source, cut, out_width, out_height);
+            CHECK(page.width() == out_width && page.height() == out_height);
+            if (page.width() != out_width || page.height() != out_height) {
+              continue;
+            }
+            int darkest = 255;
+            for (std::int32_t y = 0; y < out_height; ++y) {
+              for (std::int32_t x = 0; x < out_width; ++x) {
+                darkest = std::min(darkest, static_cast<int>(page.pixel(x, y)[0]));
+              }
+            }
+            CHECK(darkest >= 200);
+            // Columns are counted from the inner edge (the divider side).
+            const auto column = [&](double from_inner_edge) {
+              const double x = left ? page_width - from_inner_edge : from_inner_edge;
+              return std::clamp(static_cast<std::int32_t>(x * zoom), 0, out_width - 1);
+            };
+            const std::int32_t middle_row = out_height / 2;
+            // The page starts at the divider: the scan from its first columns on.
+            CHECK(page.pixel(column(4.0), middle_row)[0] == 200);
+            CHECK(page.pixel(column(taken / 2.0), middle_row)[0] == 200);
+            if (own < page_width - 8.0) {
+              // Past the outline's outer edge the page is white.
+              CHECK(page.pixel(column(own - 6.0), middle_row)[0] == 200);
+              CHECK(page.pixel(column(own + 6.0), middle_row)[0] == 255);
+              CHECK(page.pixel(column(page_width - 3.0), middle_row)[0] == 255);
+            } else {
+              // A side wider than the page: the page is the scan to its outer end.
+              CHECK(page.pixel(column(page_width - 4.0), middle_row)[0] == 200);
+            }
+          }
+          // The same cut on a copy of the scan at a third of its size (the wizard's thumbnails).
+          const patchy::BookPageCut small = patchy::scaled_page_cut(cut, 1.0 / 3.0);
+          CHECK(near(small.box.width, page_width / 3.0, 1e-9) && near(small.box.center_x, cut.box.center_x / 3.0, 1e-9));
+          CHECK(near(small.source_from, cut.source_from / 3.0, 1e-9) && near(small.source_to, cut.source_to / 3.0, 1e-9));
+          // Half a turn of the scan mirrors the divider: the same page is then the other
+          // side, cut the same way.
+          const SpreadLayout turned = patchy::half_turned_spread(layout, 640, 440);
+          const BookPageSide other_side = left ? BookPageSide::Right : BookPageSide::Left;
+          const PixelBuffer turned_source = own_part_marked_source(640, 440, turned, other_side, margin);
+          const PixelBuffer turned_page = patchy::extract_book_page_cut(
+              turned_source, patchy::uniform_spread_page_cut(turned, other_side, page_width, 240.0, margin), 248, 240);
           int darkest = 255;
-          for (std::int32_t y = 0; y < out_height; ++y) {
-            for (std::int32_t x = 0; x < out_width; ++x) {
-              darkest = std::min(darkest, static_cast<int>(page.pixel(x, y)[0]));
+          int own_pixels = 0;
+          for (std::int32_t y = 0; y < turned_page.height(); ++y) {
+            for (std::int32_t x = 0; x < turned_page.width(); ++x) {
+              darkest = std::min(darkest, static_cast<int>(turned_page.pixel(x, y)[0]));
+              own_pixels += turned_page.pixel(x, y)[0] == 200 ? 1 : 0;
             }
           }
           CHECK(darkest >= 200);
-          // Its own side is the scan, and past the divider the page is white. Columns are
-          // counted from the fore-edge.
-          const auto column = [&](double from_fore_edge) {
-            const double x = side == BookPageSide::Left ? from_fore_edge : page_width - from_fore_edge;
-            return std::clamp(static_cast<std::int32_t>(x * zoom), 0, out_width - 1);
-          };
-          const std::int32_t middle_row = out_height / 2;
-          CHECK(page.pixel(column(own / 2.0), middle_row)[0] == 200);
-          CHECK(page.pixel(column(own - 6.0), middle_row)[0] == 200);
-          CHECK(page.pixel(column(own + 6.0), middle_row)[0] == 255);
-          CHECK(page.pixel(column(page_width - 3.0), middle_row)[0] == 255);
+          CHECK(own_pixels > static_cast<int>(taken * 240.0 * 0.6));
         }
-        // The same cut on a copy of the scan at a third of its size (the wizard's thumbnails).
-        const patchy::BookPageCut small = patchy::scaled_page_cut(cut, 1.0 / 3.0);
-        CHECK(near(small.box.width, page_width / 3.0, 1e-9) && near(small.box.center_x, cut.box.center_x / 3.0, 1e-9));
-        if (side == BookPageSide::Left) {
-          CHECK(near(small.source_to, own / 3.0, 1e-9) && small.source_from < -1e100);
-        } else {
-          CHECK(near(small.source_from, (page_width - own) / 3.0, 1e-9) && small.source_to > 1e100);
-        }
-        // Half a turn of the scan mirrors the divider: the same page is then the other
-        // side, still kept to its own side.
-        const SpreadLayout turned = patchy::half_turned_spread(layout, 640, 440);
-        const BookPageSide other_side = side == BookPageSide::Left ? BookPageSide::Right : BookPageSide::Left;
-        const PixelBuffer turned_source = side_marked_source(640, 440, turned, other_side, margin);
-        const PixelBuffer turned_page = patchy::extract_book_page_cut(
-            turned_source, patchy::uniform_spread_page_cut(turned, other_side, page_width, 240.0, margin), 248, 240);
-        int darkest = 255;
-        int own_pixels = 0;
-        for (std::int32_t y = 0; y < turned_page.height(); ++y) {
-          for (std::int32_t x = 0; x < turned_page.width(); ++x) {
-            darkest = std::min(darkest, static_cast<int>(turned_page.pixel(x, y)[0]));
-            own_pixels += turned_page.pixel(x, y)[0] == 200 ? 1 : 0;
-          }
-        }
-        CHECK(darkest >= 200);
-        CHECK(own_pixels > static_cast<int>(own * 240.0 * 0.6));
       }
     }
   }
 }
 
-// A page narrower than its side of the divider is cut as before: the limit changes nothing
-// there, and a cut without a limit is the plain box cut.
-void book_scan_page_cut_inside_its_side_is_unchanged() {
+// Inside its own part of the outline a page is the plain cut of its box: the limits only
+// take away what lies past the divider or beside the outline. A cut without a limit is
+// the plain box cut everywhere.
+void book_scan_page_cut_matches_the_box_inside_the_outline() {
   SpreadLayout layout;
   layout.spread = {150.0, 100.0, 240.0, 160.0, 3.0};
   layout.gutter = 0.5;
@@ -439,12 +469,13 @@ void book_scan_page_cut_inside_its_side_is_unchanged() {
               static_cast<std::uint8_t>((x * 2 + y) % 239));
     }
   }
-  const auto same = [](const PixelBuffer& a, const PixelBuffer& b) {
+  // True when the two pages agree on columns [from, to).
+  const auto same = [](const PixelBuffer& a, const PixelBuffer& b, std::int32_t from, std::int32_t to) {
     if (a.width() != b.width() || a.height() != b.height()) {
       return false;
     }
     for (std::int32_t y = 0; y < a.height(); ++y) {
-      for (std::int32_t x = 0; x < a.width(); ++x) {
+      for (std::int32_t x = from; x < to; ++x) {
         for (int channel = 0; channel < 3; ++channel) {
           if (a.pixel(x, y)[channel] != b.pixel(x, y)[channel]) {
             return false;
@@ -455,26 +486,47 @@ void book_scan_page_cut_inside_its_side_is_unchanged() {
     return true;
   };
   for (const BookPageSide side : {BookPageSide::Left, BookPageSide::Right}) {
-    // 100 px wide on a 120 px side: the divider lies 20 px past the page's inner edge.
-    const OrientedBox box = patchy::uniform_spread_page_box(layout, side, 100.0, 150.0);
+    const bool left = side == BookPageSide::Left;
+    // 100 px wide on a 120 px side: the page ends 20 px short of the outline's outer edge.
+    const OrientedBox box = patchy::uniform_spread_page_box(layout, side, 100.0, 150.0, 0.0);
     const patchy::BookPageCut cut = patchy::uniform_spread_page_cut(layout, side, 100.0, 150.0, 0.0);
     const PixelBuffer plain = patchy::extract_book_page(source, box, 100, 150);
-    CHECK(same(plain, patchy::extract_book_page_cut(source, cut, 100, 150)));
-    CHECK(same(plain, patchy::extract_book_page_cut(source, patchy::BookPageCut{box}, 100, 150)));
-    // A margin that reaches into the page does change it: the inner 5 px turn white.
-    const PixelBuffer trimmed =
-        patchy::extract_book_page_cut(source, patchy::uniform_spread_page_cut(layout, side, 100.0, 150.0, 25.0), 100, 150);
-    CHECK(!same(plain, trimmed));
-    const std::int32_t inner = side == BookPageSide::Left ? 98 : 1;
-    const std::int32_t outer = side == BookPageSide::Left ? 1 : 98;
-    CHECK(trimmed.pixel(inner, 75)[0] == 255 && trimmed.pixel(inner, 75)[1] == 255 && trimmed.pixel(inner, 75)[2] == 255);
-    CHECK(trimmed.pixel(outer, 75)[0] == plain.pixel(outer, 75)[0]);
+    const PixelBuffer limited = patchy::extract_book_page_cut(source, cut, 100, 150);
+    // All but the columns at the divider itself, where the limit drops the source pixels
+    // that lie just past it.
+    CHECK(same(plain, limited, left ? 0 : 2, left ? 98 : 100));
+    CHECK(same(plain, patchy::extract_book_page_cut(source, patchy::BookPageCut{box}, 100, 150), 0, 100));
+    // A margin moves the whole page outward with its inner edge: 130 px wide with a 25 px
+    // margin on a 120 px side, the outer 35 px lie past the outline and are white.
+    const PixelBuffer wide =
+        patchy::extract_book_page_cut(source, patchy::uniform_spread_page_cut(layout, side, 130.0, 150.0, 25.0), 130, 150);
+    const std::int32_t outer = left ? 2 : 127;
+    const std::int32_t inner = left ? 120 : 9;
+    CHECK(wide.pixel(outer, 75)[0] == 255 && wide.pixel(outer, 75)[1] == 255 && wide.pixel(outer, 75)[2] == 255);
+    // Its inner columns are the scan 25 px from the divider: the plain cut of a box that
+    // starts there.
+    const PixelBuffer shifted =
+        patchy::extract_book_page(source, patchy::uniform_spread_page_box(layout, side, 130.0, 150.0, 25.0), 130, 150);
+    for (int channel = 0; channel < 3; ++channel) {
+      CHECK(wide.pixel(inner, 75)[channel] == shifted.pixel(inner, 75)[channel]);
+    }
   }
   // The measured width leaves the margin out and never goes below zero.
   CHECK(near(patchy::spread_page_width(layout, BookPageSide::Left, 0.0), 120.0, 1e-9));
   CHECK(near(patchy::spread_page_width(layout, BookPageSide::Right, 30.0), 90.0, 1e-9));
   CHECK(patchy::spread_page_width(layout, BookPageSide::Left, 500.0) == 0.0);
   CHECK(near(patchy::spread_page_width(layout, BookPageSide::Left, -5.0), 120.0, 1e-9));
+  // A divider at the outline's edge leaves one page nothing to take: it is all white.
+  layout.gutter = 0.0;
+  const PixelBuffer nothing =
+      patchy::extract_book_page_cut(source, patchy::uniform_spread_page_cut(layout, BookPageSide::Left, 100.0, 150.0, 10.0), 100, 150);
+  bool all_white = !nothing.empty();
+  for (std::int32_t y = 0; y < nothing.height() && all_white; ++y) {
+    for (std::int32_t x = 0; x < nothing.width(); ++x) {
+      all_white = all_white && nothing.pixel(x, y)[0] == 255 && nothing.pixel(x, y)[1] == 255 && nothing.pixel(x, y)[2] == 255;
+    }
+  }
+  CHECK(all_white);
 }
 
 }  // namespace
@@ -489,14 +541,14 @@ std::vector<patchy::test::TestCase> book_scan_tests() {
       {"book_scan_spread_keeps_fallback_on_white_lid", book_scan_spread_keeps_fallback_on_white_lid},
       {"book_scan_detection_is_deterministic", book_scan_detection_is_deterministic},
       {"book_scan_uniform_page_size_median_and_largest", book_scan_uniform_page_size_median_and_largest},
-      {"book_scan_extract_anchors_fore_edge", book_scan_extract_anchors_fore_edge},
+      {"book_scan_extract_anchors_inner_edge", book_scan_extract_anchors_inner_edge},
       {"book_scan_output_threshold", book_scan_output_threshold},
       {"book_scan_grayscale_suggestion", book_scan_grayscale_suggestion},
       {"book_scan_spread_fits_bed", book_scan_spread_fits_bed},
       {"book_scan_unturned_rect_inverts_quarter_turns", book_scan_unturned_rect_inverts_quarter_turns},
       {"book_scan_box_edge_and_bounds", book_scan_box_edge_and_bounds},
       {"book_scan_half_turn_keeps_layouts", book_scan_half_turn_keeps_layouts},
-      {"book_scan_page_cut_stops_at_the_divider", book_scan_page_cut_stops_at_the_divider},
-      {"book_scan_page_cut_inside_its_side_is_unchanged", book_scan_page_cut_inside_its_side_is_unchanged},
+      {"book_scan_page_cut_starts_at_the_divider", book_scan_page_cut_starts_at_the_divider},
+      {"book_scan_page_cut_matches_the_box_inside_the_outline", book_scan_page_cut_matches_the_box_inside_the_outline},
   };
 }

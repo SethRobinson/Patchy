@@ -15,10 +15,11 @@
 // A cover scan (the open book lying face down, back cover, spine and front cover on
 // the glass) gives the book's outline and an estimate of the page size. Each spread
 // scan gives the spread's outer rectangle and the gutter, which splits it into a left
-// and a right page. Every page is then cut at ONE uniform size, anchored at its outer
-// fore-edge (the gutter edge bends under the binding and is unreliable), so the PDF's
-// pages all match. A page takes pixels only from its own side of the gutter line, less
-// the book's binding margin; where its box reaches further it is white.
+// and a right page. Every page is then cut at ONE uniform size, so the PDF's pages all
+// match. The page's inner edge is the gutter line (the divider the user can move), less
+// the book's binding margin, and the page runs outward from there: moving the divider
+// moves both pages of the spread. A page takes pixels only from its own part of the
+// spread's outline; where its box reaches past the outline's outer edge it is white.
 //
 // All geometry works on an UPRIGHT scan: the caller turns the scan by whole quarter
 // turns first (rotated_quarter_turns, the book's top edge pointing up), so a "left
@@ -115,10 +116,11 @@ struct BookPageSize {
 [[nodiscard]] BookPageSize cover_page_size(const CoverLayout& cover, double ppi);
 
 // The box a page is cut with: `size_px` exactly, the spread's angle, centered
-// vertically on the spread and anchored at the page's fore-edge (left edge for a left
-// page, right edge for a right page).
+// vertically on the spread and anchored at the page's inner edge, which is the gutter
+// line less `binding_margin_px`: a left page ends there and a right page starts there.
 [[nodiscard]] OrientedBox uniform_spread_page_box(const SpreadLayout& layout, BookPageSide side,
-                                                  double width_px, double height_px);
+                                                  double width_px, double height_px,
+                                                  double binding_margin_px);
 // A page box of `size_px` centered where `measured` is (single-page scans, covers).
 [[nodiscard]] OrientedBox centered_page_box(const OrientedBox& measured, double width_px,
                                             double height_px);
@@ -134,9 +136,10 @@ struct BookPageCut {
 };
 
 // The cut of one page of a spread: uniform_spread_page_box, limited to the page's own
-// side of the divider (the gutter line the user can move), less `binding_margin_px` left
-// out beside the divider. A page wider than its side is white from there on; the other
-// page and the binding never show on it. Fixed geometry only: no tone change anywhere.
+// part of the outline, from the divider (less `binding_margin_px` left out beside it) to
+// the outline's outer edge. A page wider than that part is white past the outer edge, so
+// the scanner's lid or glass never shows beside the book; the other page and the binding
+// never show on it either. Fixed geometry only: no tone change anywhere.
 [[nodiscard]] BookPageCut uniform_spread_page_cut(const SpreadLayout& layout, BookPageSide side,
                                                   double width_px, double height_px,
                                                   double binding_margin_px);

@@ -453,6 +453,8 @@ QStringList turned_inputs(const QStringList& files);
 // A book scanned without a cover can still say which way its top points: in the cover step
 // before any scan, and in the scanning step once the first scan shows it lying sideways.
 void ui_book_scan_skip_cover_sets_top_of_book() {
+  // Top of the book is remembered for the next book: put the setting back afterwards.
+  const patchy::test::ui::SettingsGroupRestorer book_settings(QStringLiteral("bookScan"));
   const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_skip_cover_inputs"));
   const QString project =
       fresh_artifact_folder(QStringLiteral("ui_book_scan_skip_cover_project")) + QStringLiteral("/book");
@@ -949,6 +951,8 @@ void drag_gutter(patchy::ui::BookScanDialog& dialog, int scan_index, double to) 
 // dragged to the right), through the next scan and a reopen of book.json, upright and
 // with the top of the book pointing right (a quarter turn).
 void check_gutter_drag_sticks(bool quarter_turn) {
+  // Top of the book is remembered for the next book: put the setting back afterwards.
+  const patchy::test::ui::SettingsGroupRestorer book_settings(QStringLiteral("bookScan"));
   const QString tag = quarter_turn ? QStringLiteral("_turned") : QString();
   const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_gutter_inputs") + tag);
   const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_gutter_project") + tag) + QStringLiteral("/book");
@@ -1837,117 +1841,261 @@ QStringList write_shadow_book_inputs(const QString& folder, int spreads) {
   return files;
 }
 
-// The divider dragged off the fold decides where the pages are cut: the page on the
-// narrower side no longer shows the other side of the divider (it showed the fold's shadow
-// and the facing page), in the strip, the review thumbnail, the review preview and the PDF.
+// The column where a row of a page or picture is darkest, as a fraction of its width. On
+// a row with no text (just under the page-number blocks) that is the fold's shadow.
+double darkest_fraction(const QImage& image, double row_fraction = 0.105) {
+  if (image.isNull()) {
+    return -1.0;
+  }
+  const int y = std::clamp(static_cast<int>(image.height() * row_fraction), 0, image.height() - 1);
+  int darkest = 256;
+  int first = 0;
+  int last = 0;
+  for (int x = 0; x < image.width(); ++x) {
+    const int value = qGray(image.pixel(x, y));
+    if (value < darkest) {
+      darkest = value;
+      first = x;
+    }
+    if (value == darkest) {
+      last = x;
+    }
+  }
+  return ((first + last) / 2.0 + 0.5) / image.width();
+}
+
+QImage pdf_page_image(const BookPdfRead& pdf, std::size_t index) {
+  if (index >= pdf.images.size()) {
+    return {};
+  }
+  return QImage::fromData(QByteArray(reinterpret_cast<const char*>(pdf.images[index].data()),
+                                     static_cast<qsizetype>(pdf.images[index].size())));
+}
+
+// The divider decides where BOTH pages of a spread are cut: each page's inner edge is the
+// divider, wherever it is dragged, and the page runs outward from there by the book's page
+// width. A page that reaches past the outline's outer edge is white there. The strip, the
+// review thumbnail and preview, the PDF and a script's export all show the same cut.
 void ui_book_scan_divider_decides_the_page_cut() {
+  const patchy::test::ui::SettingsGroupRestorer book_settings(QStringLiteral("bookScan"));
   const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_divider_inputs"));
   const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_divider_project")) + QStringLiteral("/book");
-  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", write_shadow_book_inputs(inputs, 1).join(QDir::listSeparator()).toUtf8());
-  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "6x4");
-  patchy::ui::BookScanDialog dialog(nullptr);
-  dialog.set_quiet(true);
-  dialog.show();
-  dialog.set_project_folder(project);
-  dialog.set_title(QStringLiteral("Field Notes"));
-  dialog.start_cover_scan();
-  wait_for_scan(dialog);
-  if (auto* resolution = dialog.findChild<QComboBox*>(QStringLiteral("bookScanResolutionCombo"))) {
-    resolution->setCurrentIndex(resolution->findData(kDpi));
-  }
-  dialog.start_page_scanning();
-  dialog.start_page_scan();
-  wait_for_scan(dialog);
-  CHECK(dialog.last_error().isEmpty() && dialog.project().scans.size() == 1);
-  auto* strip = dialog.findChild<QListWidget*>(QStringLiteral("bookScanPageStrip"));
-  CHECK(strip != nullptr);
-  if (dialog.project().scans.size() != 1 || strip == nullptr) {
-    return;
-  }
-  QApplication::processEvents();
-  const auto& book = dialog.project();
-  CHECK(std::abs(book.scans[0].layout.gutter - 0.5) < 0.02);
-  CHECK(strip->count() == 4);  // front cover, two pages, back cover
-  const auto strip_icon = [strip](int row) { return strip->item(row)->icon().pixmap(64, 90).toImage(); };
-  const QImage strip_before = strip_icon(2);
-
-  // The divider goes right of the fold's shadow, as a user moves it off a dark binding.
+  const QString pdf_start = QDir(inputs).filePath(QStringLiteral("divider-start.pdf"));
+  const QString pdf_left = QDir(inputs).filePath(QStringLiteral("divider-left.pdf"));
+  const QString pdf_right = QDir(inputs).filePath(QStringLiteral("divider-right.pdf"));
+  const QString pdf_script = QDir(inputs).filePath(QStringLiteral("divider-script.pdf"));
   // Everything is captured first and checked after, so a failing run still shows each step.
-  const double dropped = 0.56;
-  drag_gutter(dialog, 0, dropped);
-  const double gutter = book.scans[0].layout.gutter;
-  patchy::test::ui::save_widget_artifact("ui_book_scan_divider_scanning", dialog);
-  const int strip_count = strip->count();
-  const QImage strip_after = strip_count == 4 ? strip_icon(2) : QImage();
-  const auto size = patchy::ui::resolved_page_size(book);
-  const auto order = patchy::ui::book_page_order(book);
-  CHECK(order.size() == 4);
-  if (order.size() != 4) {
-    return;
-  }
-  patchy::ui::BookScanCache cache(book);
-  const auto left = patchy::ui::render_book_page(book, order[1], size, 0, cache, false);
-  const auto right = patchy::ui::render_book_page(book, order[2], size, 0, cache, false);
-  patchy::test::ui::save_image_artifact("ui_book_scan_divider_left_page", patchy::ui::book_image_from_pixels(left));
-  patchy::test::ui::save_image_artifact("ui_book_scan_divider_right_page", patchy::ui::book_image_from_pixels(right));
-  const double spread_width = book.scans[0].layout.spread.width;
-  dialog.finish_scanning();
-  auto* pages = dialog.findChild<QListWidget*>(QStringLiteral("bookScanPagesList"));
-  auto* preview = dialog.findChild<QLabel*>(QStringLiteral("bookScanReviewPreview"));
-  CHECK(pages != nullptr && preview != nullptr && pages->count() == 4);
-  if (pages == nullptr || preview == nullptr || pages->count() != 4) {
-    return;
-  }
-  pages->setCurrentRow(2);
-  pages->clearSelection();
-  pages->item(2)->setSelected(true);
-  QApplication::processEvents();
-  patchy::test::ui::save_widget_artifact("ui_book_scan_divider_review", dialog);
-  const QImage thumbnail = pages->item(2)->icon().pixmap(pages->iconSize()).toImage();
-  const QImage previewed = preview->pixmap().toImage();
-  const QString pdf_path = QDir(inputs).filePath(QStringLiteral("divider.pdf"));
-  const bool exported = dialog.export_pdf(pdf_path, false);
-  dialog.reject();
-
-  CHECK(std::abs(gutter - dropped) < 0.01);
-  // The strip's second page changed with the drag.
-  CHECK(strip_count == 4 && strip_after != strip_before);
-  // One spread measured at the median: both pages are half the spread wide, so the right
-  // page's box reaches left of the divider. What lies there is the left page's side.
-  CHECK(!left.empty() && !right.empty() && left.width() == right.width());
-  if (left.empty() || right.empty()) {
-    return;
-  }
-  // The divider's place in the right page, in pixels from its left edge.
-  const int divider_x = static_cast<int>(std::lround(right.width() - (1.0 - gutter) * spread_width));
-  CHECK(divider_x > 40 && divider_x < right.width() / 4);
-  const int rows0 = right.height() / 10;
-  const int rows1 = right.height() * 9 / 10;
-  // Left of the divider the page is white: nothing of the fold's shadow or the other page.
-  CHECK(page_block_range(right, 0, divider_x - 2, rows0, rows1).first >= 250);
-  // Right of it the page is the scan, where it was (the fore-edge anchors the page).
-  const auto paper = page_block_range(right, divider_x + 3, divider_x + 12, rows0, rows1);
-  CHECK(paper.first > 200 && paper.second < 250);
-  CHECK(std::abs(static_cast<int>(right.pixel(right.width() - 8, 8)[0]) - 60) < 25);
-  // The left page ends before the divider and keeps its own side.
-  CHECK(std::abs(static_cast<int>(left.pixel(8, 8)[0]) - 60) < 25);
-
-  // Review: the thumbnail, the preview and the PDF page show the same cut.
-  const auto white_left_of_divider = [&](const QImage& image) {
-    const double scale = image.width() / static_cast<double>(right.width());
-    const int limit = static_cast<int>(std::floor(divider_x * scale * 0.85)) - 1;
-    return limit > 1 && image_block_range(image, 0, limit, image.height() / 10, image.height() * 9 / 10).first >= 245;
+  struct Pages {
+    QImage left;
+    QImage right;
+    double gutter{0.5};
   };
-  CHECK(white_left_of_divider(thumbnail));
-  CHECK(white_left_of_divider(previewed));
+  Pages start;
+  Pages dragged_left;
+  Pages dragged_right;
+  QImage strip_start[2];
+  QImage strip_left[2];
+  QImage thumbnail;
+  QImage previewed;
+  QImage right_only;
+  QImage rtl_first;
+  double spread_width = 0.0;
+  bool exported = true;
+  {
+    const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER",
+                           write_shadow_book_inputs(inputs, 1).join(QDir::listSeparator()).toUtf8());
+    const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "6x4");
+    patchy::ui::BookScanDialog dialog(nullptr);
+    dialog.set_quiet(true);
+    dialog.show();
+    dialog.set_project_folder(project);
+    dialog.set_title(QStringLiteral("Field Notes"));
+    dialog.start_cover_scan();
+    wait_for_scan(dialog);
+    if (auto* resolution = dialog.findChild<QComboBox*>(QStringLiteral("bookScanResolutionCombo"))) {
+      resolution->setCurrentIndex(resolution->findData(kDpi));
+    }
+    dialog.start_page_scanning();
+    dialog.start_page_scan();
+    wait_for_scan(dialog);
+    CHECK(dialog.last_error().isEmpty() && dialog.project().scans.size() == 1);
+    auto* strip = dialog.findChild<QListWidget*>(QStringLiteral("bookScanPageStrip"));
+    auto* pages = dialog.findChild<QListWidget*>(QStringLiteral("bookScanPagesList"));
+    auto* preview = dialog.findChild<QLabel*>(QStringLiteral("bookScanReviewPreview"));
+    auto* back = dialog.findChild<QPushButton*>(QStringLiteral("bookScanReviewBackButton"));
+    auto* use = dialog.findChild<QComboBox*>(QStringLiteral("bookScanUseCombo"));
+    CHECK(strip != nullptr && pages != nullptr && preview != nullptr && back != nullptr && use != nullptr);
+    if (dialog.project().scans.size() != 1 || strip == nullptr || pages == nullptr || preview == nullptr ||
+        back == nullptr || use == nullptr) {
+      return;
+    }
+    QApplication::processEvents();
+    const auto& book = dialog.project();
+    CHECK(std::abs(book.scans[0].layout.gutter - 0.5) < 0.02);
+    CHECK(strip->count() == 4);  // front cover, two pages, back cover
+    spread_width = book.scans[0].layout.spread.width;
+    const auto strip_icon = [strip](int row) {
+      return row < strip->count() ? strip->item(row)->icon().pixmap(64, 90).toImage() : QImage();
+    };
+    const auto rendered = [&book] {
+      Pages result;
+      result.gutter = book.scans[0].layout.gutter;
+      const auto size = patchy::ui::resolved_page_size(book);
+      patchy::ui::BookScanCache cache(book);
+      for (const auto& page : patchy::ui::book_page_order(book)) {
+        if (page.kind == patchy::ui::BookPageRef::Kind::Scan) {
+          (page.side == patchy::BookPageSide::Left ? result.left : result.right) =
+              patchy::ui::book_image_from_pixels(patchy::ui::render_book_page(book, page, size, 0, cache, false));
+        }
+      }
+      return result;
+    };
+    const auto export_now = [&](const QString& path) {
+      dialog.finish_scanning();
+      exported = dialog.export_pdf(path, false) && exported;
+    };
+    const auto back_to_scanning = [&] {
+      back->click();
+      QApplication::processEvents();
+    };
+
+    // As detected: the divider on the fold.
+    start = rendered();
+    strip_start[0] = strip_icon(1);
+    strip_start[1] = strip_icon(2);
+    export_now(pdf_start);
+    back_to_scanning();
+
+    // Dragged well left of the fold.
+    drag_gutter(dialog, 0, 0.40);
+    dragged_left = rendered();
+    strip_left[0] = strip_icon(1);
+    strip_left[1] = strip_icon(2);
+    patchy::test::ui::save_widget_artifact("ui_book_scan_divider_scanning", dialog);
+    patchy::test::ui::save_image_artifact("ui_book_scan_divider_left_page", dragged_left.left);
+    patchy::test::ui::save_image_artifact("ui_book_scan_divider_right_page", dragged_left.right);
+    dialog.finish_scanning();
+    if (pages->count() == 4) {
+      pages->setCurrentRow(2);
+      pages->clearSelection();
+      pages->item(2)->setSelected(true);
+      QApplication::processEvents();
+      // Before the export, whose summary line names the PDF's folder.
+      patchy::test::ui::save_widget_artifact("ui_book_scan_divider_review", dialog);
+      thumbnail = pages->item(2)->icon().pixmap(pages->iconSize()).toImage();
+      previewed = preview->pixmap().toImage();
+    }
+    export_now(pdf_left);
+    back_to_scanning();
+
+    // Dragged right of the fold.
+    drag_gutter(dialog, 0, 0.62);
+    dragged_right = rendered();
+    patchy::test::ui::save_widget_artifact("ui_book_scan_divider_scanning_right", dialog);
+    // Use: Right page only, and a right-to-left book, which only changes the order: its
+    // first page is the same right page.
+    use->setCurrentIndex(2);
+    right_only = rendered().right;
+    use->setCurrentIndex(0);
+    patchy::ui::BookProject rtl = book;
+    rtl.direction = patchy::ui::BookReadingDirection::RightToLeft;
+    const auto rtl_order = patchy::ui::book_page_order(rtl);
+    if (rtl_order.size() == 4 && rtl_order[1].side == patchy::BookPageSide::Right) {
+      patchy::ui::BookScanCache cache(rtl);
+      rtl_first = patchy::ui::book_image_from_pixels(
+          patchy::ui::render_book_page(rtl, rtl_order[1], patchy::ui::resolved_page_size(rtl), 0, cache, false));
+    }
+    export_now(pdf_right);
+    dialog.reject();
+  }
+  // A script exports the saved book: the same pages.
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto json_string = [](const QString& text) {
+      return QString::fromUtf8(QJsonDocument(QJsonArray{text}).toJson(QJsonDocument::Compact)).chopped(1).mid(1);
+    };
+    CHECK(run_script(window, QStringLiteral("var pages = app.buildBookPdf(%1, %2); if (pages !== 4) throw new "
+                                            "Error('pages ' + pages); console.log('book-divider-ok');")
+                                 .arg(json_string(project), json_string(pdf_script))));
+    CHECK(backlog_contains(window, QStringLiteral("book-divider-ok")));
+  }
+
   CHECK(exported);
-  const BookPdfRead pdf = read_book_pdf(pdf_path);
-  CHECK(pdf.images.size() == 4);
-  if (pdf.images.size() == 4) {
-    const QImage page = QImage::fromData(QByteArray(reinterpret_cast<const char*>(pdf.images[2].data()),
-                                                    static_cast<qsizetype>(pdf.images[2].size())));
-    CHECK(page.width() == right.width() && page.height() == right.height());
-    CHECK(white_left_of_divider(page));
+  CHECK(!start.left.isNull() && !start.right.isNull() && !dragged_left.left.isNull() && !dragged_left.right.isNull() &&
+        !dragged_right.left.isNull() && !dragged_right.right.isNull());
+  if (start.left.isNull() || dragged_left.left.isNull() || dragged_left.right.isNull() || dragged_right.left.isNull() ||
+      dragged_right.right.isNull()) {
+    return;
+  }
+  CHECK(std::abs(dragged_left.gutter - 0.40) < 0.01 && std::abs(dragged_right.gutter - 0.62) < 0.01);
+  const int width = dragged_left.right.width();
+  const int height = dragged_left.right.height();
+  // One spread measured at the median: each page is half the spread wide wherever the divider is.
+  CHECK(std::abs(width - spread_width / 2.0) < 2.0 && dragged_left.left.width() == width &&
+        dragged_right.left.width() == width);
+  const int rows0 = height / 10;
+  const int rows1 = height * 9 / 10;
+  const auto fold_at = [&](const QImage& page, double from_left_px) {
+    return std::abs(darkest_fraction(page) * page.width() - from_left_px) < 5.0;
+  };
+
+  // The drag to the left moved BOTH pages, in the strip too.
+  CHECK(dragged_left.left != start.left);
+  CHECK(dragged_left.right != start.right);
+  CHECK(!strip_left[0].isNull() && strip_left[0] != strip_start[0]);
+  CHECK(!strip_left[1].isNull() && strip_left[1] != strip_start[1]);
+  // The right page starts at the divider: the fold, a tenth of the spread right of the
+  // divider, lies that far into the page, and the page's outer end is still the scan.
+  const double left_shift = (0.5 - dragged_left.gutter) * spread_width;
+  CHECK(fold_at(dragged_left.right, left_shift));
+  CHECK(image_block_range(dragged_left.right, width - 20, width - 2, rows0, rows1).first < 250);
+  // The left page ends at the divider and runs outward past the outline, where it is white;
+  // its page-number block marks the outline's outer edge.
+  CHECK(image_block_range(dragged_left.left, 0, static_cast<int>(left_shift) - 4, 0, height).first >= 250);
+  CHECK(std::abs(qGray(dragged_left.left.pixel(static_cast<int>(left_shift) + 12, 8)) - 60) < 25);
+  CHECK(image_block_range(dragged_left.left, width - 20, width - 2, rows0, rows1).first < 250);
+
+  // Dragged to the right, the same holds mirrored: the left page ends at the divider (the
+  // fold lies short of its inner edge) and the right page starts there and is white past
+  // the outline.
+  const double right_shift = (dragged_right.gutter - 0.5) * spread_width;
+  CHECK(dragged_right.left != dragged_left.left && dragged_right.right != dragged_left.right);
+  CHECK(fold_at(dragged_right.left, width - right_shift));
+  CHECK(image_block_range(dragged_right.right, width - static_cast<int>(right_shift) + 4, width, 0, height).first >= 250);
+  CHECK(std::abs(qGray(dragged_right.right.pixel(width - static_cast<int>(right_shift) - 12, 8)) - 60) < 25);
+  // Use: Right page only measures that page alone, so the page is exactly its side of the
+  // divider: from the divider to the outline's outer edge, with its page-number block.
+  CHECK(!right_only.isNull() && std::abs(right_only.width() - (width - right_shift)) < 2.0);
+  if (!right_only.isNull() && right_only.width() > 24) {
+    CHECK(std::abs(qGray(right_only.pixel(right_only.width() - 12, 8)) - 60) < 25);
+    CHECK(image_block_range(right_only, right_only.width() - 6, right_only.width() - 2, rows0, rows1).first < 250);
+  }
+  CHECK(!rtl_first.isNull() && rtl_first == dragged_right.right);
+
+  // Review: the thumbnail and the preview show the right page from the divider on.
+  const double fold_fraction = left_shift / width;
+  CHECK(std::abs(darkest_fraction(thumbnail) - fold_fraction) < 0.04);
+  CHECK(std::abs(darkest_fraction(previewed) - fold_fraction) < 0.04);
+  // The PDF: both pages changed with the divider, and a script writes the same pages.
+  const BookPdfRead read_start = read_book_pdf(pdf_start);
+  const BookPdfRead read_left = read_book_pdf(pdf_left);
+  const BookPdfRead read_right = read_book_pdf(pdf_right);
+  const BookPdfRead read_script = read_book_pdf(pdf_script);
+  CHECK(read_start.images.size() == 4 && read_left.images.size() == 4 && read_right.images.size() == 4 &&
+        read_script.images.size() == 4);
+  if (read_start.images.size() != 4 || read_left.images.size() != 4 || read_right.images.size() != 4 ||
+      read_script.images.size() != 4) {
+    return;
+  }
+  CHECK(read_left.images[1] != read_start.images[1]);
+  CHECK(read_left.images[2] != read_start.images[2]);
+  const QImage pdf_right_page = pdf_page_image(read_left, 2);
+  CHECK(pdf_right_page.width() == width && pdf_right_page.height() == height);
+  CHECK(fold_at(pdf_right_page, left_shift));
+  CHECK(fold_at(pdf_page_image(read_right, 1), width - right_shift));
+  for (std::size_t index = 0; index < 4; ++index) {
+    CHECK(read_script.images[index] == read_right.images[index]);
   }
 }
 
@@ -2350,7 +2498,7 @@ void ui_book_scan_manifest_margin_and_detection_keys() {
     CHECK(std::abs(sizes[1].width - (0.45 * 720.0 - 30.0) / 300.0) < 1e-9);
     CHECK(std::abs(sizes[0].height - 1.6) < 1e-9);
   }
-  // Each page's cut stops a margin short of the divider.
+  // Each page's box starts a margin from the divider and runs outward.
   const patchy::BookPageSize size{1.2, 1.6};
   const auto left =
       patchy::ui::book_page_source(book, {patchy::ui::BookPageRef::Kind::Scan, 0, patchy::BookPageSide::Left, 0}, size);
@@ -2358,9 +2506,14 @@ void ui_book_scan_manifest_margin_and_detection_keys() {
       patchy::ui::book_page_source(book, {patchy::ui::BookPageRef::Kind::Scan, 0, patchy::BookPageSide::Right, 0}, size);
   CHECK(left.has_value() && right.has_value());
   if (left && right) {
-    CHECK(std::abs(left->cut.source_to - (396.0 - 30.0)) < 1e-9 && left->cut.source_from < -1e100);
-    // The right page's box starts 360 px into the spread; its side starts at 396 + 30.
-    CHECK(std::abs(right->cut.source_from - 66.0) < 1e-9 && right->cut.source_to > 1e100);
+    // The left page ends at 396 - 30 px into the spread (which starts at x = 90) and takes
+    // the scan from the outline's left edge, 6 px into its box.
+    CHECK(std::abs(left->cut.box.center_x + 180.0 - (90.0 + 366.0)) < 1e-9);
+    CHECK(std::abs(left->cut.source_from - (-6.0)) < 1e-9 && std::abs(left->cut.source_to - 360.0) < 1e-9);
+    // The right page starts at 396 + 30 px and takes the scan up to the outline's right
+    // edge, 294 px into its box.
+    CHECK(std::abs(right->cut.box.center_x - 180.0 - (90.0 + 426.0)) < 1e-9);
+    CHECK(std::abs(right->cut.source_from) < 1e-9 && std::abs(right->cut.source_to - 294.0) < 1e-9);
     CHECK(left->cut.box.width == 360.0 && right->cut.box.width == 360.0);
   }
   // One page per scan has no divider: the margin changes nothing there.
@@ -2370,6 +2523,108 @@ void ui_book_scan_manifest_margin_and_detection_keys() {
   const auto one =
       patchy::ui::book_page_source(book, {patchy::ui::BookPageRef::Kind::Scan, 0, patchy::BookPageSide::Left, 0}, size);
   CHECK(one.has_value() && one->cut.source_from < -1e100 && one->cut.source_to > 1e100);
+}
+
+// "Top of the book points" is remembered: the last choice (bookScan/upTurns) starts every
+// new book, with a cover scan and with Skip Cover, so its first detection already runs on
+// the turned scan. A book that is continued keeps the turn saved in its book.json.
+void ui_book_scan_top_of_book_is_remembered() {
+  const patchy::test::ui::SettingsGroupRestorer book_settings(QStringLiteral("bookScan"));
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_top_inputs"));
+  const QString first = fresh_artifact_folder(QStringLiteral("ui_book_scan_top_first")) + QStringLiteral("/book");
+  const QString second = fresh_artifact_folder(QStringLiteral("ui_book_scan_top_second")) + QStringLiteral("/book");
+  const QString third = fresh_artifact_folder(QStringLiteral("ui_book_scan_top_third")) + QStringLiteral("/book");
+  const QStringList made = write_book_inputs(inputs, 1);
+  // The first book's cover and spread, the second book's cover, the third book's spread.
+  const QStringList files{made[0], made[1], made[0], made[1]};
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", files.join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
+  const auto stored = [] { return patchy::ui::app_settings().value(QStringLiteral("bookScan/upTurns"), -1).toInt(); };
+  {
+    // Nothing stored yet: a book starts with its top pointing up.
+    patchy::ui::BookScanDialog dialog(nullptr);
+    dialog.set_quiet(true);
+    dialog.show();
+    dialog.set_project_folder(first);
+    CHECK(dialog.project().up_turns == 0 && stored() == -1);
+    dialog.start_cover_scan();
+    wait_for_scan(dialog);
+    auto* up = dialog.findChild<QComboBox*>(QStringLiteral("bookScanUpCombo"));
+    CHECK(up != nullptr && up->currentIndex() == 0);
+    if (up == nullptr) {
+      return;
+    }
+    up->setCurrentIndex(1);  // Right
+    CHECK(dialog.project().up_turns == 3 && stored() == 3);
+    dialog.start_page_scanning();
+    dialog.start_page_scan();
+    wait_for_scan(dialog);
+    CHECK(dialog.last_error().isEmpty() && dialog.project().scans.size() == 1);
+    dialog.reject();
+  }
+  {
+    // The next book, in another folder, starts turned the same way: the cover step shows
+    // Right, and the cover was detected on the turned scan (taller than wide).
+    patchy::ui::BookScanDialog dialog(nullptr);
+    dialog.set_quiet(true);
+    dialog.show();
+    dialog.set_project_folder(second);
+    CHECK(dialog.project().up_turns == 3);
+    dialog.start_cover_scan();
+    wait_for_scan(dialog);
+    CHECK(dialog.last_error().isEmpty() && dialog.project().cover.has_value() && dialog.project().up_turns == 3);
+    auto* up = dialog.findChild<QComboBox*>(QStringLiteral("bookScanUpCombo"));
+    CHECK(up != nullptr && up->currentIndex() == 1);
+    if (dialog.project().cover) {
+      const auto& outline = dialog.project().cover->layout.outline;
+      CHECK(outline.height > outline.width * 1.2);
+      CHECK(std::abs(outline.height / dialog.project().cover->dpi - 2.4) < 0.1);
+    }
+    const auto saved = patchy::ui::load_book_project(second, nullptr);
+    CHECK(saved.has_value() && saved->up_turns == 3);
+    // Changed in the scanning step: that is the next book's start.
+    dialog.start_page_scanning();
+    auto* scan_up = dialog.findChild<QComboBox*>(QStringLiteral("bookScanScanningUpCombo"));
+    CHECK(scan_up != nullptr && scan_up->currentIndex() == 1);
+    if (scan_up == nullptr) {
+      return;
+    }
+    scan_up->setCurrentIndex(2);  // Down
+    CHECK(dialog.project().up_turns == 2 && stored() == 2);
+    dialog.reject();
+  }
+  {
+    // Skip Cover: the book without a cover starts with the last choice too.
+    patchy::ui::BookScanDialog dialog(nullptr);
+    dialog.set_quiet(true);
+    dialog.show();
+    dialog.set_project_folder(third);
+    dialog.skip_cover();
+    CHECK(dialog.step() == patchy::ui::BookScanDialog::Step::Cover && dialog.project().up_turns == 2);
+    auto* up = dialog.findChild<QComboBox*>(QStringLiteral("bookScanUpCombo"));
+    CHECK(up != nullptr && up->currentIndex() == 2);
+    dialog.start_page_scanning();
+    auto* scan_up = dialog.findChild<QComboBox*>(QStringLiteral("bookScanScanningUpCombo"));
+    CHECK(scan_up != nullptr && scan_up->currentIndex() == 2);
+    dialog.start_page_scan();
+    wait_for_scan(dialog);
+    CHECK(dialog.last_error().isEmpty() && dialog.project().scans.size() == 1 && dialog.project().up_turns == 2);
+    dialog.reject();
+  }
+  {
+    // Continue This Book: the first book keeps its own turn, and continuing it does not
+    // change what the next new book starts with.
+    patchy::ui::BookScanDialog dialog(nullptr);
+    dialog.set_quiet(true);
+    dialog.show();
+    dialog.set_project_folder(first);
+    dialog.continue_book();
+    CHECK(dialog.step() == patchy::ui::BookScanDialog::Step::Scanning);
+    CHECK(dialog.project().up_turns == 3 && stored() == 2);
+    auto* scan_up = dialog.findChild<QComboBox*>(QStringLiteral("bookScanScanningUpCombo"));
+    CHECK(scan_up != nullptr && scan_up->currentIndex() == 1);
+    dialog.reject();
+  }
 }
 
 std::vector<patchy::test::TestCase> book_scan_ui_tests() {
@@ -2399,5 +2654,6 @@ std::vector<patchy::test::TestCase> book_scan_ui_tests() {
       {"ui_book_scan_binding_margin_leaves_the_strip_out", ui_book_scan_binding_margin_leaves_the_strip_out},
       {"ui_book_scan_detection_off_reuses_the_layout", ui_book_scan_detection_off_reuses_the_layout},
       {"ui_book_scan_manifest_margin_and_detection_keys", ui_book_scan_manifest_margin_and_detection_keys},
+      {"ui_book_scan_top_of_book_is_remembered", ui_book_scan_top_of_book_is_remembered},
   };
 }

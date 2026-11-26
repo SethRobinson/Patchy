@@ -377,11 +377,22 @@ BookPageSize cover_page_size(const CoverLayout& cover, double ppi) {
   return {(left.width + right.width) / 2.0 / ppi, cover.outline.height / ppi};
 }
 
+namespace {
+
+// A page's inner edge, in pixels from the spread's left edge: the divider less the margin.
+double page_inner_edge(const SpreadLayout& layout, BookPageSide side, double binding_margin_px) {
+  const double divider = std::clamp(layout.gutter, 0.0, 1.0) * layout.spread.width;
+  const double margin = std::max(0.0, binding_margin_px);
+  return side == BookPageSide::Left ? divider - margin : divider + margin;
+}
+
+}  // namespace
+
 OrientedBox uniform_spread_page_box(const SpreadLayout& layout, BookPageSide side, double width_px,
-                                    double height_px) {
-  const double half = layout.spread.width / 2.0;
-  const double local_x = side == BookPageSide::Left ? -half + width_px / 2.0 : half - width_px / 2.0;
-  return box_at(layout.spread, local_x, width_px, height_px);
+                                    double height_px, double binding_margin_px) {
+  const double inner = page_inner_edge(layout, side, binding_margin_px);
+  const double center = side == BookPageSide::Left ? inner - width_px / 2.0 : inner + width_px / 2.0;
+  return box_at(layout.spread, center - layout.spread.width / 2.0, width_px, height_px);
 }
 
 OrientedBox centered_page_box(const OrientedBox& measured, double width_px, double height_px) {
@@ -391,15 +402,16 @@ OrientedBox centered_page_box(const OrientedBox& measured, double width_px, doub
 BookPageCut uniform_spread_page_cut(const SpreadLayout& layout, BookPageSide side, double width_px, double height_px,
                                     double binding_margin_px) {
   BookPageCut cut;
-  cut.box = uniform_spread_page_box(layout, side, width_px, height_px);
-  const double divider = std::clamp(layout.gutter, 0.0, 1.0) * layout.spread.width;
-  const double margin = std::max(0.0, binding_margin_px);
+  cut.box = uniform_spread_page_box(layout, side, width_px, height_px, binding_margin_px);
+  const double inner = page_inner_edge(layout, side, binding_margin_px);
   if (side == BookPageSide::Left) {
-    // The box starts at the spread's left edge.
-    cut.source_to = divider - margin;
+    // The box ends at the inner edge; the outline's left edge lies `inner` before that.
+    cut.source_from = width_px - inner;
+    cut.source_to = width_px;
   } else {
-    // The box ends at the spread's right edge: its left edge is width_px before that.
-    cut.source_from = divider + margin - (layout.spread.width - width_px);
+    // The box starts at the inner edge; the outline's right edge lies this far into it.
+    cut.source_from = 0.0;
+    cut.source_to = layout.spread.width - inner;
   }
   return cut;
 }

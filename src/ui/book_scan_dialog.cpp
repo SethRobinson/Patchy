@@ -905,6 +905,9 @@ BookScanDialog::BookScanDialog(QWidget* parent) : QDialog(parent) {
   // The last book's binding margin starts the next book. Detection always starts on: a
   // new book lies elsewhere on the glass, and its first scan has no boxes to take over.
   project_.binding_margin = stored_binding_margin(settings);
+  // So does the last Top of the book: someone who always lays books the same way sets it
+  // once, and a new book's first cover or page is already detected upright.
+  project_.up_turns = ((settings.value(QStringLiteral("bookScan/upTurns"), 0).toInt() % 4) + 4) % 4;
   session_ = create_scanner_session(this);
 
   auto* root = new QVBoxLayout(this);
@@ -2804,6 +2807,8 @@ void BookScanDialog::set_up_turns(int turns) {
   }
   const bool half = (turns - project_.up_turns + 4) % 4 == 2;
   project_.up_turns = turns;
+  // The user's choice starts the next book too (a continued book keeps its own).
+  app_settings().setValue(QStringLiteral("bookScan/upTurns"), turns);
   const QDir folder(project_.folder);
   const auto upright_size = [&folder](const QString& file, int quarter_turns) {
     const QSize raw = QImageReader(folder.filePath(file)).size();

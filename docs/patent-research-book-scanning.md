@@ -2,7 +2,7 @@
 
 Engineering claim comparison for File > Import > Scan a Book to PDF ([book-scan.md](book-scan.md)), read on Google Patents on 2026-11-08 (status labels are Google's; claim text was read as paraphrase, so re-read the exact wording before quoting it). Binding boundary: "Book scanning" in [legal-constraints-scanning.md](legal-constraints-scanning.md#book-scanning).
 
-Patchy's design as compared: still flatbed scans taken only when the user presses Scan; the book outline found by the Divide Scanned Photos detector (border-seeded background model, components, min-area rectangle; [patent-research.md](patent-research.md), scanned-photo division); the gutter as the darkest column of a smoothed brightness profile in the central 30% of the straightened spread; every page cut at one uniform size anchored at its fore-edge by rotation resampling only; global levels, gray conversion and one global B&W threshold; image-page PDF output.
+Patchy's design as compared: still flatbed scans taken only when the user presses Scan; the book outline found by the Divide Scanned Photos detector (border-seeded background model, components, min-area rectangle; [patent-research.md](patent-research.md), scanned-photo division); the gutter as the darkest column of a smoothed brightness profile in the central 30% of the straightened spread; every page cut at one uniform size by rotation resampling only, its inner edge on the gutter line the user can move (since 2026-11-26; at its fore-edge before) and its source limited to the outline; global levels, gray conversion and one global B&W threshold; image-page PDF output.
 
 ## Gutter detection and page splitting
 
