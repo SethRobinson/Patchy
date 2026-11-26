@@ -132,9 +132,9 @@ Qt::KeyboardModifier tool_modifier(ToolModifierRole role, CanvasTool tool, ToolM
       ctrl = gimp;
       break;
     case ToolModifierRole::TemporaryMove:
-      // The key a tool's pick, source or swap left free.
+      // The key a tool's pick, source, swap or selection subtract left free.
       ctrl = !(pick_uses_ctrl(tool, style) || (is_retouch_source_tool(tool) && other_program) ||
-               (is_toning_swap_tool(tool) && gimp));
+               (is_toning_swap_tool(tool) && gimp) || (is_selection_tool(tool) && gimp));
       break;
   }
   return ctrl ? Qt::ControlModifier : Qt::AltModifier;
@@ -165,6 +165,10 @@ bool tool_has_ctrl_tool_modifier(CanvasTool tool) noexcept {
          (is_selection_tool(tool) && uses_ctrl(ToolModifierRole::SelectionSubtract));
 }
 
+bool tool_has_selection_temporary_move(CanvasTool tool) noexcept {
+  return is_selection_tool(tool);
+}
+
 QString resolve_tool_modifier_names(QString text, CanvasTool tool) {
   const auto token_for = [tool](ToolModifierRole role) {
     return QLatin1StringView(tool_modifier(role, tool) == Qt::ControlModifier ? kCtrlModifierToken
@@ -175,6 +179,7 @@ QString resolve_tool_modifier_names(QString text, CanvasTool tool) {
   text.replace(QLatin1StringView(kSourceKeyToken), token_for(ToolModifierRole::RetouchSource));
   text.replace(QLatin1StringView(kSwapKeyToken), token_for(ToolModifierRole::ToningSwap));
   text.replace(QLatin1StringView(kSubtractKeyToken), token_for(ToolModifierRole::SelectionSubtract));
+  text.replace(QLatin1StringView(kMoveKeyToken), token_for(ToolModifierRole::TemporaryMove));
   return resolve_modifier_names(std::move(text));
 }
 

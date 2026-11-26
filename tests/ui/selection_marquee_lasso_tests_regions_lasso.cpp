@@ -2161,6 +2161,9 @@ void ui_selection_tool_hints_name_modifier_combinations() {
     CHECK(message.contains(QStringLiteral("add")));
     CHECK(message.contains(QStringLiteral("subtract")));
     CHECK(message.contains(QStringLiteral("intersect")) == tool.intersects);
+    // The temporary Move ends every one of them (GitHub issue 753).
+    CHECK(message.endsWith(QLatin1Char(' ') + patchy::ui::ctrl_key_name() +
+                           QStringLiteral("+drag moves the selected pixels.")));
     CHECK(!message.contains(QLatin1Char('%')));
     CHECK(!message.contains(QStringLiteral("Drag a handle")));
   }

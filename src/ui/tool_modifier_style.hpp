@@ -13,8 +13,8 @@ enum class CanvasTool;
 // as Photoshop does; GIMP-style and Krita-style move the gestures their program's published
 // manual gives Ctrl (zoom out, the painting tools' color pick, the clone source and, for GIMP,
 // the Dodge/Burn and Blur/Sharpen swap, selection subtract and Ctrl+wheel zoom). A tool whose
-// pick, source or swap moves to Ctrl takes its temporary Move on Alt instead. Every other
-// gesture keeps Patchy's key. Ctrl is Command on macOS, as everywhere in Patchy.
+// pick, source, swap or subtract moves to Ctrl takes its temporary Move on Alt instead. Every
+// other gesture keeps Patchy's key. Ctrl is Command on macOS, as everywhere in Patchy.
 enum class ToolModifierStyle { Patchy, Gimp, Krita };
 
 // Persisted tokens (the `hotkeySets/toolModifiers` setting, each user set's `toolModifiers`,
@@ -42,7 +42,7 @@ enum class ToolModifierRole {
   RetouchSource,      // Clone and Healing: a click sets the source
   ToningSwap,         // Dodge paints as Burn, Blur as Sharpen, and back
   SelectionSubtract,  // selection tools: subtract, with Shift intersect; mid-drag the marquee grows from its center
-  TemporaryMove,      // a painting tool's drag moves the layer
+  TemporaryMove,      // a painting or selection tool's drag moves the layer or the selected pixels
 };
 
 // Qt::AltModifier or Qt::ControlModifier for `role` on `tool`.
@@ -58,6 +58,10 @@ enum class ToolModifierRole {
 // Whether a gesture of `tool` (or the selection tools' subtract) sits on Ctrl in the active
 // style: the canvas then refreshes the cursor when Ctrl alone goes down or up.
 [[nodiscard]] bool tool_has_ctrl_tool_modifier(CanvasTool tool) noexcept;
+// The selection tools (marquees, lassos, Magic Wand, Quick Select, Object Selection, Patch,
+// Content-Aware Move): the TemporaryMove key makes a press a Move of the selected pixels, or
+// of the layer outside the selection (GitHub issue 753).
+[[nodiscard]] bool tool_has_selection_temporary_move(CanvasTool tool) noexcept;
 
 // Tokens for sentences that name a role's key; translators keep them like %ALT% and %CTRL%.
 // resolve_tool_modifier_names replaces them for `tool`, then the plain modifier tokens.
@@ -66,6 +70,7 @@ inline constexpr auto kPickKeyToken = "%PICK_KEY%";
 inline constexpr auto kSourceKeyToken = "%SOURCE_KEY%";
 inline constexpr auto kSwapKeyToken = "%SWAP_KEY%";
 inline constexpr auto kSubtractKeyToken = "%SUBTRACT_KEY%";
+inline constexpr auto kMoveKeyToken = "%MOVE_KEY%";
 [[nodiscard]] QString resolve_tool_modifier_names(QString text, CanvasTool tool);
 
 }  // namespace patchy::ui

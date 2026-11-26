@@ -37408,6 +37408,10 @@ Zablokowano: %1</translation>
         <source>Files dropped on a canvas:</source>
         <translation>Pliki upuszczone na płótno:</translation>
     </message>
+    <message>
+        <source>%MOVE_KEY%+drag moves the selected pixels.</source>
+        <translation>%MOVE_KEY%+przeciąganie przesuwa zaznaczone piksele.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

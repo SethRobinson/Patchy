@@ -44,7 +44,9 @@ GitHub issue 532. A plain press (Shift allowed, no Ctrl or Alt) inside the pixel
 - The pixels stay floating between drags, as in Photoshop: after a Move commit `move_float_memory_` keeps the first lift (floating pixels and remainder) and the total offset, and the next Move press reuses it when the layer's pixel revision and bounds, the selection region and mask, and the alpha rule are still what that commit left. A second drag therefore reveals what the first one covered and leaves only the first hole. Any other edit, Undo, a selection change or another document drops it, and the next drag lifts what is there. A Free Transform commit does not keep pixels floating: a later Move drag lifts the transformed result.
 - The four-way cursor shows inside the selection (`move_press_drags_at`), a position-locked Background included.
 
-Coverage: `ui_move_drag_inside_selection_moves_pixels` (Auto-Select and Transform Controls on and off, layer count, untouched outside, one undo step), `ui_move_second_drag_keeps_floating_pixels`, `ui_move_selection_drag_modifiers_and_outside_press`, `ui_move_selection_drag_on_background`.
+- The selection tools start the same drag with their temporary Move key held (Ctrl; Alt in the GIMP-style tool modifiers; GitHub issue 753): `begin_selection_temporary_move` asks `move_press_floats_selection` and calls `begin_move_selected_pixels_drag` with that key taken out of the modifiers, so a change here changes both. The rules for that press are in [selection-tools.md](selection-tools.md#behavior-the-selection-tools-share).
+
+Coverage: `ui_move_drag_inside_selection_moves_pixels` (Auto-Select and Transform Controls on and off, layer count, untouched outside, one undo step), `ui_move_second_drag_keeps_floating_pixels`, `ui_move_selection_drag_modifiers_and_outside_press`, `ui_move_selection_drag_on_background`; from a selection tool, `ui_selection_tools_ctrl_drag_inside_selection_moves_pixels` and its siblings in the same file.
 
 ## Ctrl on the transform box
 

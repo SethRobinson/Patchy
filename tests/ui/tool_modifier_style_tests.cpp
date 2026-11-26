@@ -175,6 +175,21 @@ void ui_tool_modifier_style_maps_roles_per_set() {
   CHECK(tool_modifier(ToolModifierRole::SelectionSubtract, CanvasTool::Marquee, patchy_style) == alt);
   CHECK(tool_modifier(ToolModifierRole::TemporaryMove, CanvasTool::Brush, patchy_style) == ctrl);
   CHECK(tool_modifier(ToolModifierRole::TemporaryMove, CanvasTool::Clone, patchy_style) == ctrl);
+  // The selection tools' temporary Move (GitHub issue 753): Ctrl, and Alt where Ctrl subtracts.
+  const auto selection_tools = {CanvasTool::Marquee,       CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
+                                CanvasTool::PolygonLasso,  CanvasTool::MagneticLasso,     CanvasTool::MagicWand,
+                                CanvasTool::QuickSelect,   CanvasTool::ObjectSelect,      CanvasTool::PatchTool,
+                                CanvasTool::ContentAwareMove};
+  for (const auto tool : selection_tools) {
+    CHECK(patchy::ui::tool_has_selection_temporary_move(tool));
+    CHECK(tool_modifier(ToolModifierRole::TemporaryMove, tool, patchy_style) == ctrl);
+    CHECK(tool_modifier(ToolModifierRole::TemporaryMove, tool, ToolModifierStyle::Krita) == ctrl);
+    CHECK(tool_modifier(ToolModifierRole::TemporaryMove, tool, ToolModifierStyle::Gimp) == alt);
+    CHECK(tool_modifier(ToolModifierRole::SelectionSubtract, tool, ToolModifierStyle::Gimp) == ctrl);
+  }
+  for (const auto tool : {CanvasTool::Move, CanvasTool::Brush, CanvasTool::Crop, CanvasTool::Text}) {
+    CHECK(!patchy::ui::tool_has_selection_temporary_move(tool));
+  }
 
   // GIMP-style: the GIMP 3.0 manual's Ctrl gestures.
   const auto gimp = ToolModifierStyle::Gimp;
@@ -227,6 +242,10 @@ void ui_tool_modifier_style_maps_roles_per_set() {
                       QStringLiteral("+right-drag")));
   CHECK(patchy::ui::resolve_tool_modifier_names(text, CanvasTool::MixerBrush)
             .contains(patchy::ui::alt_key_name() + QStringLiteral("+click picks")));
+  CHECK(patchy::ui::resolve_tool_modifier_names(QStringLiteral("%MOVE_KEY%+drag"), CanvasTool::Marquee) ==
+        patchy::ui::alt_key_name() + QStringLiteral("+drag"));
+  CHECK(patchy::ui::resolve_tool_modifier_names(QStringLiteral("%MOVE_KEY%+drag"), CanvasTool::MixerBrush) ==
+        patchy::ui::ctrl_key_name() + QStringLiteral("+drag"));
 }
 
 // GIMP-style on the canvas: Ctrl zooms out, zooms with the wheel, picks with the Brush, sets
@@ -327,6 +346,7 @@ void ui_tool_modifier_style_hints_name_the_sets_keys() {
   const auto marquee = hint("toolMarqueeAction");
   CHECK(marquee.contains(ctrl + QStringLiteral("+drag subtracts")));
   CHECK(marquee.contains(QStringLiteral("Shift+") + ctrl + QStringLiteral("+drag intersects")));
+  CHECK(marquee.endsWith(QLatin1Char(' ') + alt + QStringLiteral("+drag moves the selected pixels.")));
   const auto lasso = hint("toolLassoAction");
   CHECK(lasso.contains(ctrl + QStringLiteral("+drag subtracts")));
   CHECK(lasso.contains(QStringLiteral("Press ") + alt + QStringLiteral(" mid-drag")));

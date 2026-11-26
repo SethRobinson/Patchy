@@ -37176,6 +37176,10 @@ Locked: %1</source>
         <source>Files dropped on a canvas:</source>
         <translation>캔버스에 놓은 파일:</translation>
     </message>
+    <message>
+        <source>%MOVE_KEY%+drag moves the selected pixels.</source>
+        <translation>%MOVE_KEY%+드래그로 선택한 픽셀을 이동합니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

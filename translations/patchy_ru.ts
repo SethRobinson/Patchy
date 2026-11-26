@@ -37408,6 +37408,10 @@ Locked: %1</source>
         <source>Files dropped on a canvas:</source>
         <translation>Файлы, перетащенные на холст:</translation>
     </message>
+    <message>
+        <source>%MOVE_KEY%+drag moves the selected pixels.</source>
+        <translation>%MOVE_KEY%+перетаскивание перемещает выделенные пиксели.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

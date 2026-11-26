@@ -37292,6 +37292,10 @@ Bloccato: %1</translation>
         <source>Files dropped on a canvas:</source>
         <translation>File rilasciati su un quadro:</translation>
     </message>
+    <message>
+        <source>%MOVE_KEY%+drag moves the selected pixels.</source>
+        <translation>%MOVE_KEY%+trascina sposta i pixel selezionati.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

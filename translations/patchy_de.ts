@@ -37292,6 +37292,10 @@ Fixiert: %1</translation>
         <source>Files dropped on a canvas:</source>
         <translation>Auf eine Arbeitsfläche gezogene Dateien:</translation>
     </message>
+    <message>
+        <source>%MOVE_KEY%+drag moves the selected pixels.</source>
+        <translation>%MOVE_KEY%+Ziehen verschiebt die ausgewählten Pixel.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -304,6 +304,7 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
         (key_event->key() == Qt::Key_Shift || key_event->key() == Qt::Key_Alt ||
          (key_event->key() == Qt::Key_Control && (pen_family_tool_active() || tool_ == CanvasTool::Move ||
                                                   tool_ == CanvasTool::Text || tool_has_ctrl_temporary_move(tool_) ||
+                                                  tool_has_selection_temporary_move(tool_) ||
                                                   tool_has_ctrl_tool_modifier(tool_) ||
                                                   transforming_layer_ ||
                                                   path_transform_active_ || tool_ == CanvasTool::PathSelect ||
@@ -408,6 +409,22 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
           retouch_cursor_modifier_override_ = modifiers;
           update_tool_cursor();
           retouch_cursor_modifier_override_.reset();
+        }
+      } else if (key_event->key() == tool_modifier_key(ToolModifierRole::TemporaryMove, tool_) &&
+                 tool_has_selection_temporary_move(tool_)) {
+        // The selection tools' temporary Move (GitHub issue 753): the four-way cursor shows
+        // and goes with the key, the pointer still; update_tool_cursor keeps the tool's own
+        // cursor where a press would not move (a trace in progress, a marquee handle).
+        if (!move_drag_pending_ && !moving_layer_ && !paint_ctrl_click_.has_value()) {
+          retouch_cursor_modifier_override_ = modifiers;
+          update_tool_cursor();
+          retouch_cursor_modifier_override_.reset();
+          // Released inside the selection: a plain press there drags the outline again.
+          if (!selection_temporary_move_held(modifiers) &&
+              marquee_resize_handle_at(last_mouse_position_) == TransformHandle::None &&
+              can_move_selection_at(document_position(last_mouse_position_), modifiers)) {
+            setCursor(Qt::SizeAllCursor);
+          }
         }
       } else if (key_event->key() == tool_modifier_key(ToolModifierRole::ColorPick, tool_) &&
                  (tool_uses_alt_left_for_color_pick(tool_) || tool_ == CanvasTool::Eyedropper) && !painting_ &&
@@ -1167,6 +1184,20 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       event->modifiers().testFlag(temporary_move_modifier) &&
       !event->modifiers().testFlag(other_tool_modifier(temporary_move_modifier))) {
     begin_paint_temporary_move(event, document_point);
+    event->accept();
+    return;
+  }
+  // The selection tools take the same key as a temporary Move tool (GitHub issue 753): inside
+  // the pixel selection the press drags the selected pixels as the Move tool does (issue 532),
+  // anywhere else it moves the layer like the painting tools' press above. The Move tool is
+  // refused in a channel view, so this is too.
+  if (event->button() == Qt::LeftButton && selection_temporary_move_held(event->modifiers()) &&
+      selection_temporary_move_available(event->pos())) {
+    if (channel_view_active) {
+      report_status_error(tr("This tool is unavailable while viewing a document channel"));
+    } else {
+      begin_selection_temporary_move(event, document_point);
+    }
     event->accept();
     return;
   }
@@ -3034,6 +3065,10 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
         // Signal that grabbing here resizes the committed marquee (with any
         // modifier: Alt mirrors, it does not subtract).
         set_transform_cursor_for_handle(handle);
+      } else if (selection_temporary_move_held(event->modifiers()) &&
+                 selection_temporary_move_available(event->pos())) {
+        // The temporary Move key on a selection tool (GitHub issue 753): a press here moves.
+        setCursor(Qt::SizeAllCursor);
       } else if (can_move_selection_at(document_point, event->modifiers())) {
         // Signal that grabbing here drags the selection outline.
         setCursor(Qt::SizeAllCursor);
@@ -3049,7 +3084,8 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
         if (tool_ == CanvasTool::Text) {
           text_ctrl_cursor_override_ = event->modifiers().testFlag(Qt::ControlModifier);
         }
-        if (tool_has_ctrl_temporary_move(tool_)) {
+        if (tool_has_ctrl_temporary_move(tool_) || tool_has_selection_temporary_move(tool_)) {
+          // The move's own modifiers decide the temporary Move cursor, not the global state.
           retouch_cursor_modifier_override_ = event->modifiers();
         }
         update_tool_cursor();
@@ -3145,7 +3181,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   const auto refresh_connect_preview = qScopeGuard([this] { refresh_stroke_connect_preview(); });
   // A painting tool's Ctrl+drag or Ctrl+click (GitHub issues 380, 423) gets its tool cursor
   // back after the commit.
-  const bool ends_retouch_move = tool_has_ctrl_temporary_move(tool_) &&
+  const bool ends_retouch_move = (tool_has_ctrl_temporary_move(tool_) || tool_has_selection_temporary_move(tool_)) &&
                                  (move_drag_pending_ || moving_layer_ || paint_ctrl_click_.has_value()) &&
                                  event->button() == Qt::LeftButton;
   const auto restore_retouch_cursor = qScopeGuard([this, ends_retouch_move, modifiers = event->modifiers()] {
@@ -5945,6 +5981,42 @@ void CanvasWidget::begin_paint_temporary_move(QMouseEvent* event, QPoint documen
   if (!layer_ids.empty()) {
     begin_move_drag(layer_ids, document_point, event->pos());
   }
+}
+
+bool CanvasWidget::selection_temporary_move_held(Qt::KeyboardModifiers modifiers) const noexcept {
+  if (!tool_has_selection_temporary_move(tool_)) {
+    return false;
+  }
+  // Both tool modifiers together are not the Move (the painting tools' rule).
+  const auto move_modifier = tool_modifier(ToolModifierRole::TemporaryMove, tool_);
+  return modifiers.testFlag(move_modifier) && !modifiers.testFlag(other_tool_modifier(move_modifier));
+}
+
+bool CanvasWidget::selection_temporary_move_available(QPoint widget_position) const {
+  if (document_ == nullptr || !tool_has_selection_temporary_move(tool_) || edit_locked_ || quick_mask_active_ ||
+      layer_edit_target_ == LayerEditTarget::SmartFilterMask || transforming_layer_ || warping_layer_ ||
+      spacebar_panning_ || panning_) {
+    return false;
+  }
+  // A gesture in progress keeps its presses: a Polygonal or Magnetic trace places points.
+  if (selecting_ || lassoing_ || polygon_lassoing_ || magnetic_lassoing_ || quick_selecting_ || object_selecting_ ||
+      moving_selection_ || patch_tool_dragging_ || marquee_resize_handle_ != TransformHandle::None) {
+    return false;
+  }
+  // A committed marquee's resize handles keep their grab, as the Move tool's box corners and
+  // sides do: Alt there mirrors the resize (GitHub issue 66).
+  return marquee_resize_handle_at(widget_position) == TransformHandle::None;
+}
+
+void CanvasWidget::begin_selection_temporary_move(QMouseEvent* event, QPoint document_point) {
+  if (move_press_floats_selection(document_point)) {
+    // The Move tool's own press (mousePressEvent): the key that asked for the Move is not
+    // part of the drag, Shift still locks the axis.
+    begin_move_selected_pixels_drag(document_position_f(event->position()),
+                                    event->modifiers() & ~tool_modifier(ToolModifierRole::TemporaryMove, tool_));
+    return;
+  }
+  begin_paint_temporary_move(event, document_point);
 }
 
 void CanvasWidget::report_paint_temporary_move_refused() {

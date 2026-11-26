@@ -37292,6 +37292,10 @@ Bloqueada: %1</translation>
         <source>Files dropped on a canvas:</source>
         <translation>Archivos soltados en un lienzo:</translation>
     </message>
+    <message>
+        <source>%MOVE_KEY%+drag moves the selected pixels.</source>
+        <translation>%MOVE_KEY%+arrastrar mueve los píxeles seleccionados.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

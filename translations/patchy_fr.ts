@@ -37292,6 +37292,10 @@ Verrouillé : %1</translation>
         <source>Files dropped on a canvas:</source>
         <translation>Fichiers déposés sur une zone de travail :</translation>
     </message>
+    <message>
+        <source>%MOVE_KEY%+drag moves the selected pixels.</source>
+        <translation>%MOVE_KEY%+glisser déplace les pixels sélectionnés.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

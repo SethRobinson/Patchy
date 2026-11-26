@@ -2927,6 +2927,15 @@ private:
   // topmost layer with a visible pixel under the pointer instead.
   void begin_paint_temporary_move(QMouseEvent* event, QPoint document_point);
   void report_paint_temporary_move_refused();
+  // The selection tools' temporary Move (GitHub issue 753): with the TemporaryMove key held
+  // alone, a press inside the pixel selection runs the Move tool's selected-pixels drag
+  // (begin_move_selected_pixels_drag) and any other press the painting tools' layer move.
+  // Available only while nothing else owns the press: no selection gesture or trace in
+  // progress, no transform session, no Quick Mask, no filter dialog lock, and not on a resize
+  // handle of a committed marquee, which keeps its own grab.
+  [[nodiscard]] bool selection_temporary_move_available(QPoint widget_position) const;
+  [[nodiscard]] bool selection_temporary_move_held(Qt::KeyboardModifiers modifiers) const noexcept;
+  void begin_selection_temporary_move(QMouseEvent* event, QPoint document_point);
   void select_paint_layer_at(QPoint document_point);
   [[nodiscard]] bool begin_pattern_stamp_stroke(QPoint point);
   [[nodiscard]] QRect clone_brush_segment(QPoint from, QPoint to);
@@ -5324,7 +5333,8 @@ private:
   std::optional<PixelBuffer> healing_stroke_original_pixels_;
   Rect healing_stroke_original_bounds_{};
   QRect healing_stroke_footprint_;
-  // The folded modifiers of the key event being handled, for the Clone/Healing cursor.
+  // The folded modifiers of the key event being handled, for the Clone/Healing cursor and
+  // the painting and selection tools' temporary Move cursor.
   std::optional<Qt::KeyboardModifiers> retouch_cursor_modifier_override_;
   // A painting tool's Ctrl press that has not dragged yet (begin_paint_temporary_move).
   struct PaintCtrlClick {
