@@ -7800,8 +7800,10 @@ void MainWindow::capture_recent_thumbnail(const QString& path, int attempt) {
   Q_UNUSED(path);
   Q_UNUSED(attempt);
 #else
-  // Only for the grid: a user who keeps the list gets no pictures of their files written.
-  if (start_panel_ == nullptr || !start_panel_->recent_grid_view()) {
+  // Only for the grid: a user who chose the list gets no pictures of their files written. Not
+  // for unattended runs either (a script, an export, the connector's hidden window): nobody is
+  // looking at a Home Screen there, and the grid makes the picture itself when it is next shown.
+  if (start_panel_ == nullptr || !start_panel_->recent_grid_view() || unattended_automation()) {
     return;
   }
   // No session (the PDF viewer, a flat copy saved beside the document) or edits the file does

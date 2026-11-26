@@ -357,16 +357,22 @@ void set_stored_tool_flyout_open_mode(ToolFlyoutOpenMode mode) {
 }
 
 bool stored_start_panel_recent_grid_view() {
-  return app_settings().value(start_panel_recent_grid_view_key(), false).toBool();
+#ifdef Q_OS_WASM
+  return false;  // the browser build keeps no recent files: the list only
+#else
+  return app_settings().value(start_panel_recent_grid_view_key(), kDefaultStartPanelRecentGridView).toBool();
+#endif
 }
 
 void set_stored_start_panel_recent_grid_view(bool grid) {
-  auto settings = app_settings();
-  if (grid) {
-    settings.setValue(start_panel_recent_grid_view_key(), true);
-  } else {
-    settings.remove(start_panel_recent_grid_view_key());
-  }
+#ifdef Q_OS_WASM
+  Q_UNUSED(grid);  // never written there
+#else
+  // Both choices are written out. "No key" means "never chose", which follows the default: a
+  // List stored as a missing key came back as the grid at the next start once the grid became
+  // the default.
+  app_settings().setValue(start_panel_recent_grid_view_key(), grid);
+#endif
 }
 
 bool stored_use_shift_for_tool_switch() {

@@ -125,8 +125,11 @@ void set_stored_tool_flyout_open_mode(ToolFlyoutOpenMode mode);
 void set_stored_use_shift_for_tool_switch(bool use_shift);
 
 // Home Screen > Recent Files shown as a grid of thumbnails instead of the list (GitHub issue
-// 750). Stored under `startPanel/recentFilesGridView` (a compatibility contract); the list is
-// the default and is stored as no key.
+// 750). Stored under `startPanel/recentFilesGridView` (a compatibility contract): true is the
+// grid, false the list, and both are written when the user chooses. A profile without the key
+// has never chosen and gets the default, the grid. The browser build keeps no recent files:
+// it always reads the list and never writes the key.
+inline constexpr bool kDefaultStartPanelRecentGridView = true;
 [[nodiscard]] bool stored_start_panel_recent_grid_view();
 void set_stored_start_panel_recent_grid_view(bool grid);
 
