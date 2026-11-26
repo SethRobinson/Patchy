@@ -58,6 +58,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <set>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -3240,7 +3241,8 @@ void ui_layer_via_copy_and_cut_match_photoshop_shortcuts() {
   require_action(window, "layerViaCopyAction")->trigger();
   QApplication::processEvents();
   CHECK(layer_list->count() == initial_layers + 1);
-  CHECK(layer_list->item(0)->text() == QStringLiteral("Layer Via Copy"));
+  // Named after its source, as Duplicate Layer names a copy (GitHub issue 752).
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Paint Layer copy"));
   layer_list->item(0)->setCheckState(Qt::Unchecked);
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(110, 80)), QColor(245, 30, 30), 45));
@@ -3252,8 +3254,8 @@ void ui_layer_via_copy_and_cut_match_photoshop_shortcuts() {
   QApplication::processEvents();
   require_action(window, "layerViaCutAction")->trigger();
   QApplication::processEvents();
-  // Directly above its source, as in Photoshop: under the hidden Layer Via Copy.
-  CHECK(layer_list->item(0)->text() == QStringLiteral("Layer Via Copy"));
+  // Directly above its source, as in Photoshop: under the hidden copy.
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Paint Layer copy"));
   CHECK(layer_list->item(1)->text() == QStringLiteral("Layer Via Cut"));
   CHECK(layer_list->item(2)->text() == QStringLiteral("Paint Layer"));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(110, 80)), QColor(245, 30, 30), 45));
@@ -3357,7 +3359,7 @@ void ui_layer_via_copy_without_selection_duplicates_the_layer() {
   Access::undo(window);
   QApplication::processEvents();
 
-  // With a selection: the selected pixels on a new pixel layer, as before.
+  // With a selection: the selected pixels on a new pixel layer, named after its source (#752).
   Access::select_layers(window, {paint_id}, paint_id);
   QApplication::processEvents();
   select_document_rect(*canvas, QSize(200, 160), QRect(10, 10, 60, 40));
@@ -3367,9 +3369,75 @@ void ui_layer_via_copy_without_selection_duplicates_the_layer() {
   CHECK(pixel_copy != nullptr && pixel_copy->id() != paint_id);
   if (pixel_copy != nullptr) {
     CHECK(pixel_copy->kind() == patchy::LayerKind::Pixel && !patchy::layer_is_vector_shape(*pixel_copy));
-    CHECK(pixel_copy->name() == "Layer Via Copy");
+    CHECK(pixel_copy->name() == "Paint copy");
     CHECK(pixel_copy->bounds() == (patchy::Rect{10, 10, 60, 40}));
   }
+}
+
+// GitHub issue 752: Layer Via Copy with a selection names the new layer after its source as
+// Duplicate Layer does ("daisy-144677 copy", then "daisy-144677 copy 2"), and the two commands
+// share one numbering. A copy taken from several layers has no single source and keeps
+// "Layer Via Copy"; Layer Via Cut keeps its own name.
+void ui_layer_via_copy_names_the_layer_after_its_source() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  const auto format = patchy::PixelFormat::rgba8();
+  const QSize size(200, 160);
+  patchy::Document source(size.width(), size.height(), format);
+  source.add_pixel_layer("Background", solid_pixels(200, 160, format, QColor(Qt::white)));
+  source.add_pixel_layer("petals", solid_pixels(200, 160, format, QColor(240, 200, 40)));
+  const auto petals_id = source.layers().back().id();
+  source.add_pixel_layer("daisy-144677", solid_pixels(200, 160, format, QColor(20, 120, 220)));
+  const auto daisy_id = source.layers().back().id();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(source), QStringLiteral("Via copy names"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  const auto& document = std::as_const(Access::document(window));
+
+  // Runs `action` on `ids` under a marquee and returns the new layer's name. The new layer
+  // holds only the marquee's pixels, so a whole-layer Duplicate Layer cannot pass for it.
+  const auto via = [&](const char* action, const std::vector<patchy::LayerId>& ids) {
+    Access::select_layers(window, ids, ids.front());
+    QApplication::processEvents();
+    select_document_rect(*canvas, size, QRect(10, 10, 60, 40));
+    require_action(window, action)->trigger();
+    QApplication::processEvents();
+    const auto* created = document.find_layer(document.active_layer_id().value_or(0));
+    CHECK(created != nullptr && created->bounds() == (patchy::Rect{10, 10, 60, 40}));
+    return created != nullptr ? created->name() : std::string();
+  };
+
+  CHECK(via("layerViaCopyAction", {daisy_id}) == "daisy-144677 copy");
+  const auto first_copy_id = document.active_layer_id().value_or(0);
+  CHECK(via("layerViaCopyAction", {daisy_id}) == "daisy-144677 copy 2");
+  if (layer_list != nullptr) {
+    save_widget_artifact("ui_issue_752_layer_via_copy_names", *layer_list);
+  }
+  // A copy of a copy numbers on from the same stem, as Duplicate Layer does.
+  CHECK(via("layerViaCopyAction", {first_copy_id}) == "daisy-144677 copy 3");
+
+  // Duplicate Layer took "petals copy": Layer Via Copy takes the next number, not the same name.
+  Access::select_layers(window, {petals_id}, petals_id);
+  QApplication::processEvents();
+  require_action(window, "layerDuplicateAction")->trigger();
+  QApplication::processEvents();
+  const auto* duplicate = document.find_layer(document.active_layer_id().value_or(0));
+  CHECK(duplicate != nullptr && duplicate->name() == "petals copy");
+  CHECK(via("layerViaCopyAction", {petals_id}) == "petals copy 2");
+
+  CHECK(via("layerViaCopyAction", {daisy_id, petals_id}) == "Layer Via Copy");
+  CHECK(via("layerViaCutAction", {daisy_id}) == "Layer Via Cut");
+
+  std::set<std::string> names;
+  for (const auto& layer : document.layers()) {
+    names.insert(layer.name());
+  }
+  CHECK(names.size() == document.layers().size());
+  CHECK(document.layers().size() == 10U);
 }
 
 void ui_free_transform_drag_proxy_engages_above_threshold() {
@@ -4060,6 +4128,7 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
        ui_layer_via_copy_and_cut_match_photoshop_shortcuts},
       {"ui_layer_via_copy_without_selection_duplicates_the_layer",
        ui_layer_via_copy_without_selection_duplicates_the_layer},
+      {"ui_layer_via_copy_names_the_layer_after_its_source", ui_layer_via_copy_names_the_layer_after_its_source},
       {"ui_free_transform_drag_proxy_engages_above_threshold",
        ui_free_transform_drag_proxy_engages_above_threshold},
       {"ui_free_transform_drag_small_doc_stays_live", ui_free_transform_drag_small_doc_stays_live},

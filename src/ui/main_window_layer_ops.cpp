@@ -2095,7 +2095,18 @@ void MainWindow::layer_via_copy() {
 
   auto& doc = document();
   push_undo_snapshot(tr("Layer via copy"));
-  Layer copied(doc.allocate_layer_id(), tr("Layer Via Copy").toStdString(), payload->pixels);
+  // A copy taken from one layer is named as Duplicate Layer names it ("Photo copy", then
+  // "Photo copy 2"), so both commands agree (#752); one from several layers has no single
+  // source to name it after.
+  auto copied_name = tr("Layer Via Copy").toStdString();
+  if (payload->source_layer_ids.size() == 1U) {
+    if (const auto* source = std::as_const(doc).find_layer(payload->source_layer_ids.front()); source != nullptr) {
+      std::set<std::string> existing_names;
+      collect_layer_names(std::as_const(doc).layers(), existing_names);
+      copied_name = next_duplicate_name(source->name(), existing_names);
+    }
+  }
+  Layer copied(doc.allocate_layer_id(), std::move(copied_name), payload->pixels);
   copied.set_bounds(Rect{payload->origin.x(), payload->origin.y(), copied.pixels().width(), copied.pixels().height()});
   // Directly above the topmost source, so a layer on an artboard or in a folder stays there.
   const auto copied_id = copied.id();
