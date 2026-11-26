@@ -111,8 +111,11 @@ struct ScopedAssetsDir {
 
 // Bytes the library takes for an asset file: it checks the signature only.
 std::vector<std::uint8_t> fake_psd_bytes(std::uint8_t fill) {
-  std::vector<std::uint8_t> bytes{'8', 'B', 'P', 'S'};
-  bytes.resize(64, fill);
+  std::vector<std::uint8_t> bytes(64, fill);
+  bytes[0] = '8';
+  bytes[1] = 'B';
+  bytes[2] = 'P';
+  bytes[3] = 'S';
   return bytes;
 }
 
