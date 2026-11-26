@@ -2683,7 +2683,6 @@ void ui_book_scan_scanner_button_starts_a_scan() {
     CHECK(!check->isHidden() && check->isChecked() && dialog.scanner_button_listening());
     CHECK(!hint->isHidden() && hint->text() == QStringLiteral("The scanner's own Scan button starts the scan too."));
     patchy::test::ui::save_widget_artifact("ui_book_scan_scanner_button", dialog);
-    const int preview_width = preview->width();
     // A press that comes right after a scan finished (the cover's) is a double: dropped.
     press();
     CHECK(!dialog.scan_in_progress() && book.scans.empty());
@@ -2735,6 +2734,10 @@ void ui_book_scan_scanner_button_starts_a_scan() {
     }
 
     // The option off: nothing listens, the instruction loses its phrase, the choice is stored.
+    // (The width is taken here, not earlier: status lines that came with the scans since
+    // then may have changed the column's width, on Linux they do.)
+    QApplication::processEvents();
+    const int preview_width = preview->width();
     check->click();
     CHECK(!check->isChecked() && !dialog.scanner_button_listening());
     CHECK(hint->isHidden());
