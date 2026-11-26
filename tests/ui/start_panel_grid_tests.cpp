@@ -681,6 +681,18 @@ void ui_start_panel_recent_grid_filter_menu_and_remove() {
   CHECK(parts.list->count() == 1);
   CHECK(parts.list->shows_cells());
   CHECK(parts.list->item(0)->data(kRecentPathRole).toString() == recent[1]);
+  // The box is one row of cells tall now, and the column closes up around it: the height the
+  // second row gave back does not stay inside the column as a gap under the header.
+  auto* column = window.findChild<QWidget*>(QStringLiteral("startPanelColumn"));
+  auto* artwork = window.findChild<QWidget*>(QStringLiteral("startPanelArtwork"));
+  auto* new_button = window.findChild<QWidget*>(QStringLiteral("startPanelNewButton"));
+  CHECK(column != nullptr && artwork != nullptr && new_button != nullptr);
+  // (The column and the panel around it each lay out on their own pass of the event loop.)
+  CHECK(process_events_until([&] { return column->height() <= column->sizeHint().height(); }));
+  CHECK(parts.list->height() == patchy::ui::recent_grid_cell_height() + patchy::ui::kRecentListChrome);
+  const int header_gap =
+      new_button->mapTo(column, QPoint(0, 0)).y() - artwork->mapTo(column, QPoint(0, artwork->height())).y();
+  CHECK(header_gap < 60);
   save_widget_artifact("ui_start_panel_recent_grid_filtered", window);
 
   // No match: the placeholder row, full width, as in list view.
