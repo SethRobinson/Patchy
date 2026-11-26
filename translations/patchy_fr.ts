@@ -37269,6 +37269,29 @@ Verrouillé : %1</translation>
         <source>Defined pattern: %1 (%2 x %3 px)</source>
         <translation>Motif défini : %1 (%2 x %3 px)</translation>
     </message>
+    <message numerus="yes">
+        <source>Placed %n file(s) as smart objects</source>
+        <translation>
+            <numerusform>%n fichier importé comme objet dynamique</numerusform>
+            <numerusform>%n fichiers importés comme objets dynamiques</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open in a new tab</source>
+        <translation>Ouvrir dans un nouvel onglet</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object</source>
+        <translation>Importer comme objet dynamique</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object embeds an image dropped on a document&apos;s canvas in that document, as File &gt; Place &gt; Place Embedded does. A file dropped on the document tabs still opens in a new tab, and so do PDFs and camera raw files.</source>
+        <translation>Importer comme objet dynamique incorpore dans le document l&apos;image déposée sur sa zone de travail, comme Fichier &gt; Placer &gt; Importer et incorporer. Un fichier déposé sur les onglets des documents s&apos;ouvre toujours dans un nouvel onglet, tout comme les PDF et les fichiers Camera Raw.</translation>
+    </message>
+    <message>
+        <source>Files dropped on a canvas:</source>
+        <translation>Fichiers déposés sur une zone de travail :</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

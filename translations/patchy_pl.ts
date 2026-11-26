@@ -37384,6 +37384,30 @@ Zablokowano: %1</translation>
         <source>Defined pattern: %1 (%2 x %3 px)</source>
         <translation>Zdefiniowany wzorek: %1 (%2 x %3 px)</translation>
     </message>
+    <message numerus="yes">
+        <source>Placed %n file(s) as smart objects</source>
+        <translation>
+            <numerusform>Umieszczono %n plik jako obiekt inteligentny</numerusform>
+            <numerusform>Umieszczono %n pliki jako obiekty inteligentne</numerusform>
+            <numerusform>Umieszczono %n plików jako obiekty inteligentne</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open in a new tab</source>
+        <translation>Otwórz w nowej karcie</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object</source>
+        <translation>Umieść jako obiekt inteligentny</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object embeds an image dropped on a document&apos;s canvas in that document, as File &gt; Place &gt; Place Embedded does. A file dropped on the document tabs still opens in a new tab, and so do PDFs and camera raw files.</source>
+        <translation>„Umieść jako obiekt inteligentny” osadza obraz upuszczony na płótno dokumentu w tym dokumencie, tak jak Plik &gt; Umieść &gt; Umieść osadzone. Plik upuszczony na karty dokumentów nadal otwiera się w nowej karcie, podobnie jak pliki PDF i Camera Raw.</translation>
+    </message>
+    <message>
+        <source>Files dropped on a canvas:</source>
+        <translation>Pliki upuszczone na płótno:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

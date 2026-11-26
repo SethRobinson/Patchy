@@ -10,6 +10,8 @@
 #include "ui/raw_develop_settings.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/canvas_widget.hpp"
+#include "core/smart_object.hpp"
 #include "unicode_path_names.hpp"
 #include <QJsonDocument>
 #include <QJsonArray>
@@ -1085,6 +1087,83 @@ void ui_raw_file_drop_returns_before_dialog_and_preserves_batch() {
   }
 }
 
+// GitHub issue 749: with Preferences set to place files dropped on a canvas as smart
+// objects, a camera raw in the drop still opens through its develop dialog (it is never
+// placed with default development), while the image dropped with it places.
+void ui_raw_file_dropped_on_canvas_keeps_develop_dialog() {
+  using patchy::ui::MainWindowTestAccess;
+  SettingsValueRestorer dialog_restorer(QStringLiteral("imports/showRawDevelopDialog"));
+  SettingsValueRestorer drop_restorer(QStringLiteral("imports/canvasFileDrop"));
+  SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), true);
+    settings.setValue(QStringLiteral("imports/canvasFileDrop"), QStringLiteral("smartObject"));
+    settings.sync();
+  }
+  const auto path = write_raw_dng_fixture(QStringLiteral("canvas drop.dng"));
+  const auto original_bytes = raw_test_bytes(path);
+  const auto png_path = path + QStringLiteral(".png");
+  QImage source(6, 4, QImage::Format_RGB32);
+  source.fill(QColor(20, 80, 160));
+  CHECK(source.save(png_path));
+
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  patchy::Document board(64, 48, patchy::PixelFormat::rgba8());
+  board.add_pixel_layer("Base", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(240, 240, 240)));
+  window.add_document_session(std::move(board), QStringLiteral("Board"));
+  QApplication::processEvents();
+  auto* canvas = MainWindowTestAccess::canvas(window);
+  auto* document = MainWindowTestAccess::document_for_canvas(window, canvas);
+  CHECK(canvas != nullptr && document != nullptr);
+  CHECK(MainWindowTestAccess::session_count(window) == 1);
+
+  bool dialog_seen = false;
+  std::exception_ptr error;
+  QTimer driver;
+  QObject::connect(&driver, &QTimer::timeout, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("rawDevelopDialog"));
+    if (!dialog) return;
+    try {
+      // The image placed first; the raw is asking how to develop it, in no tab yet.
+      CHECK(std::as_const(*document).layers().size() == 2U);
+      CHECK(MainWindowTestAccess::session_count(window) == 1);
+      CHECK(dialog->windowTitle().contains(QFileInfo(path).fileName()));
+      dialog_seen = true;
+    } catch (...) {
+      error = std::current_exception();
+      driver.stop();
+    }
+    dialog->reject();
+  });
+  driver.start(10);
+  {
+    QMimeData mime;
+    mime.setUrls({QUrl::fromLocalFile(path), QUrl::fromLocalFile(png_path)});
+    const auto position = canvas->rect().center();
+    QDragEnterEvent enter(position, Qt::CopyAction | Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &enter);
+    CHECK(enter.isAccepted());
+    QDropEvent drop(QPointF(position), Qt::CopyAction | Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &drop);
+    CHECK(drop.isAccepted());
+  }
+  CHECK(!dialog_seen);
+  CHECK(std::as_const(*document).layers().size() == 1U);
+  QApplication::processEvents();
+  driver.stop();
+  if (error) std::rethrow_exception(error);
+  CHECK(dialog_seen);
+  // The cancelled raw opened nothing, and the image is a layer of the document, not a tab.
+  CHECK(MainWindowTestAccess::session_count(window) == 1);
+  CHECK(std::as_const(*document).layers().size() == 2U);
+  CHECK(patchy::layer_is_smart_object(std::as_const(*document).layers().back()));
+  CHECK(std::as_const(*document).layers().back().name() == QFileInfo(png_path).completeBaseName().toStdString());
+  CHECK(raw_test_bytes(path) == original_bytes);
+  CHECK(!QFileInfo::exists(patchy::ui::raw_develop_settings_path(path)));
+}
+
 void ui_raw_develop_dialog_cancel_aborts_open() {
   RawDevelopSettingsSanitizer raw_settings_sanitizer;
   SettingsValueRestorer dialog_restorer(QStringLiteral("imports/showRawDevelopDialog"));
@@ -1905,6 +1984,7 @@ std::vector<patchy::test::TestCase> camera_raw_heif_tests() {
       {"ui_raw_develop_dialog_cancel_aborts_open", ui_raw_develop_dialog_cancel_aborts_open},
       {"ui_raw_file_drop_returns_before_dialog_and_preserves_batch",
        ui_raw_file_drop_returns_before_dialog_and_preserves_batch},
+      {"ui_raw_file_dropped_on_canvas_keeps_develop_dialog", ui_raw_file_dropped_on_canvas_keeps_develop_dialog},
       {"ui_raw_develop_dialog_exposure_slider_brightens_preview",
        ui_raw_develop_dialog_exposure_slider_brightens_preview},
       {"ui_raw_preference_disabled_opens_with_camera_defaults",

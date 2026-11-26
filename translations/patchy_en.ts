@@ -37185,6 +37185,29 @@ Locked: %1</source>
         <source>Defined pattern: %1 (%2 x %3 px)</source>
         <translation type="unfinished"></translation>
     </message>
+    <message numerus="yes">
+        <source>Placed %n file(s) as smart objects</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open in a new tab</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Place as Smart Object</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Place as Smart Object embeds an image dropped on a document&apos;s canvas in that document, as File &gt; Place &gt; Place Embedded does. A file dropped on the document tabs still opens in a new tab, and so do PDFs and camera raw files.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Files dropped on a canvas:</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -1940,7 +1940,8 @@ void MainWindow::place_linked_file_with_path(const QString& path) {
 std::optional<LayerId> MainWindow::place_file_as_smart_object(DocumentSession& target, const QString& path,
                                                               const SmartObjectPlaceOptions& options,
                                                               const std::function<bool()>& before_mutation,
-                                                              QString* error) {
+                                                              QString* error,
+                                                              const SmartObjectSource* loaded_contents) {
   const auto fail = [error](const QString& message) -> std::optional<LayerId> {
     if (error != nullptr) {
       *error = message;
@@ -1948,10 +1949,15 @@ std::optional<LayerId> MainWindow::place_file_as_smart_object(DocumentSession& t
     return std::nullopt;
   };
   const QFileInfo info(path);
-  const auto contents = load_smart_object_file_probe(path);
-  if (!contents.has_value()) {
-    return fail(tr("Could not read %1").arg(path));
+  std::optional<SmartObjectSource> read_contents;
+  if (loaded_contents == nullptr) {
+    read_contents = load_smart_object_file_probe(path);
+    if (!read_contents.has_value()) {
+      return fail(tr("Could not read %1").arg(path));
+    }
+    loaded_contents = &*read_contents;
   }
+  const auto* contents = loaded_contents;
   if (classify_smart_object_contents(*contents) == SmartObjectContentsFormat::Undecodable) {
     return fail(tr("Could not decode %1").arg(info.fileName()));
   }

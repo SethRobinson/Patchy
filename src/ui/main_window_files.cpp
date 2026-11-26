@@ -3320,7 +3320,137 @@ bool MainWindow::accept_open_file_drag(QDropEvent* event) {
   return true;
 }
 
-bool MainWindow::open_dropped_files(QDropEvent* event) {
+namespace {
+
+// What a file dropped on a document's canvas does (GitHub issue 749): `tab`, the default,
+// opens it like every other drop; `smartObject` embeds it in that document. Set in
+// Preferences > Application. The key and its tokens are permanent.
+constexpr auto kCanvasFileDropKey = "imports/canvasFileDrop";
+
+bool canvas_file_drops_place_smart_objects() {
+  return app_settings().value(QString::fromLatin1(kCanvasFileDropKey), QStringLiteral("tab")).toString() ==
+         QStringLiteral("smartObject");
+}
+
+// Formats whose open starts with an import dialog (the PDF page picker, the camera raw
+// develop step): a canvas drop keeps opening them, so the dialog still runs.
+bool dropped_file_opens_through_an_import_dialog(const QString& path) {
+  const auto extension = QFileInfo(path).suffix().toLower();
+  return is_pdf_extension(extension) || raw::is_camera_raw_extension(extension.toStdString());
+}
+
+}  // namespace
+
+bool MainWindow::handle_canvas_file_drop_event(QObject* watched, QEvent* event) {
+  // Never taken in the browser build: its Preferences has no row for the choice, and its
+  // drops arrive as bare paths through handle_web_file_drop, with no drop target.
+  if (event == nullptr || shutting_down_) {
+    return false;
+  }
+  const auto type = event->type();
+  if (type != QEvent::DragEnter && type != QEvent::DragMove && type != QEvent::Drop) {
+    return false;
+  }
+  auto* canvas = qobject_cast<CanvasWidget*>(watched);
+  if (canvas == nullptr || !canvas_file_drops_place_smart_objects()) {
+    return false;
+  }
+  const auto* target = session_for_canvas(canvas);
+  if (target == nullptr) {
+    return false;
+  }
+  // The canvas answers the drag itself, so the drop is delivered to it and names its
+  // document. A drag it refuses (no files, the preview-dialog lock) goes on to the
+  // window handlers, which refuse it the same way.
+  auto* drop_event = static_cast<QDropEvent*>(event);
+  if (type != QEvent::Drop) {
+    return accept_open_file_drag(drop_event);
+  }
+  return open_dropped_files(drop_event, target->session_id);
+}
+
+QStringList MainWindow::place_dropped_files_as_smart_objects(std::int64_t target_session_id,
+                                                             const QStringList& paths) {
+  // The document closed between the drop and this deferred call: nothing is left to
+  // place into, so the files open as they would with no document under the pointer.
+  if (session_with_id(target_session_id) == nullptr) {
+    return paths;
+  }
+  // Read each file once: the probe decides whether Place Embedded takes it and then is
+  // the placed contents. PDFs and camera raws open (their import dialog), and so does
+  // anything the probe cannot decode, which reports through the open path as before.
+  QStringList open_paths;
+  std::vector<std::pair<QString, SmartObjectSource>> placeable;
+  for (const auto& path : paths) {
+    if (dropped_file_opens_through_an_import_dialog(path)) {
+      open_paths.push_back(path);
+      continue;
+    }
+    auto contents = load_smart_object_file_probe(path);
+    if (!contents.has_value() || classify_smart_object_contents(*contents) == SmartObjectContentsFormat::Undecodable) {
+      open_paths.push_back(path);
+      continue;
+    }
+    placeable.emplace_back(path, std::move(*contents));
+  }
+  if (placeable.empty()) {
+    return open_paths;
+  }
+
+  // The dropped-on document becomes the active one (a float's window comes forward), so
+  // the Layers panel, the canvas refresh and Undo all act on the document that changed.
+  if (auto* target = session_with_id(target_session_id); target != active_session()) {
+    activate_document_session(*target);
+  }
+  canvas_->finish_free_transform();
+  finish_active_text_editor();
+
+  bool snapshot_taken = false;
+  QStringList placed_names;
+  QStringList failures;
+  for (const auto& [path, contents] : placeable) {
+    auto* target = shutting_down_ ? nullptr : session_with_id(target_session_id);
+    if (target == nullptr) {
+      break;
+    }
+    QString error;
+    const auto placed = place_file_as_smart_object(
+        *target, path, SmartObjectPlaceOptions{},
+        [this, target, &snapshot_taken] {
+          // One undo step for the whole drop: the snapshot before the first placed file.
+          if (!snapshot_taken) {
+            push_undo_snapshot(*target, tr("Place Embedded"));
+            snapshot_taken = true;
+          }
+          return true;
+        },
+        &error, &contents);
+    if (placed.has_value()) {
+      placed_names.push_back(QFileInfo(path).fileName());
+    } else {
+      failures.push_back(error);
+    }
+  }
+  if (!placed_names.isEmpty() && session_with_id(target_session_id) != nullptr) {
+    refresh_layer_list();
+    refresh_layer_controls();
+    canvas_->document_changed();
+    update_undo_redo_actions();
+    statusBar()->showMessage(placed_names.size() == 1
+                                 ? tr("Placed %1 as a smart object").arg(placed_names.front())
+                                 : tr("Placed %n file(s) as smart objects", nullptr,
+                                      static_cast<int>(placed_names.size())));
+  }
+  if (!failures.isEmpty()) {
+    // A file that looked placeable and was not is reported the way Place Embedded
+    // reports it, never opened as a tab instead.
+    show_critical_message(this, tr("Place failed"), failures.join(QLatin1Char('\n')),
+                          QStringLiteral("placeEmbeddedFailedMessageBox"));
+  }
+  return open_paths;
+}
+
+bool MainWindow::open_dropped_files(QDropEvent* event, std::optional<std::int64_t> place_target_session_id) {
   if (preview_dialog_edit_locked()) {
     if (event != nullptr) {
       event->ignore();
@@ -3352,7 +3482,7 @@ bool MainWindow::open_dropped_files(QDropEvent* event) {
   // Windows Explorer waits for its OLE drop call to return, including any nested
   // RAW/PDF/import dialog loop entered here. Own the paths, never the event or
   // its source-owned mime data, and cancel delivery if this window is destroyed.
-  QTimer::singleShot(0, this, [this, paths, font_paths, directories] {
+  QTimer::singleShot(0, this, [this, paths, font_paths, directories, place_target_session_id] {
     if (shutting_down_ || !isVisible()) {
       return;
     }
@@ -3363,9 +3493,21 @@ bool MainWindow::open_dropped_files(QDropEvent* event) {
     if (!font_paths.isEmpty()) {
       show_user_font_drop_result(user_fonts::add_user_fonts(font_paths));
     }
+    // A canvas drop that places smart objects (GitHub issue 749) keeps only the files
+    // Place Embedded does not take; they open below like any other drop. The target is
+    // a session id, looked up again here: the document may have closed since the drop.
+    const auto open_paths = place_target_session_id.has_value()
+                                ? place_dropped_files_as_smart_objects(*place_target_session_id, paths)
+                                : paths;
+    if (shutting_down_ || !isVisible()) {
+      return;  // the Place failed box ran an event loop
+    }
+    if (open_paths.isEmpty() && directories.isEmpty()) {
+      return;
+    }
     begin_open_batch();
     const auto open_batch = qScopeGuard([this] { end_open_batch(); });
-    for (const auto& path : paths) {
+    for (const auto& path : open_paths) {
       open_document_path(path);
     }
     // A dropped folder opens like File > Open Folder: its images as tabs.

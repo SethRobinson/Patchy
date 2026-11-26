@@ -37154,6 +37154,28 @@ Locked: %1</source>
         <source>Defined pattern: %1 (%2 x %3 px)</source>
         <translation>已定義圖樣：%1 (%2 x %3 px)</translation>
     </message>
+    <message numerus="yes">
+        <source>Placed %n file(s) as smart objects</source>
+        <translation>
+            <numerusform>已將 %n 個檔案置入為智慧型物件</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open in a new tab</source>
+        <translation>在新分頁中開啟</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object</source>
+        <translation>置入為智慧型物件</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object embeds an image dropped on a document&apos;s canvas in that document, as File &gt; Place &gt; Place Embedded does. A file dropped on the document tabs still opens in a new tab, and so do PDFs and camera raw files.</source>
+        <translation>「置入為智慧型物件」會將拖放到文件版面上的影像嵌入該文件，與「檔案 &gt; 置入 &gt; 置入嵌入的物件」相同。拖放到文件分頁上的檔案仍會在新分頁中開啟，PDF 和相機原始檔也是如此。</translation>
+    </message>
+    <message>
+        <source>Files dropped on a canvas:</source>
+        <translation>拖放到版面上的檔案：</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

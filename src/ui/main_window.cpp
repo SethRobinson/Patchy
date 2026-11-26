@@ -6564,6 +6564,10 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     return true;
   }
 
+  if (handle_canvas_file_drop_event(watched, event)) {
+    return true;
+  }
+
   if (handle_right_dock_resize_event(watched, event)) {
     return true;
   }

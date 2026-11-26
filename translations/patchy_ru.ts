@@ -37384,6 +37384,30 @@ Locked: %1</source>
         <source>Defined pattern: %1 (%2 x %3 px)</source>
         <translation>Определён узор: %1 (%2 x %3 px)</translation>
     </message>
+    <message numerus="yes">
+        <source>Placed %n file(s) as smart objects</source>
+        <translation>
+            <numerusform>Размещен %n файл как смарт-объект</numerusform>
+            <numerusform>Размещено %n файла как смарт-объекты</numerusform>
+            <numerusform>Размещено %n файлов как смарт-объекты</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open in a new tab</source>
+        <translation>Открыть в новой вкладке</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object</source>
+        <translation>Поместить как смарт-объект</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object embeds an image dropped on a document&apos;s canvas in that document, as File &gt; Place &gt; Place Embedded does. A file dropped on the document tabs still opens in a new tab, and so do PDFs and camera raw files.</source>
+        <translation>«Поместить как смарт-объект» встраивает изображение, перетащенное на холст документа, в этот документ, как Файл &gt; Поместить &gt; Поместить встроенное. Файл, перетащенный на вкладки документов, по-прежнему открывается в новой вкладке, как и файлы PDF и Camera Raw.</translation>
+    </message>
+    <message>
+        <source>Files dropped on a canvas:</source>
+        <translation>Файлы, перетащенные на холст:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

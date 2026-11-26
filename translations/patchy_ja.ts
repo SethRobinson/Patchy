@@ -37154,6 +37154,28 @@ Locked: %1</source>
         <source>Defined pattern: %1 (%2 x %3 px)</source>
         <translation>パターンを定義しました: %1 (%2 x %3 px)</translation>
     </message>
+    <message numerus="yes">
+        <source>Placed %n file(s) as smart objects</source>
+        <translation>
+            <numerusform>%n 個のファイルをスマートオブジェクトとして配置しました</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open in a new tab</source>
+        <translation>新しいタブで開く</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object</source>
+        <translation>スマートオブジェクトとして配置</translation>
+    </message>
+    <message>
+        <source>Place as Smart Object embeds an image dropped on a document&apos;s canvas in that document, as File &gt; Place &gt; Place Embedded does. A file dropped on the document tabs still opens in a new tab, and so do PDFs and camera raw files.</source>
+        <translation>「スマートオブジェクトとして配置」は、ドキュメントのキャンバスにドロップした画像を、「ファイル &gt; 配置 &gt; 埋め込みを配置」と同じようにそのドキュメントに埋め込みます。ドキュメントのタブにドロップしたファイルは、これまでどおり新しいタブで開きます。PDF とカメラ Raw ファイルも同様です。</translation>
+    </message>
+    <message>
+        <source>Files dropped on a canvas:</source>
+        <translation>キャンバスにドロップしたファイル:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
