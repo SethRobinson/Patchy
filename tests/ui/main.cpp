@@ -373,6 +373,11 @@ int main(int argc, char* argv[]) {
     auto settings = patchy::ui::app_settings();
     settings.remove(QStringLiteral("tools"));
     settings.remove(QStringLiteral("view"));
+    // The Home Screen's Recent Files open as a grid of thumbnails by default (GitHub issue
+    // 750). The suite pins the list, which is what the Home Screen tests written before the
+    // grid measure (row heights, the row's remove button); a test about the grid, or about
+    // the default itself, sets or removes the key and puts it back (start_panel_grid_tests.cpp).
+    settings.setValue(QStringLiteral("startPanel/recentFilesGridView"), false);
     settings.remove(QStringLiteral("input"));
     settings.remove(QStringLiteral("imports"));
     settings.remove(QStringLiteral("window"));

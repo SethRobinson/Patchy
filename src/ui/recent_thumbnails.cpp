@@ -477,6 +477,11 @@ void RecentThumbnailCache::retain_only(const QStringList& paths) {
   enqueue(std::move(job));
 }
 
+void RecentThumbnailCache::clear() {
+  entries_.clear();
+  retain_only({});  // a deletion job: it runs on the worker, even when the process is quitting
+}
+
 void RecentThumbnailCache::keep_loaded_only(const QStringList& paths) {
   if (entries_.isEmpty()) {
     return;

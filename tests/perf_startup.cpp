@@ -70,7 +70,9 @@ struct LaunchConfig {
 // long-time user's Home Screen holds, which the fresh profile never shows.
 struct ProfileSeed {
   int recent_files = 0;  // PATCHY_PERF_STARTUP_RECENT
-  bool grid = false;     // PATCHY_PERF_STARTUP_GRID
+  // PATCHY_PERF_STARTUP_GRID=1 or =0 stores the grid or the list; unset leaves the profile
+  // without the key, which is the app's default (the grid).
+  std::optional<bool> grid;
   QSize window;          // PATCHY_PERF_STARTUP_WINDOW=<width>x<height>
 };
 
@@ -103,7 +105,7 @@ QStringList make_recent_files(const QString& folder, int count) {
       masters << path;
     }
   };
-  add_picture(QStringLiteral("master-photo.jpg"), 2400, 1600, 11U, "JPG");
+  add_picture(QStringLiteral("master-photo.jpg"), 6000, 4000, 11U, "JPG");  // a camera's 24 megapixels
   add_picture(QStringLiteral("master-art.png"), 1280, 960, 23U, "PNG");
   add_picture(QStringLiteral("master-portrait.jpg"), 1200, 1800, 37U, "JPG");
   for (const auto& fixture : {QStringLiteral(PATCHY_SOURCE_DIR "/test-fixtures/psd/arrows.psd"),
@@ -138,8 +140,8 @@ void seed_profile(const LaunchConfig& config, const ProfileSeed& seed, const QSt
   if (!recent.isEmpty()) {
     settings.setValue(QStringLiteral("recentFiles"), recent);
   }
-  if (seed.grid) {
-    settings.setValue(QStringLiteral("startPanel/recentFilesGridView"), true);
+  if (seed.grid.has_value()) {
+    settings.setValue(QStringLiteral("startPanel/recentFilesGridView"), *seed.grid);
   }
   if (seed.window.isValid()) {
     settings.setValue(QStringLiteral("window/normalGeometry"), QRect(QPoint(0, 0), seed.window));
@@ -531,7 +533,9 @@ int run_startup_scenario() {
   const auto mode = std::string(config.onscreen ? "window" : "headless");
   ProfileSeed seed;
   seed.recent_files = std::clamp(env_int("PATCHY_PERF_STARTUP_RECENT", 0), 0, 200);
-  seed.grid = qEnvironmentVariableIsSet("PATCHY_PERF_STARTUP_GRID");
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_STARTUP_GRID")) {
+    seed.grid = env_int("PATCHY_PERF_STARTUP_GRID", 1) != 0;
+  }
   if (const auto parts = qEnvironmentVariable("PATCHY_PERF_STARTUP_WINDOW").split(QLatin1Char('x')); parts.size() == 2) {
     seed.window = QSize(parts[0].toInt(), parts[1].toInt());
   }
@@ -564,13 +568,14 @@ int run_startup_scenario() {
     }
     QDir().mkpath(reference_config.scratch);
   }
-  if (seed.recent_files > 0 || seed.grid || seed.window.isValid()) {
+  if (seed.recent_files > 0 || seed.grid.has_value() || seed.window.isValid()) {
     const auto recent = make_recent_files(QDir(root).filePath(QStringLiteral("recent-files")), seed.recent_files);
     seed_profile(config, seed, recent);
     if (!compare_exe.isEmpty()) {
       seed_profile(reference_config, seed, recent);
     }
-    std::cout << "[PERF] startup seeded profile: recent=" << recent.size() << " grid=" << (seed.grid ? 1 : 0)
+    std::cout << "[PERF] startup seeded profile: recent=" << recent.size() << " view="
+              << (!seed.grid.has_value() ? "default" : *seed.grid ? "grid" : "list")
               << " thumbnails=" << (config.empty_thumbnails ? "empty" : "kept") << " window="
               << (seed.window.isValid() ? std::to_string(seed.window.width()) + "x" + std::to_string(seed.window.height())
                                         : std::string("default"))

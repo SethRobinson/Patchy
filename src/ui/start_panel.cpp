@@ -654,6 +654,12 @@ void StartPanel::set_recent_grid_view(bool grid) {
   }
   recent_grid_view_ = grid;
   set_stored_start_panel_recent_grid_view(grid);
+  if (!grid) {
+    // The list shows no pictures, so none stay on disk either: the cached thumbnails are
+    // deleted (on the worker) when the list is chosen. The grid is the default, so the cache
+    // is no longer something a user asked for by pressing Grid; choosing List gives it up.
+    recent_thumbnails_->clear();
+  }
   apply_recent_view();
   emit recent_grid_view_changed(grid);
 }

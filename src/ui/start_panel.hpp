@@ -50,10 +50,10 @@ class StartPanel final : public QWidget {
   // enabled state here (an image on the clipboard). Always off in the browser build.
   void set_clipboard_available(bool available);
 
-  // Recent Files as a grid of thumbnails instead of the list (GitHub issue 750). The two
-  // buttons beside the filter switch it; the choice is stored (`startPanel/recentFilesGridView`,
-  // app_settings.hpp) and the list is the default. The browser build keeps no recent files, so
-  // it has the list only and no buttons.
+  // Recent Files as a grid of thumbnails or as the list (GitHub issue 750). The two buttons
+  // beside the filter switch it; the choice is stored (`startPanel/recentFilesGridView`,
+  // app_settings.hpp) and the grid is the default. Choosing the list deletes the cached
+  // thumbnails. The browser build keeps no recent files, so it has the list only and no buttons.
   [[nodiscard]] bool recent_grid_view() const noexcept { return recent_grid_view_; }
   void set_recent_grid_view(bool grid);
   // The pictures behind the grid. MainWindow gives it the composite of a document it just

@@ -629,8 +629,7 @@ void ui_start_panel_recent_grid_view_toggles_and_persists() {
     auto parts = panel_parts(window);
     CHECK(process_events_until([&] { return parts.list->count() == 3; }));
 
-    // The list is the default: nothing changes for a user who never presses Grid, and no
-    // thumbnail is made or stored.
+    // With the list chosen no thumbnail is made or stored.
     CHECK(parts.list_button->isVisible() && parts.grid_button->isVisible());
     CHECK(parts.list_button->isCheckable() && parts.grid_button->isCheckable());
     CHECK(parts.list_button->text() == QStringLiteral("List"));
@@ -693,11 +692,31 @@ void ui_start_panel_recent_grid_view_toggles_and_persists() {
     CHECK(parts.grid_button->isChecked());
     CHECK(parts.list->shows_cells());
 
-    // Back to the list: stored as no key, rows again.
+    // Back to the list: stored as an explicit value (a missing key means the default, which
+    // is the grid), rows again, and the cached pictures are deleted: the list keeps none of
+    // the user's files as pictures on disk.
+    for (const auto& path : recent) {
+      CHECK(QFileInfo::exists(patchy::ui::recent_thumbnail_cache_file(path)));
+    }
     click(*parts.list_button, parts.list_button->rect().center());
     CHECK(!parts.panel->recent_grid_view());
     CHECK(!patchy::ui::stored_start_panel_recent_grid_view());
-    CHECK(!patchy::ui::app_settings().contains(QStringLiteral("startPanel/recentFilesGridView")));
+    CHECK(patchy::ui::app_settings().contains(QStringLiteral("startPanel/recentFilesGridView")));
+    CHECK(!patchy::ui::app_settings().value(QStringLiteral("startPanel/recentFilesGridView")).toBool());
+    CHECK(process_events_until(
+        [&] {
+          for (const auto& path : recent) {
+            if (QFileInfo::exists(patchy::ui::recent_thumbnail_cache_file(path))) {
+              return false;
+            }
+          }
+          return true;
+        },
+        8000));
+    for (const auto& path : recent) {
+      CHECK(parts.panel->recent_thumbnails().state(path) == RecentThumbnailState::unknown);
+      CHECK(QFileInfo::exists(path));  // the pictures go, never the files themselves
+    }
     CHECK(!parts.list->shows_cells());
     QApplication::processEvents();
     CHECK(parts.list->visualItemRect(parts.list->item(0)).height() == patchy::ui::recent_row_height());
@@ -1194,6 +1213,69 @@ void ui_start_panel_recent_section_fits_a_small_window() {
   CHECK(shorter.box.bottom() < shorter.version_top);
 }
 
+// The grid is what a profile that never chose gets (GitHub issue 750 follow-up).
+void ui_start_panel_recent_files_open_in_grid_by_default() {
+  using namespace patchy::test::ui;
+  GridTestSettings settings;
+  const auto key = QStringLiteral("startPanel/recentFilesGridView");
+  QStringList recent;
+  recent << write_png(scratch_file(QStringLiteral("default-one.png")), QColor(200, 50, 50))
+         << write_png(scratch_file(QStringLiteral("default-two.png")), QColor(50, 170, 70))
+         << write_png(scratch_file(QStringLiteral("default-three.png")), QColor(60, 90, 210));
+  settings.set_recent(recent);
+  {
+    auto store = patchy::ui::app_settings();
+    store.remove(key);
+    store.sync();
+  }
+  CHECK(patchy::ui::kDefaultStartPanelRecentGridView);
+  CHECK(patchy::ui::stored_start_panel_recent_grid_view());
+
+  {
+    // A fresh profile: the grid, with nothing pressed, and looking does not write the key.
+    MainWindow window;
+    show_window_empty(window);
+    window.resize(1280, 860);
+    auto parts = panel_parts(window);
+    CHECK(process_events_until([&] { return parts.list->count() == 3; }));
+    CHECK(parts.panel->recent_grid_view());
+    CHECK(parts.grid_button->isChecked() && !parts.list_button->isChecked());
+    CHECK(parts.list->shows_cells());
+    CHECK(all_thumbnails_settled(parts));
+    CHECK(parts.panel->recent_thumbnails().state(recent[0]) == RecentThumbnailState::ready);
+    CHECK(!patchy::ui::app_settings().contains(key));
+    save_widget_artifact("ui_start_panel_recent_grid_by_default", window);
+
+    // Choosing the list is remembered as an explicit false.
+    click(*parts.list_button, parts.list_button->rect().center());
+    CHECK(!parts.panel->recent_grid_view());
+    CHECK(patchy::ui::app_settings().contains(key));
+    CHECK(!patchy::ui::app_settings().value(key).toBool());
+  }
+  {
+    // The list survives a restart, and the grid chosen again is stored as true.
+    MainWindow window;
+    show_window_empty(window);
+    auto parts = panel_parts(window);
+    CHECK(process_events_until([&] { return parts.list->count() == 3; }));
+    CHECK(!parts.panel->recent_grid_view());
+    CHECK(parts.list_button->isChecked());
+    CHECK(!parts.list->shows_cells());
+    click(*parts.grid_button, parts.grid_button->rect().center());
+    CHECK(parts.panel->recent_grid_view());
+    CHECK(patchy::ui::app_settings().contains(key));
+    CHECK(patchy::ui::app_settings().value(key).toBool());
+  }
+  {
+    MainWindow window;
+    show_window_empty(window);
+    auto parts = panel_parts(window);
+    CHECK(process_events_until([&] { return parts.list->count() == 3; }));
+    CHECK(parts.panel->recent_grid_view());
+    CHECK(parts.list->shows_cells());
+  }
+}
+
 // --- Startup: nothing for the grid runs before the first paint (docs/startup-performance.md) ---
 
 void ui_start_panel_grid_does_no_thumbnail_work_before_its_first_paint() {
@@ -1277,6 +1359,7 @@ void ui_recent_thumbnails_folder_stays_inside_an_isolated_settings_folder() {
 
 std::vector<patchy::test::TestCase> start_panel_grid_tests() {
   return {
+      {"ui_start_panel_recent_files_open_in_grid_by_default", ui_start_panel_recent_files_open_in_grid_by_default},
       {"ui_start_panel_grid_does_no_thumbnail_work_before_its_first_paint",
        ui_start_panel_grid_does_no_thumbnail_work_before_its_first_paint},
       {"ui_recent_thumbnails_folder_stays_inside_an_isolated_settings_folder",

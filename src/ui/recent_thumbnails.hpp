@@ -87,6 +87,9 @@ class RecentThumbnailCache final : public QObject {
   // Deletes every cache file that belongs to none of `paths`: what bounds the folder to one
   // thumbnail per recent entry.
   void retain_only(const QStringList& paths);
+  // Forgets every loaded picture and deletes every cache file: Recent Files went to list view,
+  // which keeps no pictures of the user's files on disk.
+  void clear();
   // Drops the loaded images of paths outside `paths`; the cache files stay.
   void keep_loaded_only(const QStringList& paths);
   // Marks every loaded path for one more look at its file (changed size or time), keeping the
