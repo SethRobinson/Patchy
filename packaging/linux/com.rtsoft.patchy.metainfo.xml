@@ -147,6 +147,16 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.43" date="2026-11-27">
+      <description>
+        <ul>
+          <li>Keep layers for reuse in any document with the new Assets panel.</li>
+          <li>See recent files as a grid of thumbnails on the Home Screen.</li>
+          <li>Move selected pixels with Ctrl+drag from any selection tool, and place files dropped on a canvas as Smart Objects.</li>
+          <li>Cut book scans at a divider you can drag, with a binding margin.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.42" date="2026-11-23">
       <description>
         <ul>

@@ -19,13 +19,13 @@ QString contributors_link_html(const QString& link_color) {
   // and the README's copy from GitHub (docs/release-process.md), so never edit
   // them by hand.
   static constexpr Contributor kContributors[] = {
-      {"philipzae", "https://github.com/philipzae", 551},
+      {"philipzae", "https://github.com/philipzae", 553},
       {"malnaanah", "https://github.com/malnaanah", 26},
       {"KevDoy", "https://github.com/KevDoy", 22},
       {"lucastucious", "https://github.com/lucastucious", 12},
+      {"gabi2d", "https://github.com/gabi2d", 12},
       {"egofree71", "https://github.com/egofree71", 11},
       {"YuFu-Onship", "https://github.com/YuFu-Onship", 10},
-      {"gabi2d", "https://github.com/gabi2d", 10},
       {"mcapogna", "https://github.com/mcapogna", 7},
       {"ifloppy", "https://github.com/ifloppy", 6},
       {"spgrhy-lab", "https://github.com/spgrhy-lab", 6},
@@ -53,6 +53,7 @@ QString contributors_link_html(const QString& link_color) {
       {"LiveFreeDead", "https://github.com/LiveFreeDead", 1},
       {"EFIShell0", "https://github.com/EFIShell0", 1},
       {"marshmallows0", "https://github.com/marshmallows0", 1},
+      {"sysman2007", "https://github.com/sysman2007", 1},
   };
 
   QStringList links;

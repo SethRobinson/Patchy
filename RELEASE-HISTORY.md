@@ -3,6 +3,14 @@
 Older Patchy release notes are collected here. The most recent release
 remains in [README.md](README.md#whats-new).
 
+## 1.42 - November 23, 2026
+
+- **Layer styles.** An Inner Glow can be filled with an editable gradient, and Photoshop files and .asl libraries keep it. Inner Glow and Inner Shadow on soft-edged layers match Photoshop more closely, including Precise glows and Choke. A + button beside the Pattern Overlay and Bevel Texture pattern pickers saves a pattern that came with a document to your pattern library. ([Issue 746](https://github.com/SethRobinson/Patchy/issues/746), [issue 748](https://github.com/SethRobinson/Patchy/issues/748))
+- **Patterns.** Edit > Define New Preset > Define Pattern makes a library pattern from the open image or the selected rectangle of it. ([Issue 747](https://github.com/SethRobinson/Patchy/issues/747))
+- **OpenRaster.** Files whose layer entries start with a slash open, and each layer sits at its own position when a stack carries x and y.
+- **Fixes.** A PSD saved from a GIMP file with EXIF-style metadata dates opens in Photoshop without a file info warning. Help > About shows the RTsoft logo above a link to rtsoft.com. ([Issue 740](https://github.com/SethRobinson/Patchy/issues/740))
+- **Testing.** Testy's native import benchmark opens the same XCF, KRA, OpenRaster and Aseprite files in GIMP, Krita, PhotoDemon, PhotoCraft and Photopea and scores each editor.
+
 ## 1.41 - November 22, 2026
 
 - **Layer styles.** Drop Shadow, Inner Shadow, Outer Glow and Inner Glow have a Noise setting. An Outer Glow can be filled with an editable gradient. Pattern Overlay and Bevel Texture have Horizontal and Vertical Offset. Every gradient offers the Smooth and Stripes methods beside Classic, Perceptual and Linear. Photoshop files keep all of these. Dragging along a layer's effect eyes hides or shows several effects in one undo step. ([Issue 742](https://github.com/SethRobinson/Patchy/issues/742))
