@@ -25,7 +25,7 @@ Patchy's design as compared: still flatbed scans taken only when the user presse
 ## Scanner book modes
 
 - **US 8270041 B2** (Brother; priority 2007-10-11; Active, to 2031-05-29): an open document read into two page images, the opening direction (left or right) decided, one page turned 180 degrees relative to the other by that decision, both recorded on one medium in one orientation. Patchy writes one page per PDF page and never turns one page of a spread against the other; reading direction only orders pages and is the user's setting.
-- **US 8958101 B2** (Canon; priority 2012-06-11; Expired - Fee Related): preview of a split two-page read, a user-marked area on one page mirrored to the other.
+- **US 8958101 B2** (Canon; priority 2012-06-11; Expired - Fee Related): preview of a split two-page read, a user-marked area on one page mirrored to the other. Patchy's binding margin (2026-11-26) is one length typed for the book and applied beside every spread's divider, not an area marked on a page and mirrored.
 - **US 9258448 B2** (PFU; priority 2013-02-28; Active, to 2034-04-26): an overhead area sensor captures repeated images, brightness-difference motion detects a page turn, and the turn starts a read. Patchy scans only on the user's button press.
 
 ## Page-curvature dewarping (excluded)

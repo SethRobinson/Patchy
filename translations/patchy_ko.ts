@@ -18232,6 +18232,34 @@ Do you want to replace it?</source>
         <source>Recognizing text and writing page %1 of %2...</source>
         <translation>텍스트를 인식하고 %2페이지 중 %1페이지를 쓰는 중...</translation>
     </message>
+    <message>
+        <source>Binding margin:</source>
+        <translation>제본 여백:</translation>
+    </message>
+    <message>
+        <source>Detect the pages on each scan</source>
+        <translation>스캔할 때마다 페이지 감지</translation>
+    </message>
+    <message>
+        <source>Finds the book&apos;s outline and divider again on every scan. Turn it off once they are right: each new scan then uses the boxes of the scan before it, and a scan that is scanned again keeps its own.</source>
+        <translation>스캔할 때마다 책의 윤곽선과 구분선을 다시 찾습니다. 올바르게 맞춘 뒤에는 끄세요. 그러면 새 스캔은 바로 앞 스캔의 상자를 그대로 사용하고, 다시 스캔한 스캔은 자신의 상자를 유지합니다.</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again. Its boxes were kept.</source>
+        <translation>스캔 %1을(를) 다시 스캔했습니다. 상자는 그대로 유지했습니다.</translation>
+    </message>
+    <message>
+        <source>The pages are detected on each scan.</source>
+        <translation>스캔할 때마다 페이지를 감지합니다.</translation>
+    </message>
+    <message>
+        <source>New scans use the boxes of the scan before them.</source>
+        <translation>새 스캔은 바로 앞 스캔의 상자를 사용합니다.</translation>
+    </message>
+    <message>
+        <source>Leaves out a strip this wide on each side of the divider on every scan of the book, so the dark area by the binding stays off the pages.</source>
+        <translation>책의 모든 스캔에서 구분선 양쪽으로 이 너비의 띠를 제외하여, 제본 부분의 어두운 영역이 페이지에 들어가지 않게 합니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

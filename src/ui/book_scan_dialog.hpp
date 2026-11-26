@@ -60,6 +60,11 @@ public:
   // quiet) and keeps the folder for a new book.
   void start_over();
   void set_scan_mode(BookScanMode mode);
+  // The book's binding margin in inches: the strip left out on each side of every
+  // spread's divider. Remembered for new books.
+  void set_binding_margin(double inches);
+  // Whether each new scan is detected, or takes the boxes of the scan before it.
+  void set_detect_each_scan(bool detect);
   void start_cover_scan();
   // Covers one at a time (BookCoverStyle::Separate): the cover step's Scan Back Cover.
   void start_back_cover_scan();
@@ -173,6 +178,14 @@ private:
   void open_book_folder();
   [[nodiscard]] SpreadLayout detect_scan_layout(const PixelBuffer& upright, double dpi,
                                                 const std::optional<OrientedBox>& fallback) const;
+  // The boxes of `from` (the scan before a new one, or the scan a rescan replaces) for a
+  // scan of `upright_size` at `dpi` that has no turn of its own: the same place on the
+  // glass, rescaled for another resolution. nullopt when the scans differ in size (another
+  // scan area), where the boxes would not lie on the book.
+  [[nodiscard]] std::optional<SpreadLayout> carried_scan_layout(const BookScanEntry& from, double dpi,
+                                                                QSize upright_size) const;
+  // A binding margin spin box in the locale's unit, wired to set_binding_margin.
+  [[nodiscard]] QDoubleSpinBox* make_binding_margin_spin(QWidget* parent, const QString& object_name);
   [[nodiscard]] QImage thumbnail_for(const BookPageRef& page);
   struct SmallScan {
     PixelBuffer pixels;  // the unturned scan at kSmallScanDpi
@@ -301,6 +314,8 @@ private:
   QPushButton* back_to_next_button_{nullptr};
   QFormLayout* scan_form_{nullptr};
   QDoubleSpinBox* spread_tilt_spin_{nullptr};
+  QDoubleSpinBox* binding_margin_spin_{nullptr};
+  QCheckBox* detect_check_{nullptr};
   QListWidget* strip_{nullptr};
   QCheckBox* beep_check_{nullptr};
   QPushButton* scan_button_{nullptr};
@@ -317,6 +332,8 @@ private:
   QComboBox* size_combo_{nullptr};
   QDoubleSpinBox* custom_width_{nullptr};
   QDoubleSpinBox* custom_height_{nullptr};
+  QFormLayout* review_form_{nullptr};
+  QDoubleSpinBox* review_margin_spin_{nullptr};
   QComboBox* output_combo_{nullptr};
   QComboBox* page_output_combo_{nullptr};
   QSlider* threshold_slider_{nullptr};

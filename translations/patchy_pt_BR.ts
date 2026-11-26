@@ -18296,6 +18296,34 @@ Deseja substituí-lo?</translation>
         <source>Recognizing text and writing page %1 of %2...</source>
         <translation>Reconhecendo o texto e gravando a página %1 de %2...</translation>
     </message>
+    <message>
+        <source>Binding margin:</source>
+        <translation>Margem de encadernação:</translation>
+    </message>
+    <message>
+        <source>Detect the pages on each scan</source>
+        <translation>Detectar as páginas em cada digitalização</translation>
+    </message>
+    <message>
+        <source>Finds the book&apos;s outline and divider again on every scan. Turn it off once they are right: each new scan then uses the boxes of the scan before it, and a scan that is scanned again keeps its own.</source>
+        <translation>Procura novamente o contorno e a linha divisória do livro em cada digitalização. Desative quando estiverem corretos: cada nova digitalização passa a usar os quadros da anterior, e uma digitalização refeita mantém os seus.</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again. Its boxes were kept.</source>
+        <translation>A digitalização %1 foi feita novamente. Seus quadros foram mantidos.</translation>
+    </message>
+    <message>
+        <source>The pages are detected on each scan.</source>
+        <translation>As páginas são detectadas em cada digitalização.</translation>
+    </message>
+    <message>
+        <source>New scans use the boxes of the scan before them.</source>
+        <translation>As novas digitalizações usam os quadros da anterior.</translation>
+    </message>
+    <message>
+        <source>Leaves out a strip this wide on each side of the divider on every scan of the book, so the dark area by the binding stays off the pages.</source>
+        <translation>Deixa de fora uma faixa desta largura de cada lado da linha divisória em todas as digitalizações do livro, para que a área escura junto à encadernação não apareça nas páginas.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

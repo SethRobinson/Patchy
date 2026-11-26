@@ -38,6 +38,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenu>
 #include <QMimeData>
 #include <QProgressDialog>
@@ -1753,6 +1754,624 @@ void ui_book_scan_searchable_cancel_failure_and_script() {
   CHECK(backlog_contains(window, QStringLiteral("book-ocr-none-ok")));
 }
 
+// --- The divider decides the cut; binding margin; detection per scan (docs/book-scan.md) -----
+
+// A whole-bed scan of an open book whose fold has a wide dark shadow, as a thick book
+// leaves on the glass. The left page holds text lines and the right page text lines and a
+// framed block, so a page that shows the other side is seen at once.
+QString write_shadow_spread(const QString& folder, const QString& name, int width, int height,
+                            const patchy::OrientedBox& book, int marker) {
+  QImage image(width, height, QImage::Format_RGB888);
+  image.fill(QColor(22, 22, 22));
+  for (int y = 0; y < height; ++y) {
+    auto* row = image.scanLine(y);
+    for (int x = 0; x < width; ++x) {
+      double lx = 0.0;
+      double ly = 0.0;
+      if (!inside(book, x + 0.5, y + 0.5, lx, ly)) {
+        continue;
+      }
+      const double u = lx / book.width;
+      const double v = ly / book.height;
+      const double fold = std::abs(u - 0.5);
+      int value = fold < 0.035 ? 120 + static_cast<int>(fold / 0.035 * 118.0) : 238;
+      const bool left = u < 0.5;
+      const double page_u = left ? u / 0.5 : (u - 0.5) / 0.5;
+      const bool text_rows = v > 0.14 && v < 0.88 && static_cast<int>(v * 48.0) % 2 == 1;
+      if (text_rows && page_u > 0.14 && page_u < 0.86 && !(v > 0.3 && v < 0.55 && !left)) {
+        value = std::min(value, 60);
+      }
+      // The right page's framed block.
+      if (!left && v > 0.32 && v < 0.53 && page_u > 0.2 && page_u < 0.8) {
+        const bool frame = v < 0.335 || v > 0.515 || page_u < 0.212 || page_u > 0.788;
+        value = std::min(value, frame ? 60 : 200);
+      }
+      // A page-number block in the top outer corner tells the pages apart.
+      if (v < 0.07 && (u < 0.07 || u > 0.93)) {
+        value = marker;
+      }
+      row[x * 3] = row[x * 3 + 1] = row[x * 3 + 2] = static_cast<uchar>(std::min(value, 255));
+    }
+  }
+  const QString path = QDir(folder).filePath(name);
+  image.save(path, "PNG");
+  return path;
+}
+
+// The darkest and lightest value in a block of a Gray8 or RGB8 page.
+std::pair<int, int> page_block_range(const patchy::PixelBuffer& page, int x0, int x1, int y0, int y1) {
+  int lightest = 0;
+  int darkest = 255;
+  for (int y = y0; y < y1; ++y) {
+    for (int x = x0; x < x1; ++x) {
+      const int value = page.pixel(x, y)[0];
+      lightest = std::max(lightest, value);
+      darkest = std::min(darkest, value);
+    }
+  }
+  return {darkest, lightest};
+}
+
+std::pair<int, int> image_block_range(const QImage& image, int x0, int x1, int y0, int y1) {
+  int lightest = 0;
+  int darkest = 255;
+  for (int y = y0; y < y1; ++y) {
+    for (int x = x0; x < x1; ++x) {
+      const int value = qGray(image.pixel(x, y));
+      lightest = std::max(lightest, value);
+      darkest = std::min(darkest, value);
+    }
+  }
+  return {darkest, lightest};
+}
+
+// A cover and `spreads` spreads on a 6 x 4 inch bed at 300 dpi: a 4.8 x 3.2 inch open book
+// with a wide fold shadow.
+QStringList write_shadow_book_inputs(const QString& folder, int spreads) {
+  QStringList files;
+  files << write_bed(folder, QStringLiteral("cover.png"), 1800, 1200, {900.0, 600.0, 1440.0, 960.0, 0.0}, false, 0);
+  for (int i = 0; i < spreads; ++i) {
+    files << write_shadow_spread(folder, QStringLiteral("spread-%1.png").arg(i + 1), 1800, 1200,
+                                 {900.0, 600.0, 1440.0, 960.0, 0.0}, 60 + i * 20);
+  }
+  return files;
+}
+
+// The divider dragged off the fold decides where the pages are cut: the page on the
+// narrower side no longer shows the other side of the divider (it showed the fold's shadow
+// and the facing page), in the strip, the review thumbnail, the review preview and the PDF.
+void ui_book_scan_divider_decides_the_page_cut() {
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_divider_inputs"));
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_divider_project")) + QStringLiteral("/book");
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", write_shadow_book_inputs(inputs, 1).join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "6x4");
+  patchy::ui::BookScanDialog dialog(nullptr);
+  dialog.set_quiet(true);
+  dialog.show();
+  dialog.set_project_folder(project);
+  dialog.set_title(QStringLiteral("Field Notes"));
+  dialog.start_cover_scan();
+  wait_for_scan(dialog);
+  if (auto* resolution = dialog.findChild<QComboBox*>(QStringLiteral("bookScanResolutionCombo"))) {
+    resolution->setCurrentIndex(resolution->findData(kDpi));
+  }
+  dialog.start_page_scanning();
+  dialog.start_page_scan();
+  wait_for_scan(dialog);
+  CHECK(dialog.last_error().isEmpty() && dialog.project().scans.size() == 1);
+  auto* strip = dialog.findChild<QListWidget*>(QStringLiteral("bookScanPageStrip"));
+  CHECK(strip != nullptr);
+  if (dialog.project().scans.size() != 1 || strip == nullptr) {
+    return;
+  }
+  QApplication::processEvents();
+  const auto& book = dialog.project();
+  CHECK(std::abs(book.scans[0].layout.gutter - 0.5) < 0.02);
+  CHECK(strip->count() == 4);  // front cover, two pages, back cover
+  const auto strip_icon = [strip](int row) { return strip->item(row)->icon().pixmap(64, 90).toImage(); };
+  const QImage strip_before = strip_icon(2);
+
+  // The divider goes right of the fold's shadow, as a user moves it off a dark binding.
+  // Everything is captured first and checked after, so a failing run still shows each step.
+  const double dropped = 0.56;
+  drag_gutter(dialog, 0, dropped);
+  const double gutter = book.scans[0].layout.gutter;
+  patchy::test::ui::save_widget_artifact("ui_book_scan_divider_scanning", dialog);
+  const int strip_count = strip->count();
+  const QImage strip_after = strip_count == 4 ? strip_icon(2) : QImage();
+  const auto size = patchy::ui::resolved_page_size(book);
+  const auto order = patchy::ui::book_page_order(book);
+  CHECK(order.size() == 4);
+  if (order.size() != 4) {
+    return;
+  }
+  patchy::ui::BookScanCache cache(book);
+  const auto left = patchy::ui::render_book_page(book, order[1], size, 0, cache, false);
+  const auto right = patchy::ui::render_book_page(book, order[2], size, 0, cache, false);
+  patchy::test::ui::save_image_artifact("ui_book_scan_divider_left_page", patchy::ui::book_image_from_pixels(left));
+  patchy::test::ui::save_image_artifact("ui_book_scan_divider_right_page", patchy::ui::book_image_from_pixels(right));
+  const double spread_width = book.scans[0].layout.spread.width;
+  dialog.finish_scanning();
+  auto* pages = dialog.findChild<QListWidget*>(QStringLiteral("bookScanPagesList"));
+  auto* preview = dialog.findChild<QLabel*>(QStringLiteral("bookScanReviewPreview"));
+  CHECK(pages != nullptr && preview != nullptr && pages->count() == 4);
+  if (pages == nullptr || preview == nullptr || pages->count() != 4) {
+    return;
+  }
+  pages->setCurrentRow(2);
+  pages->clearSelection();
+  pages->item(2)->setSelected(true);
+  QApplication::processEvents();
+  patchy::test::ui::save_widget_artifact("ui_book_scan_divider_review", dialog);
+  const QImage thumbnail = pages->item(2)->icon().pixmap(pages->iconSize()).toImage();
+  const QImage previewed = preview->pixmap().toImage();
+  const QString pdf_path = QDir(inputs).filePath(QStringLiteral("divider.pdf"));
+  const bool exported = dialog.export_pdf(pdf_path, false);
+  dialog.reject();
+
+  CHECK(std::abs(gutter - dropped) < 0.01);
+  // The strip's second page changed with the drag.
+  CHECK(strip_count == 4 && strip_after != strip_before);
+  // One spread measured at the median: both pages are half the spread wide, so the right
+  // page's box reaches left of the divider. What lies there is the left page's side.
+  CHECK(!left.empty() && !right.empty() && left.width() == right.width());
+  if (left.empty() || right.empty()) {
+    return;
+  }
+  // The divider's place in the right page, in pixels from its left edge.
+  const int divider_x = static_cast<int>(std::lround(right.width() - (1.0 - gutter) * spread_width));
+  CHECK(divider_x > 40 && divider_x < right.width() / 4);
+  const int rows0 = right.height() / 10;
+  const int rows1 = right.height() * 9 / 10;
+  // Left of the divider the page is white: nothing of the fold's shadow or the other page.
+  CHECK(page_block_range(right, 0, divider_x - 2, rows0, rows1).first >= 250);
+  // Right of it the page is the scan, where it was (the fore-edge anchors the page).
+  const auto paper = page_block_range(right, divider_x + 3, divider_x + 12, rows0, rows1);
+  CHECK(paper.first > 200 && paper.second < 250);
+  CHECK(std::abs(static_cast<int>(right.pixel(right.width() - 8, 8)[0]) - 60) < 25);
+  // The left page ends before the divider and keeps its own side.
+  CHECK(std::abs(static_cast<int>(left.pixel(8, 8)[0]) - 60) < 25);
+
+  // Review: the thumbnail, the preview and the PDF page show the same cut.
+  const auto white_left_of_divider = [&](const QImage& image) {
+    const double scale = image.width() / static_cast<double>(right.width());
+    const int limit = static_cast<int>(std::floor(divider_x * scale * 0.85)) - 1;
+    return limit > 1 && image_block_range(image, 0, limit, image.height() / 10, image.height() * 9 / 10).first >= 245;
+  };
+  CHECK(white_left_of_divider(thumbnail));
+  CHECK(white_left_of_divider(previewed));
+  CHECK(exported);
+  const BookPdfRead pdf = read_book_pdf(pdf_path);
+  CHECK(pdf.images.size() == 4);
+  if (pdf.images.size() == 4) {
+    const QImage page = QImage::fromData(QByteArray(reinterpret_cast<const char*>(pdf.images[2].data()),
+                                                    static_cast<qsizetype>(pdf.images[2].size())));
+    CHECK(page.width() == right.width() && page.height() == right.height());
+    CHECK(white_left_of_divider(page));
+  }
+}
+
+// The binding margin's value for a spin box in the locale's unit, and the inches it means.
+struct MarginValue {
+  double shown;
+  double inches;
+};
+MarginValue margin_value(double millimeters, double inches) {
+  const bool metric = QLocale().measurementSystem() == QLocale::MetricSystem;
+  return metric ? MarginValue{millimeters, millimeters / 25.4} : MarginValue{inches, inches};
+}
+
+// The binding margin leaves a strip out on each side of every spread's divider: the pages
+// lose the fold's shadow, the measured page is narrower by the margin, the box editor
+// shades the strip, and the value is the book's (book.json) and the next book's default.
+void ui_book_scan_binding_margin_leaves_the_strip_out() {
+  const patchy::test::ui::SettingsGroupRestorer book_settings(QStringLiteral("bookScan"));
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_margin_inputs"));
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_margin_project")) + QStringLiteral("/book");
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", write_shadow_book_inputs(inputs, 2).join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "6x4");
+  double last_margin = 0.0;
+  {
+    patchy::ui::BookScanDialog dialog(nullptr);
+    dialog.set_quiet(true);
+    dialog.show();
+    dialog.set_project_folder(project);
+    dialog.set_title(QStringLiteral("Field Notes"));
+    dialog.start_cover_scan();
+    wait_for_scan(dialog);
+    if (auto* resolution = dialog.findChild<QComboBox*>(QStringLiteral("bookScanResolutionCombo"))) {
+      resolution->setCurrentIndex(resolution->findData(kDpi));
+    }
+    dialog.start_page_scanning();
+    for (int i = 0; i < 2; ++i) {
+      dialog.start_page_scan();
+      wait_for_scan(dialog);
+    }
+    CHECK(dialog.last_error().isEmpty() && dialog.project().scans.size() == 2);
+    auto* margin = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("bookScanBindingMarginSpin"));
+    auto* detect = dialog.findChild<QCheckBox*>(QStringLiteral("bookScanDetectCheck"));
+    auto* preview = dialog.findChild<QWidget*>(QStringLiteral("bookScanSpreadPreview"));
+    auto* strip = dialog.findChild<QListWidget*>(QStringLiteral("bookScanPageStrip"));
+    auto* pages_combo = dialog.findChild<QComboBox*>(QStringLiteral("bookScanPagesCombo"));
+    CHECK(margin != nullptr && detect != nullptr && preview != nullptr && strip != nullptr && pages_combo != nullptr);
+    if (dialog.project().scans.size() != 2 || margin == nullptr || detect == nullptr || preview == nullptr ||
+        strip == nullptr || pages_combo == nullptr) {
+      return;
+    }
+    QApplication::processEvents();
+    const auto& book = dialog.project();
+    // A new book: no margin, every scan detected.
+    CHECK(!margin->isHidden() && margin->value() == 0.0 && book.binding_margin == 0.0);
+    CHECK(!detect->isHidden() && detect->isChecked() && book.detect_each_scan);
+    CHECK(!read_file(QDir(project).filePath(QStringLiteral("book.json"))).contains("bindingMargin"));
+    for (const auto& scan : book.scans) {
+      CHECK(std::abs(scan.layout.gutter - 0.5) < 0.01);
+    }
+    const auto order = patchy::ui::book_page_order(book);
+    CHECK(order.size() == 6);
+    if (order.size() != 6) {
+      return;
+    }
+    const auto size_before = patchy::ui::resolved_page_size(book);
+    patchy::ui::BookScanCache cache(book);
+    // Without a margin the right page's inner edge is the fold: its shadow is on the page.
+    const auto with_shadow = patchy::ui::render_book_page(book, order[4], size_before, 0, cache, false);
+    CHECK(!with_shadow.empty());
+    if (with_shadow.empty()) {
+      return;
+    }
+    CHECK(page_block_range(with_shadow, 0, 20, with_shadow.height() / 10, with_shadow.height() * 9 / 10).first < 170);
+    const auto& shown = book.scans[1];
+    const QSize upright = upright_scan_size(book, shown.file, book.up_turns + shown.extra_turns);
+    const QImage strip_before = strip->item(4)->icon().pixmap(64, 90).toImage();
+
+    // 5 mm (0.2 inch) on each side of the divider: wider than the fixture's shadow.
+    const MarginValue wanted = margin_value(5.0, 0.2);
+    const QPoint in_strip =
+        preview_point(*preview, upright, shown.layout.spread,
+                      shown.layout.gutter + wanted.inches * shown.dpi / shown.layout.spread.width / 2.0);
+    const int strip_pixel_before = qGray(preview->grab().toImage().pixel(in_strip));
+    margin->setValue(wanted.shown);
+    QApplication::processEvents();
+    CHECK(std::abs(book.binding_margin - wanted.inches) < 1e-9);
+    last_margin = book.binding_margin;
+    CHECK(std::abs(patchy::ui::app_settings().value(QStringLiteral("bookScan/bindingMargin")).toDouble() - wanted.inches) <
+          1e-9);
+    const auto saved = patchy::ui::load_book_project(project, nullptr);
+    CHECK(saved.has_value() && std::abs(saved->binding_margin - wanted.inches) < 1e-9);
+    // The measured page leaves the strip out.
+    const auto size_after = patchy::ui::resolved_page_size(book);
+    CHECK(std::abs(size_after.width - (size_before.width - wanted.inches)) < 1e-6);
+    CHECK(std::abs(size_after.height - size_before.height) < 1e-9);
+    // The box editor shades the strip beside the divider, and the strip's pages changed.
+    CHECK(qGray(preview->grab().toImage().pixel(in_strip)) < strip_pixel_before - 15);
+    CHECK(strip->item(4)->icon().pixmap(64, 90).toImage() != strip_before);
+    patchy::test::ui::save_widget_artifact("ui_book_scan_binding_margin_scanning", dialog);
+    // The page starts past the shadow now: paper at its inner edge, on both pages.
+    cache.clear();
+    const auto right = patchy::ui::render_book_page(book, order[4], size_after, 0, cache, false);
+    const auto left = patchy::ui::render_book_page(book, order[3], size_after, 0, cache, false);
+    CHECK(!right.empty() && !left.empty());
+    if (right.empty() || left.empty()) {
+      return;
+    }
+    patchy::test::ui::save_image_artifact("ui_book_scan_binding_margin_right_page", patchy::ui::book_image_from_pixels(right));
+    CHECK(page_block_range(right, 0, 20, right.height() / 10, right.height() * 9 / 10).first > 190);
+    CHECK(page_block_range(left, left.width() - 20, left.width(), left.height() / 10, left.height() * 9 / 10).first > 190);
+    CHECK(std::abs(static_cast<int>(right.pixel(right.width() - 8, 8)[0]) - 80) < 25);
+
+    // One page per scan has no divider: the margin is hidden there.
+    pages_combo->setCurrentIndex(1);
+    CHECK(margin->isHidden());
+    pages_combo->setCurrentIndex(0);
+    CHECK(!margin->isHidden());
+    CHECK(std::abs(book.binding_margin - wanted.inches) < 1e-9);
+
+    // The review step has the same setting beside the page size; changing it there changes
+    // the thumbnails, the preview and the PDF pages.
+    dialog.finish_scanning();
+    auto* review_margin = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("bookScanReviewBindingMarginSpin"));
+    auto* pages = dialog.findChild<QListWidget*>(QStringLiteral("bookScanPagesList"));
+    auto* summary = dialog.findChild<QLabel*>(QStringLiteral("bookScanReviewSummary"));
+    CHECK(review_margin != nullptr && pages != nullptr && summary != nullptr);
+    if (review_margin == nullptr || pages == nullptr || summary == nullptr) {
+      return;
+    }
+    CHECK(!review_margin->isHidden() && std::abs(review_margin->value() - wanted.shown) < 1e-6);
+    pages->setCurrentRow(4);
+    pages->clearSelection();
+    pages->item(4)->setSelected(true);
+    QApplication::processEvents();
+    patchy::test::ui::save_widget_artifact("ui_book_scan_binding_margin_review", dialog);
+    const QImage thumbnail_before = pages->item(4)->icon().pixmap(pages->iconSize()).toImage();
+    const QString summary_before = summary->text();
+    const MarginValue smaller = margin_value(2.0, 0.08);
+    review_margin->setValue(smaller.shown);
+    QApplication::processEvents();
+    CHECK(std::abs(book.binding_margin - smaller.inches) < 1e-9);
+    last_margin = book.binding_margin;
+    CHECK(pages->count() == 6 && pages->item(4)->icon().pixmap(pages->iconSize()).toImage() != thumbnail_before);
+    CHECK(summary->text() != summary_before);
+    review_margin->setValue(wanted.shown);
+    QApplication::processEvents();
+    last_margin = book.binding_margin;
+    const QString pdf_path = QDir(inputs).filePath(QStringLiteral("margin.pdf"));
+    CHECK(dialog.export_pdf(pdf_path, false));
+    const BookPdfRead pdf = read_book_pdf(pdf_path);
+    CHECK(pdf.images.size() == 6);
+    if (pdf.images.size() == 6) {
+      const QImage page = QImage::fromData(QByteArray(reinterpret_cast<const char*>(pdf.images[4].data()),
+                                                      static_cast<qsizetype>(pdf.images[4].size())));
+      CHECK(page.width() == right.width() && page.height() == right.height());
+      CHECK(!page.isNull() && image_block_range(page, 0, 20, page.height() / 10, page.height() * 9 / 10).first > 180);
+    }
+    dialog.reject();
+  }
+  // The next book starts with the last margin, and with detection on.
+  const QString next = fresh_artifact_folder(QStringLiteral("ui_book_scan_margin_next_project")) + QStringLiteral("/book");
+  patchy::ui::BookScanDialog fresh(nullptr);
+  fresh.set_quiet(true);
+  fresh.set_project_folder(next);
+  CHECK(last_margin > 0.0 && std::abs(fresh.project().binding_margin - last_margin) < 1e-9);
+  CHECK(fresh.project().detect_each_scan);
+}
+
+// "Detect the pages on each scan" off: a new scan takes the boxes of the scan before it
+// (rescaled at another resolution), a rescan keeps its own, and boxes the user moved lead
+// the scans after them. On again, scans are detected. A rescan keeps boxes the user moved
+// either way, and the first scan of a book is detected even with it off.
+void ui_book_scan_detection_off_reuses_the_layout() {
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_detect_inputs"));
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_detect_project")) + QStringLiteral("/book");
+  const QStringList made = write_book_inputs(inputs, 3);
+  // The same bed at 600 dpi, the book lying elsewhere again.
+  const QString at_600 =
+      write_bed(inputs, QStringLiteral("spread-600.png"), 1800, 1200, {940.0, 580.0, 1440.0, 960.0, 0.0}, true, 100);
+  const auto same_layout = [](const patchy::SpreadLayout& a, const patchy::SpreadLayout& b, double scale = 1.0) {
+    return std::abs(a.spread.center_x - b.spread.center_x * scale) < 1e-6 &&
+           std::abs(a.spread.center_y - b.spread.center_y * scale) < 1e-6 &&
+           std::abs(a.spread.width - b.spread.width * scale) < 1e-6 &&
+           std::abs(a.spread.height - b.spread.height * scale) < 1e-6 &&
+           std::abs(a.spread.angle_degrees - b.spread.angle_degrees) < 1e-9 && std::abs(a.gutter - b.gutter) < 1e-9;
+  };
+  {
+    // Cover, spread 1, its rescan (spread 2's image), spread 2, spread 3, a rescan of the
+    // first scan (spread 3's image), the 600 dpi spread, spread 1 again.
+    const QStringList files{made[0], made[1], made[2], made[2], made[3], made[3], at_600, made[1]};
+    const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", files.join(QDir::listSeparator()).toUtf8());
+    const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
+    patchy::ui::BookScanDialog dialog(nullptr);
+    dialog.set_quiet(true);
+    dialog.show();
+    dialog.set_project_folder(project);
+    dialog.start_cover_scan();
+    wait_for_scan(dialog);
+    dialog.start_page_scanning();
+    auto* detect = dialog.findChild<QCheckBox*>(QStringLiteral("bookScanDetectCheck"));
+    auto* status = dialog.findChild<QLabel*>(QStringLiteral("bookScanStatusLabel"));
+    auto* resolution = dialog.findChild<QComboBox*>(QStringLiteral("bookScanScanningResolutionCombo"));
+    auto* turn = dialog.findChild<QPushButton*>(QStringLiteral("bookScanRotateSpreadButton"));
+    CHECK(detect != nullptr && status != nullptr && resolution != nullptr && turn != nullptr);
+    if (detect == nullptr || status == nullptr || resolution == nullptr || turn == nullptr) {
+      return;
+    }
+    const auto& book = dialog.project();
+    CHECK(detect->isChecked() && book.detect_each_scan);
+    resolution->setCurrentIndex(resolution->findData(kDpi));
+    dialog.start_page_scan();
+    wait_for_scan(dialog);
+    CHECK(dialog.last_error().isEmpty() && book.scans.size() == 1);
+    if (book.scans.size() != 1) {
+      return;
+    }
+    QApplication::processEvents();
+    CHECK(std::abs(book.scans[0].layout.gutter - 0.5) < 0.02 && !book.scans[0].user_edited);
+
+    // Detection on: a rescan still keeps a divider the user moved, though the book lies
+    // elsewhere in the new image.
+    drag_gutter(dialog, 0, book.scans[0].layout.gutter + 0.07);
+    const patchy::SpreadLayout first = book.scans[0].layout;
+    CHECK(book.scans[0].user_edited && first.gutter > 0.55);
+    dialog.rescan_last();
+    wait_for_scan(dialog);
+    CHECK(dialog.last_error().isEmpty() && book.scans.size() == 1);
+    CHECK(same_layout(book.scans[0].layout, first) && book.scans[0].user_edited);
+    CHECK(status->text().contains(QStringLiteral("kept")));
+
+    // Off: the next scan takes the first scan's boxes as they are.
+    detect->click();
+    CHECK(!detect->isChecked() && !book.detect_each_scan);
+    CHECK(read_file(QDir(project).filePath(QStringLiteral("book.json"))).contains("\"detectEachScan\": false"));
+    dialog.start_page_scan();
+    wait_for_scan(dialog);
+    CHECK(dialog.last_error().isEmpty() && book.scans.size() == 2);
+    if (book.scans.size() != 2) {
+      return;
+    }
+    QApplication::processEvents();
+    CHECK(same_layout(book.scans[1].layout, first) && !book.scans[1].user_edited);
+    // Boxes moved by hand on this scan lead the next one.
+    drag_gutter(dialog, 1, 0.44);
+    const patchy::SpreadLayout second = book.scans[1].layout;
+    CHECK(std::abs(second.gutter - 0.44) < 0.01 && book.scans[1].user_edited);
+    dialog.start_page_scan();
+    wait_for_scan(dialog);
+    CHECK(book.scans.size() == 3);
+    if (book.scans.size() != 3) {
+      return;
+    }
+    QApplication::processEvents();
+    CHECK(same_layout(book.scans[2].layout, second) && !same_layout(book.scans[2].layout, first));
+    // Turn This Scan 180 Degrees turns the boxes with the scan instead of detecting.
+    turn->click();
+    CHECK(book.scans[2].extra_turns == 2 && std::abs(book.scans[2].layout.gutter - (1.0 - second.gutter)) < 1e-9);
+    turn->click();
+    CHECK(book.scans[2].extra_turns == 0 && same_layout(book.scans[2].layout, second));
+    patchy::test::ui::save_widget_artifact("ui_book_scan_detection_off", dialog);
+
+    // A rescan of an earlier scan keeps that scan's own boxes.
+    dialog.select_scan_for_editing(0);
+    CHECK(dialog.selected_scan() == 0);
+    dialog.rescan_selected();
+    wait_for_scan(dialog);
+    CHECK(dialog.last_error().isEmpty() && book.scans.size() == 3);
+    CHECK(same_layout(book.scans[0].layout, first) && same_layout(book.scans[2].layout, second));
+    dialog.back_to_next_pages();
+
+    // Another resolution: the same boxes, rescaled.
+    resolution->setCurrentIndex(resolution->findData(600));
+    dialog.start_page_scan();
+    wait_for_scan(dialog);
+    CHECK(dialog.last_error().isEmpty() && book.scans.size() == 4);
+    if (book.scans.size() != 4) {
+      return;
+    }
+    CHECK(book.scans[3].dpi == 600 && same_layout(book.scans[3].layout, second, 2.0));
+    const auto size = patchy::ui::resolved_page_size(book);
+    CHECK(size.width > 0.9 && size.width < 1.5);
+
+    // On again: the next scan is detected where its book lies.
+    resolution->setCurrentIndex(resolution->findData(kDpi));
+    detect->click();
+    CHECK(detect->isChecked() && book.detect_each_scan);
+    CHECK(!read_file(QDir(project).filePath(QStringLiteral("book.json"))).contains("detectEachScan"));
+    dialog.start_page_scan();
+    wait_for_scan(dialog);
+    CHECK(dialog.last_error().isEmpty() && book.scans.size() == 5);
+    if (book.scans.size() != 5) {
+      return;
+    }
+    CHECK(std::abs(book.scans[4].layout.gutter - 0.5) < 0.02);
+    CHECK(std::abs(book.scans[4].layout.spread.center_x - 438.0) < 4.0);
+    CHECK(std::abs(book.scans[4].layout.spread.center_y - 306.0) < 4.0);
+    detect->click();
+    dialog.reject();
+  }
+  // The choice is the book's: Continue This Book shows it off again.
+  {
+    const auto saved = patchy::ui::load_book_project(project, nullptr);
+    CHECK(saved.has_value() && !saved->detect_each_scan && saved->scans.size() == 5);
+    patchy::ui::BookScanDialog resumed(nullptr);
+    resumed.set_quiet(true);
+    resumed.set_project_folder(project);
+    resumed.continue_book();
+    CHECK(resumed.step() == patchy::ui::BookScanDialog::Step::Scanning);
+    auto* detect = resumed.findChild<QCheckBox*>(QStringLiteral("bookScanDetectCheck"));
+    CHECK(detect != nullptr && !detect->isChecked() && !resumed.project().detect_each_scan);
+  }
+  // Off before the first scan: with no scan to take boxes from, that scan is detected.
+  // Changing Pages per scan detects again, off or not.
+  {
+    const QString first_project =
+        fresh_artifact_folder(QStringLiteral("ui_book_scan_detect_first_project")) + QStringLiteral("/book");
+    const QStringList files{made[0], made[1]};
+    const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", files.join(QDir::listSeparator()).toUtf8());
+    const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
+    patchy::ui::BookScanDialog dialog(nullptr);
+    dialog.set_quiet(true);
+    dialog.show();
+    dialog.set_project_folder(first_project);
+    dialog.start_cover_scan();
+    wait_for_scan(dialog);
+    dialog.start_page_scanning();
+    CHECK(dialog.project().detect_each_scan);  // a new book starts with detection on
+    dialog.set_detect_each_scan(false);
+    auto* detect = dialog.findChild<QCheckBox*>(QStringLiteral("bookScanDetectCheck"));
+    auto* pages_combo = dialog.findChild<QComboBox*>(QStringLiteral("bookScanPagesCombo"));
+    CHECK(detect != nullptr && !detect->isChecked() && pages_combo != nullptr);
+    dialog.start_page_scan();
+    wait_for_scan(dialog);
+    const auto& book = dialog.project();
+    CHECK(dialog.last_error().isEmpty() && book.scans.size() == 1);
+    if (book.scans.size() != 1 || pages_combo == nullptr) {
+      return;
+    }
+    QApplication::processEvents();
+    CHECK(std::abs(book.scans[0].layout.gutter - 0.5) < 0.02);
+    CHECK(std::abs(book.scans[0].layout.spread.width / book.scans[0].dpi - 2.4) < 0.1);
+    CHECK(std::abs(book.scans[0].layout.spread.center_x - 438.0) < 4.0);
+    drag_gutter(dialog, 0, 0.6);
+    CHECK(std::abs(book.scans[0].layout.gutter - 0.6) < 0.01);
+    pages_combo->setCurrentIndex(1);
+    pages_combo->setCurrentIndex(0);
+    CHECK(std::abs(book.scans[0].layout.gutter - 0.5) < 0.02 && !book.scans[0].user_edited);
+    CHECK(!book.detect_each_scan);
+    dialog.reject();
+  }
+}
+
+// book.json: the binding margin and the detection choice are written only when set, read
+// back, and a manifest without them means no margin and detection on. The margin feeds
+// the measured page width and each spread page's cut.
+void ui_book_scan_manifest_margin_and_detection_keys() {
+  patchy::ui::BookProject book;
+  book.title = QStringLiteral("Keys");
+  patchy::ui::BookScanEntry scan;
+  scan.file = QStringLiteral("scans/spread-0001.png");
+  scan.dpi = 300.0;
+  scan.layout.spread = {450.0, 300.0, 720.0, 480.0, 0.0};
+  scan.layout.gutter = 0.55;
+  book.scans.push_back(scan);
+  const QByteArray plain = patchy::ui::book_project_json(book);
+  CHECK(!plain.contains("bindingMargin") && !plain.contains("detectEachScan"));
+  QString error;
+  const auto plain_read = patchy::ui::book_project_from_json(plain, &error);
+  CHECK(plain_read.has_value() && error.isEmpty());
+  if (plain_read) {
+    CHECK(plain_read->binding_margin == 0.0 && plain_read->detect_each_scan);
+    CHECK(patchy::ui::book_project_json(*plain_read) == plain);
+  }
+
+  book.binding_margin = 0.1;
+  book.detect_each_scan = false;
+  const QByteArray set = patchy::ui::book_project_json(book);
+  CHECK(set.contains("\"bindingMargin\": 0.1") && set.contains("\"detectEachScan\": false"));
+  const auto set_read = patchy::ui::book_project_from_json(set, &error);
+  CHECK(set_read.has_value());
+  if (set_read) {
+    CHECK(set_read->binding_margin == 0.1 && !set_read->detect_each_scan);
+    CHECK(patchy::ui::book_project_json(*set_read) == set);
+  }
+  // A margin outside the range is brought into it.
+  QByteArray wide = set;
+  wide.replace("\"bindingMargin\": 0.1", "\"bindingMargin\": 9");
+  const auto wide_read = patchy::ui::book_project_from_json(wide, &error);
+  CHECK(wide_read.has_value() && wide_read->binding_margin == patchy::ui::kBookBindingMarginMax);
+  QByteArray negative = set;
+  negative.replace("\"bindingMargin\": 0.1", "\"bindingMargin\": -1");
+  const auto negative_read = patchy::ui::book_project_from_json(negative, &error);
+  CHECK(negative_read.has_value() && negative_read->binding_margin == 0.0);
+
+  // Measured widths: each side of the divider less the margin (30 px at 300 dpi).
+  const auto sizes = patchy::ui::measured_page_sizes(book);
+  CHECK(sizes.size() == 2);
+  if (sizes.size() == 2) {
+    CHECK(std::abs(sizes[0].width - (0.55 * 720.0 - 30.0) / 300.0) < 1e-9);
+    CHECK(std::abs(sizes[1].width - (0.45 * 720.0 - 30.0) / 300.0) < 1e-9);
+    CHECK(std::abs(sizes[0].height - 1.6) < 1e-9);
+  }
+  // Each page's cut stops a margin short of the divider.
+  const patchy::BookPageSize size{1.2, 1.6};
+  const auto left =
+      patchy::ui::book_page_source(book, {patchy::ui::BookPageRef::Kind::Scan, 0, patchy::BookPageSide::Left, 0}, size);
+  const auto right =
+      patchy::ui::book_page_source(book, {patchy::ui::BookPageRef::Kind::Scan, 0, patchy::BookPageSide::Right, 0}, size);
+  CHECK(left.has_value() && right.has_value());
+  if (left && right) {
+    CHECK(std::abs(left->cut.source_to - (396.0 - 30.0)) < 1e-9 && left->cut.source_from < -1e100);
+    // The right page's box starts 360 px into the spread; its side starts at 396 + 30.
+    CHECK(std::abs(right->cut.source_from - 66.0) < 1e-9 && right->cut.source_to > 1e100);
+    CHECK(left->cut.box.width == 360.0 && right->cut.box.width == 360.0);
+  }
+  // One page per scan has no divider: the margin changes nothing there.
+  book.mode = patchy::ui::BookScanMode::OnePage;
+  const auto one_sizes = patchy::ui::measured_page_sizes(book);
+  CHECK(one_sizes.size() == 1 && std::abs(one_sizes[0].width - 2.4) < 1e-9);
+  const auto one =
+      patchy::ui::book_page_source(book, {patchy::ui::BookPageRef::Kind::Scan, 0, patchy::BookPageSide::Left, 0}, size);
+  CHECK(one.has_value() && one->cut.source_from < -1e100 && one->cut.source_to > 1e100);
+}
+
 std::vector<patchy::test::TestCase> book_scan_ui_tests() {
   return {
       {"ui_book_scan_menu_actions_registered", ui_book_scan_menu_actions_registered},
@@ -1776,5 +2395,9 @@ std::vector<patchy::test::TestCase> book_scan_ui_tests() {
       {"ui_unicode_book_scan_project_folder", ui_unicode_book_scan_project_folder},
       {"ui_book_scan_searchable_export_writes_text", ui_book_scan_searchable_export_writes_text},
       {"ui_book_scan_searchable_cancel_failure_and_script", ui_book_scan_searchable_cancel_failure_and_script},
+      {"ui_book_scan_divider_decides_the_page_cut", ui_book_scan_divider_decides_the_page_cut},
+      {"ui_book_scan_binding_margin_leaves_the_strip_out", ui_book_scan_binding_margin_leaves_the_strip_out},
+      {"ui_book_scan_detection_off_reuses_the_layout", ui_book_scan_detection_off_reuses_the_layout},
+      {"ui_book_scan_manifest_margin_and_detection_keys", ui_book_scan_manifest_margin_and_detection_keys},
   };
 }

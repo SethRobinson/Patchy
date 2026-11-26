@@ -18232,6 +18232,34 @@ Do you want to replace it?</source>
         <source>Recognizing text and writing page %1 of %2...</source>
         <translation>正在辨識文字並寫入第 %1 頁，共 %2 頁...</translation>
     </message>
+    <message>
+        <source>Binding margin:</source>
+        <translation>裝訂邊距:</translation>
+    </message>
+    <message>
+        <source>Detect the pages on each scan</source>
+        <translation>每次掃描時偵測頁面</translation>
+    </message>
+    <message>
+        <source>Finds the book&apos;s outline and divider again on every scan. Turn it off once they are right: each new scan then uses the boxes of the scan before it, and a scan that is scanned again keeps its own.</source>
+        <translation>每次掃描時重新尋找書的輪廓和分隔線。設定正確後可將其關閉：此後每次新掃描都沿用上一次掃描的框，重新掃描的那次掃描則保留自己的框。</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again. Its boxes were kept.</source>
+        <translation>已重新掃描第 %1 次掃描。其框保持不變。</translation>
+    </message>
+    <message>
+        <source>The pages are detected on each scan.</source>
+        <translation>每次掃描時都會偵測頁面。</translation>
+    </message>
+    <message>
+        <source>New scans use the boxes of the scan before them.</source>
+        <translation>新掃描沿用上一次掃描的框。</translation>
+    </message>
+    <message>
+        <source>Leaves out a strip this wide on each side of the divider on every scan of the book, so the dark area by the binding stays off the pages.</source>
+        <translation>在這本書的每次掃描中，略去分隔線兩側各這麼寬的一條，使裝訂處附近的暗部不出現在頁面上。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

@@ -75,6 +75,12 @@ struct BookProject {
   BookScanMode mode{BookScanMode::TwoPages};
   bool include_covers{true};
   bool finished_scanning{false};
+  // A strip this wide (inches) is left out on each side of every spread's divider, so the
+  // dark area by the binding stays off the pages. Geometry only; no tone changes.
+  double binding_margin{0.0};
+  // Find the pages on every new scan. Off: a new scan takes the previous scan's boxes as
+  // they are, and a rescan keeps its own (the user set them up once for the book).
+  bool detect_each_scan{true};
   BookCoverStyle cover_style{BookCoverStyle::Spread};
   // Spread: the open book's outside. Separate: the front cover.
   std::optional<BookCover> cover;
@@ -96,6 +102,8 @@ struct BookProject {
 };
 
 inline constexpr const char* kBookProjectFileName = "book.json";
+// The widest binding margin a book takes, in inches.
+inline constexpr double kBookBindingMarginMax = 2.0;
 
 // book.json in `project.folder`, written atomically. Throws std::runtime_error with a
 // translated message on failure.
@@ -110,7 +118,8 @@ void save_book_project(const BookProject& project);
 // pages by the reading direction and each scan's Use choice.
 [[nodiscard]] std::vector<BookPageRef> generated_page_order(const BookProject& project);
 [[nodiscard]] std::vector<BookPageRef> book_page_order(const BookProject& project);
-// The measured size of every page the scans hold, in inches.
+// The measured size of every page the scans hold, in inches. A spread's page is its side
+// of the divider, less the binding margin.
 [[nodiscard]] std::vector<BookPageSize> measured_page_sizes(const BookProject& project);
 // The one size every PDF page gets, by the project's policy; falls back to the cover
 // estimate, then to US Letter, when nothing is measured.
@@ -160,13 +169,14 @@ private:
 };
 
 // Where a scanned or cover page comes from: the scan file, its resolution, the quarter
-// turns that make it upright, and the page box in that upright scan at `size`.
-// nullopt for blank pages and missing scans.
+// turns that make it upright, and the page's cut in that upright scan at `size` (its box
+// and, for a spread's page, the limit at the divider). nullopt for blank pages and missing
+// scans.
 struct BookPageSource {
   QString file;
   double dpi{300.0};
   int turns{0};
-  OrientedBox box;
+  BookPageCut cut;
 };
 [[nodiscard]] std::optional<BookPageSource> book_page_source(const BookProject& project, const BookPageRef& page,
                                                              const BookPageSize& size);

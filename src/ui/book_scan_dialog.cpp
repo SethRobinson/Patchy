@@ -175,6 +175,12 @@ void delete_book_project_files(const BookProject& project, bool remove_folder) {
   }
 }
 
+// The binding margin the last book used, in inches (bookScan/bindingMargin).
+double stored_binding_margin(const QSettings& settings) {
+  const double inches = settings.value(QStringLiteral("bookScan/bindingMargin"), 0.0).toDouble();
+  return std::isfinite(inches) ? std::clamp(inches, 0.0, kBookBindingMarginMax) : 0.0;
+}
+
 // The page sizes the review step offers besides the measured ones (inches).
 struct SizePreset {
   const char* token;
@@ -224,6 +230,12 @@ public:
   void set_lines(double first, double second) {
     line_a_ = first;
     line_b_ = second;
+    update();
+  }
+  // A spread's binding margin: the strip left out on each side of the gutter line, as a
+  // fraction of the box's width. It follows the line while it is dragged.
+  void set_binding_margin(double fraction) {
+    binding_margin_ = std::max(0.0, fraction);
     update();
   }
   // Names drawn over the two outer parts of a cover (the covers either side of the spine).
@@ -276,6 +288,20 @@ protected:
       draw_label(painter, first / 2.0, left_label_);
       draw_label(painter, (second + 1.0) / 2.0, right_label_);
     } else if (kind_ == Kind::Spread) {
+      if (binding_margin_ > 0.0) {
+        // The strip beside the divider that no page takes, shaded like the outside.
+        const auto from = line_ends(std::clamp(line_a_ - binding_margin_, 0.0, 1.0));
+        const auto to = line_ends(std::clamp(line_a_ + binding_margin_, 0.0, 1.0));
+        QPolygonF strip;
+        strip << to_widget(from.first) << to_widget(to.first) << to_widget(to.second) << to_widget(from.second);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(0, 0, 0, 110));  // color-literal-ok: shade over scan content
+        painter.drawPolygon(strip);
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(QPen(QColor(0, 200, 255), 1.0, Qt::DashLine));  // color-literal-ok: margin edge over scan content
+        painter.drawLine(to_widget(from.first), to_widget(from.second));
+        painter.drawLine(to_widget(to.first), to_widget(to.second));
+      }
       draw_line(line_a_, QColor(0, 200, 255));  // color-literal-ok: gutter marker over scan content
     }
   }
@@ -464,6 +490,7 @@ private:
   OrientedBox box_;
   double line_a_{0.5};
   double line_b_{0.5};
+  double binding_margin_{0.0};
   QString left_label_;
   QString right_label_;
   Drag drag_{Drag::None};
@@ -875,6 +902,9 @@ BookScanDialog::BookScanDialog(QWidget* parent) : QDialog(parent) {
   project_.cover_style = settings.value(QStringLiteral("bookScan/coverStyle")).toString() == QLatin1String("separate")
                              ? BookCoverStyle::Separate
                              : BookCoverStyle::Spread;
+  // The last book's binding margin starts the next book. Detection always starts on: a
+  // new book lies elsewhere on the glass, and its first scan has no boxes to take over.
+  project_.binding_margin = stored_binding_margin(settings);
   session_ = create_scanner_session(this);
 
   auto* root = new QVBoxLayout(this);
@@ -1378,6 +1408,8 @@ void BookScanDialog::build_scanning_page() {
   spread_tilt_spin_->setDecimals(1);
   spread_tilt_spin_->setSuffix(tr(" deg"));
   form->addRow(tr("Tilt:"), spread_tilt_spin_);
+  binding_margin_spin_ = make_binding_margin_spin(page, QStringLiteral("bookScanBindingMarginSpin"));
+  form->addRow(tr("Binding margin:"), binding_margin_spin_);
   // Capture settings can change between scans: a few pages in color, a plate at a higher
   // resolution. With an earlier scan selected they are what Rescan This Scan uses.
   scan_resolution_combo_ = new QComboBox(page);
@@ -1399,6 +1431,13 @@ void BookScanDialog::build_scanning_page() {
   rotate->setAutoDefault(false);
   rotate_scan_button_ = rotate;
   side->addWidget(rotate);
+  detect_check_ = new QCheckBox(tr("Detect the pages on each scan"), page);
+  detect_check_->setObjectName(QStringLiteral("bookScanDetectCheck"));
+  detect_check_->setToolTip(tr("Finds the book's outline and divider again on every scan. Turn it off once they are "
+                               "right: each new scan then uses the boxes of the scan before it, and a scan that is "
+                               "scanned again keeps its own."));
+  detect_check_->setChecked(project_.detect_each_scan);
+  side->addWidget(detect_check_);
   beep_check_ = new QCheckBox(tr("Beep when a scan finishes"), page);
   beep_check_->setObjectName(QStringLiteral("bookScanBeepCheck"));
   beep_check_->setChecked(app_settings().value(QStringLiteral("bookScan/beep"), true).toBool());
@@ -1541,9 +1580,18 @@ void BookScanDialog::build_scanning_page() {
     }
     auto& scan = project_.scans[static_cast<std::size_t>(index)];
     scan.extra_turns = (scan.extra_turns + 2) % 4;
-    const PixelBuffer upright = load_upright_scan(project_, scan.file, project_.up_turns + scan.extra_turns);
-    scan.layout = detect_scan_layout(upright, scan.dpi, std::nullopt);
-    scan.user_edited = false;
+    if (scan.user_edited || !project_.detect_each_scan) {
+      // Boxes the user set, or a book whose scans are not detected: the same boxes, turned.
+      QSize size = QImageReader(QDir(project_.folder).filePath(scan.file)).size();
+      if ((project_.up_turns + scan.extra_turns) % 2 != 0) {
+        size.transpose();
+      }
+      scan.layout = half_turned_spread(scan.layout, size.width(), size.height());
+    } else {
+      const PixelBuffer upright = load_upright_scan(project_, scan.file, project_.up_turns + scan.extra_turns);
+      scan.layout = detect_scan_layout(upright, scan.dpi, std::nullopt);
+      scan.user_edited = false;
+    }
     thumbnails_.clear();
     save_project_quietly();
     refresh_scanning_page();
@@ -1565,6 +1613,11 @@ void BookScanDialog::build_scanning_page() {
   });
   connect(beep_check_, &QCheckBox::toggled, this,
           [](bool on) { app_settings().setValue(QStringLiteral("bookScan/beep"), on); });
+  connect(detect_check_, &QCheckBox::toggled, this, [this](bool on) {
+    if (!refreshing_) {
+      set_detect_each_scan(on);
+    }
+  });
   connect(scan_button_, &QPushButton::clicked, this, &BookScanDialog::start_page_scan);
   connect(rescan_button_, &QPushButton::clicked, this, &BookScanDialog::rescan_selected);
   connect(back_to_next_button_, &QPushButton::clicked, this, &BookScanDialog::back_to_next_pages);
@@ -1625,6 +1678,7 @@ void BookScanDialog::build_review_page() {
   review_preview_->setAlignment(Qt::AlignCenter);
   side->addWidget(review_preview_, 1);
   auto* form = new QFormLayout;
+  review_form_ = form;
   size_combo_ = new QComboBox(page);
   size_combo_->setObjectName(QStringLiteral("bookScanSizeCombo"));
   size_combo_->addItem(tr("Measured (median)"), QStringLiteral("median"));
@@ -1657,6 +1711,8 @@ void BookScanDialog::build_review_page() {
   custom_row->addWidget(new QLabel(QStringLiteral("x"), page));
   custom_row->addWidget(custom_height_);
   form->addRow(QString(), custom_row);
+  review_margin_spin_ = make_binding_margin_spin(page, QStringLiteral("bookScanReviewBindingMarginSpin"));
+  form->addRow(tr("Binding margin:"), review_margin_spin_);
   output_combo_ = new QComboBox(page);
   output_combo_->setObjectName(QStringLiteral("bookScanOutputCombo"));
   output_combo_->addItems({tr("Color"), tr("Grayscale"), tr("Black and white")});
@@ -3033,7 +3089,28 @@ void BookScanDialog::apply_page_scan(const QString& file, double dpi, ScanColorM
                              box.angle_degrees};
     }
   }
-  entry.layout = detect_scan_layout(upright, dpi, fallback);
+  // Boxes taken over instead of detected: a rescan keeps boxes the user set by hand, and
+  // with "Detect the pages on each scan" off a rescan keeps its own boxes and a new scan
+  // takes those of the scan before it. The first scan of such a book is still detected.
+  const BookScanEntry* take_from = nullptr;
+  if (replace) {
+    const auto& target = project_.scans[static_cast<std::size_t>(replace_index)];
+    if (target.user_edited || !project_.detect_each_scan) {
+      take_from = &target;
+    }
+  } else if (!project_.detect_each_scan && !project_.scans.empty()) {
+    take_from = &project_.scans.back();
+  }
+  const std::optional<SpreadLayout> taken =
+      take_from != nullptr ? carried_scan_layout(*take_from, dpi, QSize(upright.width(), upright.height()))
+                           : std::nullopt;
+  if (taken) {
+    entry.layout = *taken;
+    // A rescan's boxes are still the user's; a new scan's are not its own edit.
+    entry.user_edited = replace && take_from->user_edited;
+  } else {
+    entry.layout = detect_scan_layout(upright, dpi, fallback);
+  }
   if (replace) {
     auto& target = project_.scans[static_cast<std::size_t>(replace_index)];
     // The rescanned spread keeps its place, its Use choice and any custom page order.
@@ -3083,9 +3160,100 @@ void BookScanDialog::apply_page_scan(const QString& file, double dpi, ScanColorM
     grayscale_hint_->setVisible(gray);
     grayscale_switch_->setVisible(gray);
   }
-  status_label_->setText(replace ? tr("Scan %1 was scanned again.").arg(replace_index + 1)
-                                 : tr("Scan %1 done.").arg(project_.scans.size()));
+  status_label_->setText(replace && taken ? tr("Scan %1 was scanned again. Its boxes were kept.")
+                                                .arg(replace_index + 1)
+                         : replace        ? tr("Scan %1 was scanned again.").arg(replace_index + 1)
+                                          : tr("Scan %1 done.").arg(project_.scans.size()));
   refresh_scanning_page();
+}
+
+std::optional<SpreadLayout> BookScanDialog::carried_scan_layout(const BookScanEntry& from, double dpi,
+                                                                QSize upright_size) const {
+  if (from.dpi <= 0.0 || dpi <= 0.0 || from.extra_turns % 2 != 0) {
+    return std::nullopt;
+  }
+  // The other scan as it lies with only the book's turn: a scan turned 180 degrees on its
+  // own holds the same boxes, turned.
+  QSize from_size = QImageReader(QDir(project_.folder).filePath(from.file)).size();
+  if (!from_size.isValid()) {
+    return std::nullopt;
+  }
+  if (project_.up_turns % 2 != 0) {
+    from_size.transpose();
+  }
+  SpreadLayout layout = from.extra_turns % 4 == 2
+                            ? half_turned_spread(from.layout, from_size.width(), from_size.height())
+                            : from.layout;
+  const double ratio = dpi / from.dpi;
+  // The same area of the glass gives the same size (a few pixels of rounding at another
+  // resolution); another size is another scan area.
+  const auto same = [ratio](int from_edge, int edge) {
+    return std::abs(from_edge * ratio - edge) <= std::max(4.0, edge * 0.01);
+  };
+  if (!same(from_size.width(), upright_size.width()) || !same(from_size.height(), upright_size.height())) {
+    return std::nullopt;
+  }
+  layout.spread.center_x *= ratio;
+  layout.spread.center_y *= ratio;
+  layout.spread.width *= ratio;
+  layout.spread.height *= ratio;
+  return layout;
+}
+
+void BookScanDialog::set_detect_each_scan(bool detect) {
+  if (detect == project_.detect_each_scan) {
+    return;
+  }
+  project_.detect_each_scan = detect;
+  save_project_quietly();
+  if (step_ == Step::Scanning) {
+    status_label_->setText(detect ? tr("The pages are detected on each scan.")
+                                  : tr("New scans use the boxes of the scan before them."));
+    refresh_scanning_page();
+  }
+}
+
+QDoubleSpinBox* BookScanDialog::make_binding_margin_spin(QWidget* parent, const QString& object_name) {
+  auto* spin = new QDoubleSpinBox(parent);
+  spin->setObjectName(object_name);
+  if (metric_units()) {
+    spin->setRange(0.0, kBookBindingMarginMax * 25.4);
+    spin->setDecimals(1);
+    spin->setSingleStep(0.5);
+    spin->setSuffix(tr(" mm"));
+  } else {
+    spin->setRange(0.0, kBookBindingMarginMax);
+    spin->setDecimals(2);
+    spin->setSingleStep(0.02);
+    spin->setSuffix(tr(" in"));
+  }
+  // Typing applies when it is finished; the arrows apply at once.
+  spin->setKeyboardTracking(false);
+  spin->setToolTip(tr("Leaves out a strip this wide on each side of the divider on every scan of the book, so the "
+                      "dark area by the binding stays off the pages."));
+  connect(spin, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+    if (!refreshing_) {
+      set_binding_margin(value / (metric_units() ? 25.4 : 1.0));
+    }
+  });
+  return spin;
+}
+
+void BookScanDialog::set_binding_margin(double inches) {
+  inches = std::isfinite(inches) ? std::clamp(inches, 0.0, kBookBindingMarginMax) : 0.0;
+  if (std::abs(inches - project_.binding_margin) < 1e-9) {
+    return;
+  }
+  project_.binding_margin = inches;
+  app_settings().setValue(QStringLiteral("bookScan/bindingMargin"), inches);
+  // Every spread's pages and the measured page size change with it.
+  thumbnails_.clear();
+  save_project_quietly();
+  if (step_ == Step::Scanning) {
+    refresh_scanning_page();
+  } else if (step_ == Step::Review) {
+    refresh_review_page();
+  }
 }
 
 SpreadLayout BookScanDialog::detect_scan_layout(const PixelBuffer& upright, double dpi,
@@ -3158,12 +3326,7 @@ PixelBuffer BookScanDialog::cut_page_from_copy(const BookPageRef& page, const Bo
     return {};
   }
   const PixelBuffer upright = source->turns == 0 ? *pixels : rotated_quarter_turns(*pixels, source->turns);
-  OrientedBox box = source->box;
-  box.center_x *= scale;
-  box.center_y *= scale;
-  box.width *= scale;
-  box.height *= scale;
-  cut = extract_book_page(upright, box, out_width, out_height);
+  cut = extract_book_page_cut(upright, scaled_page_cut(source->cut, scale), out_width, out_height);
   if (!cut.empty() && page.turns % 4 != 0) {
     cut = rotated_quarter_turns(cut, page.turns);
   }
@@ -3385,6 +3548,11 @@ void BookScanDialog::refresh_scanning_page() {
   rotate_scan_button_->setVisible(!edit_cover_);
   use_combo_->setEnabled(selected >= 0);
   spread_tilt_spin_->setEnabled(edit_cover_ || selected >= 0);
+  // The margin lies beside a spread's divider; one page per scan has none.
+  scan_form_->setRowVisible(binding_margin_spin_, !one_page);
+  binding_margin_spin_->setValue(project_.binding_margin * (metric_units() ? 25.4 : 1.0));
+  detect_check_->setChecked(project_.detect_each_scan);
+  spread_preview_->set_binding_margin(0.0);
   if (edit_cover_) {
     const bool rtl = project_.direction == BookReadingDirection::RightToLeft;
     const BookCover& cover = *shown_cover();
@@ -3406,6 +3574,9 @@ void BookScanDialog::refresh_scanning_page() {
     spread_preview_->set_image(view.image, upright);
     spread_preview_->set_box(scan.layout.spread);
     spread_preview_->set_lines(scan.layout.gutter, scan.layout.gutter);
+    if (!one_page && scan.layout.spread.width > 0.0) {
+      spread_preview_->set_binding_margin(project_.binding_margin * scan.dpi / scan.layout.spread.width);
+    }
     use_combo_->setCurrentIndex(scan.use == BookPageUse::LeftOnly ? 1 : scan.use == BookPageUse::RightOnly ? 2 : 0);
     spread_tilt_spin_->setValue(scan.layout.spread.angle_degrees);
     edge_warning_->setVisible(
@@ -3570,6 +3741,8 @@ void BookScanDialog::refresh_review_page() {
   custom_height_->setValue(size.height * factor);
   custom_width_->setEnabled(project_.size_policy == BookPageSizePolicy::Custom);
   custom_height_->setEnabled(project_.size_policy == BookPageSizePolicy::Custom);
+  review_form_->setRowVisible(review_margin_spin_, project_.mode != BookScanMode::OnePage);
+  review_margin_spin_->setValue(project_.binding_margin * factor);
   output_combo_->setCurrentIndex(project_.output.mode == BookOutputMode::Grayscale       ? 1
                                  : project_.output.mode == BookOutputMode::BlackAndWhite ? 2
                                                                                          : 0);

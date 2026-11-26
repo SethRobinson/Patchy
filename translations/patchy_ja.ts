@@ -18232,6 +18232,34 @@ Do you want to replace it?</source>
         <source>Recognizing text and writing page %1 of %2...</source>
         <translation>テキストを認識してページ %1 / %2 を書き込んでいます...</translation>
     </message>
+    <message>
+        <source>Binding margin:</source>
+        <translation>とじしろ:</translation>
+    </message>
+    <message>
+        <source>Detect the pages on each scan</source>
+        <translation>スキャンごとにページを検出する</translation>
+    </message>
+    <message>
+        <source>Finds the book&apos;s outline and divider again on every scan. Turn it off once they are right: each new scan then uses the boxes of the scan before it, and a scan that is scanned again keeps its own.</source>
+        <translation>スキャンのたびに本の輪郭と区切り線を検出し直します。正しく設定できたらオフにしてください。以降の新しいスキャンは直前のスキャンの枠をそのまま使い、再スキャンしたスキャンは自分の枠を保ちます。</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again. Its boxes were kept.</source>
+        <translation>スキャン %1 を再スキャンしました。枠はそのまま保たれています。</translation>
+    </message>
+    <message>
+        <source>The pages are detected on each scan.</source>
+        <translation>スキャンごとにページを検出します。</translation>
+    </message>
+    <message>
+        <source>New scans use the boxes of the scan before them.</source>
+        <translation>新しいスキャンは直前のスキャンの枠を使います。</translation>
+    </message>
+    <message>
+        <source>Leaves out a strip this wide on each side of the divider on every scan of the book, so the dark area by the binding stays off the pages.</source>
+        <translation>本のすべてのスキャンで、区切り線の両側からこの幅の帯を除外します。とじ目付近の暗い部分がページに入らなくなります。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

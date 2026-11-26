@@ -18296,6 +18296,34 @@ Voulez-vous le remplacer ?</translation>
         <source>Recognizing text and writing page %1 of %2...</source>
         <translation>Reconnaissance du texte et écriture de la page %1 sur %2...</translation>
     </message>
+    <message>
+        <source>Binding margin:</source>
+        <translation>Marge de reliure :</translation>
+    </message>
+    <message>
+        <source>Detect the pages on each scan</source>
+        <translation>Détecter les pages à chaque numérisation</translation>
+    </message>
+    <message>
+        <source>Finds the book&apos;s outline and divider again on every scan. Turn it off once they are right: each new scan then uses the boxes of the scan before it, and a scan that is scanned again keeps its own.</source>
+        <translation>Recherche de nouveau le contour et la ligne de séparation du livre à chaque numérisation. Désactivez cette option une fois qu&apos;ils sont corrects : chaque nouvelle numérisation reprend alors les cadres de la précédente, et une numérisation refaite conserve les siens.</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again. Its boxes were kept.</source>
+        <translation>La numérisation %1 a été refaite. Ses cadres ont été conservés.</translation>
+    </message>
+    <message>
+        <source>The pages are detected on each scan.</source>
+        <translation>Les pages sont détectées à chaque numérisation.</translation>
+    </message>
+    <message>
+        <source>New scans use the boxes of the scan before them.</source>
+        <translation>Les nouvelles numérisations reprennent les cadres de la précédente.</translation>
+    </message>
+    <message>
+        <source>Leaves out a strip this wide on each side of the divider on every scan of the book, so the dark area by the binding stays off the pages.</source>
+        <translation>Exclut une bande de cette largeur de chaque côté de la ligne de séparation sur toutes les numérisations du livre, afin que la zone sombre près de la reliure n&apos;apparaisse pas sur les pages.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

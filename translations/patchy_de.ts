@@ -18296,6 +18296,34 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Recognizing text and writing page %1 of %2...</source>
         <translation>Text wird erkannt und Seite %1 von %2 wird geschrieben...</translation>
     </message>
+    <message>
+        <source>Binding margin:</source>
+        <translation>Bundrand:</translation>
+    </message>
+    <message>
+        <source>Detect the pages on each scan</source>
+        <translation>Seiten bei jedem Scan erkennen</translation>
+    </message>
+    <message>
+        <source>Finds the book&apos;s outline and divider again on every scan. Turn it off once they are right: each new scan then uses the boxes of the scan before it, and a scan that is scanned again keeps its own.</source>
+        <translation>Sucht bei jedem Scan erneut den Umriss und die Trennlinie des Buchs. Schalten Sie die Option aus, sobald beide stimmen: Jeder neue Scan übernimmt dann die Rahmen des vorherigen Scans, und ein erneut gescannter Scan behält seine eigenen.</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again. Its boxes were kept.</source>
+        <translation>Scan %1 wurde erneut gescannt. Seine Rahmen wurden beibehalten.</translation>
+    </message>
+    <message>
+        <source>The pages are detected on each scan.</source>
+        <translation>Die Seiten werden bei jedem Scan erkannt.</translation>
+    </message>
+    <message>
+        <source>New scans use the boxes of the scan before them.</source>
+        <translation>Neue Scans übernehmen die Rahmen des vorherigen Scans.</translation>
+    </message>
+    <message>
+        <source>Leaves out a strip this wide on each side of the divider on every scan of the book, so the dark area by the binding stays off the pages.</source>
+        <translation>Lässt bei jedem Scan des Buchs auf beiden Seiten der Trennlinie einen Streifen dieser Breite aus, damit der dunkle Bereich am Bund nicht auf die Seiten kommt.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

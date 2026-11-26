@@ -17,7 +17,8 @@
 // scan gives the spread's outer rectangle and the gutter, which splits it into a left
 // and a right page. Every page is then cut at ONE uniform size, anchored at its outer
 // fore-edge (the gutter edge bends under the binding and is unreliable), so the PDF's
-// pages all match.
+// pages all match. A page takes pixels only from its own side of the gutter line, less
+// the book's binding margin; where its box reaches further it is white.
 //
 // All geometry works on an UPRIGHT scan: the caller turns the scan by whole quarter
 // turns first (rotated_quarter_turns, the book's top edge pointing up), so a "left
@@ -122,6 +123,29 @@ struct BookPageSize {
 [[nodiscard]] OrientedBox centered_page_box(const OrientedBox& measured, double width_px,
                                             double height_px);
 
+// What a page is cut with: its box, and the part of the box the page may take from the
+// scan, as a range along the box's x axis in pixels from the box's left edge. A source
+// pixel whose center lies outside the range is left out, and the page is white there, as
+// it is beyond the scan. The default range is unlimited.
+struct BookPageCut {
+  OrientedBox box;
+  double source_from{-1.0e300};
+  double source_to{1.0e300};
+};
+
+// The cut of one page of a spread: uniform_spread_page_box, limited to the page's own
+// side of the divider (the gutter line the user can move), less `binding_margin_px` left
+// out beside the divider. A page wider than its side is white from there on; the other
+// page and the binding never show on it. Fixed geometry only: no tone change anywhere.
+[[nodiscard]] BookPageCut uniform_spread_page_cut(const SpreadLayout& layout, BookPageSide side,
+                                                  double width_px, double height_px,
+                                                  double binding_margin_px);
+// The width a spread's page measures: its side of the divider, less the binding margin.
+[[nodiscard]] double spread_page_width(const SpreadLayout& layout, BookPageSide side,
+                                       double binding_margin_px);
+// The same cut in a copy of the scan `scale` times its size.
+[[nodiscard]] BookPageCut scaled_page_cut(const BookPageCut& cut, double scale);
+
 // Cuts `box` out of an 8-bit gray, RGB or RGBA source into an image of out_width x
 // out_height (scaling when they differ from the box's size: area-averaged
 // supersampling when shrinking). Everything outside the source is white; alpha is
@@ -129,6 +153,9 @@ struct BookPageSize {
 // empty buffer for unsupported input.
 [[nodiscard]] PixelBuffer extract_book_page(const PixelBuffer& source, const OrientedBox& box,
                                             std::int32_t out_width, std::int32_t out_height);
+// The same with the cut's source range: everything outside it is white too.
+[[nodiscard]] PixelBuffer extract_book_page_cut(const PixelBuffer& source, const BookPageCut& cut,
+                                                std::int32_t out_width, std::int32_t out_height);
 
 enum class BookOutputMode : std::uint8_t { Color, Grayscale, BlackAndWhite };
 

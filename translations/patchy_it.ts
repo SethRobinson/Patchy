@@ -18296,6 +18296,34 @@ Sostituirlo?</translation>
         <source>Recognizing text and writing page %1 of %2...</source>
         <translation>Riconoscimento del testo e scrittura della pagina %1 di %2...</translation>
     </message>
+    <message>
+        <source>Binding margin:</source>
+        <translation>Margine di rilegatura:</translation>
+    </message>
+    <message>
+        <source>Detect the pages on each scan</source>
+        <translation>Rileva le pagine a ogni scansione</translation>
+    </message>
+    <message>
+        <source>Finds the book&apos;s outline and divider again on every scan. Turn it off once they are right: each new scan then uses the boxes of the scan before it, and a scan that is scanned again keeps its own.</source>
+        <translation>Cerca di nuovo il contorno e la linea di divisione del libro a ogni scansione. Disattiva l&apos;opzione quando sono corretti: ogni nuova scansione usa allora i riquadri della scansione precedente, e una scansione ripetuta mantiene i propri.</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again. Its boxes were kept.</source>
+        <translation>La scansione %1 è stata ripetuta. I suoi riquadri sono stati mantenuti.</translation>
+    </message>
+    <message>
+        <source>The pages are detected on each scan.</source>
+        <translation>Le pagine vengono rilevate a ogni scansione.</translation>
+    </message>
+    <message>
+        <source>New scans use the boxes of the scan before them.</source>
+        <translation>Le nuove scansioni usano i riquadri della scansione precedente.</translation>
+    </message>
+    <message>
+        <source>Leaves out a strip this wide on each side of the divider on every scan of the book, so the dark area by the binding stays off the pages.</source>
+        <translation>Esclude una striscia di questa larghezza su ciascun lato della linea di divisione in ogni scansione del libro, così la zona scura vicino alla rilegatura non compare sulle pagine.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

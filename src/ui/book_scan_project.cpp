@@ -184,6 +184,14 @@ QByteArray book_project_json(const BookProject& project) {
   root[QStringLiteral("mode")] = mode_token(project.mode);
   root[QStringLiteral("includeCovers")] = project.include_covers;
   root[QStringLiteral("finished")] = project.finished_scanning;
+  // Both written only when they differ from what a book without them means, so a book
+  // that never used them keeps the bytes it always had.
+  if (project.binding_margin > 0.0) {
+    root[QStringLiteral("bindingMargin")] = project.binding_margin;
+  }
+  if (!project.detect_each_scan) {
+    root[QStringLiteral("detectEachScan")] = false;
+  }
   if (project.cover) {
     QJsonObject cover;
     cover[QStringLiteral("file")] = project.cover->file;
@@ -289,6 +297,10 @@ std::optional<BookProject> book_project_from_json(const QByteArray& bytes, QStri
   project.mode = mode_from(root.value(QStringLiteral("mode")).toString());
   project.include_covers = root.value(QStringLiteral("includeCovers")).toBool(true);
   project.finished_scanning = root.value(QStringLiteral("finished")).toBool(false);
+  // Missing in books saved before these existed: no margin, every scan detected.
+  const double margin = root.value(QStringLiteral("bindingMargin")).toDouble(0.0);
+  project.binding_margin = std::isfinite(margin) ? std::clamp(margin, 0.0, kBookBindingMarginMax) : 0.0;
+  project.detect_each_scan = root.value(QStringLiteral("detectEachScan")).toBool(true);
   if (root.contains(QStringLiteral("cover"))) {
     const QJsonObject cover = root.value(QStringLiteral("cover")).toObject();
     BookCover entry;
@@ -492,8 +504,8 @@ std::vector<BookPageSize> measured_page_sizes(const BookProject& project) {
                         (scan.use == BookPageUse::LeftOnly && side == BookPageSide::Left) ||
                         (scan.use == BookPageUse::RightOnly && side == BookPageSide::Right);
       if (used) {
-        const OrientedBox box = spread_page_box(scan.layout, side);
-        sizes.push_back({box.width / scan.dpi, box.height / scan.dpi});
+        sizes.push_back({spread_page_width(scan.layout, side, project.binding_margin * scan.dpi) / scan.dpi,
+                         scan.layout.spread.height / scan.dpi});
       }
     }
   }
@@ -616,9 +628,12 @@ std::optional<BookPageSource> book_page_source(const BookProject& project, const
       source.file = scan.file;
       source.dpi = scan.dpi;
       source.turns = normalized_turns(project.up_turns + scan.extra_turns);
-      source.box = project.mode == BookScanMode::OnePage
-                       ? centered_page_box(scan.layout.spread, width_px, height_px)
-                       : uniform_spread_page_box(scan.layout, page.side, width_px, height_px);
+      if (project.mode == BookScanMode::OnePage) {
+        source.cut.box = centered_page_box(scan.layout.spread, width_px, height_px);
+      } else {
+        source.cut = uniform_spread_page_cut(scan.layout, page.side, width_px, height_px,
+                                             project.binding_margin * scan.dpi);
+      }
       return source;
     }
     case BookPageRef::Kind::FrontCover:
@@ -631,7 +646,7 @@ std::optional<BookPageSource> book_page_source(const BookProject& project, const
       source.file = part->cover->file;
       source.dpi = part->cover->dpi;
       source.turns = normalized_turns(project.up_turns);
-      source.box = centered_page_box(part->box, size.width * source.dpi, size.height * source.dpi);
+      source.cut.box = centered_page_box(part->box, size.width * source.dpi, size.height * source.dpi);
       return source;
     }
     case BookPageRef::Kind::Blank:
@@ -665,7 +680,7 @@ PixelBuffer render_book_page(const BookProject& project, const BookPageRef& page
       return {};
     }
     const auto [out_width, out_height] = output_size(source->dpi);
-    cut = extract_book_page(*pixels, source->box, out_width, out_height);
+    cut = extract_book_page_cut(*pixels, source->cut, out_width, out_height);
   }
   if (cut.empty()) {
     return {};

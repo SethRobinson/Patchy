@@ -18360,6 +18360,34 @@ Czy chcesz go zastąpić?</translation>
         <source>Recognizing text and writing page %1 of %2...</source>
         <translation>Rozpoznawanie tekstu i zapisywanie strony %1 z %2...</translation>
     </message>
+    <message>
+        <source>Binding margin:</source>
+        <translation>Margines na oprawę:</translation>
+    </message>
+    <message>
+        <source>Detect the pages on each scan</source>
+        <translation>Wykrywaj strony przy każdym skanie</translation>
+    </message>
+    <message>
+        <source>Finds the book&apos;s outline and divider again on every scan. Turn it off once they are right: each new scan then uses the boxes of the scan before it, and a scan that is scanned again keeps its own.</source>
+        <translation>Przy każdym skanie ponownie wyszukuje obrys książki i linię podziału. Wyłącz tę opcję, gdy są już ustawione poprawnie: każdy nowy skan przejmuje wtedy ramki poprzedniego skanu, a skan wykonany ponownie zachowuje własne.</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again. Its boxes were kept.</source>
+        <translation>Skan %1 został wykonany ponownie. Jego ramki zostały zachowane.</translation>
+    </message>
+    <message>
+        <source>The pages are detected on each scan.</source>
+        <translation>Strony są wykrywane przy każdym skanie.</translation>
+    </message>
+    <message>
+        <source>New scans use the boxes of the scan before them.</source>
+        <translation>Nowe skany przejmują ramki poprzedniego skanu.</translation>
+    </message>
+    <message>
+        <source>Leaves out a strip this wide on each side of the divider on every scan of the book, so the dark area by the binding stays off the pages.</source>
+        <translation>Pomija pasek tej szerokości po obu stronach linii podziału na każdym skanie książki, dzięki czemu ciemny obszar przy oprawie nie trafia na strony.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

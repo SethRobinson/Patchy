@@ -27,6 +27,8 @@ constexpr std::int64_t kGutterMinimumContrast = 6 * 256;
 // image when there is none) to be trusted over it.
 constexpr double kPlausibleShareOfFallback = 0.5;
 constexpr double kPlausibleShareOfImage = 0.1;
+// BookPageCut's source range ends beyond this are "no limit" (its defaults are 1e300).
+constexpr double kUnlimitedRange = 1.0e200;
 constexpr int kColorChroma = 40;
 constexpr double kGrayscaleSuggestionFraction = 0.002;
 
@@ -386,12 +388,62 @@ OrientedBox centered_page_box(const OrientedBox& measured, double width_px, doub
   return box_at(measured, 0.0, width_px, height_px);
 }
 
+BookPageCut uniform_spread_page_cut(const SpreadLayout& layout, BookPageSide side, double width_px, double height_px,
+                                    double binding_margin_px) {
+  BookPageCut cut;
+  cut.box = uniform_spread_page_box(layout, side, width_px, height_px);
+  const double divider = std::clamp(layout.gutter, 0.0, 1.0) * layout.spread.width;
+  const double margin = std::max(0.0, binding_margin_px);
+  if (side == BookPageSide::Left) {
+    // The box starts at the spread's left edge.
+    cut.source_to = divider - margin;
+  } else {
+    // The box ends at the spread's right edge: its left edge is width_px before that.
+    cut.source_from = divider + margin - (layout.spread.width - width_px);
+  }
+  return cut;
+}
+
+double spread_page_width(const SpreadLayout& layout, BookPageSide side, double binding_margin_px) {
+  const double gutter = std::clamp(layout.gutter, 0.0, 1.0);
+  const double own_side = (side == BookPageSide::Left ? gutter : 1.0 - gutter) * layout.spread.width;
+  return std::max(0.0, own_side - std::max(0.0, binding_margin_px));
+}
+
+BookPageCut scaled_page_cut(const BookPageCut& cut, double scale) {
+  BookPageCut scaled = cut;
+  scaled.box.center_x *= scale;
+  scaled.box.center_y *= scale;
+  scaled.box.width *= scale;
+  scaled.box.height *= scale;
+  // The unlimited ends stay unlimited.
+  if (cut.source_from > -kUnlimitedRange) {
+    scaled.source_from *= scale;
+  }
+  if (cut.source_to < kUnlimitedRange) {
+    scaled.source_to *= scale;
+  }
+  return scaled;
+}
+
 PixelBuffer extract_book_page(const PixelBuffer& source, const OrientedBox& box, std::int32_t out_width,
                               std::int32_t out_height) {
+  BookPageCut cut;
+  cut.box = box;
+  return extract_book_page_cut(source, cut, out_width, out_height);
+}
+
+PixelBuffer extract_book_page_cut(const PixelBuffer& source, const BookPageCut& cut, std::int32_t out_width,
+                                  std::int32_t out_height) {
+  const OrientedBox& box = cut.box;
   if (source.empty() || !supported_page_format(source.format()) || out_width <= 0 || out_height <= 0 ||
       out_width > kMaxPageEdge || out_height > kMaxPageEdge || box.width <= 0.0 || box.height <= 0.0) {
     return {};
   }
+  // A source range that leaves out part of the box: each source pixel is then placed along
+  // the box's x axis by its center.
+  // A bilinear tap reaches a pixel past the box's edge, so a range that ends at the edge counts.
+  const bool limited = cut.source_from > -2.0 || cut.source_to < box.width + 2.0;
   const bool gray = is_gray(source.format());
   const int out_channels = gray ? 1 : 3;
   PixelBuffer out(out_width, out_height, gray ? PixelFormat::gray8() : PixelFormat::rgb8());
@@ -427,7 +479,12 @@ PixelBuffer extract_book_page(const PixelBuffer& source, const OrientedBox& box,
           const std::int32_t ys[4] = {y0, y0, y0 + 1, y0 + 1};
           for (int tap = 0; tap < 4; ++tap) {
             int rgb[3] = {255, 255, 255};
-            if (xs[tap] >= 0 && ys[tap] >= 0 && xs[tap] < source_width && ys[tap] < source_height) {
+            bool taken = xs[tap] >= 0 && ys[tap] >= 0 && xs[tap] < source_width && ys[tap] < source_height;
+            if (taken && limited) {
+              const double along = (xs[tap] + 0.5 - origin_x) * axes.ux + (ys[tap] + 0.5 - origin_y) * axes.uy;
+              taken = along >= cut.source_from && along <= cut.source_to;
+            }
+            if (taken) {
               fetch_rgb(source, xs[tap], ys[tap], rgb);
             }
             for (int channel = 0; channel < out_channels; ++channel) {

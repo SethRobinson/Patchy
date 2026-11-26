@@ -18360,6 +18360,34 @@ Do you want to replace it?</source>
         <source>Recognizing text and writing page %1 of %2...</source>
         <translation>Распознавание текста и запись страницы %1 из %2...</translation>
     </message>
+    <message>
+        <source>Binding margin:</source>
+        <translation>Поле у переплёта:</translation>
+    </message>
+    <message>
+        <source>Detect the pages on each scan</source>
+        <translation>Определять страницы при каждом сканировании</translation>
+    </message>
+    <message>
+        <source>Finds the book&apos;s outline and divider again on every scan. Turn it off once they are right: each new scan then uses the boxes of the scan before it, and a scan that is scanned again keeps its own.</source>
+        <translation>При каждом сканировании заново находит контур книги и линию раздела. Отключите, когда они заданы верно: каждый новый скан будет брать рамки предыдущего скана, а скан, сделанный заново, сохранит свои.</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again. Its boxes were kept.</source>
+        <translation>Скан %1 сделан заново. Его рамки сохранены.</translation>
+    </message>
+    <message>
+        <source>The pages are detected on each scan.</source>
+        <translation>Страницы определяются при каждом сканировании.</translation>
+    </message>
+    <message>
+        <source>New scans use the boxes of the scan before them.</source>
+        <translation>Новые сканы берут рамки предыдущего скана.</translation>
+    </message>
+    <message>
+        <source>Leaves out a strip this wide on each side of the divider on every scan of the book, so the dark area by the binding stays off the pages.</source>
+        <translation>Исключает полосу такой ширины с каждой стороны линии раздела на всех сканах книги, чтобы тёмная область у переплёта не попадала на страницы.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

@@ -18296,6 +18296,34 @@ Do you want to replace it?</source>
         <source>Recognizing text and writing page %1 of %2...</source>
         <translation>Reconociendo el texto y escribiendo la página %1 de %2...</translation>
     </message>
+    <message>
+        <source>Binding margin:</source>
+        <translation>Margen de encuadernación:</translation>
+    </message>
+    <message>
+        <source>Detect the pages on each scan</source>
+        <translation>Detectar las páginas en cada escaneo</translation>
+    </message>
+    <message>
+        <source>Finds the book&apos;s outline and divider again on every scan. Turn it off once they are right: each new scan then uses the boxes of the scan before it, and a scan that is scanned again keeps its own.</source>
+        <translation>Busca de nuevo el contorno y la línea divisoria del libro en cada escaneo. Desactívelo cuando estén bien: cada escaneo nuevo usa entonces los recuadros del escaneo anterior, y un escaneo que se repite conserva los suyos.</translation>
+    </message>
+    <message>
+        <source>Scan %1 was scanned again. Its boxes were kept.</source>
+        <translation>El escaneo %1 se ha vuelto a escanear. Se han conservado sus recuadros.</translation>
+    </message>
+    <message>
+        <source>The pages are detected on each scan.</source>
+        <translation>Las páginas se detectan en cada escaneo.</translation>
+    </message>
+    <message>
+        <source>New scans use the boxes of the scan before them.</source>
+        <translation>Los escaneos nuevos usan los recuadros del escaneo anterior.</translation>
+    </message>
+    <message>
+        <source>Leaves out a strip this wide on each side of the divider on every scan of the book, so the dark area by the binding stays off the pages.</source>
+        <translation>Omite una franja de este ancho a cada lado de la línea divisoria en todos los escaneos del libro, para que la zona oscura junto a la encuadernación no aparezca en las páginas.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>
