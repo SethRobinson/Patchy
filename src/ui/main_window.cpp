@@ -6999,6 +6999,8 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   restore_standard_screen_chrome();
   save_window_geometry();
   save_panel_layout();
+  // An asset being written in the background is listed before the window goes.
+  finish_pending_asset_writes();
   // Flush any tool-option change still waiting on the save debounce; the timer
   // will not fire once the window is gone.
   flush_pending_brush_rotation();

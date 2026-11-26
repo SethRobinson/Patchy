@@ -20,6 +20,10 @@
 #include "psd/psd_document_io.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/asset_library.hpp"
+#include "ui/background_workers.hpp"
+#if __has_include("ui/asset_thumbnails.hpp")
+#include "ui/asset_thumbnails.hpp"
+#endif
 #include "ui/assets_panel.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
@@ -50,12 +54,15 @@
 #include <QProcessEnvironment>
 #include <QScrollBar>
 #include <QSettings>
+#include <QStatusBar>
 #include <QString>
 #include <QStringList>
 #include <QThread>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <cstdio>
 #include <cstdint>
 #include <functional>
 #include <iomanip>
@@ -72,7 +79,9 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <dbghelp.h>
 #include <psapi.h>
+#include "stack_walk_frame.hpp"
 #endif
 
 namespace patchy::perf {
@@ -105,15 +114,40 @@ struct Timing {
 
 // True while the Assets panel of `window` still has background work: a library load, a
 // thumbnail being made, an asset being written.
-bool assets_busy(ui::MainWindow& window) {
-  (void)window;
-  return false;  // everything is synchronous in this build
+// A panel that does everything on the UI thread (the code before the background loading) has
+// no busy(): this scenario also builds against it, to give the numbers to compare with.
+template <typename Panel>
+bool panel_busy(const Panel* panel) {
+  if constexpr (requires { panel->busy(); }) {
+    return panel != nullptr && panel->busy();
+  } else {
+    return false;
+  }
 }
+
+// What the panel's decoded pictures hold in memory; -1 for a panel that keeps a QIcon per asset
+// with no count of its own.
+template <typename Panel>
+double kept_picture_megabytes(const Panel* panel) {
+  if constexpr (requires { panel->thumbnails()->memory_bytes(); }) {
+    return static_cast<double>(panel->thumbnails()->memory_bytes()) / (1024.0 * 1024.0);
+  } else {
+    return -1.0;
+  }
+}
+
+// The window's Assets panel, looked up once per window: measure() polls its busy state on every
+// event-loop pass, and a findChild walk of the whole window per pass is no part of what is timed.
+const ui::AssetsPanel* assets_panel(ui::MainWindow& window) {
+  return window.findChild<ui::AssetsPanel*>(QStringLiteral("assetsPanel"));
+}
+
+bool assets_busy(const ui::AssetsPanel* panel) { return panel_busy(panel); }
 
 // Runs `action`, then pumps the event loop until the panel is idle. One processEvents pass is
 // one stretch in which the UI thread answers nothing, so the longest pass (or the action
 // itself) is the stall a user would feel.
-Timing measure(ui::MainWindow& window, const std::function<void()>& action) {
+Timing measure(const ui::AssetsPanel* panel, const std::function<void()>& action) {
   Timing timing;
   const auto start = Clock::now();
   action();
@@ -125,7 +159,7 @@ Timing measure(ui::MainWindow& window, const std::function<void()>& action) {
     QApplication::processEvents(QEventLoop::AllEvents);
     const auto pass_ms = ms_since(pass_start);
     timing.longest_ms = std::max(timing.longest_ms, pass_ms);
-    if (assets_busy(window)) {
+    if (assets_busy(panel)) {
       quiet_passes = 0;
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
       continue;
@@ -148,6 +182,12 @@ void report(int assets, const char* step, const Timing& timing, const char* cach
   std::cout << '\n' << std::flush;
 }
 
+// The same with the number of assets the grid shows once the step has settled (read here, after
+// the timed action: argument evaluation order is unspecified).
+void report_shown(int assets, const char* step, const Timing& timing, const char* cache, const QListWidget* grid) {
+  report(assets, step, timing, cache, "shown=" + std::to_string(grid->count()));
+}
+
 double private_megabytes() {
 #ifdef Q_OS_WIN
   PROCESS_MEMORY_COUNTERS_EX counters{};
@@ -158,6 +198,53 @@ double private_megabytes() {
 #endif
   return 0.0;
 }
+
+#ifdef Q_OS_WIN
+// This scenario builds and destroys dozens of windows in one process, which nothing else
+// does: an access violation prints the faulting thread's stack before the process dies, so
+// a crash here names its cause instead of only an exit code.
+LONG CALLBACK print_crash_stack(EXCEPTION_POINTERS* info) {
+  if (info == nullptr || info->ExceptionRecord == nullptr || info->ContextRecord == nullptr ||
+      info->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  static std::atomic<bool> reported{false};
+  if (reported.exchange(true)) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  const auto process = GetCurrentProcess();
+  SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+  SymInitialize(process, nullptr, TRUE);  // FALSE when already done; lookups still work
+  CONTEXT context = *info->ContextRecord;
+  STACKFRAME64 frame;
+  const DWORD machine = init_stack_walk_frame(context, frame);
+  std::fprintf(stderr, "[CRASH] access violation on thread %lu\n", GetCurrentThreadId());
+  for (int depth = 0; depth < 60; ++depth) {
+    if (StackWalk64(machine, process, GetCurrentThread(), &frame, &context, nullptr, SymFunctionTableAccess64,
+                    SymGetModuleBase64, nullptr) == FALSE ||
+        frame.AddrPC.Offset == 0) {
+      break;
+    }
+    IMAGEHLP_MODULE64 module{};
+    module.SizeOfStruct = sizeof(module);
+    const bool has_module = SymGetModuleInfo64(process, frame.AddrPC.Offset, &module) != FALSE;
+    char buffer[sizeof(SYMBOL_INFO) + 512] = {};
+    auto* symbol = reinterpret_cast<SYMBOL_INFO*>(buffer);
+    symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+    symbol->MaxNameLen = 511;
+    DWORD64 displacement = 0;
+    if (SymFromAddr(process, frame.AddrPC.Offset, &displacement, symbol) != FALSE) {
+      std::fprintf(stderr, "  %s!%s+0x%llx\n", has_module ? module.ModuleName : "?", symbol->Name,
+                   static_cast<unsigned long long>(displacement));
+    } else {
+      std::fprintf(stderr, "  %s+0x%llx\n", has_module ? module.ModuleName : "?",
+                   static_cast<unsigned long long>(frame.AddrPC.Offset - (has_module ? module.BaseOfImage : 0)));
+    }
+  }
+  std::fflush(stderr);
+  return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif
 
 QString scratch_root() { return QDir::current().filePath(QStringLiteral("test-artifacts/perf-assets")); }
 
@@ -178,8 +265,26 @@ bool run_script(ui::MainWindow& window, const QString& source) {
 void drain() {
   for (int pass = 0; pass < 4; ++pass) {
     QApplication::processEvents(QEventLoop::AllEvents);
+    // This scenario has no exec(): what was retired with deleteLater() (an inline text editor
+    // after its commit) is delivered here. Left alive, such an object answers a later window's
+    // focus change with its own window long gone.
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
   }
 }
+
+// Declared before a window, so it runs once the window is gone: waits for the tracked workers
+// that window started (the preset library preloads, the plug-in scan) and drains what they
+// posted, as the UI suite does between tests. Without it a worker of a destroyed window
+// answers while the next window starts up.
+struct WindowTeardown {
+  WindowTeardown() = default;
+  ~WindowTeardown() {
+    ui::wait_for_tracked_background_workers();
+    drain();
+  }
+  WindowTeardown(const WindowTeardown&) = delete;
+  WindowTeardown& operator=(const WindowTeardown&) = delete;
+};
 
 // A picture with soft and hard edges and no flat rows, so a PSD of it is a realistic size.
 QImage painted_art(int width, int height, int seed) {
@@ -290,6 +395,7 @@ std::vector<AssetTemplate> make_templates() {
   const ScopedAssetsDir assets_dir(directory);
   std::vector<AssetTemplate> templates;
   {
+    const WindowTeardown teardown;
     ui::MainWindow window;
     window.show();
     drain();
@@ -320,12 +426,12 @@ std::vector<AssetTemplate> make_templates() {
     assets_select_layers(window, root_ids(std::as_const(assets_active_document(window)), true));
     drain();
     add->trigger();
-    for (int wait = 0; wait < 2000 && assets_busy(window); ++wait) {
-      QApplication::processEvents(QEventLoop::AllEvents, 20);
-    }
+    // The assets are encoded and written on the library's worker: wait for the last one.
+    measure(assets_panel(window), [] {});
     drain();
     auto* library = window.findChild<ui::AssetLibrary*>();
     CHECK(library != nullptr);
+    std::cout << "[PERF] assets templates status: " << window.statusBar()->currentMessage().toStdString() << '\n' << std::flush;
     for (const auto& category : library->categories()) {
       for (const auto& asset : category.assets) {
         AssetTemplate entry;
@@ -337,6 +443,13 @@ std::vector<AssetTemplate> make_templates() {
         templates.push_back(std::move(entry));
       }
     }
+  }
+  if (templates.size() != 10U) {
+    std::cout << "[PERF] assets templates made: " << templates.size() << " (";
+    for (const auto& entry : templates) {
+      std::cout << entry.name.toStdString() << ' ';
+    }
+    std::cout << ")\n" << std::flush;
   }
   CHECK(templates.size() == 10U);
   return templates;
@@ -455,12 +568,13 @@ Timing time_window_startup(bool panel_open, int* shown_items = nullptr) {
   }
   Timing timing;
   {
+    const WindowTeardown teardown;
     std::optional<ui::MainWindow> window;
     const auto start = Clock::now();
     window.emplace();
     window->show();
     const auto constructed_ms = ms_since(start);
-    timing = measure(*window, [] {});
+    timing = measure(assets_panel(*window), [] {});
     timing.call_ms = constructed_ms;
     timing.longest_ms = std::max(timing.longest_ms, constructed_ms);
     timing.settle_ms += constructed_ms;
@@ -477,20 +591,23 @@ Timing time_window_startup(bool panel_open, int* shown_items = nullptr) {
 
 void time_library_in_process(const QString& directory, int count, bool can_purge) {
   const ScopedAssetsDir assets_dir(directory);
-  {
+  const auto forget_picked_category = [] {
     auto settings = ui::app_settings();
     clear_panel_layout(settings);
-  }
+  };
+  forget_picked_category();
   // A window built once and thrown away: the first one in a process pays one-time costs
   // (fonts, style) that are no part of what is compared here.
   {
+    const WindowTeardown teardown;
     ui::MainWindow warm_up;
     warm_up.show();
     drain();
   }
   report(count, "startup_panel_closed", time_window_startup(false), "warm");
   int shown = 0;
-  report(count, "startup_panel_open", time_window_startup(true, &shown), "warm", "shown=" + std::to_string(shown));
+  const auto open_startup = time_window_startup(true, &shown);
+  report(count, "startup_panel_open", open_startup, "warm", "shown=" + std::to_string(shown));
   if (can_purge) {
     std::string why;
     if (purge_file_cache_for_cold_start(why)) {
@@ -501,14 +618,16 @@ void time_library_in_process(const QString& directory, int count, bool can_purge
 
   {
     // The first open of the panel in a session, with the library's files in the file cache.
+    const WindowTeardown teardown;
     ui::MainWindow first;
     first.show();
     drain();
     const auto first_widgets = panel_widgets(first);
-    report(count, "open_panel", measure(first, [&] { first_widgets.open->trigger(); }), "warm",
-           "shown=" + std::to_string(first_widgets.grid->count()));
+    report_shown(count, "open_panel", measure(first_widgets.panel, [&] { first_widgets.open->trigger(); }), "warm", first_widgets.grid);
   }
+  forget_picked_category();
   const auto baseline_mb = private_megabytes();
+  const WindowTeardown teardown;
   ui::MainWindow window;
   window.show();
   drain();
@@ -522,50 +641,46 @@ void time_library_in_process(const QString& directory, int count, bool can_purge
     }
   }
   if (purged) {
-    report(count, "open_panel", measure(window, [&] { widgets.open->trigger(); }), "cold",
-           "shown=" + std::to_string(widgets.grid->count()));
+    report_shown(count, "open_panel", measure(widgets.panel, [&] { widgets.open->trigger(); }), "cold", widgets.grid);
   } else {
     widgets.open->trigger();
-    measure(window, [] {});
+    measure(widgets.panel, [] {});
   }
   const auto big = widgets.categories->findText(QStringLiteral("Icons"));
   const auto photos = widgets.categories->findText(QStringLiteral("Photos"));
   if (big >= 0) {
-    report(count, "switch_to_big_category", measure(window, [&] { widgets.categories->setCurrentIndex(big); }),
-           "warm", "shown=" + std::to_string(widgets.grid->count()));
+    report_shown(count, "switch_to_big_category", measure(widgets.panel, [&] { widgets.categories->setCurrentIndex(big); }), "warm", widgets.grid);
   }
   if (photos >= 0) {
-    report(count, "switch_to_photos_category",
-           measure(window, [&] { widgets.categories->setCurrentIndex(photos); }), "warm",
-           "shown=" + std::to_string(widgets.grid->count()));
+    report_shown(count, "switch_to_photos_category",
+           measure(widgets.panel, [&] { widgets.categories->setCurrentIndex(photos); }), "warm", widgets.grid);
   }
   // Every generated name holds an "a": the first keystroke matches the whole library.
-  report(count, "search_first_keystroke", measure(window, [&] { widgets.search->setText(QStringLiteral("a")); }),
-         "warm", "shown=" + std::to_string(widgets.grid->count()));
-  report(count, "search_second_keystroke", measure(window, [&] { widgets.search->setText(QStringLiteral("al")); }),
-         "warm", "shown=" + std::to_string(widgets.grid->count()));
-  report(count, "search_cleared", measure(window, [&] { widgets.search->clear(); }), "warm");
+  report_shown(count, "search_first_keystroke", measure(widgets.panel, [&] { widgets.search->setText(QStringLiteral("a")); }), "warm", widgets.grid);
+  report_shown(count, "search_second_keystroke", measure(widgets.panel, [&] { widgets.search->setText(QStringLiteral("st")); }), "warm", widgets.grid);
+  report(count, "search_cleared", measure(widgets.panel, [&] { widgets.search->clear(); }), "warm");
   // What the panel holds once every asset has been shown once, scrolled end to end.
   widgets.search->setText(QStringLiteral("a"));
-  measure(window, [] {});
+  measure(widgets.panel, [] {});
   for (int step = 0; step <= 40; ++step) {
     widgets.grid->verticalScrollBar()->setValue(widgets.grid->verticalScrollBar()->maximum() * step / 40);
-    measure(window, [] {});
+    measure(widgets.panel, [] {});
   }
-  std::cout << "[PERF] assets n=" << count << " memory_after_showing_every_asset private_mb_growth="
+  std::cout << "[PERF] assets n=" << count << " memory_after_showing_every_asset kept_pictures_mb=" << std::fixed
+            << std::setprecision(1) << kept_picture_megabytes(widgets.panel) << " private_mb_growth="
             << std::fixed << std::setprecision(1) << private_megabytes() - baseline_mb << '\n';
   widgets.search->clear();
-  measure(window, [] {});
+  measure(widgets.panel, [] {});
 
   if (count > 0) {
     const auto first = widgets.library->categories().front().assets.front().id;
     const auto second = widgets.library->categories().front().assets.back().id;
     report(count, "rename_one_asset",
-           measure(window, [&] { CHECK(widgets.library->rename_asset(first, QStringLiteral("Renamed leaf"))); }),
+           measure(widgets.panel, [&] { CHECK(widgets.library->rename_asset(first, QStringLiteral("Renamed leaf"))); }),
            "warm");
     const auto bytes = widgets.library->read_asset_bytes(first);
     const auto picture = widgets.library->thumbnail(first);
-    report(count, "add_one_small_asset", measure(window, [&] {
+    report(count, "add_one_small_asset", measure(widgets.panel, [&] {
              CHECK(widgets.library
                        ->add_asset(widgets.panel->current_category_id(), QStringLiteral("Added leaf"),
                                    std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
@@ -574,34 +689,36 @@ void time_library_in_process(const QString& directory, int count, bool can_purge
                        .has_value());
            }),
            "warm");
-    report(count, "delete_one_asset", measure(window, [&] { CHECK(widgets.library->remove_asset(second)); }), "warm");
+    report(count, "delete_one_asset", measure(widgets.panel, [&] { CHECK(widgets.library->remove_asset(second)); }), "warm");
   }
 }
 
 // A library whose thumbnails, or whose index, are gone: what recovering costs when the panel opens.
 void time_damaged_library(const QString& directory, int count, const char* what, bool visit_categories) {
   const ScopedAssetsDir assets_dir(directory);
+  {
+    auto settings = ui::app_settings();
+    clear_panel_layout(settings);
+  }
+  const WindowTeardown teardown;
   ui::MainWindow window;
   window.show();
   drain();
   const auto widgets = panel_widgets(window);
   const auto step = std::string("open_panel_") + what;
-  report(count, step.c_str(), measure(window, [&] { widgets.open->trigger(); }), "warm",
-         "shown=" + std::to_string(widgets.grid->count()));
+  report_shown(count, step.c_str(), measure(widgets.panel, [&] { widgets.open->trigger(); }), "warm", widgets.grid);
   if (!visit_categories) {
     return;
   }
   const auto big = widgets.categories->findText(QStringLiteral("Icons"));
   if (big >= 0) {
     const auto name = std::string("switch_to_big_category_") + what;
-    report(count, name.c_str(), measure(window, [&] { widgets.categories->setCurrentIndex(big); }), "warm",
-           "shown=" + std::to_string(widgets.grid->count()));
+    report_shown(count, name.c_str(), measure(widgets.panel, [&] { widgets.categories->setCurrentIndex(big); }), "warm", widgets.grid);
   }
   const auto photos = widgets.categories->findText(QStringLiteral("Photos"));
   if (photos >= 0) {
     const auto name = std::string("switch_to_photos_category_") + what;
-    report(count, name.c_str(), measure(window, [&] { widgets.categories->setCurrentIndex(photos); }), "warm",
-           "shown=" + std::to_string(widgets.grid->count()));
+    report_shown(count, name.c_str(), measure(widgets.panel, [&] { widgets.categories->setCurrentIndex(photos); }), "warm", widgets.grid);
   }
 }
 
@@ -610,6 +727,7 @@ void time_damaged_library(const QString& directory, int count, const char* what,
 void time_large_layers(const QString& directory) {
   CHECK(QDir().mkpath(directory));
   const ScopedAssetsDir assets_dir(directory);
+  const WindowTeardown teardown;
   ui::MainWindow window;
   window.show();
   drain();
@@ -645,19 +763,19 @@ void time_large_layers(const QString& directory) {
     assets_select_layers(window, {id});
     drain();
     const auto before = widgets.library->asset_count();
-    report(1, (std::string("add_large_") + label).c_str(), measure(window, [&] { add->trigger(); }), "warm");
+    report(1, (std::string("add_large_") + label).c_str(), measure(widgets.panel, [&] { add->trigger(); }), "warm");
     CHECK(widgets.library->asset_count() == before + 1);
-    report(1, (std::string("duplicate_to_document_") + label).c_str(), measure(window, [&] {
+    report(1, (std::string("duplicate_to_document_") + label).c_str(), measure(widgets.panel, [&] {
              CHECK(assets_duplicate_layers_to_session(window, source_session, {id}, target_session));
            }),
            "warm");
     // Duplicate activated the target: place the asset and the file there, then go back.
     const auto asset = widgets.library->categories().front().assets.back().id;
     report(1, (std::string("place_large_") + label).c_str(),
-           measure(window, [&] { emit widgets.panel->place_requested({asset}); }), "warm");
+           measure(widgets.panel, [&] { emit widgets.panel->place_requested({asset}); }), "warm");
     const auto file = id == photo_id ? photo_file : poster_file;
     report(1, (std::string("files_as_layers_") + label).c_str(),
-           measure(window, [&] { CHECK(assets_add_files_as_layers(window, {file})); }), "warm");
+           measure(widgets.panel, [&] { CHECK(assets_add_files_as_layers(window, {file})); }), "warm");
     // Back to the source document for the next round.
     assets_activate_session(window, source_session);
     drain();
@@ -806,6 +924,9 @@ void time_app_startup(const std::vector<std::pair<int, QString>>& libraries, boo
 }  // namespace
 
 int run_assets_scenario() {
+#ifdef Q_OS_WIN
+  AddVectoredExceptionHandler(1, print_crash_stack);
+#endif
   const auto root = scratch_root();
   (void)patchy::test::remove_test_scratch_tree(ui::to_filesystem_path(root));
   CHECK(QDir().mkpath(root));

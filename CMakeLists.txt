@@ -1642,6 +1642,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/palette_panel.cpp
       src/ui/asset_library.hpp
       src/ui/asset_library.cpp
+      src/ui/asset_thumbnails.hpp
+      src/ui/asset_thumbnails.cpp
       src/ui/assets_panel.hpp
       src/ui/assets_panel.cpp
       src/ui/panel_column.hpp

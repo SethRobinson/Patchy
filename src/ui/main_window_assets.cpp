@@ -15,6 +15,7 @@
 #include "core/rect_utils.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/asset_library.hpp"
+#include "ui/asset_thumbnails.hpp"
 #include "ui/assets_panel.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/canvas_widget_shared.hpp"
@@ -37,6 +38,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <exception>
+#include <memory>
 #include <optional>
 #include <span>
 #include <utility>
@@ -47,8 +49,6 @@ namespace patchy::ui {
 namespace {
 
 constexpr int kAssetsDockPreferredHeight = 260;
-// The stored thumbnail's longest side: the grid shows it at 64 px, doubled on dense screens.
-constexpr int kAssetThumbnailSide = 192;
 // The classic PSD canvas limit: an asset is a PSD, never a PSB.
 constexpr std::int32_t kAssetMaximumSide = 30000;
 
@@ -59,59 +59,24 @@ void unite_tree_render_bounds(const Layer& layer, Rect& bounds) {
   }
 }
 
-std::optional<Document> read_asset_document(const QByteArray& bytes) {
-  if (bytes.isEmpty()) {
-    return std::nullopt;
-  }
-  try {
-    return psd::DocumentIo::read(
-        std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
-                                      static_cast<std::size_t>(bytes.size())));
-  } catch (const std::exception&) {
-    return std::nullopt;
-  }
-}
-
-// The asset's layers alone on a transparent ground, the root shown whatever its eye says.
-QImage render_asset_thumbnail(const Document& asset) {
-  if (asset.width() <= 0 || asset.height() <= 0 || asset.layers().empty()) {
-    return {};
-  }
-  Document shown = asset;
-  for (auto& root : shown.layers()) {
-    root.set_visible(true);
-    root.set_clipped(false);
-  }
-  const auto image = qimage_from_document(std::as_const(shown), true);
-  if (image.isNull()) {
-    return {};
-  }
-  if (image.width() <= kAssetThumbnailSide && image.height() <= kAssetThumbnailSide) {
-    return image;
-  }
-  return image.scaled(QSize(kAssetThumbnailSide, kAssetThumbnailSide), Qt::KeepAspectRatio,
-                      Qt::SmoothTransformation);
-}
-
 }  // namespace
 
 void MainWindow::create_assets_dock(std::vector<PanelSpec>& specs) {
   asset_library_ = new AssetLibrary(asset_library_directory(), this);
   // An index lost to a damaged file is rebuilt from the asset files, each named after the
-  // layer it holds.
-  asset_library_->set_recovered_name_provider([](const QString& asset_path) {
-    QFile file(asset_path);
-    if (!file.open(QIODevice::ReadOnly)) {
-      return QString();
-    }
-    const auto document = read_asset_document(file.readAll());
-    if (!document.has_value() || document->layers().empty()) {
-      return QString();
-    }
-    return QString::fromStdString(document->layers().back().name());
-  });
+  // layer it holds. Called on the library's worker.
+  asset_library_->set_recovered_name_provider(&asset_file_layer_name);
   assets_panel_ = new AssetsPanel(asset_library_, this);
-  assets_panel_->set_thumbnail_provider([this](const QString& asset_id) { return asset_thumbnail(asset_id); });
+  // Assets are written on the library's worker (add_layers_to_assets): the status bar says
+  // so when the last one of a batch is listed, or why one was not.
+  connect(asset_library_, &AssetLibrary::background_adds_finished, this, [this](int added, const QString& failure) {
+    if (added > 0) {
+      statusBar()->showMessage(tr("Added %n asset(s)", nullptr, added));
+    }
+    if (!failure.isEmpty()) {
+      show_status_error(failure);
+    }
+  });
 
   // The command behind the panel's Add Selected Layers button and its menu entry, on the
   // window so Search Commands and a shortcut reach it with the panel closed.
@@ -149,23 +114,10 @@ void MainWindow::create_assets_dock(std::vector<PanelSpec>& specs) {
                             .preferred_height = kAssetsDockPreferredHeight});
 }
 
-QImage MainWindow::asset_thumbnail(const QString& asset_id) {
-  if (asset_library_ == nullptr) {
-    return {};
+void MainWindow::finish_pending_asset_writes() {
+  if (asset_library_ != nullptr) {
+    asset_library_->finish_pending_adds();
   }
-  if (auto stored = asset_library_->thumbnail(asset_id); !stored.isNull()) {
-    return stored;
-  }
-  // The cached picture is gone: render it from the asset's layers once and keep it again.
-  const auto document = read_asset_document(asset_library_->read_asset_bytes(asset_id));
-  if (!document.has_value()) {
-    return {};
-  }
-  auto rendered = render_asset_thumbnail(*document);
-  if (!rendered.isNull()) {
-    asset_library_->store_thumbnail(asset_id, rendered);
-  }
-  return rendered;
 }
 
 void MainWindow::add_selected_layers_to_assets() {
@@ -253,23 +205,23 @@ int MainWindow::add_layers_to_assets(DocumentSession& source, std::vector<LayerI
       clear_background_locks_if_copy_of_background(*copy, root_id, source_document.layers(),
                                                    source_document.width(), source_document.height());
     }
-    std::vector<std::uint8_t> bytes;
-    try {
-      bytes = psd::DocumentIo::write_layered_rgb8(std::as_const(asset), psd::WriteOptions{});
-    } catch (const std::exception& write_error) {
-      failure = translate_data_text(write_error.what());
-      continue;
-    }
-    const auto thumbnail = render_asset_thumbnail(asset);
-    if (asset_library_->add_asset(category_id, QString::fromStdString(root->name()), bytes, thumbnail, &error)
-            .has_value()) {
-      ++added;
-    } else {
-      failure = error;
-    }
-  }
-  if (added > 0) {
-    statusBar()->showMessage(tr("Added %n asset(s)", nullptr, added));
+    // The layer copy above is the UI thread's whole share. Encoding the PSD, rendering the
+    // thumbnail and writing both files happen on the library's worker, from this private
+    // document; the asset appears in the panel when its files are whole.
+    asset_library_->add_asset_in_background(
+        category_id, QString::fromStdString(root->name()),
+        [document = std::make_shared<const Document>(std::move(asset))] {
+          AssetLibrary::EncodedAsset encoded;
+          try {
+            encoded.psd_bytes = psd::DocumentIo::write_layered_rgb8(*document, psd::WriteOptions{});
+          } catch (const std::exception& write_error) {
+            encoded.error = translate_data_text(write_error.what());
+            return encoded;
+          }
+          encoded.thumbnail = render_asset_thumbnail(*document);
+          return encoded;
+        });
+    ++added;
   }
   if (!failure.isEmpty()) {
     show_status_error(failure);

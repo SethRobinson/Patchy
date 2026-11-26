@@ -84,7 +84,7 @@ The keys are compatibility contracts:
 - `window/panelColumnWidth` (present only while the width is picked, not following the content).
 - `window/showPanelTitles` (Show Panel Titles; absent means shown). Written with the layout but no part of the versioned record: `read_panel_layout` applies it whatever `window/panelLayoutVersion` says.
 
-Offscreen runs neither read nor write the record (`panel_layout_persists`). A UI test that closes a panel must not leak into the next one, and `--headless` or the MCP connector's own window must not change the user's layout. Tests drive it through `MainWindowTestAccess::write_panel_layout`/`read_panel_layout` (`ui_panel_layout_returns_in_the_next_window`).
+Offscreen runs neither read nor write the record (`panel_layout_persists`), unless `PATCHY_PANEL_LAYOUT=1` asks for it (the startup benchmark of a given layout, always with an isolated `PATCHY_SETTINGS_DIR`). A UI test that closes a panel must not leak into the next one, and `--headless` or the MCP connector's own window must not change the user's layout. Tests drive it through `MainWindowTestAccess::write_panel_layout`/`read_panel_layout` (`ui_panel_layout_returns_in_the_next_window`).
 
 Window > Reset Panels (`reset_panels`) does the following:
 - turns Show Panel Titles back on ([Hidden title rows](#hidden-title-rows)),

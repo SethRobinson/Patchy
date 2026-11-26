@@ -11,6 +11,7 @@
 #include "psd/psd_document_io.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/asset_library.hpp"
+#include "ui/asset_thumbnails.hpp"
 #include "ui/assets_panel.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/image_document_io.hpp"
@@ -39,6 +40,7 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QInputDialog>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
@@ -48,12 +50,15 @@
 #include <QMimeData>
 #include <QPainter>
 #include <QPushButton>
+#include <QScrollBar>
+#include <QSet>
 #include <QSplitter>
 #include <QStatusBar>
 #include <QString>
 #include <QStringList>
 #include <QTabBar>
 #include <QTabWidget>
+#include <QThread>
 #include <QTimer>
 #include <QToolButton>
 #include <QUrl>
@@ -77,6 +82,7 @@ using patchy::test::unicode_artifact_dir;
 using patchy::test::unicode_path_piece;
 using patchy::test::utf8_string;
 using patchy::ui::AssetLibrary;
+using patchy::ui::AssetThumbnailState;
 using patchy::ui::AssetsPanel;
 using patchy::ui::MainWindowTestAccess;
 
@@ -206,7 +212,30 @@ struct AssetWindow {
   QListWidget* grid{nullptr};
 };
 
+// Pumps events until the Assets panel has nothing left to read or write in the background:
+// the library's load and file check, assets being written, and the thumbnails of the items
+// the grid has painted (a paint may ask for more, so several quiet passes in a row).
+void settle_assets(patchy::ui::MainWindow& window) {
+  const auto* panel = window.findChild<AssetsPanel*>(QStringLiteral("assetsPanel"));
+  CHECK(panel != nullptr);
+  if (panel == nullptr) {
+    return;
+  }
+  int quiet = 0;
+  for (int pass = 0; pass < 120000 && quiet < 4; ++pass) {
+    QApplication::processEvents(QEventLoop::AllEvents);
+    if (panel->busy()) {
+      quiet = 0;
+      QThread::msleep(1);  // the worker's turn: processEvents returns at once with nothing queued
+    } else {
+      ++quiet;
+    }
+  }
+  CHECK(!panel->busy());
+}
+
 AssetWindow asset_widgets(patchy::ui::MainWindow& window) {
+  settle_assets(window);
   AssetWindow widgets;
   widgets.library = window.findChild<AssetLibrary*>();
   widgets.panel = window.findChild<AssetsPanel*>(QStringLiteral("assetsPanel"));
@@ -225,7 +254,8 @@ void add_layers_as_assets(patchy::ui::MainWindow& window, const patchy::Document
   MainWindowTestAccess::select_layers(window, ids, ids.front());
   QApplication::processEvents();
   require_action(window, "layerAddToAssetsAction")->trigger();
-  QApplication::processEvents();
+  // The assets are encoded and written on the library's worker and listed when whole.
+  settle_assets(window);
 }
 
 QString asset_id_named(const AssetLibrary& library, const QString& name) {
@@ -669,7 +699,9 @@ void ui_assets_add_selected_layers_creates_assets_with_thumbnails() {
   CHECK(asset_names(category) == (QStringList{QStringLiteral("Set"), QStringLiteral("Mark")}));
   CHECK(widgets.grid->isVisible() && widgets.grid->count() == 2);
   CHECK(widgets.grid->item(0)->text() == QStringLiteral("Set") && widgets.grid->item(1)->text() == QStringLiteral("Mark"));
-  CHECK(!widgets.grid->item(0)->icon().isNull());
+  // An asset just added brings its picture along: both are shown without a read.
+  CHECK(widgets.panel->thumbnails()->image(widgets.panel->shown_asset_ids().front()) != nullptr);
+  CHECK(widgets.panel->thumbnails()->image(widgets.panel->shown_asset_ids().back()) != nullptr);
 
   const auto mark_id = asset_id_named(*widgets.library, QStringLiteral("Mark"));
   const auto set_id = asset_id_named(*widgets.library, QStringLiteral("Set"));
@@ -725,7 +757,7 @@ void ui_assets_add_selected_layers_creates_assets_with_thumbnails() {
   if (add_button != nullptr) {
     add_button->click();
   }
-  QApplication::processEvents();
+  settle_assets(window);
   CHECK(widgets.library->asset_count() == 3);
   CHECK(widgets.grid->count() == 3 && widgets.grid->item(2)->text() == QStringLiteral("Badge"));
   CHECK(MainWindowTestAccess::undo_depth_for_canvas(window, canvas) == 0);
@@ -1217,7 +1249,7 @@ void ui_assets_layer_rows_dropped_on_the_panel_become_assets() {
                             {layer_id_named(*document, "Badge"), layer_id_named(*document, "Set")}, session,
                             Qt::NoModifier, &entered);
   CHECK(entered);
-  QApplication::processEvents();
+  settle_assets(window);
   CHECK(widgets.library->asset_count() == 2);
   CHECK(asset_names(widgets.library->categories().front()) ==
         (QStringList{QStringLiteral("Badge"), QStringLiteral("Set")}));
@@ -1232,6 +1264,297 @@ void ui_assets_layer_rows_dropped_on_the_panel_become_assets() {
   CHECK(!entered);
   QApplication::processEvents();
   CHECK(widgets.library->asset_count() == 2);
+}
+
+// A library of `count` assets written straight to disk, all in the first category: stand-in
+// PSDs (the library looks at the signature only) with real thumbnail pictures.
+QStringList seed_library_files(const QString& directory, int count) {
+  CHECK(QDir().mkpath(directory));
+  QStringList ids;
+  QJsonArray assets;
+  const auto psd = fake_psd_bytes(5);
+  for (int index = 0; index < count; ++index) {
+    const auto id = QStringLiteral("%1").arg(index + 1, 32, 16, QLatin1Char('0'));
+    QFile file(QDir(directory).filePath(id + QStringLiteral(".psd")));
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(reinterpret_cast<const char*>(psd.data()), static_cast<qint64>(psd.size()));
+    CHECK(solid_thumbnail(QColor::fromHsv((index * 7) % 360, 200, 220))
+              .save(QDir(directory).filePath(id + QStringLiteral(".png")), "PNG"));
+    assets.push_back(QJsonObject{{QStringLiteral("id"), id},
+                                 {QStringLiteral("name"), QStringLiteral("Asset %1").arg(index + 1, 4, 10, QLatin1Char('0'))}});
+    ids.push_back(id);
+  }
+  const QJsonObject root{{QStringLiteral("format"), QStringLiteral("patchy-assets")},
+                         {QStringLiteral("version"), 1},
+                         {QStringLiteral("categories"),
+                          QJsonArray{QJsonObject{{QStringLiteral("id"), QStringLiteral("default")},
+                                                 {QStringLiteral("name"), QString()},
+                                                 {QStringLiteral("assets"), assets}}}}};
+  QFile index(QDir(directory).filePath(QStringLiteral("index.json")));
+  CHECK(index.open(QIODevice::WriteOnly));
+  index.write(QJsonDocument(root).toJson());
+  return ids;
+}
+
+// Startup with the panel closed opens no asset file, whatever the library holds. With the
+// panel open the reading happens on the worker: names show before any picture, and only the
+// assets the grid paints are decoded.
+void ui_assets_startup_reads_nothing_and_the_grid_decodes_only_what_it_paints() {
+  ScopedAssetsDir dir("lazy");
+  const auto ids = seed_library_files(dir.path, 600);
+  const auto before = patchy::ui::asset_file_access_counts();
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  for (int pass = 0; pass < 6; ++pass) {
+    QApplication::processEvents();
+  }
+  {
+    const auto started = patchy::ui::asset_file_access_counts();
+    CHECK(started.ui_thread == before.ui_thread);
+    CHECK(started.worker == before.worker);
+  }
+
+  auto* library = window.findChild<AssetLibrary*>();
+  auto* panel = window.findChild<AssetsPanel*>(QStringLiteral("assetsPanel"));
+  auto* grid = window.findChild<QListWidget*>(QStringLiteral("assetsGrid"));
+  CHECK(library != nullptr && panel != nullptr && grid != nullptr);
+  if (library == nullptr || panel == nullptr || grid == nullptr) {
+    return;
+  }
+  MainWindowTestAccess::show_panel(window, kAssetsPanelId);
+  // Showing the panel starts the read on the worker and returns: the library is not there yet.
+  CHECK(!library->loaded() && library->busy());
+  CHECK(grid->count() == 0);
+  // The index lands (this waits for the worker's read; it reads nothing itself).
+  library->ensure_loaded();
+  CHECK(library->loaded());
+  CHECK(grid->count() == 600);
+  CHECK(grid->item(0)->text() == QStringLiteral("Asset 0001"));
+  CHECK(grid->item(599)->text() == QStringLiteral("Asset 0600"));
+  // Names first: nothing has been painted, so no picture has even been asked for.
+  CHECK(panel->thumbnails()->requested_ids().isEmpty());
+  CHECK(panel->thumbnails()->image(ids.front()) == nullptr);
+
+  settle_assets(window);
+  QSet<QString> visible;
+  for (int row = 0; row < grid->count(); ++row) {
+    if (grid->visualItemRect(grid->item(row)).intersects(grid->viewport()->rect())) {
+      visible.insert(ids[row]);
+    }
+  }
+  const auto requested = panel->thumbnails()->requested_ids();
+  CHECK(!visible.isEmpty() && visible.size() < 200);
+  CHECK(!requested.isEmpty() && requested.size() <= visible.size());
+  for (const auto& id : requested) {
+    CHECK(visible.contains(id));
+    CHECK(panel->thumbnails()->state(id) == AssetThumbnailState::ready);
+    CHECK(panel->thumbnails()->image(id) != nullptr);
+  }
+  CHECK(panel->thumbnails()->state(ids.back()) == AssetThumbnailState::unknown);
+  {
+    // All of it happened off the UI thread.
+    const auto opened = patchy::ui::asset_file_access_counts();
+    CHECK(opened.ui_thread == before.ui_thread);
+    CHECK(opened.worker > before.worker);
+  }
+
+  // Scrolled to the end, the last assets are decoded; the ones in between never are.
+  grid->scrollToBottom();
+  settle_assets(window);
+  CHECK(panel->thumbnails()->state(ids.back()) == AssetThumbnailState::ready);
+  CHECK(panel->thumbnails()->requested_ids().size() < 400);
+  CHECK(panel->thumbnails()->state(ids[300]) == AssetThumbnailState::unknown);
+  CHECK(patchy::ui::asset_file_access_counts().ui_thread == before.ui_thread);
+  // What is kept in memory is the pictures shown, a few kilobytes each.
+  CHECK(panel->thumbnails()->memory_bytes() > 0);
+  CHECK(panel->thumbnails()->memory_bytes() < patchy::ui::kAssetThumbnailMemoryBytes);
+}
+
+// Deleting an asset, changing the library and destroying the window while loads are pending
+// are all safe, and a stale answer from the worker is dropped.
+void ui_assets_pending_loads_survive_changes_and_a_closed_window() {
+  ScopedAssetsDir dir("pending");
+  const auto ids = seed_library_files(dir.path, 120);
+  {
+    patchy::ui::MainWindow window;
+    show_window_empty(window);
+    QApplication::processEvents();
+    MainWindowTestAccess::show_panel(window, kAssetsPanelId);
+    auto* library = window.findChild<AssetLibrary*>();
+    auto* panel = window.findChild<AssetsPanel*>(QStringLiteral("assetsPanel"));
+    auto* grid = window.findChild<QListWidget*>(QStringLiteral("assetsGrid"));
+    CHECK(library != nullptr && panel != nullptr && grid != nullptr);
+    if (library == nullptr || panel == nullptr || grid == nullptr) {
+      return;
+    }
+    // A change made while the worker still reads the index: it waits for that read and then
+    // applies, so nothing is lost and nothing is read twice.
+    CHECK(library->busy());
+    CHECK(library->remove_asset(ids[0]));
+    CHECK(library->rename_asset(ids[60], QStringLiteral("Renamed while loading")));
+    CHECK(library->loaded());
+    CHECK(library->asset_count() == 119);
+    CHECK(grid->count() == 119 && grid->item(59)->text() == QStringLiteral("Renamed while loading"));
+    // One pass paints the first cells and queues their pictures; an asset deleted now has its
+    // picture pending or just made.
+    for (int pass = 0; pass < 200 && panel->thumbnails()->requested_ids().isEmpty(); ++pass) {
+      QApplication::processEvents(QEventLoop::AllEvents, 5);
+    }
+    const auto requested = panel->thumbnails()->requested_ids();
+    CHECK(!requested.isEmpty());
+    CHECK(library->remove_asset(requested.front()));
+    CHECK(panel->thumbnails()->state(requested.front()) == AssetThumbnailState::unknown);
+    settle_assets(window);
+    // The late answer for the deleted asset changed nothing, and its files are gone.
+    CHECK(panel->thumbnails()->state(requested.front()) == AssetThumbnailState::unknown);
+    CHECK(panel->thumbnails()->image(requested.front()) == nullptr);
+    CHECK(!QFileInfo::exists(library->asset_path(requested.front())));
+    CHECK(library->asset_count() == 118);
+    CHECK(grid->count() == 118);
+
+    // Scroll, so more pictures are queued, and destroy the window with them pending.
+    grid->scrollToBottom();
+    QApplication::processEvents();
+  }
+  {
+    // A window opened and destroyed before its load ever lands.
+    patchy::ui::MainWindow window;
+    show_window_empty(window);
+    MainWindowTestAccess::show_panel(window, kAssetsPanelId);
+  }
+  for (int pass = 0; pass < 6; ++pass) {
+    QApplication::processEvents();  // answers for windows that are gone arrive and are dropped
+  }
+  AssetLibrary reloaded(dir.path);
+  reloaded.load();
+  CHECK(reloaded.asset_count() == 118);
+  CHECK(reloaded.find_asset(ids[60]) != nullptr && reloaded.find_asset(ids[60])->name == QStringLiteral("Renamed while loading"));
+}
+
+// Missing thumbnails and a missing index are recovered on the worker, with the results a
+// load on the UI thread used to give: the pictures are rendered from the assets and stored
+// again, and the assets come back named after their layers.
+void ui_assets_missing_thumbnails_and_index_recover_in_the_background() {
+  ScopedAssetsDir dir("recover");
+  QString mark_id;
+  QString set_id;
+  {
+    patchy::ui::MainWindow window;
+    show_window_empty(window);
+    window.add_document_session(asset_source_document(), QStringLiteral("Source"));
+    QApplication::processEvents();
+    auto* document = MainWindowTestAccess::document_for_canvas(window, MainWindowTestAccess::canvas(window));
+    CHECK(document != nullptr);
+    if (document == nullptr) {
+      return;
+    }
+    const auto widgets = asset_widgets(window);
+    add_layers_as_assets(window, *document, {"Set", "Mark"});
+    CHECK(widgets.library->asset_count() == 2);
+    mark_id = asset_id_named(*widgets.library, QStringLiteral("Mark"));
+    set_id = asset_id_named(*widgets.library, QStringLiteral("Set"));
+  }
+  const QDir folder(dir.path);
+  CHECK(QFile::remove(folder.filePath(mark_id + QStringLiteral(".png"))));
+  CHECK(QFile::remove(folder.filePath(set_id + QStringLiteral(".png"))));
+  CHECK(QFile::remove(folder.filePath(QStringLiteral("index.json"))));
+  {
+    // A stray file beside them stays out of the rebuilt library.
+    QFile stray(folder.filePath(QStringLiteral("notes.psd")));
+    CHECK(stray.open(QIODevice::WriteOnly));
+    stray.write("8BPS not an asset of this library");
+  }
+
+  const auto before = patchy::ui::asset_file_access_counts();
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  MainWindowTestAccess::show_panel(window, kAssetsPanelId);
+  const auto widgets = asset_widgets(window);  // waits for the worker
+  {
+    // None of the recovery ran on the UI thread.
+    const auto recovered = patchy::ui::asset_file_access_counts();
+    CHECK(recovered.ui_thread == before.ui_thread);
+    CHECK(recovered.worker > before.worker);
+  }
+  CHECK(widgets.library->asset_count() == 2);
+  CHECK(widgets.library->find_asset(mark_id) != nullptr && widgets.library->find_asset(mark_id)->name == QStringLiteral("Mark"));
+  CHECK(widgets.library->find_asset(set_id) != nullptr && widgets.library->find_asset(set_id)->name == QStringLiteral("Set"));
+  CHECK(widgets.grid->count() == 2);
+  // Both pictures were rendered from the asset files and stored again.
+  for (const auto& id : {mark_id, set_id}) {
+    CHECK(widgets.panel->thumbnails()->state(id) == AssetThumbnailState::ready);
+    CHECK(widgets.panel->thumbnails()->image(id) != nullptr);
+    CHECK(QFileInfo::exists(widgets.library->thumbnail_path(id)));
+    CHECK(image_has_opaque_pixel(widgets.library->thumbnail(id)));
+  }
+  CHECK(widgets.library->thumbnail(mark_id).size() == QSize(20, 12));
+  // The index is written again by the next change, with the recovered names.
+  CHECK(widgets.library->rename_asset(mark_id, QStringLiteral("Mark again")));
+  AssetLibrary reloaded(dir.path);
+  reloaded.load();
+  CHECK(reloaded.asset_count() == 2);
+  CHECK(reloaded.find_asset(set_id) != nullptr && reloaded.find_asset(set_id)->name == QStringLiteral("Set"));
+}
+
+// Assets written in the background are listed in the order they were queued, a failed one
+// leaves nothing behind, and one still being written is listed before the library goes.
+void ui_asset_library_background_adds_are_ordered_and_finished_at_close() {
+  ScopedAssetsDir dir("background-add");
+  const auto encoded = [](std::uint8_t fill, QColor color) {
+    return [fill, color] {
+      AssetLibrary::EncodedAsset asset;
+      asset.psd_bytes = fake_psd_bytes(fill);
+      asset.thumbnail = solid_thumbnail(color);
+      return asset;
+    };
+  };
+  {
+    AssetLibrary library(dir.path);
+    QStringList added;
+    int finished_count = -1;
+    QString finished_failure;
+    QObject::connect(&library, &AssetLibrary::asset_added,
+                     [&added](const QString& id, const QImage& thumbnail) {
+                       CHECK(!thumbnail.isNull());
+                       added.push_back(id);
+                     });
+    QObject::connect(&library, &AssetLibrary::background_adds_finished,
+                     [&](int count, const QString& failure) {
+                       finished_count = count;
+                       finished_failure = failure;
+                     });
+    library.add_asset_in_background(QString(), QStringLiteral("First"), encoded(1, Qt::red));
+    library.add_asset_in_background(QString(), QStringLiteral("Second"), encoded(2, Qt::green));
+    library.add_asset_in_background(QString(), QStringLiteral("Broken"), [] {
+      AssetLibrary::EncodedAsset asset;
+      asset.error = QStringLiteral("could not encode");
+      return asset;
+    });
+    library.add_asset_in_background(QString(), QStringLiteral("Third"), encoded(3, Qt::blue));
+    // Nothing is listed until its files are whole.
+    CHECK(library.busy());
+    CHECK(library.asset_count() == 0);
+    library.finish_pending_adds();
+    CHECK(!library.busy());
+    CHECK(asset_names(library.categories().front()) ==
+          (QStringList{QStringLiteral("First"), QStringLiteral("Second"), QStringLiteral("Third")}));
+    CHECK(added.size() == 3);
+    CHECK(finished_count == 3);
+    CHECK(finished_failure == QStringLiteral("could not encode"));
+    // Three assets with their pictures and the index: the failed one left no file.
+    CHECK(folder_files(dir.path).size() == 7);
+    for (int pass = 0; pass < 4; ++pass) {
+      QApplication::processEvents();  // the worker's own queued answers: already handled
+    }
+    CHECK(library.asset_count() == 3 && added.size() == 3);
+    // Queued and then the library is destroyed at once, as a closing window does.
+    library.add_asset_in_background(QString(), QStringLiteral("Last"), encoded(4, Qt::yellow));
+  }
+  AssetLibrary reloaded(dir.path);
+  reloaded.load();
+  CHECK(asset_names(reloaded.categories().front()) ==
+        (QStringList{QStringLiteral("First"), QStringLiteral("Second"), QStringLiteral("Third"), QStringLiteral("Last")}));
+  CHECK(folder_files(dir.path).size() == 9);
 }
 
 // The shots for the review: the panel holding a pixel, a text and a shape asset, and a
@@ -1279,7 +1602,7 @@ void ui_assets_review_capture() {
   QApplication::processEvents();
   add_layers_as_assets(window, *source_document, {"Headline", "Badge", "Sunset"});
   CHECK(widgets.library->asset_count() == 3);
-  QApplication::processEvents();
+  settle_assets(window);
   save_widget_artifact("issue_751_assets_panel", window);
   // The three asset files as the feature wrote them, kept for the Photoshop open check
   // (docs/photoshop-com.md).
@@ -1313,7 +1636,7 @@ void ui_assets_review_capture() {
   CHECK(headline != nullptr && patchy::layer_is_text(*headline));
   CHECK(badge != nullptr && badge->vector_shape() != nullptr);
   MainWindowTestAccess::show_panel(window, QStringLiteral("layersDock"));
-  QApplication::processEvents();
+  settle_assets(window);
   save_widget_artifact("issue_751_assets_placed", window);
 }
 
@@ -1339,6 +1662,14 @@ std::vector<patchy::test::TestCase> assets_panel_tests() {
       {"ui_assets_manage_dialogs_rename_and_delete", ui_assets_manage_dialogs_rename_and_delete},
       {"ui_assets_layer_rows_dropped_on_the_panel_become_assets",
        ui_assets_layer_rows_dropped_on_the_panel_become_assets},
+      {"ui_assets_startup_reads_nothing_and_the_grid_decodes_only_what_it_paints",
+       ui_assets_startup_reads_nothing_and_the_grid_decodes_only_what_it_paints},
+      {"ui_assets_pending_loads_survive_changes_and_a_closed_window",
+       ui_assets_pending_loads_survive_changes_and_a_closed_window},
+      {"ui_assets_missing_thumbnails_and_index_recover_in_the_background",
+       ui_assets_missing_thumbnails_and_index_recover_in_the_background},
+      {"ui_asset_library_background_adds_are_ordered_and_finished_at_close",
+       ui_asset_library_background_adds_are_ordered_and_finished_at_close},
       {"ui_assets_review_capture", ui_assets_review_capture},
   };
 }

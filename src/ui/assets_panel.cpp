@@ -2,9 +2,11 @@
 
 #include "ui/app_settings.hpp"
 #include "ui/asset_library.hpp"
+#include "ui/asset_thumbnails.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/ui_text_size.hpp"
 
 #include <QAction>
@@ -13,6 +15,7 @@
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
@@ -22,8 +25,9 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QPainter>
-#include <QPixmap>
+#include <QSet>
 #include <QSignalBlocker>
+#include <QStyledItemDelegate>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -34,12 +38,71 @@ namespace patchy::ui {
 
 namespace {
 
-constexpr int kThumbnailSide = 64;
+constexpr int kThumbnailSide = kAssetThumbnailDisplaySide;
+constexpr int kThumbnailTop = 4;
+constexpr int kNameGap = 2;
 constexpr int kGridCellWidth = 88;
 constexpr int kGridCellHeight = 92;
 constexpr int kAssetIdRole = Qt::UserRole;
 // The category the panel last showed. Permanent settings key.
 constexpr auto kCurrentCategoryKey = "assets/currentCategory";
+
+// Paints one grid cell: the asset's picture over its name. The picture comes from the cache
+// (a hash lookup); the first paint of an asset queues its load on the cache's worker and the
+// cell is repainted when the picture arrives, so nothing is read or decoded here.
+class AssetGridDelegate final : public QStyledItemDelegate {
+public:
+  AssetGridDelegate(AssetThumbnailCache* thumbnails, QObject* parent)
+      : QStyledItemDelegate(parent), thumbnails_(thumbnails) {}
+
+  void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+    painter->save();
+    const bool selected = (option.state & QStyle::State_Selected) != 0;
+    const bool hovered = (option.state & QStyle::State_MouseOver) != 0;
+    if (selected || hovered) {
+      painter->setRenderHint(QPainter::Antialiasing, true);
+      painter->setPen(Qt::NoPen);
+      painter->setBrush(selected ? theme().selection_soft_bg : theme().list_row_hover_bg);
+      painter->drawRoundedRect(option.rect.adjusted(1, 1, -1, -1), 4.0, 4.0);
+      painter->setRenderHint(QPainter::Antialiasing, false);
+    }
+    const QRect picture(option.rect.left() + (option.rect.width() - kThumbnailSide) / 2,
+                        option.rect.top() + kThumbnailTop, kThumbnailSide, kThumbnailSide);
+    const auto asset_id = index.data(kAssetIdRole).toString();
+    thumbnails_->request(asset_id);
+    if (const auto* image = thumbnails_->image(asset_id); image != nullptr) {
+      const qreal ratio = option.widget != nullptr ? option.widget->devicePixelRatioF() : 1.0;
+      QSizeF size = QSizeF(image->size()) / ratio;
+      if (size.width() > picture.width() || size.height() > picture.height()) {
+        size.scale(QSizeF(picture.size()), Qt::KeepAspectRatio);
+      }
+      const QRectF target(picture.center().x() + 0.5 - size.width() / 2.0,
+                          picture.center().y() + 0.5 - size.height() / 2.0, size.width(), size.height());
+      painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
+      painter->drawImage(target, *image);
+    } else {
+      // No picture yet (or none to be had): a quiet frame in the list's own border role.
+      painter->setPen(theme().list_surface_border);
+      painter->setBrush(Qt::NoBrush);
+      painter->drawRect(picture.adjusted(10, 10, -11, -11));
+    }
+    const QRect name_rect(option.rect.left() + 3, picture.bottom() + 1 + kNameGap, option.rect.width() - 6,
+                          option.rect.bottom() - picture.bottom() - kNameGap);
+    painter->setFont(option.font);
+    painter->setPen(theme().text_primary);
+    painter->drawText(name_rect, Qt::AlignHCenter | Qt::AlignTop,
+                      QFontMetrics(option.font).elidedText(index.data(Qt::DisplayRole).toString(), Qt::ElideRight,
+                                                           name_rect.width()));
+    painter->restore();
+  }
+
+  QSize sizeHint(const QStyleOptionViewItem&, const QModelIndex&) const override {
+    return {kGridCellWidth - 4, kGridCellHeight - 4};
+  }
+
+private:
+  AssetThumbnailCache* thumbnails_;
+};
 
 // The thumbnail grid. Dragging items out starts an asset drag, which the window's event
 // filter takes over a canvas or a document tab (MainWindow::handle_asset_drag_event).
@@ -164,8 +227,16 @@ AssetsPanel::AssetsPanel(AssetLibrary* library, QWidget* parent) : QWidget(paren
   connect(search_edit_, &QLineEdit::textChanged, this, [this] { rebuild_grid(); });
   layout->addWidget(search_edit_);
 
+  thumbnails_ = new AssetThumbnailCache(library_ != nullptr ? library_->directory() : QString(), this);
   auto* grid = new AssetGridWidget(this);
   grid_ = grid;
+  grid_->setItemDelegate(new AssetGridDelegate(thumbnails_, grid_));
+  grid_->setMouseTracking(true);  // the hover highlight
+  connect(thumbnails_, &AssetThumbnailCache::thumbnail_changed, this, [this](const QString& asset_id) {
+    if (auto* item = items_.value(asset_id); item != nullptr) {
+      grid_->viewport()->update(grid_->visualItemRect(item));
+    }
+  });
   grid_->setMinimumHeight(kGridCellHeight);
   grid->delete_pressed = [this] { delete_assets_interactive(selected_asset_ids()); };
   grid->activate_pressed = [this] {
@@ -198,13 +269,14 @@ AssetsPanel::AssetsPanel(AssetLibrary* library, QWidget* parent) : QWidget(paren
   current_category_id_ = app_settings().value(QString::fromLatin1(kCurrentCategoryKey)).toString();
   if (library_ != nullptr) {
     connect(library_, &AssetLibrary::changed, this, [this] { rebuild(); });
+    // An asset just written brings its picture along: nothing is read back for it.
+    connect(library_, &AssetLibrary::asset_added, thumbnails_, &AssetThumbnailCache::insert);
+    connect(library_, &AssetLibrary::assets_removed, thumbnails_, &AssetThumbnailCache::forget);
   }
   rebuild();
 }
 
-void AssetsPanel::set_thumbnail_provider(std::function<QImage(const QString& asset_id)> provider) {
-  thumbnail_provider_ = std::move(provider);
-}
+bool AssetsPanel::busy() const { return (library_ != nullptr && library_->busy()) || thumbnails_->busy(); }
 
 QString AssetsPanel::current_category_id() const {
   if (library_ == nullptr) {
@@ -246,9 +318,11 @@ QStringList AssetsPanel::shown_asset_ids() const {
 
 void AssetsPanel::showEvent(QShowEvent* event) {
   QWidget::showEvent(event);
-  // The library is read when the panel is first shown, never at startup.
-  if (library_ != nullptr && !library_->loaded()) {
-    library_->load();
+  thumbnails_->set_display_side(qRound(kThumbnailSide * devicePixelRatioF()));
+  // The library is read when the panel is first shown, never before, and on its worker:
+  // the panel shows at once and the grid fills when the index has landed.
+  if (library_ != nullptr) {
+    library_->load_in_background();
   }
 }
 
@@ -287,46 +361,22 @@ void AssetsPanel::rebuild_categories() {
   rebuilding_ = false;
 }
 
-QIcon AssetsPanel::icon_for(const QString& asset_id) {
-  if (const auto it = icons_.constFind(asset_id); it != icons_.constEnd()) {
-    return *it;
-  }
-  // Read or rendered once per asset and kept: nothing here runs per repaint.
-  QImage image;
-  if (thumbnail_provider_) {
-    image = thumbnail_provider_(asset_id);
-  } else if (library_ != nullptr) {
-    image = library_->thumbnail(asset_id);
-  }
-  const auto ratio = devicePixelRatioF();
-  const auto side = static_cast<int>(kThumbnailSide * ratio);
-  QPixmap pixmap(side, side);
-  pixmap.fill(Qt::transparent);
-  if (!image.isNull()) {
-    const auto scaled = image.scaled(QSize(side, side), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    QPainter painter(&pixmap);
-    painter.drawImage(QPoint((side - scaled.width()) / 2, (side - scaled.height()) / 2), scaled);
-  }
-  pixmap.setDevicePixelRatio(ratio);
-  QIcon icon;
-  // The same picture selected or not: the list's own highlight marks the selection.
-  icon.addPixmap(pixmap, QIcon::Normal);
-  icon.addPixmap(pixmap, QIcon::Selected);
-  icons_.insert(asset_id, icon);
-  return icon;
-}
-
 void AssetsPanel::rebuild_grid() {
   if (library_ == nullptr) {
     return;
   }
-  const auto selected = selected_asset_ids();
+  struct Row {
+    QString id;
+    QString name;
+    QString tooltip;
+  };
   const auto search = search_edit_->text().trimmed();
-  grid_->clear();
   const auto unnamed = tr("Untitled");
+  const auto current = current_category_id();
+  std::vector<Row> rows;
   // The search looks through every category; without one the grid is the picked category.
   for (const auto& category : library_->categories()) {
-    if (search.isEmpty() && category.id != current_category_id()) {
+    if (search.isEmpty() && category.id != current) {
       continue;
     }
     for (const auto& asset : category.assets) {
@@ -334,26 +384,97 @@ void AssetsPanel::rebuild_grid() {
       if (!search.isEmpty() && !name.contains(search, Qt::CaseInsensitive)) {
         continue;
       }
-      auto* item = new QListWidgetItem(icon_for(asset.id), name);
-      item->setData(kAssetIdRole, asset.id);
-      item->setToolTip(search.isEmpty() ? name
-                                        : tr("%1 (in %2)").arg(name, category_display_name(category)));
-      item->setTextAlignment(Qt::AlignHCenter | Qt::AlignTop);
-      item->setSizeHint(QSize(kGridCellWidth - 4, kGridCellHeight - 4));
+      rows.push_back(
+          Row{asset.id, name, search.isEmpty() ? name : tr("%1 (in %2)").arg(name, category_display_name(category))});
+    }
+  }
+  const auto set_row = [](QListWidgetItem& item, const Row& row) {
+    if (item.text() != row.name) {
+      item.setText(row.name);
+    }
+    if (item.toolTip() != row.tooltip) {
+      item.setToolTip(row.tooltip);
+    }
+  };
+  // An item holds the name and the asset's id; the delegate paints the picture from the
+  // thumbnail cache, so making an item reads nothing.
+  const auto new_item = [this](const Row& row) {
+    auto* item = new QListWidgetItem(row.name);
+    item->setData(kAssetIdRole, row.id);
+    item->setToolTip(row.tooltip);
+    items_.insert(row.id, item);
+    return item;
+  };
+  const auto id_at = [this](int row) { return grid_->item(row)->data(kAssetIdRole).toString(); };
+
+  // What a library change usually is, done in place so that a large grid is not rebuilt for
+  // one asset: the same assets (a rename), more at the end (an asset added), or a few gone
+  // (deleted, moved to another category). Selection and scroll position stay as they are.
+  const int shown = grid_->count();
+  bool in_place = false;
+  if (static_cast<int>(rows.size()) >= shown) {
+    bool prefix = true;
+    for (int row = 0; row < shown && prefix; ++row) {
+      prefix = id_at(row) == rows[static_cast<std::size_t>(row)].id;
+    }
+    if (prefix) {
+      for (int row = 0; row < shown; ++row) {
+        set_row(*grid_->item(row), rows[static_cast<std::size_t>(row)]);
+      }
+      for (auto row = static_cast<std::size_t>(shown); row < rows.size(); ++row) {
+        grid_->addItem(new_item(rows[row]));
+      }
+      in_place = true;
+    }
+  } else {
+    constexpr std::size_t kMostRemovedInPlace = 64;
+    std::size_t wanted = 0;
+    std::vector<int> gone;
+    for (int row = 0; row < shown && gone.size() <= kMostRemovedInPlace; ++row) {
+      if (wanted < rows.size() && id_at(row) == rows[wanted].id) {
+        ++wanted;
+      } else {
+        gone.push_back(row);
+      }
+    }
+    if (wanted == rows.size() && gone.size() <= kMostRemovedInPlace) {
+      for (auto row = gone.rbegin(); row != gone.rend(); ++row) {
+        auto* item = grid_->takeItem(*row);
+        items_.remove(item->data(kAssetIdRole).toString());
+        delete item;
+      }
+      for (int row = 0; row < grid_->count(); ++row) {
+        set_row(*grid_->item(row), rows[static_cast<std::size_t>(row)]);
+      }
+      in_place = true;
+    }
+  }
+  if (!in_place) {
+    const auto selected_list = selected_asset_ids();
+    const QSet<QString> selected(selected_list.begin(), selected_list.end());
+    grid_->setUpdatesEnabled(false);
+    grid_->clear();
+    items_.clear();
+    for (const auto& row : rows) {
+      auto* item = new_item(row);
       grid_->addItem(item);
-      if (selected.contains(asset.id)) {
+      if (selected.contains(row.id)) {
         item->setSelected(true);
       }
     }
+    grid_->setUpdatesEnabled(true);
   }
+
   const bool empty = grid_->count() == 0;
-  if (empty) {
+  // Until the library has been read there is nothing to say about it: no hint yet.
+  const bool loading = !library_->loaded();
+  if (empty && !loading) {
     empty_hint_->setText(search.isEmpty()
                              ? tr("No assets here yet. Select layers, then click Add Selected Layers.")
                              : tr("No asset matches the search."));
   }
-  grid_->setVisible(!empty);
-  empty_hint_->setVisible(empty);
+  grid_->setVisible(!empty || loading);
+  empty_hint_->setVisible(empty && !loading);
   category_combo_->setEnabled(search.isEmpty());
 }
 
@@ -468,7 +589,6 @@ void AssetsPanel::delete_assets_interactive(const QStringList& asset_ids) {
   for (const auto& id : asset_ids) {
     QString error;
     report(library_->remove_asset(id, &error), error);
-    icons_.remove(id);
   }
 }
 
