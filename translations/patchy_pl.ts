@@ -18388,6 +18388,18 @@ Czy chcesz go zastąpić?</translation>
         <source>Leaves out a strip this wide on each side of the divider on every scan of the book, so the dark area by the binding stays off the pages.</source>
         <translation>Pomija pasek tej szerokości po obu stronach linii podziału na każdym skanie książki, dzięki czemu ciemny obszar przy oprawie nie trafia na strony.</translation>
     </message>
+    <message>
+        <source>The scanner&apos;s Scan button starts a scan</source>
+        <translation>Przycisk skanowania na skanerze rozpoczyna skan</translation>
+    </message>
+    <message>
+        <source>While this step is shown, pressing a scan button on the scanner does what Scan does here. Turn it off if the scanner starts scans by itself.</source>
+        <translation>Gdy ten krok jest widoczny, naciśnięcie przycisku skanowania na skanerze działa tak samo jak Skanuj tutaj. Wyłącz tę opcję, jeśli skaner sam rozpoczyna skany.</translation>
+    </message>
+    <message>
+        <source>The scanner&apos;s own Scan button starts the scan too.</source>
+        <translation>Przycisk skanowania na samym skanerze także rozpoczyna skan.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

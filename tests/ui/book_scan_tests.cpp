@@ -40,6 +40,7 @@
 #include <QListWidget>
 #include <QLocale>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMimeData>
 #include <QProgressDialog>
 #include <QPushButton>
@@ -1210,7 +1211,7 @@ void ui_unicode_book_scan_project_folder() {
   CHECK(media_boxes(read_file(pdf_path)).size() == 4);
 }
 
-// A scanner switched on and off while the window is open (docs/book-scan.md, "Scanners
+// A scanner switched on and off while the window is open (docs/book-scan-scanners.md, "Scanners
 // turning on and off"): the scanner list, Scan Cover and the resolution list follow
 // without Refresh, the open scanner is closed and opened again, a scan the scanner drops
 // out of is repeated once, and a scanner that stays off is reported.
@@ -2627,6 +2628,231 @@ void ui_book_scan_top_of_book_is_remembered() {
   }
 }
 
+// --- The scanner's own Scan button (docs/book-scan-scanners.md, "The scanner's own Scan button") -----
+
+// Longer than the time in which a second press counts as a double (1500 ms).
+constexpr int kPastButtonQuietMs = 1650;
+
+// A press of the scanner's scan button does what the Scan button does, on the scanning step
+// only: one scan per press, never two for a double, nothing while a scan runs, on another
+// step, with a dialog open, with the scanner off or with the option off.
+void ui_book_scan_scanner_button_starts_a_scan() {
+  const patchy::test::ui::SettingsGroupRestorer book_settings(QStringLiteral("bookScan"));
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_button_inputs"));
+  const QString project = fresh_artifact_folder(QStringLiteral("ui_book_scan_button_project")) + QStringLiteral("/book");
+  const QStringList made = write_book_inputs(inputs, 3);
+  const QStringList files{made[0], made[1], made[2], made[3], made[1]};
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", files.join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
+  const EnvGuard button("PATCHY_FAKE_BOOK_SCANNER_BUTTON", "1");
+  // The press reaches the window at once (the test scanner finishes a scan on the next
+  // turn of the event loop, so nothing is processed here).
+  const auto press = [] { patchy::ui::press_test_scanner_button(); };
+  const auto log_has = [](const char* text) {
+    return patchy::ui::scanner_log_lines().join(QLatin1Char('\n')).contains(QLatin1String(text));
+  };
+  {
+    patchy::ui::BookScanDialog dialog(nullptr);
+    dialog.set_quiet(true);
+    dialog.show();
+    dialog.set_project_folder(project);
+    auto* check = dialog.findChild<QCheckBox*>(QStringLiteral("bookScanScannerButtonCheck"));
+    auto* hint = dialog.findChild<QLabel*>(QStringLiteral("bookScanScannerButtonHint"));
+    auto* cancel = dialog.findChild<QPushButton*>(QStringLiteral("bookScanCancelButton"));
+    auto* back = dialog.findChild<QPushButton*>(QStringLiteral("bookScanReviewBackButton"));
+    auto* preview = dialog.findChild<QWidget*>(QStringLiteral("bookScanSpreadPreview"));
+    CHECK(check != nullptr && hint != nullptr && cancel != nullptr && back != nullptr && preview != nullptr);
+    if (check == nullptr || hint == nullptr || cancel == nullptr || back == nullptr || preview == nullptr) {
+      return;
+    }
+    const auto& book = dialog.project();
+    // The setup step: no option yet, nothing listens, a press does nothing.
+    CHECK(check->isHidden() && hint->isHidden() && !dialog.scanner_button_listening());
+    press();
+    CHECK(!dialog.scan_in_progress());
+    // The cover step: the scanner is open and declares a button, and still nothing listens.
+    dialog.start_cover_scan();
+    wait_for_scan(dialog);
+    CHECK(dialog.step() == patchy::ui::BookScanDialog::Step::Cover && !dialog.scanner_button_listening());
+    press();
+    CHECK(!dialog.scan_in_progress() && book.scans.empty());
+
+    // The scanning step: the option is shown, on, and the instruction says so.
+    dialog.start_page_scanning();
+    QApplication::processEvents();
+    CHECK(!check->isHidden() && check->isChecked() && dialog.scanner_button_listening());
+    CHECK(!hint->isHidden() && hint->text() == QStringLiteral("The scanner's own Scan button starts the scan too."));
+    patchy::test::ui::save_widget_artifact("ui_book_scan_scanner_button", dialog);
+    const int preview_width = preview->width();
+    // A press that comes right after a scan finished (the cover's) is a double: dropped.
+    press();
+    CHECK(!dialog.scan_in_progress() && book.scans.empty());
+    CHECK(log_has("counts as a double"));
+    QTest::qWait(kPastButtonQuietMs);
+    // A press scans the next pages. A second press while it runs starts nothing more.
+    press();
+    CHECK(dialog.scan_in_progress());
+    CHECK(log_has("scan button press accepted"));
+    press();
+    wait_for_scan(dialog);
+    CHECK(dialog.last_error().isEmpty() && book.scans.size() == 1);
+    CHECK(log_has("a scan is running"));
+    QApplication::processEvents();
+    CHECK(!dialog.scan_in_progress() && book.scans.size() == 1);
+    // After the quiet time the next press scans the next pages, once.
+    QTest::qWait(kPastButtonQuietMs);
+    press();
+    CHECK(dialog.scan_in_progress());
+    wait_for_scan(dialog);
+    CHECK(book.scans.size() == 2);
+
+    // A scan being cancelled, with its notice open: a press is dropped.
+    {
+      const EnvGuard slow("PATCHY_FAKE_BOOK_SCANNER_DELAY_MS", "400");
+      dialog.start_page_scan();
+      cancel->click();
+      CHECK(dialog.findChild<QProgressDialog*>(QStringLiteral("bookScanCancellingDialog")) != nullptr);
+      press();
+      wait_for_scan(dialog);
+    }
+    CHECK(process_events_until(
+        [&dialog] { return dialog.findChild<QProgressDialog*>(QStringLiteral("bookScanCancellingDialog")) == nullptr; }));
+    CHECK(book.scans.size() == 2 && !dialog.scan_in_progress());
+
+    // A message box open over the window: dropped too.
+    QTest::qWait(kPastButtonQuietMs);
+    {
+      QMessageBox box(QMessageBox::Information, QStringLiteral("Test"), QStringLiteral("A dialog is open."),
+                      QMessageBox::Ok, &dialog);
+      box.setModal(true);
+      box.show();
+      QApplication::processEvents();
+      press();
+      CHECK(!dialog.scan_in_progress() && book.scans.size() == 2);
+      CHECK(log_has("a dialog is open"));
+      box.close();
+      QApplication::processEvents();
+    }
+
+    // The option off: nothing listens, the instruction loses its phrase, the choice is stored.
+    check->click();
+    CHECK(!check->isChecked() && !dialog.scanner_button_listening());
+    CHECK(hint->isHidden());
+    // The line coming and going leaves the scan's picture as wide as it was.
+    QApplication::processEvents();
+    CHECK(preview->width() == preview_width);
+    CHECK(!patchy::ui::app_settings().value(QStringLiteral("bookScan/scannerButton"), true).toBool());
+    press();
+    CHECK(!dialog.scan_in_progress() && book.scans.size() == 2);
+    check->click();
+    CHECK(check->isChecked() && dialog.scanner_button_listening() && !hint->isHidden());
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("bookScan/scannerButton"), false).toBool());
+
+    // The review step does not listen; back on the scanning step it listens again.
+    dialog.finish_scanning();
+    CHECK(dialog.step() == patchy::ui::BookScanDialog::Step::Review && !dialog.scanner_button_listening());
+    press();
+    CHECK(!dialog.scan_in_progress() && book.scans.size() == 2);
+    back->click();
+    QApplication::processEvents();
+    CHECK(dialog.step() == patchy::ui::BookScanDialog::Step::Scanning && dialog.scanner_button_listening());
+
+    // The scanner switched off: nothing listens. Switched on again: it does, and a press
+    // opens the scanner again and scans.
+    {
+      const EnvGuard devices("PATCHY_FAKE_BOOK_SCANNER_DEVICES", "none");
+      patchy::ui::notify_test_scanner_devices_changed();
+      CHECK(!dialog.scanner_button_listening());
+      press();
+      CHECK(!dialog.scan_in_progress());
+    }
+    patchy::ui::notify_test_scanner_devices_changed();
+    CHECK(dialog.scanner_button_listening() && !dialog.scanner_open());
+    press();
+    CHECK(dialog.scan_in_progress());
+    wait_for_scan(dialog);
+    CHECK(dialog.last_error().isEmpty() && book.scans.size() == 3 && dialog.scanner_open());
+
+    // Closing the window stops the listening.
+    dialog.reject();
+    CHECK(!dialog.scanner_button_listening());
+    press();
+    CHECK(!dialog.scan_in_progress() && book.scans.size() == 3);
+  }
+  {
+    // A book that is continued: the scanning step opens its scanner by itself, so the
+    // option is there before the first scan.
+    patchy::ui::BookScanDialog resumed(nullptr);
+    resumed.set_quiet(true);
+    resumed.show();
+    resumed.set_project_folder(project);
+    resumed.continue_book();
+    CHECK(resumed.step() == patchy::ui::BookScanDialog::Step::Scanning);
+    QApplication::processEvents();
+    auto* check = resumed.findChild<QCheckBox*>(QStringLiteral("bookScanScannerButtonCheck"));
+    CHECK(check != nullptr && !check->isHidden() && check->isChecked());
+    CHECK(resumed.scanner_open() && resumed.scanner_button_listening());
+    // Turned off here, it stays off for the next window, which then opens no scanner early.
+    if (check != nullptr) {
+      check->click();
+    }
+    CHECK(!resumed.scanner_button_listening());
+    resumed.reject();
+  }
+  {
+    patchy::ui::BookScanDialog again(nullptr);
+    again.set_quiet(true);
+    again.show();
+    again.set_project_folder(project);
+    again.continue_book();
+    QApplication::processEvents();
+    auto* check = again.findChild<QCheckBox*>(QStringLiteral("bookScanScannerButtonCheck"));
+    CHECK(check != nullptr && !check->isChecked());
+    CHECK(!again.scanner_open() && !again.scanner_button_listening());
+    press();
+    CHECK(!again.scan_in_progress() && again.project().scans.size() == 3);
+    again.reject();
+  }
+}
+
+// A scanner that declares no scan button: no option, no phrase, nothing listens, and a
+// press (were its driver to send one anyway) starts nothing. Scanning works as before.
+void ui_book_scan_scanner_without_button_shows_nothing() {
+  const patchy::test::ui::SettingsGroupRestorer book_settings(QStringLiteral("bookScan"));
+  const QString inputs = fresh_artifact_folder(QStringLiteral("ui_book_scan_no_button_inputs"));
+  const QString project =
+      fresh_artifact_folder(QStringLiteral("ui_book_scan_no_button_project")) + QStringLiteral("/book");
+  const EnvGuard scanner("PATCHY_FAKE_BOOK_SCANNER", write_book_inputs(inputs, 1).join(QDir::listSeparator()).toUtf8());
+  const EnvGuard bed("PATCHY_FAKE_BOOK_SCANNER_BED", "3x2");
+  patchy::ui::BookScanDialog dialog(nullptr);
+  dialog.set_quiet(true);
+  dialog.show();
+  dialog.set_project_folder(project);
+  dialog.start_cover_scan();
+  wait_for_scan(dialog);
+  dialog.start_page_scanning();
+  QApplication::processEvents();
+  auto* check = dialog.findChild<QCheckBox*>(QStringLiteral("bookScanScannerButtonCheck"));
+  auto* hint = dialog.findChild<QLabel*>(QStringLiteral("bookScanScannerButtonHint"));
+  CHECK(check != nullptr && hint != nullptr);
+  if (check == nullptr || hint == nullptr) {
+    return;
+  }
+  CHECK(check->isHidden() && hint->isHidden() && !dialog.scanner_button_listening());
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("bookScan/scannerButton")));
+  patchy::test::ui::save_widget_artifact("ui_book_scan_scanner_no_button", dialog);
+  QTest::qWait(kPastButtonQuietMs);
+  patchy::ui::press_test_scanner_button();
+  QApplication::processEvents();
+  CHECK(!dialog.scan_in_progress() && dialog.project().scans.empty());
+  // The Scan button and Space work as they always did.
+  dialog.start_page_scan();
+  wait_for_scan(dialog);
+  CHECK(dialog.last_error().isEmpty() && dialog.project().scans.size() == 1);
+  CHECK(check->isHidden());
+  dialog.reject();
+}
+
 std::vector<patchy::test::TestCase> book_scan_ui_tests() {
   return {
       {"ui_book_scan_menu_actions_registered", ui_book_scan_menu_actions_registered},
@@ -2655,5 +2881,7 @@ std::vector<patchy::test::TestCase> book_scan_ui_tests() {
       {"ui_book_scan_detection_off_reuses_the_layout", ui_book_scan_detection_off_reuses_the_layout},
       {"ui_book_scan_manifest_margin_and_detection_keys", ui_book_scan_manifest_margin_and_detection_keys},
       {"ui_book_scan_top_of_book_is_remembered", ui_book_scan_top_of_book_is_remembered},
+      {"ui_book_scan_scanner_button_starts_a_scan", ui_book_scan_scanner_button_starts_a_scan},
+      {"ui_book_scan_scanner_without_button_shows_nothing", ui_book_scan_scanner_without_button_shows_nothing},
   };
 }

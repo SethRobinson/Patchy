@@ -5,7 +5,10 @@
 // While a session exists it listens for scanners turning on or off: WIA's device
 // connected/disconnected events, plus WM_DEVICECHANGE as a second trigger. Either one
 // starts a short debounce, then the list is read again on the worker thread
-// (docs/book-scan.md, "Scanners turning on and off"). Compiled on Windows only (see CMakeLists).
+// (docs/book-scan-scanners.md, "Scanners turning on and off"). When asked to, it also listens for the
+// opened scanner's own scan buttons (WIA's scan events, registered for that one device)
+// and reports each press; it never starts a scan itself (docs/book-scan-scanners.md, "The scanner's
+// own Scan button"). Compiled on Windows only (see CMakeLists).
 
 #include "ui/scanner_session.hpp"
 
@@ -88,6 +91,94 @@ QString wia_failure_text(HRESULT hr) {
       break;
   }
   return QCoreApplication::translate("ScannerSession", "The scan could not be completed (%1).").arg(hresult_text(hr));
+}
+
+QString guid_text(const GUID& guid) {
+  wchar_t buffer[64] = {};
+  return StringFromGUID2(guid, buffer, 64) > 0 ? QString::fromWCharArray(buffer) : QStringLiteral("{?}");
+}
+
+struct NamedWiaEvent {
+  const GUID* guid;
+  const char* name;
+};
+
+// The events a scanner raises when the user presses one of its scan buttons ("WIA Event
+// Identifiers" in the Windows documentation). A scanner with several buttons declares
+// several of them; any one counts as a press of a scan button.
+constexpr NamedWiaEvent kScanButtonEvents[] = {
+    {&WIA_EVENT_SCAN_IMAGE, "WIA_EVENT_SCAN_IMAGE"},
+    {&WIA_EVENT_SCAN_IMAGE2, "WIA_EVENT_SCAN_IMAGE2"},
+    {&WIA_EVENT_SCAN_IMAGE3, "WIA_EVENT_SCAN_IMAGE3"},
+    {&WIA_EVENT_SCAN_IMAGE4, "WIA_EVENT_SCAN_IMAGE4"},
+    {&WIA_EVENT_SCAN_PRINT_IMAGE, "WIA_EVENT_SCAN_PRINT_IMAGE"},
+    {&WIA_EVENT_SCAN_FAX_IMAGE, "WIA_EVENT_SCAN_FAX_IMAGE"},
+    {&WIA_EVENT_SCAN_OCR_IMAGE, "WIA_EVENT_SCAN_OCR_IMAGE"},
+    {&WIA_EVENT_SCAN_EMAIL_IMAGE, "WIA_EVENT_SCAN_EMAIL_IMAGE"},
+    {&WIA_EVENT_SCAN_FILM_IMAGE, "WIA_EVENT_SCAN_FILM_IMAGE"},
+};
+
+// Other standard events, named only so the scanner log reads well. Lid, cover and feeder
+// events are never listened for: a scan starts from the user's own press alone.
+constexpr NamedWiaEvent kOtherWiaEvents[] = {
+    {&WIA_EVENT_DEVICE_CONNECTED, "WIA_EVENT_DEVICE_CONNECTED"},
+    {&WIA_EVENT_DEVICE_DISCONNECTED, "WIA_EVENT_DEVICE_DISCONNECTED"},
+    {&WIA_EVENT_ITEM_CREATED, "WIA_EVENT_ITEM_CREATED"},
+    {&WIA_EVENT_ITEM_DELETED, "WIA_EVENT_ITEM_DELETED"},
+    {&WIA_EVENT_TREE_UPDATED, "WIA_EVENT_TREE_UPDATED"},
+    {&WIA_EVENT_VOLUME_INSERT, "WIA_EVENT_VOLUME_INSERT"},
+    {&WIA_EVENT_STORAGE_CREATED, "WIA_EVENT_STORAGE_CREATED"},
+    {&WIA_EVENT_STORAGE_DELETED, "WIA_EVENT_STORAGE_DELETED"},
+    {&WIA_EVENT_CANCEL_IO, "WIA_EVENT_CANCEL_IO"},
+    {&WIA_EVENT_POWER_SUSPEND, "WIA_EVENT_POWER_SUSPEND"},
+    {&WIA_EVENT_POWER_RESUME, "WIA_EVENT_POWER_RESUME"},
+    {&WIA_EVENT_DEVICE_NOT_READY, "WIA_EVENT_DEVICE_NOT_READY"},
+    {&WIA_EVENT_DEVICE_READY, "WIA_EVENT_DEVICE_READY"},
+    {&WIA_EVENT_FLATBED_LID_OPEN, "WIA_EVENT_FLATBED_LID_OPEN"},
+    {&WIA_EVENT_FLATBED_LID_CLOSED, "WIA_EVENT_FLATBED_LID_CLOSED"},
+    {&WIA_EVENT_FEEDER_LOADED, "WIA_EVENT_FEEDER_LOADED"},
+    {&WIA_EVENT_FEEDER_EMPTIED, "WIA_EVENT_FEEDER_EMPTIED"},
+    {&WIA_EVENT_COVER_OPEN, "WIA_EVENT_COVER_OPEN"},
+    {&WIA_EVENT_COVER_CLOSED, "WIA_EVENT_COVER_CLOSED"},
+};
+
+bool is_scan_button_event(const GUID& guid) {
+  return std::any_of(std::begin(kScanButtonEvents), std::end(kScanButtonEvents),
+                     [&guid](const NamedWiaEvent& event) { return *event.guid == guid; });
+}
+
+// "WIA_EVENT_SCAN_IMAGE", or "an event of the driver's own" for a GUID Windows does not define.
+QString wia_event_name(const GUID& guid) {
+  for (const NamedWiaEvent& event : kScanButtonEvents) {
+    if (*event.guid == guid) {
+      return QString::fromLatin1(event.name);
+    }
+  }
+  for (const NamedWiaEvent& event : kOtherWiaEvents) {
+    if (*event.guid == guid) {
+      return QString::fromLatin1(event.name);
+    }
+  }
+  return QStringLiteral("an event of the driver's own");
+}
+
+// Registers one event for one device. The Windows documentation warns that registering
+// again in a process that registered before the Still Image service restarted "may cause
+// an access violation"; that must cost the scanner's buttons and nothing else, so an
+// access violation inside the call is turned into a failure. No C++ objects live in this
+// function, as structured exception handling requires.
+HRESULT register_wia_event(IWiaDevMgr2* manager, BSTR device_id, const GUID* event, IWiaEventCallback* sink,
+                           IUnknown** registration) {
+#if defined(_MSC_VER)
+  __try {
+    return manager->RegisterEventCallbackInterface(0, device_id, event, sink, registration);
+  } __except (GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION ? EXCEPTION_EXECUTE_HANDLER
+                                                              : EXCEPTION_CONTINUE_SEARCH) {
+    return E_UNEXPECTED;
+  }
+#else
+  return manager->RegisterEventCallbackInterface(0, device_id, event, sink, registration);
+#endif
 }
 
 class PropertyStorage {
@@ -292,10 +383,11 @@ private:
   int streams_{0};
 };
 
-// Relays WIA device events. Called on an RPC thread; `notify` must be thread-safe.
+// Relays WIA device events with the event's identifier and the device it came from.
+// Called on an RPC thread; `notify` must be thread-safe.
 class WiaEventSink final : public IWiaEventCallback {
 public:
-  explicit WiaEventSink(std::function<void()> notify) : notify_(std::move(notify)) {}
+  explicit WiaEventSink(std::function<void(const GUID&, const QString&)> notify) : notify_(std::move(notify)) {}
 
   HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** object) override {
     if (object == nullptr) {
@@ -317,15 +409,16 @@ public:
     }
     return remaining;
   }
-  HRESULT STDMETHODCALLTYPE ImageEventCallback(const GUID*, BSTR, BSTR, BSTR, DWORD, BSTR, ULONG*, ULONG) override {
-    notify_();
+  HRESULT STDMETHODCALLTYPE ImageEventCallback(const GUID* event, BSTR, BSTR device_id, BSTR, DWORD, BSTR, ULONG*,
+                                               ULONG) override {
+    notify_(event != nullptr ? *event : GUID{}, device_id != nullptr ? QString::fromWCharArray(device_id) : QString());
     return S_OK;
   }
 
 private:
   ~WiaEventSink() = default;
   std::atomic<ULONG> refs_{1};
-  std::function<void()> notify_;
+  std::function<void(const GUID&, const QString&)> notify_;
 };
 
 // The scanners WIA lists as present. WIA_DEVINFO_ENUM_LOCAL leaves out installed
@@ -448,8 +541,9 @@ public:
     rescan_timer_.setSingleShot(true);
     connect(&rescan_timer_, &QTimer::timeout, this, &WiaScannerSession::rescan);
     QPointer<WiaScannerSession> self(this);
+    start_scanner_log_file();
     // WIA calls the sink on an RPC thread: hop to the GUI thread before touching the timer.
-    auto on_wia_event = [self]() {
+    auto on_wia_event = [self](const GUID&, const QString&) {
       QMetaObject::invokeMethod(
           qApp,
           [self]() {
@@ -472,6 +566,7 @@ public:
     }
     cancel_ = true;
     worker_.call<int>([this]() {
+      unregister_buttons_on_worker();
       release_device();
       unregister_events_on_worker();
       return 0;
@@ -525,6 +620,22 @@ public:
   void cancel() override { cancel_ = true; }
   bool busy() const override { return busy_; }
 
+  bool has_scan_button() const override { return has_scan_button_; }
+
+  void set_scan_button_listening(bool listen) override {
+    if (listen == listening_) {
+      return;
+    }
+    listening_ = listen;
+    worker_.post([this, listen]() {
+      listen_wanted_ = listen;
+      unregister_buttons_on_worker();
+      if (listen) {
+        register_buttons_on_worker();
+      }
+    });
+  }
+
 private:
   // WIA reports a device a little after it appears; a power switch can bounce.
   static constexpr int kWiaEventDebounceMs = 400;
@@ -563,7 +674,118 @@ private:
     });
   }
 
-  void register_events_on_worker(const std::function<void()>& notify) {
+  // GUI thread: a scan button event arrived. Reported only while the dialog listens; one
+  // queued before listening stopped is dropped here.
+  void button_event(const GUID& event, const QString& device_id) {
+    const QString what = QStringLiteral("button event %1 %2 from %3").arg(guid_text(event), wia_event_name(event), device_id);
+    if (!listening_) {
+      scanner_log(what + QStringLiteral(": ignored, not listening"));
+      return;
+    }
+    scanner_log(what);
+    emit scan_button_pressed(device_id);
+  }
+
+  // Which events the opened scanner declares; the scan button events among them are the
+  // ones to listen for. A driver that does not answer declares none. Worker thread.
+  void read_declared_events_on_worker(const QString& device_id) {
+    button_events_.clear();
+    button_device_id_ = device_id;
+    IEnumWIA_DEV_CAPS* declared = nullptr;
+    const HRESULT hr = root_->EnumDeviceCapabilities(WIA_DEVICE_EVENTS, &declared);
+    if (FAILED(hr) || declared == nullptr) {
+      scanner_log(QStringLiteral("scanner %1: its events could not be read (%2)").arg(device_id, hresult_text(hr)));
+      return;
+    }
+    scanner_log(QStringLiteral("scanner %1 declares these events:").arg(device_id));
+    int count = 0;
+    WIA_DEV_CAP event{};
+    ULONG fetched = 0;
+    // A driver's list is a handful of entries; the limit only guards against one that never ends.
+    while (count < 256 && declared->Next(1, &event, &fetched) == S_OK && fetched == 1) {
+      ++count;
+      const bool button = is_scan_button_event(event.guid);
+      QStringList kinds;
+      if ((event.ulFlags & WIA_ACTION_EVENT) != 0) {
+        kinds << QStringLiteral("action");
+      }
+      if ((event.ulFlags & WIA_NOTIFICATION_EVENT) != 0) {
+        kinds << QStringLiteral("notification");
+      }
+      scanner_log(QStringLiteral("  %1 %2 \"%3\" (%4)%5")
+                      .arg(guid_text(event.guid), wia_event_name(event.guid),
+                           event.bstrName != nullptr ? QString::fromWCharArray(event.bstrName) : QString(),
+                           kinds.isEmpty() ? QStringLiteral("no kind") : kinds.join(QStringLiteral(", ")),
+                           button ? QStringLiteral(": a scan button") : QString()));
+      if (button && std::find(button_events_.begin(), button_events_.end(), event.guid) == button_events_.end()) {
+        button_events_.push_back(event.guid);
+      }
+      for (BSTR text : {event.bstrName, event.bstrDescription, event.bstrIcon, event.bstrCommandline}) {
+        SysFreeString(text);
+      }
+      event = {};
+    }
+    declared->Release();
+    scanner_log(QStringLiteral("scanner %1: %2 event(s) declared, %3 of them scan buttons")
+                    .arg(device_id)
+                    .arg(count)
+                    .arg(button_events_.size()));
+  }
+
+  // Registers the opened scanner's scan button events, for that one device. Every failure
+  // is quiet: the scanner's buttons then simply do nothing here. Worker thread.
+  void register_buttons_on_worker() {
+    if (button_events_.empty() || button_device_id_.isEmpty()) {
+      return;
+    }
+    IWiaDevMgr2* manager = nullptr;
+    const HRESULT created = CoCreateInstance(CLSID_WiaDevMgr2, nullptr, CLSCTX_LOCAL_SERVER, IID_IWiaDevMgr2,
+                                             reinterpret_cast<void**>(&manager));
+    if (FAILED(created) || manager == nullptr) {
+      scanner_log(QStringLiteral("listening for scan buttons failed: no device manager (%1)").arg(hresult_text(created)));
+      return;
+    }
+    QPointer<WiaScannerSession> self(this);
+    // WIA calls the sink on an RPC thread: hop to the GUI thread.
+    auto* sink = new WiaEventSink([self](const GUID& event, const QString& device_id) {
+      QMetaObject::invokeMethod(
+          qApp,
+          [self, event, device_id]() {
+            if (self) {
+              self->button_event(event, device_id);
+            }
+          },
+          Qt::QueuedConnection);
+    });
+    BSTR id = SysAllocString(reinterpret_cast<const wchar_t*>(button_device_id_.utf16()));
+    for (const GUID& event : button_events_) {
+      IUnknown* registration = nullptr;
+      const HRESULT hr = register_wia_event(manager, id, &event, sink, &registration);
+      if (SUCCEEDED(hr) && registration != nullptr) {
+        button_registrations_.push_back(registration);
+        scanner_log(QStringLiteral("listening for %1 %2 on %3").arg(guid_text(event), wia_event_name(event), button_device_id_));
+      } else {
+        scanner_log(QStringLiteral("listening for %1 %2 was refused (%3)")
+                        .arg(guid_text(event), wia_event_name(event), hresult_text(hr)));
+      }
+    }
+    SysFreeString(id);
+    sink->Release();
+    manager->Release();
+  }
+
+  void unregister_buttons_on_worker() {
+    // Releasing the event objects unregisters the callbacks: the buttons are Windows' again.
+    if (!button_registrations_.empty()) {
+      scanner_log(QStringLiteral("stopped listening for scan buttons"));
+    }
+    for (IUnknown* registration : button_registrations_) {
+      registration->Release();
+    }
+    button_registrations_.clear();
+  }
+
+  void register_events_on_worker(const std::function<void(const GUID&, const QString&)>& notify) {
     IWiaDevMgr2* manager = nullptr;
     if (FAILED(CoCreateInstance(CLSID_WiaDevMgr2, nullptr, CLSCTX_LOCAL_SERVER, IID_IWiaDevMgr2,
                                 reinterpret_cast<void**>(&manager))) ||
@@ -602,6 +824,11 @@ private:
   QString open_on_worker(const QString& device_id) {
     release_device();
     capabilities_ = {};
+    // What the last scanner declared no longer counts: this open answers it afresh.
+    unregister_buttons_on_worker();
+    button_events_.clear();
+    button_device_id_.clear();
+    has_scan_button_ = false;
     IWiaDevMgr2* manager = nullptr;
     HRESULT hr = CoCreateInstance(CLSID_WiaDevMgr2, nullptr, CLSCTX_LOCAL_SERVER, IID_IWiaDevMgr2,
                                   reinterpret_cast<void**>(&manager));
@@ -664,6 +891,13 @@ private:
     }
     capabilities_.bed_width_inches = width > 0 ? width / 1000.0 : 0.0;
     capabilities_.bed_height_inches = height > 0 ? height / 1000.0 : 0.0;
+    // The scanner's own buttons: read after everything a scan needs, and never a reason
+    // for open() to fail.
+    read_declared_events_on_worker(device_id);
+    has_scan_button_ = !button_events_.empty();
+    if (listen_wanted_) {
+      register_buttons_on_worker();
+    }
     return {};
   }
 
@@ -791,6 +1025,16 @@ private:
   IUnknown* connected_event_{nullptr};
   IUnknown* disconnected_event_{nullptr};
   ScannerCapabilities capabilities_;
+  // The scan button events the scanner opened last declares, and the registrations for
+  // them while listening. Owned by the worker thread.
+  std::vector<GUID> button_events_;
+  QString button_device_id_;
+  std::vector<IUnknown*> button_registrations_;
+  bool listen_wanted_{false};
+  // Written inside open() (the GUI thread waits for it there), read on the GUI thread.
+  bool has_scan_button_{false};
+  // GUI thread: what set_scan_button_listening() asked for last.
+  bool listening_{false};
 };
 
 }  // namespace

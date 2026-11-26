@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QRectF>
 #include <QString>
+#include <QStringList>
 
 #include <memory>
 #include <optional>
@@ -25,6 +26,10 @@ namespace patchy::ui {
 // Scans complete asynchronously through finished(); progress() reports percent. A backend
 // that hears about scanners turning on or off (WIA) emits devices_changed() while the
 // session exists; nothing listens before a session is created or after it is destroyed.
+// A backend that can hear the scanner's own scan buttons (WIA) says so after open() and
+// reports presses through scan_button_pressed() while it is asked to listen; a press is
+// the user's own, and what it starts is the caller's decision (docs/book-scan-scanners.md, "The
+// scanner's own Scan button"). No backend ever starts a scan by itself.
 
 struct ScannerDeviceInfo {
   QString id;
@@ -86,6 +91,15 @@ public:
   virtual void start_scan(const ScanRequest& request) = 0;
   virtual void cancel() = 0;
   [[nodiscard]] virtual bool busy() const = 0;
+  // True when the scanner opened last declares a scan button this backend can listen for.
+  // It stays so after close(), until the next open(). False where the backend cannot tell.
+  [[nodiscard]] virtual bool has_scan_button() const { return false; }
+  // Starts or stops listening for that scanner's scan buttons. While listening, a press
+  // is reported by scan_button_pressed() and does not reach the program Windows would
+  // otherwise start; while not, the buttons do what they always did. Does nothing in a
+  // backend without button events, and never fails loudly: a driver that refuses simply
+  // reports no presses.
+  virtual void set_scan_button_listening(bool listen) { Q_UNUSED(listen); }
 
 signals:
   void progress(int percent);
@@ -94,6 +108,8 @@ signals:
   // A scanner was switched on or off, plugged in or unplugged: `devices` is the list
   // now, read off the GUI thread. An open device may be dead after this (open again).
   void devices_changed(const std::vector<patchy::ui::ScannerDeviceInfo>& devices);
+  // The user pressed a scan button on the scanner `device_id` while this session listens.
+  void scan_button_pressed(const QString& device_id);
 };
 
 // The session for this platform: the fake scanner when PATCHY_FAKE_BOOK_SCANNER is set,
@@ -107,6 +123,22 @@ signals:
 // Tests: every test scanner session re-reads PATCHY_FAKE_BOOK_SCANNER_DEVICES and emits
 // devices_changed(), as a real backend does when a scanner turns on or off.
 void notify_test_scanner_devices_changed();
+// Tests: plays a press of the test scanner's scan button. The test scanner declares one
+// when PATCHY_FAKE_BOOK_SCANNER_BUTTON is 1 and, like a real backend, reports the press
+// only while it is asked to listen.
+void press_test_scanner_button();
+
+// The scanner log: which events the opened scanner declares, every button event that
+// arrives and what became of it, so a button that does nothing can be told apart from a
+// driver that sends nothing. The last lines are kept in memory; a direct backend also
+// appends them to scanner_log_file_path(). Thread-safe.
+void scanner_log(const QString& line);
+[[nodiscard]] QStringList scanner_log_lines();
+// `<per-user local data>/scanner-log.txt`.
+[[nodiscard]] QString scanner_log_file_path();
+// Starts writing the log to its file (a direct backend calls this once; the file starts
+// over when it has grown past a few hundred kilobytes). Call from the GUI thread.
+void start_scanner_log_file();
 
 #if defined(Q_OS_WIN)
 [[nodiscard]] std::unique_ptr<ScannerSession> create_wia_scanner_session();

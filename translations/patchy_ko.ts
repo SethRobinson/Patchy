@@ -18260,6 +18260,18 @@ Do you want to replace it?</source>
         <source>Leaves out a strip this wide on each side of the divider on every scan of the book, so the dark area by the binding stays off the pages.</source>
         <translation>책의 모든 스캔에서 구분선 양쪽으로 이 너비의 띠를 제외하여, 제본 부분의 어두운 영역이 페이지에 들어가지 않게 합니다.</translation>
     </message>
+    <message>
+        <source>The scanner&apos;s Scan button starts a scan</source>
+        <translation>스캐너의 스캔 버튼으로 스캔 시작</translation>
+    </message>
+    <message>
+        <source>While this step is shown, pressing a scan button on the scanner does what Scan does here. Turn it off if the scanner starts scans by itself.</source>
+        <translation>이 단계가 표시되는 동안 스캐너의 스캔 버튼을 누르면 여기의 &apos;스캔&apos;과 같은 동작을 합니다. 스캐너가 저절로 스캔을 시작하면 끄세요.</translation>
+    </message>
+    <message>
+        <source>The scanner&apos;s own Scan button starts the scan too.</source>
+        <translation>스캐너 자체의 스캔 버튼으로도 스캔을 시작할 수 있습니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

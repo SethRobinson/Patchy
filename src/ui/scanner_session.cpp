@@ -1,17 +1,20 @@
 #include "ui/scanner_session.hpp"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
 #include <QImageReader>
 #include <QPointer>
+#include <QStandardPaths>
 #include <QTimer>
 #include <QWidget>
 
 #include <algorithm>
 #include <cmath>
+#include <mutex>
 
 namespace patchy::ui {
 
@@ -44,7 +47,8 @@ QString move_scan_file(const QString& from, const QString& base_path) {
 // and PATCHY_FAKE_BOOK_SCANNER_DPIS ("150,300") the resolutions open() reports; changing
 // them and calling notify_test_scanner_devices_changed() plays a scanner turning on or off.
 // PATCHY_FAKE_BOOK_SCANNER_DELAY_MS makes each scan take that long; cancel() then ends it
-// as Cancelled without using up an image.
+// as Cancelled without using up an image. PATCHY_FAKE_BOOK_SCANNER_BUTTON=1 makes the
+// scanner declare a scan button when it is opened; press_test_scanner_button() presses it.
 class FakeScannerSession;
 std::vector<FakeScannerSession*>& live_fake_sessions() {
   static std::vector<FakeScannerSession*> sessions;
@@ -97,9 +101,24 @@ public:
       }
     }
     open_device_ = device_id;
+    button_device_ = device_id;
+    has_button_ = qEnvironmentVariableIntValue("PATCHY_FAKE_BOOK_SCANNER_BUTTON") == 1;
+    scanner_log(QStringLiteral("test scanner %1 opened: %2")
+                    .arg(device_id, has_button_ ? QStringLiteral("declares a scan button")
+                                                : QStringLiteral("declares no scan button")));
     return true;
   }
   void close() override { open_device_.clear(); }
+  bool has_scan_button() const override { return has_button_; }
+  void set_scan_button_listening(bool listen) override { listening_ = listen; }
+  // A press reaches the application only while it listens, as with a real driver.
+  void press_button() {
+    if (has_button_ && listening_) {
+      emit scan_button_pressed(button_device_);
+    } else {
+      scanner_log(QStringLiteral("test scanner button pressed while not listening: nothing sent"));
+    }
+  }
   void notify_devices_changed() {
     // A real backend's handle dies when its scanner turns off or on.
     open_device_.clear();
@@ -180,6 +199,9 @@ private:
   bool cancel_{false};
   QStringList files_;
   QString open_device_;
+  QString button_device_;
+  bool has_button_{false};
+  bool listening_{false};
   std::vector<int> resolutions_{150, 200, 300, 600};
   qsizetype next_{0};
   double bed_width_{8.5};
@@ -270,6 +292,72 @@ void notify_test_scanner_devices_changed() {
   for (FakeScannerSession* session : sessions) {
     session->notify_devices_changed();
   }
+}
+
+void press_test_scanner_button() {
+  const std::vector<FakeScannerSession*> sessions = live_fake_sessions();
+  for (FakeScannerSession* session : sessions) {
+    session->press_button();
+  }
+}
+
+namespace {
+
+constexpr qsizetype kScannerLogMemoryLines = 400;
+constexpr qint64 kScannerLogFileLimit = 256 * 1024;
+
+struct ScannerLog {
+  std::mutex mutex;
+  QStringList lines;
+  QString file;  // empty until start_scanner_log_file()
+};
+
+ScannerLog& scanner_log_state() {
+  static ScannerLog log;
+  return log;
+}
+
+}  // namespace
+
+QString scanner_log_file_path() {
+  return QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))
+      .filePath(QStringLiteral("scanner-log.txt"));
+}
+
+void start_scanner_log_file() {
+  const QString path = scanner_log_file_path();
+  QDir().mkpath(QFileInfo(path).absolutePath());
+  // A diagnostic file, not a document: starting it over when it has grown is all the care it needs.
+  if (QFileInfo(path).size() > kScannerLogFileLimit) {
+    QFile::remove(path);
+  }
+  ScannerLog& log = scanner_log_state();
+  const std::lock_guard<std::mutex> lock(log.mutex);
+  log.file = path;
+}
+
+void scanner_log(const QString& line) {
+  const QString stamped =
+      QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH:mm:ss.zzz")) + QLatin1Char(' ') + line;
+  ScannerLog& log = scanner_log_state();
+  const std::lock_guard<std::mutex> lock(log.mutex);
+  log.lines.append(stamped);
+  while (log.lines.size() > kScannerLogMemoryLines) {
+    log.lines.removeFirst();
+  }
+  if (!log.file.isEmpty()) {
+    QFile file(log.file);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+      file.write(stamped.toUtf8());
+      file.write("\n");
+    }
+  }
+}
+
+QStringList scanner_log_lines() {
+  ScannerLog& log = scanner_log_state();
+  const std::lock_guard<std::mutex> lock(log.mutex);
+  return log.lines;
 }
 
 std::unique_ptr<ScannerSession> create_dialog_scanner_session(QWidget* dialog_parent) {

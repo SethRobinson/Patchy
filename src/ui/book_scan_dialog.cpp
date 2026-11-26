@@ -77,6 +77,10 @@ constexpr std::size_t kViewCacheCapacity = 12;
 constexpr int kViewJpegQuality = 90;
 constexpr qint64 kLowDiskBytes = 2LL * 1024 * 1024 * 1024;
 constexpr double kEdgeWarningPixels = 3.0;
+// A press of the scanner's own button within this time of the last accepted press or of a
+// scan finishing is dropped: some drivers send the event twice, or once more when a scan
+// that software started ends. Turning a page takes longer.
+constexpr qint64 kScannerButtonQuietMs = 1500;
 
 bool metric_units() {
   return QLocale().measurementSystem() == QLocale::MetricSystem;
@@ -1362,6 +1366,14 @@ void BookScanDialog::build_scanning_page() {
   instruction_font.setPointSizeF(instruction_font.pointSizeF() * 1.15);
   instruction_label_->setFont(instruction_font);
   side->addWidget(instruction_label_);
+  // Shown while a press of the scanner's own scan button would start the scan. It wraps
+  // inside the column and never widens it.
+  scanner_button_hint_ = new QLabel(tr("The scanner's own Scan button starts the scan too."), page);
+  scanner_button_hint_->setObjectName(QStringLiteral("bookScanScannerButtonHint"));
+  scanner_button_hint_->setWordWrap(true);
+  scanner_button_hint_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+  scanner_button_hint_->setVisible(false);
+  side->addWidget(scanner_button_hint_);
   status_label_ = new QLabel(page);
   status_label_->setObjectName(QStringLiteral("bookScanStatusLabel"));
   status_label_->setWordWrap(true);
@@ -1441,6 +1453,14 @@ void BookScanDialog::build_scanning_page() {
                                "scanned again keeps its own."));
   detect_check_->setChecked(project_.detect_each_scan);
   side->addWidget(detect_check_);
+  // Shown only for a scanner that declares a scan button (update_scanner_button).
+  scanner_button_check_ = new QCheckBox(tr("The scanner's Scan button starts a scan"), page);
+  scanner_button_check_->setObjectName(QStringLiteral("bookScanScannerButtonCheck"));
+  scanner_button_check_->setToolTip(tr("While this step is shown, pressing a scan button on the scanner does what Scan "
+                                       "does here. Turn it off if the scanner starts scans by itself."));
+  scanner_button_check_->setChecked(app_settings().value(QStringLiteral("bookScan/scannerButton"), true).toBool());
+  scanner_button_check_->setVisible(false);
+  side->addWidget(scanner_button_check_);
   beep_check_ = new QCheckBox(tr("Beep when a scan finishes"), page);
   beep_check_->setObjectName(QStringLiteral("bookScanBeepCheck"));
   beep_check_->setChecked(app_settings().value(QStringLiteral("bookScan/beep"), true).toBool());
@@ -1616,6 +1636,11 @@ void BookScanDialog::build_scanning_page() {
   });
   connect(beep_check_, &QCheckBox::toggled, this,
           [](bool on) { app_settings().setValue(QStringLiteral("bookScan/beep"), on); });
+  connect(scanner_button_check_, &QCheckBox::toggled, this, [this](bool on) {
+    app_settings().setValue(QStringLiteral("bookScan/scannerButton"), on);
+    scanner_log(on ? QStringLiteral("the scan button option was turned on") : QStringLiteral("the scan button option was turned off"));
+    update_scanner_button();
+  });
   connect(detect_check_, &QCheckBox::toggled, this, [this](bool on) {
     if (!refreshing_) {
       set_detect_each_scan(on);
@@ -1908,6 +1933,7 @@ void BookScanDialog::connect_session() {
   connect(session_.get(), &ScannerSession::status_message, this,
           [this](const QString& text) { status_label_->setText(text); });
   connect(session_.get(), &ScannerSession::devices_changed, this, &BookScanDialog::devices_changed);
+  connect(session_.get(), &ScannerSession::scan_button_pressed, this, &BookScanDialog::scanner_button_pressed);
 }
 
 void BookScanDialog::refresh_devices() {
@@ -1983,6 +2009,85 @@ void BookScanDialog::devices_changed(const std::vector<ScannerDeviceInfo>& devic
   } else {
     drop_session();
   }
+  // A scanner that is off is not listened for; one that is back is listened for again.
+  update_scanner_button();
+}
+
+void BookScanDialog::update_scanner_button() {
+  if (scanner_button_check_ == nullptr) {
+    return;
+  }
+  const bool declared = session_ != nullptr && session_->has_scan_button();
+  scanner_button_check_->setVisible(declared);
+  // Only the scanning step listens: on every other step, and with the window closed, the
+  // scanner's buttons do in Windows what they always did.
+  const bool listen = declared && step_ == Step::Scanning && isVisible() && device_listed_ &&
+                      scanner_button_check_->isChecked();
+  if (session_ != nullptr) {
+    session_->set_scan_button_listening(listen);
+  }
+  if (listen != scanner_button_listening_) {
+    scanner_button_listening_ = listen;
+    scanner_log(listen ? QStringLiteral("the scanning step listens for the scanner's scan button")
+                       : QStringLiteral("the scanning step stopped listening for the scanner's scan button"));
+  }
+  show_instruction();
+}
+
+void BookScanDialog::prepare_scanner_button() {
+  // A book that is continued has not opened its scanner yet. Opening it here, without any
+  // message when that fails, lets the step show the option before the first scan. With the
+  // option off nothing changes: the scanner is opened by the first scan, as always.
+  if (step_ == Step::Scanning && session_ != nullptr && !session_open_ && !scan_in_progress() && device_listed_ &&
+      scanner_button_check_->isChecked()) {
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    ensure_session_open(false);
+    QApplication::restoreOverrideCursor();
+  }
+  update_scanner_button();
+}
+
+void BookScanDialog::show_instruction() {
+  if (instruction_label_ == nullptr || scanner_button_hint_ == nullptr) {
+    return;
+  }
+  instruction_label_->setText(instruction_text_);
+  scanner_button_hint_->setVisible(instruction_names_scan_ && scanner_button_listening_);
+}
+
+void BookScanDialog::scanner_button_pressed(const QString& device_id) {
+  // Exactly what the Scan button does at this moment, or nothing: a press is never kept
+  // for later. Every drop is written to the scanner log with its reason.
+  const auto dropped = [](const QString& why) { scanner_log(QStringLiteral("scan button press dropped: ") + why); };
+  if (step_ != Step::Scanning || !scanner_button_listening_) {
+    dropped(QStringLiteral("the scanning step is not listening"));
+    return;
+  }
+  if (!project_.device_id.isEmpty() && device_id.compare(project_.device_id, Qt::CaseInsensitive) != 0) {
+    dropped(QStringLiteral("it came from another scanner (%1)").arg(device_id));
+    return;
+  }
+  if (scan_in_progress()) {
+    dropped(QStringLiteral("a scan is running"));
+    return;
+  }
+  if (!isVisible() || !scan_button_->isVisible() || !scan_button_->isEnabled()) {
+    dropped(QStringLiteral("the Scan button is not available now"));
+    return;
+  }
+  if (QApplication::activeModalWidget() != nullptr) {
+    dropped(QStringLiteral("a dialog is open"));
+    return;
+  }
+  if (scanner_button_quiet_.isValid() && scanner_button_quiet_.elapsed() < kScannerButtonQuietMs) {
+    dropped(QStringLiteral("it came %1 ms after the last press or scan (under %2 ms counts as a double)")
+                .arg(scanner_button_quiet_.elapsed())
+                .arg(kScannerButtonQuietMs));
+    return;
+  }
+  scanner_log(QStringLiteral("scan button press accepted: scanning the next pages"));
+  scanner_button_quiet_.start();
+  start_page_scan();
 }
 
 void BookScanDialog::drop_session() {
@@ -2042,6 +2147,12 @@ void BookScanDialog::go_to(Step step) {
       break;
   }
   step_bar_->set_current(static_cast<int>(step));
+  // Leaving the scanning step stops the listening at once. Entering it starts it after the
+  // page is shown (the scanner may have to be opened first).
+  update_scanner_button();
+  if (step == Step::Scanning) {
+    QTimer::singleShot(0, this, &BookScanDialog::prepare_scanner_button);
+  }
 }
 
 void BookScanDialog::set_project_folder(const QString& folder) {
@@ -2261,6 +2372,7 @@ bool BookScanDialog::ensure_session_open(bool report) {
     fill_resolution_combo();
     refresh_capture_controls();
   }
+  update_scanner_button();
   return true;
 }
 
@@ -2471,6 +2583,7 @@ void BookScanDialog::close_cancel_notice() {
 
 void BookScanDialog::scan_finished(const ScanResult& result) {
   close_cancel_notice();
+  scanner_button_quiet_.start();
   // A cancelled scan that ends with the scanner gone is not tried again.
   const bool cancel_requested = std::exchange(cancel_requested_, false);
   if (result.device_lost && pending_ != PendingScan::None && !scan_retried_ && !cancel_requested &&
@@ -3524,21 +3637,24 @@ void BookScanDialog::refresh_scanning_page() {
                                   : tr("Press Back to Next Pages to go on with pages %1 and %2.")
                                         .arg(scanned_pages + 1)
                                         .arg(scanned_pages + 2);
-    instruction_label_->setText(editing + QStringLiteral("\n\n") + next);
+    instruction_text_ = editing + QStringLiteral("\n\n") + next;
   } else if (project_.scans.empty()) {
-    instruction_label_->setText(
+    instruction_text_ =
         one_page ? tr("One page per scan: lay the first page face down on the glass, then press Scan (or Space).")
-                 : tr("Open the book at the first pages, lay it face down on the glass, then press Scan (or Space)."));
+                 : tr("Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).");
   } else if (one_page) {
-    instruction_label_->setText(
+    instruction_text_ =
         tr("One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.")
-            .arg(scanned_pages + 1));
+            .arg(scanned_pages + 1);
   } else {
-    instruction_label_->setText(tr("Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished "
-                                   "after the last pages.")
-                                    .arg(scanned_pages + 1)
-                                    .arg(scanned_pages + 2));
+    instruction_text_ = tr("Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished "
+                           "after the last pages.")
+                            .arg(scanned_pages + 1)
+                            .arg(scanned_pages + 2);
   }
+  // The plain instruction names the Scan button; while editing an earlier scan it does not.
+  instruction_names_scan_ = !(edit_cover_ || earlier);
+  show_instruction();
   spread_preview_->set_kind(edit_cover_ && !separate ? BookScanPreview::Kind::Cover
                             : edit_cover_ || one_page ? BookScanPreview::Kind::Page
                                                       : BookScanPreview::Kind::Spread);
@@ -4039,6 +4155,14 @@ bool BookScanDialog::export_pdf(const QString& path, bool ask_keep_folder) {
 void BookScanDialog::done(int result) {
   if (scan_in_progress() && session_ != nullptr) {
     session_->cancel();
+  }
+  // The window is going: the scanner's buttons are Windows' again.
+  if (session_ != nullptr) {
+    session_->set_scan_button_listening(false);
+  }
+  if (scanner_button_listening_) {
+    scanner_button_listening_ = false;
+    scanner_log(QStringLiteral("the window closed: stopped listening for the scanner's scan button"));
   }
   if (step_ != Step::Setup) {
     save_project_quietly();

@@ -4,6 +4,7 @@
 #include "ui/scanner_session.hpp"
 
 #include <QDialog>
+#include <QElapsedTimer>
 #include <QImage>
 #include <QMap>
 #include <QPointer>
@@ -97,6 +98,9 @@ public:
   // True while a scanner is open for the following scans; a scanner turning on or off
   // closes it, and the next scan opens it again.
   [[nodiscard]] bool scanner_open() const noexcept { return session_open_; }
+  // True while the scanning step listens for the scanner's own scan button: the step is
+  // shown, the scanner declares one, it is listed, and the option is on.
+  [[nodiscard]] bool scanner_button_listening() const noexcept { return scanner_button_listening_; }
   [[nodiscard]] QString last_error() const { return last_error_; }
   // Tests: no message boxes, no beep.
   void set_quiet(bool quiet) { quiet_ = quiet; }
@@ -117,13 +121,25 @@ private:
   void refresh_devices();
   // Fills the scanner list, keeping the selection when it is still there.
   void apply_devices(const std::vector<ScannerDeviceInfo>& devices);
-  // A scanner turned on or off (docs/book-scan.md, "Scanners turning on and off").
+  // A scanner turned on or off (docs/book-scan-scanners.md, "Scanners turning on and off").
   void devices_changed(const std::vector<ScannerDeviceInfo>& devices);
   // Lets go of the open scanner; the next scan opens it again.
   void drop_session();
   void start_session_scan(const ScanRequest& request);
   // A scan failed because the scanner went away: open it again and repeat the scan once.
   bool retry_after_device_loss();
+  // The scanner's own scan button (docs/book-scan-scanners.md, "The scanner's own Scan button").
+  // A press does what the Scan button does at that moment, or nothing.
+  void scanner_button_pressed(const QString& device_id);
+  // Shows the option when the scanner declares a button, and listens only while the
+  // scanning step is shown with the option on and the scanner listed.
+  void update_scanner_button();
+  // Entering the scanning step: opens the book's scanner quietly when it is not open yet,
+  // so the step can tell whether it has a scan button.
+  void prepare_scanner_button();
+  // The scanning step's instruction, and under it the scan button line while a press
+  // would count.
+  void show_instruction();
   void fill_resolution_combo();
   // Fills `combo` with the scanner's resolutions and selects the one nearest `dpi`.
   void fill_resolution_items(QComboBox* combo, int dpi);
@@ -316,6 +332,15 @@ private:
   QDoubleSpinBox* spread_tilt_spin_{nullptr};
   QDoubleSpinBox* binding_margin_spin_{nullptr};
   QCheckBox* detect_check_{nullptr};
+  QCheckBox* scanner_button_check_{nullptr};
+  QLabel* scanner_button_hint_{nullptr};
+  bool scanner_button_listening_{false};
+  // Running since the last press that was accepted or the last scan that finished: a
+  // press sooner than kScannerButtonQuietMs after either is a double and is dropped.
+  QElapsedTimer scanner_button_quiet_;
+  // What refresh_scanning_page wrote, and whether it is the plain "press Scan" instruction.
+  QString instruction_text_;
+  bool instruction_names_scan_{false};
   QListWidget* strip_{nullptr};
   QCheckBox* beep_check_{nullptr};
   QPushButton* scan_button_{nullptr};

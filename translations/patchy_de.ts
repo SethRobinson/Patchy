@@ -18324,6 +18324,18 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Leaves out a strip this wide on each side of the divider on every scan of the book, so the dark area by the binding stays off the pages.</source>
         <translation>Lässt bei jedem Scan des Buchs auf beiden Seiten der Trennlinie einen Streifen dieser Breite aus, damit der dunkle Bereich am Bund nicht auf die Seiten kommt.</translation>
     </message>
+    <message>
+        <source>The scanner&apos;s Scan button starts a scan</source>
+        <translation>Scan-Taste des Scanners startet einen Scan</translation>
+    </message>
+    <message>
+        <source>While this step is shown, pressing a scan button on the scanner does what Scan does here. Turn it off if the scanner starts scans by itself.</source>
+        <translation>Solange dieser Schritt angezeigt wird, bewirkt ein Druck auf eine Scan-Taste am Scanner dasselbe wie „Scannen“ hier. Schalten Sie die Option aus, wenn der Scanner von selbst Scans startet.</translation>
+    </message>
+    <message>
+        <source>The scanner&apos;s own Scan button starts the scan too.</source>
+        <translation>Die Scan-Taste am Scanner startet den Scan ebenfalls.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>

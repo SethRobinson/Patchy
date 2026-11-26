@@ -18260,6 +18260,18 @@ Do you want to replace it?</source>
         <source>Leaves out a strip this wide on each side of the divider on every scan of the book, so the dark area by the binding stays off the pages.</source>
         <translation>在這本書的每次掃描中，略去分隔線兩側各這麼寬的一條，使裝訂處附近的暗部不出現在頁面上。</translation>
     </message>
+    <message>
+        <source>The scanner&apos;s Scan button starts a scan</source>
+        <translation>掃描器上的掃描按鈕可開始掃描</translation>
+    </message>
+    <message>
+        <source>While this step is shown, pressing a scan button on the scanner does what Scan does here. Turn it off if the scanner starts scans by itself.</source>
+        <translation>顯示此步驟時，按掃描器上的掃描按鈕與按這裡的「掃描」效果相同。如果掃描器會自行開始掃描，請將其關閉。</translation>
+    </message>
+    <message>
+        <source>The scanner&apos;s own Scan button starts the scan too.</source>
+        <translation>按掃描器上的掃描按鈕也可以開始掃描。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushAutomationLibrary</name>
