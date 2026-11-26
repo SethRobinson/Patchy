@@ -32,9 +32,10 @@ QString ui_text_size_key() { return QStringLiteral("preferences/uiTextSizePercen
 QString toolbar_icon_size_key() { return QStringLiteral("preferences/toolbarIconSize"); }
 QString tool_flyout_open_mode_key() { return QStringLiteral("preferences/toolFlyoutOpenMode"); }
 QString use_shift_for_tool_switch_key() { return QStringLiteral("preferences/useShiftForToolSwitch"); }
-QString start_panel_recent_grid_view_key() { return QStringLiteral("startPanel/recentFilesGridView"); }
 QString layer_footer_icon_size_key() { return QStringLiteral("layersPanel/footerIconSize"); }
 #ifndef Q_OS_WASM
+// The browser build keeps no recent files and has no recovery folder: it never reads these.
+QString start_panel_recent_grid_view_key() { return QStringLiteral("startPanel/recentFilesGridView"); }
 QString recovery_enabled_key() { return QStringLiteral("recovery/enabled"); }
 #endif
 QString recovery_interval_key() { return QStringLiteral("recovery/intervalMinutes"); }
