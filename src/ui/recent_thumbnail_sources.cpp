@@ -341,7 +341,7 @@ QImage pdf_first_page(const QString& path) {
     return {};
   }
   QImage paper(page.size(), QImage::Format_RGB32);
-  paper.fill(Qt::white);
+  paper.fill(Qt::white);  // color-literal-ok: the paper of a PDF page in a thumbnail, not chrome
   QPainter painter(&paper);
   painter.drawImage(0, 0, page);
   painter.end();
