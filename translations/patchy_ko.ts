@@ -16449,11 +16449,6 @@ Do you want to replace it?</source>
         <translation>줄무늬</translation>
     </message>
     <message>
-        <source>Created by %1 (%2)</source>
-        <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
-        <translation>제작: %1 (%2)</translation>
-    </message>
-    <message>
         <source>This pattern is already in the pattern library</source>
         <translation>이 패턴은 이미 패턴 라이브러리에 있습니다</translation>
     </message>
@@ -16464,6 +16459,11 @@ Do you want to replace it?</source>
     <message>
         <source>Save Pattern as Preset</source>
         <translation>패턴을 프리셋으로 저장</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <extracomment>%1 is the creator&apos;s name, shown as a link to his GitHub profile.</extracomment>
+        <translation>제작: %1</translation>
     </message>
 </context>
 <context>

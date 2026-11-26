@@ -16505,11 +16505,6 @@ Voulez-vous le remplacer ?</translation>
         <translation>Rayures</translation>
     </message>
     <message>
-        <source>Created by %1 (%2)</source>
-        <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
-        <translation>Créé par %1 (%2)</translation>
-    </message>
-    <message>
         <source>This pattern is already in the pattern library</source>
         <translation>Ce motif est déjà dans la bibliothèque de motifs</translation>
     </message>
@@ -16520,6 +16515,11 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Save Pattern as Preset</source>
         <translation>Enregistrer le motif comme paramètre prédéfini</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <extracomment>%1 is the creator&apos;s name, shown as a link to his GitHub profile.</extracomment>
+        <translation>Créé par %1</translation>
     </message>
 </context>
 <context>

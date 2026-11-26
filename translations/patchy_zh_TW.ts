@@ -16449,11 +16449,6 @@ Do you want to replace it?</source>
         <translation>條紋</translation>
     </message>
     <message>
-        <source>Created by %1 (%2)</source>
-        <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
-        <translation>由 %1 製作（%2）</translation>
-    </message>
-    <message>
         <source>This pattern is already in the pattern library</source>
         <translation>此圖樣已在圖樣資料庫中</translation>
     </message>
@@ -16464,6 +16459,11 @@ Do you want to replace it?</source>
     <message>
         <source>Save Pattern as Preset</source>
         <translation>將圖樣儲存為預設集</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <extracomment>%1 is the creator&apos;s name, shown as a link to his GitHub profile.</extracomment>
+        <translation>由 %1 製作</translation>
     </message>
 </context>
 <context>

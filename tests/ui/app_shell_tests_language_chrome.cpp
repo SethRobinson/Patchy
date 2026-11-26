@@ -37,6 +37,8 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFontMetrics>
+#include <QHelpEvent>
 #include <QGridLayout>
 #include <QImage>
 #include <QLabel>
@@ -51,6 +53,7 @@
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QTextFragment>
+#include <QToolTip>
 #include <QToolButton>
 #include <QUrl>
 #include <QtGui/qtguiglobal.h>
@@ -1521,14 +1524,71 @@ void ui_about_dialog_shows_labeled_external_links() {
     CHECK(project->geometry().bottom() < credit->geometry().top());
     CHECK(project->text().startsWith(QStringLiteral("GitHub: ")));
     CHECK(project->text().contains(QStringLiteral("href=\"https://github.com/SethRobinson/Patchy\">SethRobinson/Patchy</a>")));
-    CHECK(credit->text().startsWith(QStringLiteral("Created by Seth A. Robinson (")));
-    CHECK(credit->text().contains(QStringLiteral("href=\"https://github.com/SethRobinson\">GitHub</a>")));
-    // GitHub stays beside the name; the website is the RTsoft mark above its address at the
-    // right of the creator area (GitHub issue 740).
+    // The name is the one link in the credit and leads to the GitHub profile; the website is
+    // the RTsoft mark above its address at the right of the creator area (GitHub issue 740).
+    CHECK(credit->text().startsWith(QStringLiteral("Created by <a ")));
+    CHECK(credit->text().contains(QStringLiteral("href=\"https://github.com/SethRobinson\">Seth A. Robinson</a>")));
     const auto credit_links = rendered_label_links(*credit);
     CHECK(credit_links.size() == 1);
-    CHECK(credit_links.value(QStringLiteral("https://github.com/SethRobinson")) == QStringLiteral("GitHub"));
+    CHECK(credit_links.value(QStringLiteral("https://github.com/SethRobinson")) ==
+          QStringLiteral("Seth A. Robinson"));
+    {
+      QTextDocument rendered_credit;
+      rendered_credit.setHtml(credit->text());
+      CHECK(rendered_credit.toPlainText() == QStringLiteral("Created by Seth A. Robinson"));
+    }
+    CHECK(!credit->text().contains(QStringLiteral("GitHub")));
     CHECK(!credit->text().contains(QStringLiteral("rtsoft.com")));
+    // The link no longer says "GitHub", so the label tells assistive technology where it
+    // leads and shows the address while the pointer is on the name, and only then.
+    CHECK(credit->accessibleDescription() == QStringLiteral("https://github.com/SethRobinson"));
+    CHECK((credit->focusPolicy() & Qt::TabFocus) == Qt::TabFocus);
+    CHECK(credit->textInteractionFlags().testFlag(Qt::LinksAccessibleByKeyboard));
+#if QT_CONFIG(accessibility)
+    if (auto* accessible_credit = QAccessible::queryAccessibleInterface(credit); accessible_credit != nullptr) {
+      CHECK(accessible_credit->text(QAccessible::Name) == QStringLiteral("Created by Seth A. Robinson"));
+      CHECK(accessible_credit->text(QAccessible::Description) == QStringLiteral("https://github.com/SethRobinson"));
+    } else {
+      CHECK(false);
+    }
+#endif
+    {
+      // Walk the pointer along the sentence: no tooltip on "Created by", the address on the
+      // name, and none again past the end of the text.
+      QStringList hovered;
+      const auto watch_hover =
+          QObject::connect(credit, &QLabel::linkHovered, credit, [&hovered](const QString& url) { hovered.append(url); });
+      const QFontMetrics credit_metrics(credit->font());
+      const int name_left = credit_metrics.horizontalAdvance(QStringLiteral("Created by "));
+      const int name_width = credit_metrics.horizontalAdvance(QStringLiteral("Seth A. Robinson"));
+      const int row = credit->height() / 2;
+      CHECK(credit->toolTip().isEmpty());
+      send_mouse(*credit, QEvent::MouseMove, QPoint(4, row), Qt::NoButton, Qt::NoButton);
+      CHECK(credit->toolTip().isEmpty());
+      const QPoint on_name(name_left + name_width / 2, row);
+      send_mouse(*credit, QEvent::MouseMove, on_name, Qt::NoButton, Qt::NoButton);
+      if (credit->toolTip() != QStringLiteral("https://github.com/SethRobinson")) {
+        fprintf(stderr, "  credit %dx%d, name at %d..%d (font %d px), pointer %d,%d, hovered [%s], tooltip \"%s\"\n",
+                credit->width(), credit->height(), name_left, name_left + name_width, credit_metrics.height(),
+                on_name.x(), on_name.y(), qPrintable(hovered.join(QStringLiteral(" | "))),
+                qPrintable(credit->toolTip()));
+      }
+      CHECK(hovered == QStringList{QStringLiteral("https://github.com/SethRobinson")});
+      CHECK(credit->toolTip() == QStringLiteral("https://github.com/SethRobinson"));
+      // The tooltip Qt then shows for the label is that address.
+      QToolTip::hideText();
+      QHelpEvent help(QEvent::ToolTip, on_name, credit->mapToGlobal(on_name));
+      QApplication::sendEvent(credit, &help);
+      QApplication::processEvents();
+      CHECK(QToolTip::isVisible());
+      CHECK(QToolTip::text() == QStringLiteral("https://github.com/SethRobinson"));
+      QToolTip::hideText();
+      const QPoint past_text(name_left + name_width + 60, row);
+      CHECK(credit->rect().contains(past_text));
+      send_mouse(*credit, QEvent::MouseMove, past_text, Qt::NoButton, Qt::NoButton);
+      CHECK(credit->toolTip().isEmpty());
+      QObject::disconnect(watch_hover);
+    }
     auto* site_link = dialog->findChild<QToolButton*>(QStringLiteral("splashSiteLink"));
     CHECK(site_link != nullptr);
     auto* credited = dialog->findChild<QLabel*>(QStringLiteral("splashContributors"));
@@ -1645,7 +1705,7 @@ void ui_about_dialog_shows_labeled_external_links() {
 
 // The RTsoft mark and the address under it are one link: a click on either part, Enter or
 // Space with the focus on it, and an assistive technology's press all open the site, and
-// Tab reaches it right after the GitHub link (GitHub issue 740).
+// Tab reaches it right after the credit's link, the creator's name (GitHub issue 740).
 void ui_about_dialog_site_link_opens_from_the_mark_the_address_and_the_keyboard() {
   QList<QUrl> opened;
   patchy::ui::set_about_site_link_opener_for_testing([&opened](const QUrl& url) { opened.append(url); });
@@ -1677,7 +1737,7 @@ void ui_about_dialog_site_link_opens_from_the_mark_the_address_and_the_keyboard(
     click_widget_like_a_user(*dialog, site_link->mapTo(dialog, on_address));
     CHECK(opened.size() == 2);
 
-    // One focus stop for both parts, right after the credit's GitHub link.
+    // One focus stop for both parts, right after the credit's link (the name).
     CHECK(site_link->focusPolicy() == Qt::StrongFocus);
     CHECK(credit->nextInFocusChain() == site_link);
     site_link->setFocus(Qt::TabFocusReason);
@@ -1718,8 +1778,9 @@ void ui_about_dialog_site_link_opens_from_the_mark_the_address_and_the_keyboard(
   CHECK(inspected);
 }
 
-// The creator's website link reads "rtsoft.com" in every shipped language, apart from the
-// GitHub link beside the name (GitHub issue 740).
+// In every shipped language the credit's one link is the creator's name, leading to his
+// GitHub profile with no "(GitHub)" beside it, and the website link beside the credit reads
+// "rtsoft.com" (GitHub issue 740).
 void ui_about_dialog_creator_links_show_the_site_address_in_every_language() {
   auto& manager = patchy::ui::LocalizationManager::instance();
   const auto restore_language = qScopeGuard([&manager] { manager.set_language(QStringLiteral("en"), false); });
@@ -1737,7 +1798,8 @@ void ui_about_dialog_creator_links_show_the_site_address_in_every_language() {
       if (credit != nullptr) {
         const auto links = rendered_label_links(*credit);
         CHECK(links.size() == 1);
-        CHECK(links.value(QStringLiteral("https://github.com/SethRobinson")) == QStringLiteral("GitHub"));
+        // The name is the link in every language, and it leads to the GitHub profile.
+        CHECK(links.value(QStringLiteral("https://github.com/SethRobinson")) == QStringLiteral("Seth A. Robinson"));
         QTextDocument rendered;
         rendered.setHtml(credit->text());
         const QString credit_text = rendered.toPlainText();
@@ -1745,7 +1807,15 @@ void ui_about_dialog_creator_links_show_the_site_address_in_every_language() {
           fprintf(stderr, "  %s: the credit reads \"%s\"\n", qPrintable(language.code), qPrintable(credit_text));
         }
         CHECK(credit_text.contains(QStringLiteral("Seth A. Robinson")));
-        CHECK(credit_text.contains(QStringLiteral("GitHub")));
+        // "(GitHub)" is gone: no label for the link and no brackets left behind, in either
+        // the half-width or the full-width form.
+        CHECK(!credit_text.contains(QStringLiteral("GitHub")));
+        for (const QChar bracket : {QChar(u'('), QChar(u')'), QChar(0xFF08), QChar(0xFF09)}) {
+          CHECK(!credit_text.contains(bracket));
+        }
+        // More than the bare name: the sentence is translated around it.
+        CHECK(credit_text.size() > QStringLiteral("Seth A. Robinson").size());
+        CHECK(credit->accessibleDescription() == QStringLiteral("https://github.com/SethRobinson"));
         // Every placeholder is filled, and the address is not repeated in the sentence.
         CHECK(!credit_text.contains(QLatin1Char('%')));
         CHECK(!credit_text.contains(QStringLiteral("rtsoft.com")));
@@ -1831,6 +1901,17 @@ void ui_about_dialog_compact_folder_layout_fits_a_modest_screen() {
       CHECK(site_link->height() >= site_link->sizeHint().height());
       CHECK(site_link->x() > contributors->geometry().right());
       CHECK(contributors->height() >= contributors->heightForWidth(contributors->width()));
+      // The credit is one line whose only link is the creator's name, and the RTsoft link
+      // follows it in the focus order at both text sizes.
+      auto* credit = dialog->findChild<QLabel*>(QStringLiteral("splashCredit"));
+      CHECK(credit != nullptr);
+      const auto credit_links = rendered_label_links(*credit);
+      CHECK(credit_links.size() == 1);
+      CHECK(credit_links.value(QStringLiteral("https://github.com/SethRobinson")) ==
+            QStringLiteral("Seth A. Robinson"));
+      CHECK(credit->height() < 2 * credit->fontMetrics().height());
+      CHECK(credit->geometry().bottom() < contributors->y());
+      CHECK(credit->nextInFocusChain() == site_link);
       const auto* path = dialog->findChild<QLabel*>(QStringLiteral("splashSettingsPath"));
       CHECK(path->height() >= 2 * path->fontMetrics().height());
       inspected = true;

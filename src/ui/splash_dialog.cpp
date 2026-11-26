@@ -386,15 +386,22 @@ public:
     auto* credit = new QLabel(this);
     credit->setObjectName(QStringLiteral("splashCredit"));
     credit->setTextFormat(Qt::RichText);
-    //: %1 is the creator's name, %2 is a link to his GitHub profile.
-    set_themed_label_text(*credit, QObject::tr("Created by %1 (%2)").arg(
-        QStringLiteral("Seth A. Robinson"),
-        link(QStringLiteral("https://github.com/SethRobinson"), QStringLiteral("GitHub"))));
+    // The name itself links to the creator's GitHub profile, as on the start panel
+    // (GitHub issue 740).
+    const QString creator_profile_url = QStringLiteral("https://github.com/SethRobinson");
+    //: %1 is the creator's name, shown as a link to his GitHub profile.
+    set_themed_label_text(*credit, QObject::tr("Created by %1").arg(
+        link(creator_profile_url, QStringLiteral("Seth A. Robinson"))));
     credit->setTextInteractionFlags(Qt::TextBrowserInteraction);
     credit->setOpenExternalLinks(true);
     credit->setWordWrap(true);
+    // The link text is a name, not an address: say where it leads, to assistive
+    // technology and as the label's tooltip while the pointer is on the name (the label
+    // is as wide as the row, so a fixed tooltip would also show beside the sentence).
+    credit->setAccessibleDescription(creator_profile_url);
+    connect(credit, &QLabel::linkHovered, credit, [credit](const QString& url) { credit->setToolTip(url); });
 
-    // Created here so Tab reaches it right after the GitHub link, before the long
+    // Created here so Tab reaches it right after the name's link, before the long
     // contributor list.
     auto* site_link = new SplashSiteLink(this);
 

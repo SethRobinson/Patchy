@@ -16487,11 +16487,6 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Created by %1 (%2)</source>
-        <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>This pattern is already in the pattern library</source>
         <translation type="unfinished"></translation>
     </message>
@@ -16501,6 +16496,11 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Save Pattern as Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <extracomment>%1 is the creator&apos;s name, shown as a link to his GitHub profile.</extracomment>
         <translation type="unfinished"></translation>
     </message>
 </context>

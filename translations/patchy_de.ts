@@ -16505,11 +16505,6 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Streifen</translation>
     </message>
     <message>
-        <source>Created by %1 (%2)</source>
-        <extracomment>%1 is the creator&apos;s name, %2 is a link to his GitHub profile.</extracomment>
-        <translation>Erstellt von %1 (%2)</translation>
-    </message>
-    <message>
         <source>This pattern is already in the pattern library</source>
         <translation>Dieses Muster ist bereits in der Musterbibliothek</translation>
     </message>
@@ -16520,6 +16515,11 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Save Pattern as Preset</source>
         <translation>Muster als Vorgabe speichern</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <extracomment>%1 is the creator&apos;s name, shown as a link to his GitHub profile.</extracomment>
+        <translation>Erstellt von %1</translation>
     </message>
 </context>
 <context>
