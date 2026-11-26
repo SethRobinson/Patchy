@@ -2,9 +2,13 @@
 // check (docs/startup-performance.md). Launches the sibling patchy executable N times
 // with --startup-benchmark, takes the median of every phase, and compares it with a
 // per-host baseline file or, interleaved, with a second build.
+#include "formats/format_registry.hpp"
+#include "formats/ora_document_io.hpp"
 #include "test_scratch_remove.hpp"
+#include "ui/image_document_io.hpp"
 #include "ui/qt_paths.hpp"
 
+#include <QBuffer>
 #include <QByteArray>
 #include <QCoreApplication>
 #include <QDateTime>
@@ -16,6 +20,10 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMarginsF>
+#include <QPageSize>
+#include <QPainter>
+#include <QPdfWriter>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QSaveFile>
@@ -25,7 +33,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <iomanip>
 #include <iostream>
 #include <map>
@@ -76,15 +86,16 @@ struct ProfileSeed {
   QSize window;          // PATCHY_PERF_STARTUP_WINDOW=<width>x<height>
 };
 
-// A picture with enough detail that its file is a realistic size to read and decode.
-QImage seeded_picture(int width, int height, quint32 seed) {
+// A picture with enough detail that its file is a realistic size to read and decode. Without
+// `detail` it is a plain gradient, which compresses to a small file and still costs its pixels.
+QImage seeded_picture(int width, int height, quint32 seed, bool detail = true) {
   QImage image(width, height, QImage::Format_RGB32);
   quint32 state = seed;
   for (int y = 0; y < height; ++y) {
     auto* line = reinterpret_cast<QRgb*>(image.scanLine(y));
     for (int x = 0; x < width; ++x) {
       state = state * 1664525U + 1013904223U;
-      const int noise = static_cast<int>((state >> 24) & 31U);
+      const int noise = detail ? static_cast<int>((state >> 24) & 31U) : 0;
       line[x] = qRgb((x * 255 / width + noise) & 255, (y * 255 / height + noise) & 255,
                      ((x + y) * 255 / (width + height) + noise) & 255);
     }
@@ -92,9 +103,29 @@ QImage seeded_picture(int width, int height, quint32 seed) {
   return image;
 }
 
-// `count` local files of mixed kinds in `folder`: JPEG and PNG pictures, a PSD with an embedded
-// thumbnail, and kinds with no quick preview (an OpenRaster file, a GIMP file). Each kind is
-// made once and copied, so every entry is its own file with its own thumbnail.
+std::vector<std::uint8_t> png_entry(const QImage& image) {
+  QByteArray bytes;
+  QBuffer buffer(&bytes);
+  if (buffer.open(QIODevice::WriteOnly)) {
+    image.save(&buffer, "PNG");
+  }
+  return {reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+          reinterpret_cast<const std::uint8_t*>(bytes.constData()) + bytes.size()};
+}
+
+bool write_all(const QString& path, const std::vector<std::uint8_t>& bytes) {
+  QFile file(path);
+  return !bytes.empty() && file.open(QIODevice::WriteOnly) &&
+         file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size())) ==
+             static_cast<qint64>(bytes.size());
+}
+
+// `count` local files of mixed kinds in `folder`, a third of them kinds whose picture comes
+// quickly (JPEG and PNG pictures, a PSD with an embedded thumbnail, an OpenRaster file with its
+// merged image) and the rest kinds the thumbnail worker opens through a reader or a renderer:
+// a PDF, GIMP files, HEIF, AVIF, JPEG XL, DDS, an SVG, a layered OpenRaster file of four 6
+// megapixel layers with no merged image, and a camera raw when the local fixture is there.
+// Each kind is made once and copied, so every entry is its own file with its own thumbnail.
 QStringList make_recent_files(const QString& folder, int count) {
   QDir().mkpath(folder);
   const QDir dir(folder);
@@ -109,15 +140,70 @@ QStringList make_recent_files(const QString& folder, int count) {
   add_picture(QStringLiteral("master-art.png"), 1280, 960, 23U, "PNG");
   add_picture(QStringLiteral("master-portrait.jpg"), 1200, 1800, 37U, "JPG");
   for (const auto& fixture : {QStringLiteral(PATCHY_SOURCE_DIR "/test-fixtures/psd/arrows.psd"),
-                              QStringLiteral(PATCHY_SOURCE_DIR "/test-fixtures/ora/python-layers.ora")}) {
+                              QStringLiteral(PATCHY_SOURCE_DIR "/test-fixtures/ora/python-layers.ora"),
+                              QStringLiteral(PATCHY_SOURCE_DIR "/test-fixtures/xcf/groups.xcf"),
+                              QStringLiteral(PATCHY_SOURCE_DIR "/test-fixtures/xcf/modes.xcf"),
+                              QStringLiteral(PATCHY_SOURCE_DIR "/test-fixtures/heif/quadrants.heic"),
+                              QStringLiteral(PATCHY_SOURCE_DIR "/test-fixtures/avif/frames.avif"),
+                              QStringLiteral(PATCHY_SOURCE_DIR "/test-fixtures/dds/texconv-bc7-16x16.dds"),
+                              QStringLiteral(PATCHY_SOURCE_DIR "/test-fixtures/svg/hot_air_balloons_cc0.svg"),
+                              // Local only (AGENTS.md): seeded where the fixture folder has it.
+                              QStringLiteral(PATCHY_SOURCE_DIR "/local-test-fixtures/raw/nikon_d80.nef")}) {
     const auto path = dir.filePath(QStringLiteral("master-") + QFileInfo(fixture).fileName());
     if (QFile::copy(fixture, path)) {
       masters << path;
     }
   }
-  if (QFile gimp(dir.filePath(QStringLiteral("master-drawing.xcf"))); gimp.open(QIODevice::WriteOnly)) {
-    gimp.write(QByteArray(4096, 'x'));
-    masters << gimp.fileName();
+  // A PDF of three pages, the first one holding a 4 megapixel picture.
+  {
+    const auto path = dir.filePath(QStringLiteral("master-pages.pdf"));
+    QPdfWriter writer(path);
+    writer.setPageSize(QPageSize(QPageSize::A4));
+    writer.setPageMargins(QMarginsF(0, 0, 0, 0));
+    QPainter painter(&writer);
+    const QRect page(0, 0, writer.width(), writer.height());
+    painter.drawImage(page.adjusted(0, 0, 0, -page.height() / 2), seeded_picture(2400, 1600, 53U));
+    for (int index = 1; index < 3; ++index) {
+      writer.newPage();
+      painter.fillRect(page.adjusted(page.width() / 8, page.height() / 8, -page.width() / 8, -page.height() / 8),
+                       QColor(40 * index, 90, 160));
+    }
+    painter.end();
+    if (QFileInfo(path).size() > 0) {
+      masters << path;
+    }
+  }
+  // JPEG XL, 2.7 megapixels, through Patchy's own writer.
+  if (const auto* jxl = patchy::builtin_format_registry().find_by_extension("jxl"); jxl != nullptr && jxl->can_write()) {
+    const auto path = dir.filePath(QStringLiteral("master-photo.jxl"));
+    try {
+      const auto picture = seeded_picture(2000, 1333, 71U).convertToFormat(QImage::Format_RGBA8888);
+      if (write_all(path, jxl->write(patchy::ui::document_from_qimage(picture, "Background")))) {
+        masters << path;
+      }
+    } catch (const std::exception&) {
+      // Seeded without it.
+    }
+  }
+  // A layered OpenRaster file with no merged image: four 6 megapixel layers the worker has to
+  // read and composite, as it does a large GIMP file.
+  {
+    std::vector<patchy::ora::detail::ZipEntry> entries;
+    const QByteArray mime("image/openraster");
+    entries.push_back({"mimetype", {mime.cbegin(), mime.cend()}, false});
+    QByteArray stack("<?xml version='1.0' encoding='UTF-8'?><image version=\"0.0.3\" w=\"3000\" h=\"2000\"><stack>");
+    for (int layer = 0; layer < 4; ++layer) {
+      const auto name = "data/layer" + std::to_string(layer) + ".png";
+      stack += "<layer name=\"Layer " + QByteArray::number(layer) + "\" src=\"" + QByteArray::fromStdString(name) +
+               "\" x=\"0\" y=\"0\" opacity=\"0.8\"/>";
+      entries.push_back({name, png_entry(seeded_picture(3000, 2000, 90U + static_cast<quint32>(layer), false)), false});
+    }
+    stack += "</stack></image>";
+    entries.insert(entries.begin() + 1, {"stack.xml", {stack.cbegin(), stack.cend()}, true});
+    const auto path = dir.filePath(QStringLiteral("master-layers.ora"));
+    if (write_all(path, patchy::ora::detail::zip_archive(entries))) {
+      masters << path;
+    }
   }
   QStringList recent;
   for (int index = 0; index < count && !masters.isEmpty(); ++index) {

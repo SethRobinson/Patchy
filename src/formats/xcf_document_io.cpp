@@ -1740,12 +1740,26 @@ std::shared_ptr<const EffectRunner>& effect_runner_slot() {
   return runner;
 }
 
+// The limits of the read running on this thread (ScopedReadLimits), or null.
+thread_local const ReadLimits* t_read_limits = nullptr;
+
 [[nodiscard]] std::shared_ptr<const EffectRunner> current_effect_runner() {
+  if (t_read_limits != nullptr && !t_read_limits->run_layer_effects) {
+    return nullptr;
+  }
   const std::lock_guard lock(effect_runner_mutex());
   return effect_runner_slot();
 }
 
 }  // namespace
+
+ScopedReadLimits::ScopedReadLimits(ReadLimits limits) : limits_(limits), previous_(t_read_limits) {
+  t_read_limits = &limits_;
+}
+
+ScopedReadLimits::~ScopedReadLimits() {
+  t_read_limits = previous_;
+}
 
 void set_effect_runner(EffectRunner runner) {
   auto next = runner ? std::make_shared<const EffectRunner>(std::move(runner)) : nullptr;
@@ -3889,6 +3903,28 @@ private:
       throw SizeLimitError("too many layers");
     }
     layer_offsets.push_back(pointer);
+  }
+  if (const auto* limits = t_read_limits; limits != nullptr) {
+    // Before any tile is decoded: the canvas, and what the layers' own sizes (the first two
+    // fields of each layer) add up to once decoded as RGBA at the file's precision.
+    const auto canvas_pixels = static_cast<std::uint64_t>(width) * height;
+    if (limits->max_canvas_pixels != 0 && canvas_pixels > limits->max_canvas_pixels) {
+      throw SizeLimitError("the canvas is past the caller's limit");
+    }
+    if (limits->max_decoded_layer_bytes != 0) {
+      const auto pixel_bytes = 4ULL * std::min<std::uint32_t>(component_bytes(precision.component), 4);
+      std::uint64_t decoded = 0;
+      for (const auto offset : layer_offsets) {
+        try {
+          decoded += static_cast<std::uint64_t>(reader.u32(offset)) * reader.u32(offset + 4) * pixel_bytes;
+        } catch (const ImportError&) {
+          // A damaged pointer: the layer walk below reports it.
+        }
+        if (decoded > limits->max_decoded_layer_bytes) {
+          throw SizeLimitError("the layers are past the caller's limit");
+        }
+      }
+    }
   }
   std::vector<std::uint64_t> channel_offsets;
   while (true) {

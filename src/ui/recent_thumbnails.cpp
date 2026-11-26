@@ -1,6 +1,5 @@
 #include "ui/recent_thumbnails.hpp"
 
-#include "formats/metadata/iptc_iim.hpp"
 #include "support/atomic_file_write.hpp"
 #include "support/network_path.hpp"
 #include "support/path_utils.hpp"
@@ -9,6 +8,7 @@
 #include "ui/edit_conversions.hpp"
 #include "ui/network_mounts.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/recent_thumbnail_sources.hpp"
 
 #include <QAbstractEventDispatcher>
 #include <QBuffer>
@@ -53,12 +53,6 @@ constexpr auto kOlderVersionValue = "1";
 constexpr auto kSourceSizeKey = "PatchySourceSize";
 constexpr auto kSourceModifiedKey = "PatchySourceModified";
 
-// A PSD keeps its sections in order: header, color mode data, image resources. The embedded
-// thumbnail is an image resource, so these two caps bound what is read to find it.
-constexpr qint64 kPsdHeaderBytes = 26;
-constexpr quint32 kMaxPsdColorModeBytes = 16U * 1024U * 1024U;
-constexpr quint32 kMaxPsdResourceBytes = 16U * 1024U * 1024U;
-
 // One name per path, from the path's text alone (no disk access): the same clean absolute
 // form the Home Screen lists.
 QString thumbnail_key(const QString& path) {
@@ -68,64 +62,26 @@ QString thumbnail_key(const QString& path) {
   return QDir::cleanPath(QFileInfo(path).absoluteFilePath());
 }
 
+QString cache_base_name(const QString& key) {
+  return QString::fromLatin1(QCryptographicHash::hash(key.toUtf8(), QCryptographicHash::Sha1).toHex());
+}
+
 QString cache_file_name(const QString& key) {
-  return QString::fromLatin1(QCryptographicHash::hash(key.toUtf8(), QCryptographicHash::Sha1).toHex()) +
-         QStringLiteral(".png");
+  return cache_base_name(key) + QStringLiteral(".png");
+}
+
+// The "no picture" marker of a path: a few lines of text beside where its PNG would be, saying
+// that the file as it was (size, modified time) has no picture, so it is not decoded again at
+// every start. Never a second picture.
+QString marker_file_name(const QString& key) {
+  return cache_base_name(key) + QStringLiteral(".none");
 }
 
 // Only names this cache writes are ever deleted from the folder, whatever else is in it:
 // PATCHY_RECENT_THUMBNAILS_DIR may point anywhere.
 bool is_cache_file_name(const QString& name) {
-  static const QRegularExpression pattern(QStringLiteral("^[0-9a-f]{40}\\.png$"));
+  static const QRegularExpression pattern(QStringLiteral("^[0-9a-f]{40}\\.(png|none)$"));
   return pattern.match(name).hasMatch();
-}
-
-quint32 big_endian_32(const QByteArray& bytes, qsizetype offset) {
-  const auto* data = reinterpret_cast<const unsigned char*>(bytes.constData()) + offset;
-  return (static_cast<quint32>(data[0]) << 24) | (static_cast<quint32>(data[1]) << 16) |
-         (static_cast<quint32>(data[2]) << 8) | static_cast<quint32>(data[3]);
-}
-
-// The JPEG thumbnail a PSD or PSB carries in its image resources (resource 1036), read from the
-// front of the file without decoding a layer or the composite. Null for any other file.
-QImage psd_embedded_thumbnail(const QString& path) {
-  QFile file(path);
-  if (!file.open(QIODevice::ReadOnly)) {
-    return {};
-  }
-  const auto head = file.read(kPsdHeaderBytes + 4);
-  if (head.size() < kPsdHeaderBytes + 4 || !head.startsWith("8BPS")) {
-    return {};
-  }
-  const auto color_mode_bytes = big_endian_32(head, kPsdHeaderBytes);
-  if (color_mode_bytes > kMaxPsdColorModeBytes || !file.seek(kPsdHeaderBytes + 4 + color_mode_bytes)) {
-    return {};
-  }
-  const auto length_field = file.read(4);
-  if (length_field.size() < 4) {
-    return {};
-  }
-  const auto resource_bytes = big_endian_32(length_field, 0);
-  if (resource_bytes == 0 || resource_bytes > kMaxPsdResourceBytes) {
-    return {};
-  }
-  const auto resources = file.read(resource_bytes);
-  if (resources.size() != static_cast<qsizetype>(resource_bytes)) {
-    return {};
-  }
-  const std::span<const std::uint8_t> span(reinterpret_cast<const std::uint8_t*>(resources.constData()),
-                                           static_cast<std::size_t>(resources.size()));
-  for (const auto& resource : metadata::parse_irb(span)) {
-    if (resource.id != metadata::psd_resource::kThumbnail) {
-      continue;
-    }
-    const auto jpeg = metadata::psd_thumbnail_jpeg(resource.data);
-    QImage image;
-    if (!jpeg.empty() && image.loadFromData(jpeg.data(), static_cast<int>(jpeg.size()), "JPG")) {
-      return image;
-    }
-  }
-  return {};
 }
 
 // A decoded image as an 8-bit picture a painter can draw. A float image holds linear values
@@ -152,42 +108,6 @@ QImage fitted(const QImage& image, QSize box) {
     return image;
   }
   return image.scaled(box, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-}
-
-// The cheap previews: a PSD's embedded thumbnail, or an image Qt's readers decode (JPEG straight
-// to the reduced size). Every other kind of file, and anything past the caps, has none until
-// Patchy opens or saves it and stores the document's own picture.
-QImage decoded_thumbnail(const QString& path, qint64 source_bytes) {
-  if (source_bytes <= 0 || source_bytes > kRecentThumbnailMaxSourceBytes) {
-    return {};
-  }
-  if (auto embedded = psd_embedded_thumbnail(path); !embedded.isNull()) {
-    return embedded;
-  }
-  QImageReader reader(path);
-  reader.setDecideFormatFromContent(true);
-  if (!reader.canRead()) {
-    return {};
-  }
-  const auto format = reader.format().toLower();
-  // Vector and page formats are rendered, not decoded: left to the stored document picture.
-  if (format == "svg" || format == "svgz" || format == "pdf") {
-    return {};
-  }
-  const auto full = reader.size();
-  if (!full.isValid() || full.isEmpty()) {
-    return {};
-  }
-  const bool decodes_reduced = format == "jpeg" || format == "jpg";
-  if (!decodes_reduced && static_cast<qint64>(full.width()) * full.height() > kRecentThumbnailMaxSourcePixels) {
-    return {};
-  }
-  reader.setAutoTransform(true);
-  if (full.width() > kRecentThumbnailStoredSide || full.height() > kRecentThumbnailStoredSide) {
-    reader.setScaledSize(
-        full.scaled(kRecentThumbnailStoredSide, kRecentThumbnailStoredSide, Qt::KeepAspectRatio).expandedTo({1, 1}));
-  }
-  return reader.read();
 }
 
 struct SourceStamp {
@@ -232,6 +152,37 @@ bool write_cache_file(const QString& directory, const QString& file, const QImag
     return false;  // a cache: the grid shows a placeholder and tries again next time
   }
   return true;
+}
+
+// A marker's first line. A build that can picture more kinds, or has other caps, raises the
+// number, and every older marker stops counting.
+constexpr auto kMarkerVersionLine = "PatchyNoThumbnail 1";
+
+bool marker_matches(const QString& file, const SourceStamp& stamp) {
+  QFile marker(file);
+  if (!marker.open(QIODevice::ReadOnly)) {
+    return false;
+  }
+  const auto lines = marker.read(256).split('\n');
+  return lines.size() >= 3 && lines[0] == kMarkerVersionLine && lines[1] == QByteArray::number(stamp.bytes) &&
+         lines[2] == QByteArray::number(stamp.modified_ms);
+}
+
+void write_marker(const QString& directory, const QString& file, const SourceStamp& stamp) {
+  const QByteArray bytes = QByteArray(kMarkerVersionLine) + '\n' + QByteArray::number(stamp.bytes) + '\n' +
+                           QByteArray::number(stamp.modified_ms) + '\n';
+  if (!QDir().mkpath(directory)) {
+    return;
+  }
+  try {
+    write_file_bytes_atomically(
+        to_filesystem_path(file),
+        std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+                                      static_cast<std::size_t>(bytes.size())),
+        "Could not create the thumbnail file", "Could not write the thumbnail file");
+  } catch (const std::exception&) {
+    // Only a note to skip work: without it the file is looked at again next time.
+  }
 }
 
 struct CachedPicture {
@@ -291,6 +242,7 @@ QImage recent_thumbnail_source(const QImage& composite) {
 struct RecentThumbnailCache::Job {
   enum class Kind { load, store, forget, retain };
   Kind kind{Kind::load};
+  bool slow{false};   // load: the quick pass found no picture; this is the slow pass
   QString key;        // load, store: the clean absolute path
   QImage image;       // store
   QStringList keys;   // forget, retain
@@ -300,6 +252,10 @@ struct RecentThumbnailCache::Job {
 struct RecentThumbnailCache::Shared {
   std::mutex mutex;
   std::deque<Job> jobs;
+  // Loads whose quick pass found nothing (recent_thumbnail_sources.hpp). The worker takes one
+  // only while `jobs` is empty, so a file that needs Patchy's own reader never holds a quick
+  // picture, a stored picture or a deletion behind it.
+  std::deque<Job> slow_jobs;
   bool running{false};
   bool closed{false};  // the owner is gone: only the deletions still matter
   QString directory;
@@ -310,12 +266,14 @@ namespace {
 struct LoadResult {
   QImage image;
   bool available{false};
-  bool reduced{false};  // the stored picture is larger than `image`
+  bool reduced{false};     // the stored picture is larger than `image`
+  bool needs_slow{false};  // no answer yet: the slow pass has to look
 };
 
-// Runs on the worker. Returns the picture for the grid, or no picture.
+// Runs on the worker. Returns the picture for the grid, no picture, or (from the quick pass
+// only) the word that the slow pass has to look.
 LoadResult make_thumbnail(const QString& directory, const QString& key, const QImage& stored_source,
-                          QSize display_box, const std::vector<MountEntry>& mounts) {
+                          QSize display_box, const std::vector<MountEntry>& mounts, RecentThumbnailPass pass) {
   if (directory.isEmpty() || !source_location_allowed(key, mounts)) {
     return {};
   }
@@ -324,20 +282,46 @@ LoadResult make_thumbnail(const QString& directory, const QString& key, const QI
     return {};
   }
   const SourceStamp stamp{info.size(), info.lastModified().toMSecsSinceEpoch()};
-  const auto file = QDir(directory).filePath(cache_file_name(key));
+  const QDir folder(directory);
+  const auto file = folder.filePath(cache_file_name(key));
+  const auto marker = folder.filePath(marker_file_name(key));
   CachedPicture cached;
   if (stored_source.isNull()) {
     cached = read_cache_file(file, stamp);
   }
   QImage image = cached.current ? cached.image : QImage();
   if (image.isNull()) {
-    image = stored_source.isNull() ? decoded_thumbnail(key, stamp.bytes) : stored_source;
+    if (!stored_source.isNull()) {
+      image = stored_source;
+    } else if (!marker_matches(marker, stamp)) {
+      auto read = read_recent_thumbnail(key, stamp.bytes, pass);
+      switch (read.outcome) {
+        case RecentThumbnailOutcome::picture:
+          image = std::move(read.image);
+          break;
+        case RecentThumbnailOutcome::slow:
+          if (pass == RecentThumbnailPass::quick) {
+            LoadResult later;
+            later.needs_slow = true;
+            return later;
+          }
+          break;
+        case RecentThumbnailOutcome::none:
+          // Unsupported, damaged or past a cap: not looked at again until the file changes.
+          write_marker(directory, marker, stamp);
+          break;
+        case RecentThumbnailOutcome::unreadable:
+          break;  // locked or gone just now: the next look tries again
+      }
+    }
     if (!image.isNull()) {
       image = fitted(display_image(std::move(image)), {kRecentThumbnailStoredSide, kRecentThumbnailStoredSide});
-      write_cache_file(directory, file, image, stamp);  // one file per path: an older picture is replaced
+      if (write_cache_file(directory, file, image, stamp)) {  // one file per path: an older picture is replaced
+        QFile::remove(marker);
+      }
     } else {
-      // Nothing to make a new picture from (a kind with no cheap preview): the older, smaller
-      // one Patchy stored for this same file is still its picture.
+      // Nothing to make a new picture from: the older, smaller one Patchy stored for this
+      // same file is still its picture.
       image = cached.image;
     }
     if (image.isNull()) {
@@ -346,7 +330,7 @@ LoadResult make_thumbnail(const QString& directory, const QString& key, const QI
   }
   auto shown = fitted(image, display_box);
   const bool reduced = shown.size() != image.size();
-  return {shown.convertToFormat(QImage::Format_ARGB32_Premultiplied), true, reduced};
+  return {shown.convertToFormat(QImage::Format_ARGB32_Premultiplied), true, reduced, false};
 }
 
 void delete_cache_files(const QString& directory, const QStringList& keys) {
@@ -357,6 +341,7 @@ void delete_cache_files(const QString& directory, const QStringList& keys) {
   for (const auto& key : keys) {
     if (!key.isEmpty()) {
       QFile::remove(folder.filePath(cache_file_name(key)));
+      QFile::remove(folder.filePath(marker_file_name(key)));
     }
   }
 }
@@ -369,6 +354,7 @@ void delete_cache_files_except(const QString& directory, const QStringList& keys
   QSet<QString> keep;
   for (const auto& key : keys) {
     keep.insert(cache_file_name(key));
+    keep.insert(marker_file_name(key));
   }
   for (const auto& name : folder.entryList(QDir::Files)) {
     if (is_cache_file_name(name) && !keep.contains(name)) {
@@ -466,6 +452,14 @@ void RecentThumbnailCache::forget(const QStringList& paths) {
   }
 }
 
+void RecentThumbnailCache::load_answered() {
+  if (loads_in_flight_ > 0 && --loads_in_flight_ == 0 && first_request_ms_ >= 0.0) {
+    // Every picture the first paint asked for has arrived (or has none).
+    startup_trace::record_background("recent_thumbnails.first_cells", first_request_ms_, startup_trace::now_ms());
+    first_request_ms_ = -1.0;
+  }
+}
+
 void RecentThumbnailCache::retain_only(const QStringList& paths) {
   Job job;
   job.kind = Job::Kind::retain;
@@ -505,7 +499,7 @@ void RecentThumbnailCache::refresh_all() {
 
 bool RecentThumbnailCache::busy() const {
   const std::lock_guard<std::mutex> lock(shared_->mutex);
-  return shared_->running || !shared_->jobs.empty() || !held_.empty();
+  return shared_->running || !shared_->jobs.empty() || !shared_->slow_jobs.empty() || !held_.empty();
 }
 
 void RecentThumbnailCache::trim_loaded() {
@@ -534,10 +528,8 @@ void RecentThumbnailCache::trim_loaded() {
 
 void RecentThumbnailCache::finish(const QString& key, bool was_load, QImage image, bool available, bool reduced,
                                   QSize box) {
-  if (was_load && loads_in_flight_ > 0 && --loads_in_flight_ == 0 && first_request_ms_ >= 0.0) {
-    // Every picture the first paint asked for has arrived (or has none).
-    startup_trace::record_background("recent_thumbnails.first_cells", first_request_ms_, startup_trace::now_ms());
-    first_request_ms_ = -1.0;
+  if (was_load) {
+    load_answered();
   }
   const auto found = entries_.find(key);
   if (found == entries_.end()) {
@@ -587,15 +579,32 @@ void RecentThumbnailCache::release_held() {
 }
 
 void RecentThumbnailCache::send_to_worker(std::vector<Job> jobs) {
+  int dropped_loads = 0;
+  bool start_worker = false;
   {
     const std::lock_guard<std::mutex> lock(shared_->mutex);
     for (auto& job : jobs) {
+      // A slow load waits behind every deletion, so one whose path a deletion names would
+      // write its picture after the deletion ran: it leaves the queue with the deletion's
+      // arrival, under the same lock the worker takes to put a load there.
+      if (job.kind == Job::Kind::forget || job.kind == Job::Kind::retain) {
+        const QSet<QString> named(job.keys.cbegin(), job.keys.cend());
+        const bool deletes_named = job.kind == Job::Kind::forget;
+        const auto before = shared_->slow_jobs.size();
+        std::erase_if(shared_->slow_jobs,
+                      [&](const Job& slow) { return named.contains(slow.key) == deletes_named; });
+        dropped_loads += static_cast<int>(before - shared_->slow_jobs.size());
+      }
       shared_->jobs.push_back(std::move(job));
     }
-    if (shared_->running) {
-      return;
-    }
+    start_worker = !shared_->running;
     shared_->running = true;
+  }
+  for (int index = 0; index < dropped_loads; ++index) {
+    load_answered();  // nobody will answer these
+  }
+  if (!start_worker) {
+    return;
   }
   // One worker drains the queue and ends: at most one thumbnail is being made at a time, and
   // nothing is left running while the queue is empty. Tracked, so quit waits for it within the
@@ -626,12 +635,17 @@ void RecentThumbnailCache::send_to_worker(std::vector<Job> jobs) {
                (shared->jobs.front().kind == Job::Kind::load || shared->jobs.front().kind == Job::Kind::store)) {
           shared->jobs.pop_front();
         }
-        if (shared->jobs.empty()) {
+        if (deletions_only) {
+          shared->slow_jobs.clear();
+        }
+        // Every quick answer, stored picture and deletion goes before the next slow load.
+        auto& queue = shared->jobs.empty() ? shared->slow_jobs : shared->jobs;
+        if (queue.empty()) {
           shared->running = false;
           return;
         }
-        job = std::move(shared->jobs.front());
-        shared->jobs.pop_front();
+        job = std::move(queue.front());
+        queue.pop_front();
       }
       switch (job.kind) {
         case Job::Kind::forget:
@@ -642,7 +656,25 @@ void RecentThumbnailCache::send_to_worker(std::vector<Job> jobs) {
           break;
         case Job::Kind::load:
         case Job::Kind::store: {
-          auto result = make_thumbnail(shared->directory, job.key, job.image, job.display_box, mounts);
+          auto result = make_thumbnail(shared->directory, job.key, job.image, job.display_box, mounts,
+                                       job.slow ? RecentThumbnailPass::slow : RecentThumbnailPass::quick);
+          if (result.needs_slow) {
+            // Asked again after everything quick. A deletion queued since this load was taken
+            // may name the path, or a quit: then the worker answers "no picture" instead.
+            const std::lock_guard<std::mutex> lock(shared->mutex);
+            const bool still_wanted =
+                !shared->closed && !background_workers_stop_requested() &&
+                std::none_of(shared->jobs.cbegin(), shared->jobs.cend(), [&job](const Job& queued) {
+                  return (queued.kind == Job::Kind::forget && queued.keys.contains(job.key)) ||
+                         (queued.kind == Job::Kind::retain && !queued.keys.contains(job.key));
+                });
+            if (still_wanted) {
+              job.slow = true;
+              shared->slow_jobs.push_back(std::move(job));
+              break;
+            }
+            result = {};
+          }
           if (app == nullptr) {
             break;
           }
