@@ -293,17 +293,17 @@ std::vector<AssetTemplate> make_templates() {
     ui::MainWindow window;
     window.show();
     drain();
-    Document small(800, 600, PixelFormat::rgba8());
+    Document sheet(800, 600, PixelFormat::rgba8());
     QImage paper(800, 600, QImage::Format_RGBA8888);
     paper.fill(Qt::white);
-    small.add_pixel_layer("Background", ui::pixels_from_image_rgba(paper));
+    sheet.add_pixel_layer("Background", ui::pixels_from_image_rgba(paper));
     const char* names[] = {"Leaf", "Star", "Heart", "Wave", "Plant", "Stamp"};
     for (int index = 0; index < 6; ++index) {
-      small.add_layer(pixel_layer(small, names[index], painted_art(96 + index * 24, 80 + index * 16, index + 1),
+      sheet.add_layer(pixel_layer(sheet, names[index], painted_art(96 + index * 24, 80 + index * 16, index + 1),
                                   20 + index * 110, 40));
     }
-    small.add_layer(shape_layer(small, "Badge", Rect{60, 320, 220, 110}, RgbColor{36, 110, 190}));
-    window.add_document_session(std::move(small), QStringLiteral("Small"));
+    sheet.add_layer(shape_layer(sheet, "Badge", Rect{60, 320, 220, 110}, RgbColor{36, 110, 190}));
+    window.add_document_session(std::move(sheet), QStringLiteral("Small"));
     drain();
     CHECK(run_script(window, QStringLiteral("var d = app.activeDocument; var t = d.addTextLayer('Summer Sale', "
                                             "{size: 40, x: 320, y: 420, color: '#1c4f8a', bold: true}); "
@@ -348,10 +348,10 @@ QString asset_id(int index) { return QStringLiteral("%1").arg(index, 32, 16, QLa
 // tenths), Photos (the large assets and a tenth) and Type (the rest).
 void build_library(const QString& directory, int count, const std::vector<AssetTemplate>& templates) {
   CHECK(QDir().mkpath(directory));
-  std::vector<const AssetTemplate*> small;
-  std::vector<const AssetTemplate*> large;
+  std::vector<const AssetTemplate*> small_ones;
+  std::vector<const AssetTemplate*> large_ones;
   for (const auto& entry : templates) {
-    (entry.large ? large : small).push_back(&entry);
+    (entry.large ? large_ones : small_ones).push_back(&entry);
   }
   const int large_count = count >= 1000 ? 20 : (count >= 100 ? 4 : 0);
   QJsonArray general;
@@ -360,8 +360,8 @@ void build_library(const QString& directory, int count, const std::vector<AssetT
   QJsonArray type;
   for (int index = 0; index < count; ++index) {
     const bool is_large = index < large_count;
-    const auto& entry = is_large ? *large[static_cast<std::size_t>(index) % large.size()]
-                                 : *small[static_cast<std::size_t>(index) % small.size()];
+    const auto& entry = is_large ? *large_ones[static_cast<std::size_t>(index) % large_ones.size()]
+                                 : *small_ones[static_cast<std::size_t>(index) % small_ones.size()];
     const auto id = asset_id(index + 1);
     write_bytes(QDir(directory).filePath(id + QStringLiteral(".psd")), entry.psd);
     write_bytes(QDir(directory).filePath(id + QStringLiteral(".png")), entry.png);
