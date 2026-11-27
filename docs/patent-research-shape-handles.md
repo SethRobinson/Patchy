@@ -230,7 +230,9 @@ whether US 6993709 was before the examiner.
   ([above](#center-point-snapping-github-695-follow-up)), and every US result named there was
   then read through the USPTO service. The later result pages are still open, and the USPTO
   service did not answer class or claim-text queries in the forms tried. Read them before the
-  points gain any further behaviour.
+  points gain any further behaviour. Held by this item on 2026-11-27 (GitHub #754): a Shift
+  step of 15 degrees on the polygon's vertex point. The Polygon drawing drag got that step;
+  it is a modifier on the tool's own drag and adds nothing to the points.
 - Adobe filings from 2019 to 2021 around Photoshop 22's shape controls (October 2020: a line
   defined by two control points with two end handles, on-canvas controls for polygons) were
   searched by keyword only.

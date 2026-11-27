@@ -105,9 +105,14 @@ struct LiveShapePoint {
 [[nodiscard]] bool live_polygon_is_regular(const LiveShapeParams& params) noexcept;
 [[nodiscard]] LiveShapePoint live_polygon_center(const LiveShapeParams& params) noexcept;
 [[nodiscard]] LiveShapePoint live_polygon_first_vertex(const LiveShapeParams& params) noexcept;
+// The step Shift snaps the first vertex direction of a Polygon drawing drag to, in degrees:
+// the step Rotate View, the Crop rotate and the shape tools' rotate use (GitHub #754).
+inline constexpr double kPolygonAngleSnapDegrees = 15.0;
+// `radians` at the nearest whole step of kPolygonAngleSnapDegrees (a tie goes away from 0).
+[[nodiscard]] double snap_polygon_angle(double radians) noexcept;
 // Puts the first vertex at (x, y) about the unchanged center: the radius and polygon_angle
-// follow exactly as in the Polygon tool's center-out drag; Sides and Star inset stay. False
-// (params untouched) when the point is under a pixel from the center.
+// follow exactly as in the Polygon tool's center-out drag without Shift; Sides and Star inset
+// stay. False (params untouched) when the point is under a pixel from the center.
 bool set_live_polygon_first_vertex(LiveShapeParams& params, double x, double y) noexcept;
 // Moves one end of a live line (`end`: the end point, else the start); the other end, the
 // weight and the arrowheads stay, and the box is refitted to the line the parameters

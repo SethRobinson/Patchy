@@ -5061,7 +5061,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
         }
       }
       settings.edits = std::move(edits);
-      commit_shape_appearance_edit(stroke_target_shape_layer_ids(), settings);
+      commit_shape_appearance_edit(options_bar_shape_layer_ids(), settings);
     }
     refresh_vector_stroke_dash_combo();  // a saved preset may no longer match
     refresh_shape_draw_controls();

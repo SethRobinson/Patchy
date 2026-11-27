@@ -2417,19 +2417,21 @@ private:
   // Shared body: writes `color` into the options-bar solid Fill (or an enabled
   // solid Stroke when the fill is No Fill) and applies that field to the
   // selected shape layers, as one undo step now or debounced. Callers gate it.
-  void apply_solid_color_to_shape_paint(QColor color, bool debounce);
+  void apply_solid_color_to_shape_paint(QColor color, bool debounce, bool fill_layers_too = false);
   // The options-bar appearance as ShapeAppearanceSettings with `fields` (or
   // the kind/stroke basics when empty) captured as its edits.
   [[nodiscard]] ShapeAppearanceSettings options_bar_appearance_settings(const std::vector<std::string>& fields) const;
   // apply_options_bar_appearance_to_active_shape without its live-controls
   // gate: builds the settings from the options bar and commits `fields`.
-  bool commit_options_bar_appearance_fields(const std::vector<std::string>& fields);
+  bool commit_options_bar_appearance_fields(const std::vector<std::string>& fields, bool fill_layers_too = false);
   void pick_vector_gradient(bool for_stroke);
   void pick_vector_pattern(bool for_stroke);
   [[nodiscard]] patchy::Layer* editable_active_vector_shape_layer();
   [[nodiscard]] std::vector<patchy::LayerId> editable_selected_shape_layer_ids() const;
-  // The editable selected shapes a stroke edit reaches: fill layers (no path) are left out (#583).
-  [[nodiscard]] std::vector<patchy::LayerId> stroke_target_shape_layer_ids() const;
+  // The selected shape layers the options bar shows and edits: those with a path. A Color,
+  // Gradient or Pattern fill layer is left out (GitHub #583, #754), so the bar's Fill and
+  // Stroke keep the next shape's values while one is selected.
+  [[nodiscard]] std::vector<patchy::LayerId> options_bar_shape_layer_ids() const;
   [[nodiscard]] bool vector_appearance_controls_live() const;
   // Resolves a pattern id to renderable tiles: document store first, then the
   // library, then the bundled presets (the rasterizer's own fallback order).
@@ -2569,10 +2571,11 @@ private:
   // The modal dialog under the preview-dialog edit lock: New Fill Layer's settings
   // (record_undo false), the options bar's color and pattern pickers (`editor`), and the
   // dialogs the stay-open window opens from its rows.
-  // stroke_edit: the editor changes only the stroke, so fill layers in the selection are skipped.
+  // options_bar_edit: the editor is one of the options bar's paint pickers, which leave the
+  // fill layers in the selection alone (options_bar_shape_layer_ids).
   bool edit_active_shape_appearance_modal(bool record_undo = true,
       std::function<std::optional<ShapeAppearanceSettings>(const ShapeAppearanceSettings&,
-          std::function<void(const ShapeAppearanceSettings&)>)> editor = {}, bool stroke_edit = false);
+          std::function<void(const ShapeAppearanceSettings&)>)> editor = {}, bool options_bar_edit = false);
   // The stay-open window's host side. A target is a session id and layer ids, resolved
   // again on every use; nothing here keeps a layer or document pointer between events.
   [[nodiscard]] QString shape_appearance_panel_unavailable_reason() const;

@@ -341,11 +341,17 @@ bool CanvasWidget::custom_shape_keep_proportions() const noexcept {
   return custom_shape_keep_proportions_;
 }
 
-// Center-out polygon/star: the first vertex points at the drag cursor.
+double CanvasWidget::polygon_drag_angle(QPointF center, QPointF radius_point) const {
+  const double angle = std::atan2(radius_point.y() - center.y(), radius_point.x() - center.x());
+  return shape_shift_constrained_ && tool_ == CanvasTool::Polygon ? snap_polygon_angle(angle) : angle;
+}
+
+// Center-out polygon/star: the first vertex points at the drag cursor, or with Shift along
+// the nearest 15 degree step at the cursor's distance (GitHub #754).
 PathSubpath CanvasWidget::polygon_drag_subpath(QPointF center, QPointF radius_point) const {
   const auto dx = radius_point.x() - center.x(), dy = radius_point.y() - center.y();
   return generate_polygon_subpath(center.x(), center.y(), std::hypot(dx, dy),
-      std::atan2(dy, dx), polygon_sides_, polygon_star_inset_);
+      polygon_drag_angle(center, radius_point), polygon_sides_, polygon_star_inset_);
 }
 
 void CanvasWidget::set_polygon_committed_callback(std::function<void(LiveShapeParams)> callback) {
@@ -368,7 +374,7 @@ void CanvasWidget::commit_polygon_drag(QPointF center, QPointF radius_point) {
     params.bottom = center.y() + radius;
     params.polygon_sides = polygon_sides_;
     params.polygon_star_inset = polygon_star_inset_;
-    params.polygon_angle = std::atan2(dy, dx);
+    params.polygon_angle = polygon_drag_angle(center, radius_point);
     polygon_committed_callback_(std::move(params));
     return;
   }

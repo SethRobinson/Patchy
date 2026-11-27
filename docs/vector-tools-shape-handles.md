@@ -126,7 +126,7 @@ drawing points are corners it already has.
 
 - **Polygon** (a star too): its center and its first vertex. Dragging the vertex
   sets the radius and `polygon_angle` exactly as the Polygon tool's center-out drag
-  does (`set_live_polygon_first_vertex`, the math of `commit_polygon_drag`), so the
+  does without Shift (`set_live_polygon_first_vertex`, the math of `commit_polygon_drag`), so the
   polygon turns and resizes about its center. Dragging the center moves it by the
   pointer's travel on whole pixels and snaps it like a whole-shape drag (below).
   Sides and Star inset never change.
@@ -148,8 +148,12 @@ press, inside the shape included, draws a new shape; Ctrl stays the temporary Pa
 Select; a click without travel changes nothing; Esc cancels. The vertex and a
 line's end go through `snapped_document_point_f` like the second point of the
 drawing drag (whole pixels, the snap targets, their own layer's edges excluded).
-Shift and Alt do nothing: the drawing drags of Polygon and Line have no modifier
-rule to repeat. A point dropped under a pixel from the other one is ignored and the
+Shift and Alt do nothing on the points. The Polygon drawing drag snaps its first
+vertex to 15 degree steps with Shift
+([vector-tools.md](vector-tools.md#polygon-custom-shape-and-line-arrowheads), GitHub
+#754); the vertex point does not repeat that, since any further behaviour of the points
+waits for the watch item of [legal](legal-constraints.md#shape-drag-points). Line has
+no modifier rule. A point dropped under a pixel from the other one is ignored and the
 shape stays as it last was.
 
 The center point moves the whole polygon, so it snaps as a

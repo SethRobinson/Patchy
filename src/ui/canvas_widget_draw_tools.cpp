@@ -421,7 +421,7 @@ QRect CanvasWidget::shape_drag_rect(QPoint anchor, QPoint current) const {
     return normalized_rect(anchor, current);
   }
   const auto style = shape_style_;
-  const bool square = shape_square_constrained_ ||
+  const bool square = shape_shift_constrained_ ||
                       (tool_ == CanvasTool::CustomShape && custom_shape_keep_proportions_);
   QRect rect;
   if (shape_from_center_) {

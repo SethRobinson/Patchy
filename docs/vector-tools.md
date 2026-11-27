@@ -141,7 +141,16 @@ extends. Delete removes a Ctrl-selected anchor.
 
 ## Polygon, Custom Shape, and line arrowheads
 
-Polygon drags center-out with Sides and a Star inset percent (0 = plain);
+Polygon drags center-out with Sides and a Star inset percent (0 = plain). Shift held
+during the drag snaps the first vertex's direction to 15 degree steps, so a triangle or
+star can be drawn upright (GitHub #754): `polygon_drag_angle` snaps the pointer's angle
+in document space through `snap_polygon_angle` (core) while `shape_shift_constrained_`
+is set, the radius stays the pointer's distance, and the rubber band, the committed
+`polygon_angle`, a Path mode path and the Pixels mode shape all read that one angle.
+Shift is folded from the drag's own press, move, release and key events, as for the
+Rectangle's square; Shift at the press also adds to the active shape layer (#313).
+Tests: `ui_shape_tool_polygon_shift_snaps_the_first_vertex_angle`,
+`polygon_drag_angle_snaps_to_fifteen_degree_steps` (core).
 Custom Shape stamps a library shape (unit box, own proportions) into the drag
 rect; Shift, Style Fixed Ratio 1 : 1 or the W/H link (the Properties panel's twin; the Custom
 Shape bar has the Style row in its place) keeps it square, so the shape

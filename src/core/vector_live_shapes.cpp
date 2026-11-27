@@ -699,6 +699,11 @@ LiveShapePoint live_polygon_first_vertex(const LiveShapeParams& params) noexcept
           center.y + (params.bottom - params.top) / 2.0 * std::sin(params.polygon_angle)};
 }
 
+double snap_polygon_angle(double radians) noexcept {
+  const double degrees = radians * 180.0 / std::numbers::pi;
+  return std::round(degrees / kPolygonAngleSnapDegrees) * kPolygonAngleSnapDegrees * std::numbers::pi / 180.0;
+}
+
 bool set_live_polygon_first_vertex(LiveShapeParams& params, double x, double y) noexcept {
   const auto center = live_polygon_center(params);
   const double dx = x - center.x;

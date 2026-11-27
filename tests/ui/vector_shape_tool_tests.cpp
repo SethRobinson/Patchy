@@ -9563,6 +9563,200 @@ void ui_polygon_and_custom_shape_paint_pixels() {
   }
 }
 
+// GitHub #754: a Color, Gradient or Pattern fill layer is not a shape the options bar shows.
+// With one selected (New Fill Layer leaves it selected) the bar's Fill stays the next shape's
+// fill, the next shape is drawn with it, and a Fill edit in the bar sets the next shape's
+// fill without repainting the fill layer (Fill Layer Settings edits that). A shape layer
+// still shows its fill in the bar, and in a mixed selection the shape drives the bar.
+void ui_options_bar_fill_skips_fill_layers() {
+  using patchy::ui::MainWindowTestAccess;
+  VectorSettingsGuard settings_guard;
+  const auto restorers = clear_shared_shape_row_settings();
+  const QColor red(0xdc, 0x1e, 0x1e);
+  const patchy::RgbColor red_rgb{0xdc, 0x1e, 0x1e};
+  store_own_shape_paints(red, QColor(0x1e, 0x3c, 0xdc), 3.0, false);
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = MainWindowTestAccess::document(window);
+  canvas->set_primary_color(Qt::black);
+  canvas->set_secondary_color(Qt::white);
+  canvas->set_snap_enabled(false);
+
+  // Layer > New Fill Layer > Gradient...: the layer is made and stays selected.
+  require_action(window, "layerNewGradientFillAction")->trigger();
+  QApplication::processEvents();
+  if (auto* panel = window.findChild<QDialog*>(QStringLiteral("shapeAppearanceWindow")); panel != nullptr) {
+    panel->close();
+  }
+  QApplication::processEvents();
+  const auto fill_id = document.active_layer_id();
+  CHECK(fill_id.has_value());
+  if (!fill_id.has_value()) {
+    return;
+  }
+  const auto fill_before = shape_content_of(document, *fill_id);
+  CHECK(fill_before.path.empty() && fill_before.fill.kind == patchy::VectorFillKind::Gradient);
+  const auto base_depth = MainWindowTestAccess::active_session_undo_depth(window);
+  const auto bar_fill = [&] { return MainWindowTestAccess::current_shape_appearance(window).fill; };
+  const auto fill_layer_unchanged = [&] {
+    const auto* layer = std::as_const(document).find_layer(*fill_id);
+    CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+    if (layer == nullptr || layer->vector_shape() == nullptr) {
+      return;
+    }
+    CHECK(layer->vector_shape()->fill == fill_before.fill);
+    CHECK(layer->vector_shape()->path.empty());
+  };
+
+  // The Polygon tool: the bar keeps its own red fill, in the model and on the swatch.
+  require_action(window, "toolPolygonAction")->trigger();
+  QApplication::processEvents();
+  auto* fill_swatch = window.findChild<QToolButton*>(QStringLiteral("vectorFillSwatchButton"));
+  auto* sides = window.findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin"));
+  auto* inset = window.findChild<QSpinBox*>(QStringLiteral("polygonStarInsetSpin"));
+  auto* mode = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  CHECK(fill_swatch != nullptr && sides != nullptr && inset != nullptr && mode != nullptr);
+  if (fill_swatch == nullptr || sides == nullptr || inset == nullptr || mode == nullptr) {
+    return;
+  }
+  sides->setValue(3);
+  inset->setValue(0);
+  QApplication::processEvents();
+  const auto swatch_color = [&] {
+    const QImage icon = fill_swatch->icon().pixmap(fill_swatch->iconSize()).toImage();
+    return icon.pixelColor(icon.width() / 2, icon.height() / 2);
+  };
+  CHECK(document.active_layer_id() == fill_id);
+  save_widget_artifact("issue_754_fill_layer_selected_polygon_bar", window);
+  const auto bar_with_fill_layer = bar_fill();
+  const QColor swatch_with_fill_layer = swatch_color();
+  const bool swatch_marked_mixed = fill_swatch->property("appearanceMixed").toBool();
+  const auto depth_with_fill_layer = MainWindowTestAccess::active_session_undo_depth(window);
+
+  // A triangle is drawn next. Shift, pressed after the press, makes it upright (the report's
+  // second half). Both shots are taken before anything is checked, so a run on code without
+  // the fix still saves them.
+  const auto widget = [&canvas](int x, int y) { return canvas->widget_position_for_document_point(QPoint(x, y)); };
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget(400, 420), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, widget(415, 250), Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget(415, 250), Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  save_widget_artifact("issue_754_triangle_drawn_over_gradient_fill_layer", window);
+
+  // With the fill layer selected the bar kept its own red fill, in the model and on the swatch.
+  CHECK(bar_with_fill_layer.kind == patchy::VectorFillKind::Solid && bar_with_fill_layer.color == red_rgb);
+  CHECK(fill_swatch->isVisible() && color_close(swatch_with_fill_layer, red, 12));
+  CHECK(!swatch_marked_mixed);
+  CHECK(depth_with_fill_layer == base_depth);
+  // The triangle is red, on its own layer, and upright; the fill layer keeps its gradient.
+  const auto triangle_id = document.active_layer_id();
+  CHECK(triangle_id.has_value() && triangle_id != fill_id);
+  if (!triangle_id.has_value() || triangle_id == fill_id) {
+    return;
+  }
+  {
+    const auto triangle = shape_content_of(document, *triangle_id);
+    CHECK(triangle.fill.kind == patchy::VectorFillKind::Solid && triangle.fill.color == red_rgb);
+    CHECK(triangle.path.subpaths.size() == 1 && triangle.path.subpaths.front().anchors.size() == 3);
+    if (triangle.path.subpaths.size() == 1 && triangle.path.subpaths.front().anchors.size() == 3) {
+      const auto& anchors = triangle.path.subpaths.front().anchors;
+      CHECK(std::abs(anchors[0].anchor_x - 400.0) < 1e-9);                // straight above the center
+      CHECK(std::abs(anchors[1].anchor_y - anchors[2].anchor_y) < 1e-9);  // a level base
+    }
+    // Beside the center, which carries the polygon's center point.
+    CHECK(color_close(canvas_pixel(*canvas, QPoint(400, 380)), red, 12));
+  }
+  fill_layer_unchanged();
+
+  // Every shape tool, and the Pen, reads the same bar with the fill layer selected again.
+  MainWindowTestAccess::select_layers(window, {*fill_id}, *fill_id);
+  QApplication::processEvents();
+  for (const char* tool : {"toolRectAction", "toolEllipseAction", "toolLineAction", "toolCustomShapeAction",
+                           "toolPenAction", "toolPolygonAction"}) {
+    require_action(window, tool)->trigger();
+    QApplication::processEvents();
+    CHECK(document.active_layer_id() == fill_id);
+    CHECK(bar_fill().kind == patchy::VectorFillKind::Solid && bar_fill().color == red_rgb);
+  }
+  // Pixels mode paints with the bar's fill too.
+  mode->setCurrentIndex(2);
+  QApplication::processEvents();
+  CHECK(canvas->shape_pixel_style().fill_paint.has_value() &&
+        canvas->shape_pixel_style().fill_paint->kind == patchy::VectorFillKind::Solid &&
+        canvas->shape_pixel_style().fill_paint->color == red_rgb);
+  mode->setCurrentIndex(0);
+  QApplication::processEvents();
+  fill_layer_unchanged();
+
+  // A Fill edit in the bar with the fill layer selected: the next shape's fill only.
+  MainWindowTestAccess::select_layers(window, {*fill_id}, *fill_id);
+  QApplication::processEvents();
+  CHECK(bar_fill().kind == patchy::VectorFillKind::Solid && bar_fill().color == red_rgb);
+  auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  const QColor teal(20, 150, 140);
+  const patchy::RgbColor teal_rgb{20, 150, 140};
+  canvas->set_primary_color(teal);
+  pick_paint_menu_entry(window, false, "vectorFillForegroundAction");
+  CHECK(bar_fill().kind == patchy::VectorFillKind::Solid && bar_fill().color == teal_rgb);
+  CHECK(color_close(swatch_color(), teal, 12));
+  fill_layer_unchanged();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  CHECK(!patchy::layer_vector_block_dirty(*std::as_const(document).find_layer(*fill_id)));
+  // Stroke only and Both, the bar's fill switch, leave it alone as well.
+  auto* stroke_only = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawStrokeButton"));
+  auto* both = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawBothButton"));
+  auto* fill_only = window.findChild<QAbstractButton*>(QStringLiteral("shapeDrawFillButton"));
+  CHECK(stroke_only != nullptr && both != nullptr && fill_only != nullptr);
+  if (stroke_only == nullptr || both == nullptr || fill_only == nullptr) {
+    return;
+  }
+  stroke_only->click();
+  QApplication::processEvents();
+  CHECK(bar_fill().kind == patchy::VectorFillKind::None);
+  fill_layer_unchanged();
+  both->click();
+  QApplication::processEvents();
+  fill_only->click();
+  QApplication::processEvents();
+  CHECK(bar_fill().kind == patchy::VectorFillKind::Solid && bar_fill().color == teal_rgb);
+  fill_layer_unchanged();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  // The canvas still shows the gradient fill layer under the triangle, not a teal canvas.
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(60, 60)), teal, 24));
+
+  // A shape layer still shows its fill in the bar ...
+  MainWindowTestAccess::select_layers(window, {*triangle_id}, *triangle_id);
+  QApplication::processEvents();
+  CHECK(bar_fill().kind == patchy::VectorFillKind::Solid && bar_fill().color == red_rgb);
+  CHECK(color_close(swatch_color(), red, 12));
+  // ... and takes the bar's edits, one undo step.
+  depth = MainWindowTestAccess::active_session_undo_depth(window);
+  pick_paint_menu_entry(window, false, "vectorFillForegroundAction");
+  CHECK(shape_content_of(document, *triangle_id).fill.color == teal_rgb);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+
+  // Both selected, the fill layer the active one: the shape's fill is the bar's, and the
+  // edit reaches the shape only.
+  const QColor orange(200, 120, 20);
+  const patchy::RgbColor orange_rgb{200, 120, 20};
+  MainWindowTestAccess::select_layers(window, {*fill_id, *triangle_id}, *fill_id);
+  QApplication::processEvents();
+  CHECK(bar_fill().kind == patchy::VectorFillKind::Solid && bar_fill().color == teal_rgb);
+  CHECK(fill_swatch->property("appearanceMixed").toBool() == false);
+  canvas->set_primary_color(orange);
+  depth = MainWindowTestAccess::active_session_undo_depth(window);
+  pick_paint_menu_entry(window, false, "vectorFillForegroundAction");
+  CHECK(shape_content_of(document, *triangle_id).fill.color == orange_rgb);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  fill_layer_unchanged();
+
+  // Back on the fill layer alone the bar keeps what it last showed, the next shape's fill.
+  MainWindowTestAccess::select_layers(window, {*fill_id}, *fill_id);
+  QApplication::processEvents();
+  CHECK(bar_fill().kind == patchy::VectorFillKind::Solid && bar_fill().color == orange_rgb);
+  CHECK(color_close(swatch_color(), orange, 12));
+  fill_layer_unchanged();
+}
+
 // Shape and Pixels modes share one saved fill paint and one stroke paint. Settings written
 // before that keep the look of the mode the tools were left in: a profile left in Pixels mode
 // gets the Pixels look moved into the shared values (the Fill checkbox or the draw mode, the
@@ -12029,6 +12223,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_options_bar_dash_combo_lists_saved_stroke_presets},
       {"ui_new_solid_fill_layer_uses_selection_mask", ui_new_solid_fill_layer_uses_selection_mask},
       {"ui_options_bar_stroke_skips_fill_layers", ui_options_bar_stroke_skips_fill_layers},
+      {"ui_options_bar_fill_skips_fill_layers", ui_options_bar_fill_skips_fill_layers},
       {"ui_new_fill_layer_clips_to_targeted_path", ui_new_fill_layer_clips_to_targeted_path},
       {"ui_shape_pattern_fill_uses_custom_library_pattern",
        ui_shape_pattern_fill_uses_custom_library_pattern},

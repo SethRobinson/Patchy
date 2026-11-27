@@ -3303,6 +3303,11 @@ private:
   // ride a preview transform (mapped through it, padded for anchor squares);
   // empty when nothing is previewing. Unioned into the drag repaint rects.
   [[nodiscard]] QRectF path_overlay_preview_document_rect() const;
+  // The first vertex's direction, in radians and in document space, for a Polygon drag from
+  // `center` to `radius_point`: toward the pointer, or the nearest 15 degree step while Shift
+  // is held (shape_shift_constrained_). The preview, the committed shape and Pixels mode all
+  // read it, so they agree.
+  [[nodiscard]] double polygon_drag_angle(QPointF center, QPointF radius_point) const;
   [[nodiscard]] patchy::PathSubpath polygon_drag_subpath(QPointF center, QPointF radius_point) const;
   void commit_polygon_drag(QPointF center, QPointF radius_point);
   void commit_custom_shape_drag(QRectF bounds);
@@ -4198,7 +4203,14 @@ private:
   [[nodiscard]] bool gradient_drag_makes_fill_layer() const;
   QPoint shape_start_{};
   QPoint shape_current_{};
-  bool shape_square_constrained_{false};
+  // Shift held during a shape drag, read from the drag's own events: a square for
+  // Rectangle, Ellipse and Custom Shape, and for Polygon the first vertex's direction in
+  // 15 degree steps (GitHub #754). Line has no Shift rule.
+  bool shape_shift_constrained_{false};
+  [[nodiscard]] bool shape_drag_takes_shift() const noexcept {
+    return tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse || tool_ == CanvasTool::CustomShape ||
+           tool_ == CanvasTool::Polygon;
+  }
   bool shape_from_center_{false};
   // Shift held at the shape press: set per press, cleared once the release commits.
   bool shape_press_adds_to_shape_{false};

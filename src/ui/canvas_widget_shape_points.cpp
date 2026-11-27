@@ -212,7 +212,9 @@ void CanvasWidget::update_shape_point_drag(QPointF widget_point) {
     translate_live_shape_params(edited, total.x(), total.y());
   } else {
     // The vertex or the line's end follows the pointer through the snap targets on whole
-    // pixels, as the second point of the drawing drag does.
+    // pixels, as the second point of the drawing drag does. No modifier changes it: the
+    // drawing drag's Shift step (GitHub #754) is not repeated on the vertex point until the
+    // watch item of docs/legal-constraints.md, "Shape drag points", is read.
     const auto target = snapped_document_point_f(pointer + drag.grab_offset);
     const bool placed = drag.kind == ShapePointsKind::Polygon
                             ? set_live_polygon_first_vertex(edited, target.x(), target.y())

@@ -668,6 +668,182 @@ void ui_shape_tool_polygon_vertex_point_sets_size_and_angle_in_one_undo_step() {
   CHECK(document.layers().size() == initial_layers);
 }
 
+// GitHub #754: Shift held during a Polygon drag snaps the first vertex's direction to 15
+// degree steps, so a triangle or a star can be drawn exactly upright; the radius is still
+// the pointer's distance. Shift is read from the drag's own events: pressed after the press
+// it only constrains, held at the press it also adds to the active shape layer (#313). The
+// preview, the committed shape, a Path mode path and Pixels mode all use the same angle.
+void ui_shape_tool_polygon_shift_snaps_the_first_vertex_angle() {
+  VectorSettingsGuard settings_guard;
+  SettingsValueRestorer saved_sides(QStringLiteral("tools/polygonSides"));
+  SettingsValueRestorer saved_inset(QStringLiteral("tools/polygonStarInset"));
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto initial_layers = document.layers().size();
+  const double pi = 3.14159265358979323846;
+  const auto widget = [&canvas](int x, int y) { return canvas->widget_position_for_document_point(QPoint(x, y)); };
+  const auto press = [&](int x, int y, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    send_mouse(*canvas, QEvent::MouseButtonPress, widget(x, y), Qt::LeftButton, Qt::LeftButton, modifiers);
+  };
+  const auto move = [&](int x, int y, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    send_mouse(*canvas, QEvent::MouseMove, widget(x, y), Qt::NoButton, Qt::LeftButton, modifiers);
+  };
+  const auto release = [&](int x, int y, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    send_mouse(*canvas, QEvent::MouseButtonRelease, widget(x, y), Qt::LeftButton, Qt::NoButton, modifiers);
+    QApplication::processEvents();
+  };
+  const auto undo = [&] {
+    require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+    QApplication::processEvents();
+  };
+  const double radius = std::hypot(18.0, 180.0);
+
+  // A triangle dragged from (300, 300) roughly upward, to (318, 120): 5.7 degrees off upright.
+  use_polygon_tool(window, *canvas, 3, 0);
+  // Without Shift the first vertex is at the pointer, as before.
+  shape_drag(*canvas, QPoint(300, 300), QPoint(318, 120));
+  CHECK(document.layers().size() == initial_layers + 1);
+  auto live = live_shape(document, *document.active_layer_id());
+  CHECK(live.has_value() && std::abs(live->polygon_angle - std::atan2(-180.0, 18.0)) < 1e-12);
+  undo();
+  CHECK(document.layers().size() == initial_layers);
+
+  // Shift pressed after the press: the same drag makes an upright triangle on a new layer.
+  // The radius is the pointer's distance and the vertex sits exactly above the center.
+  press(300, 300);
+  move(318, 120, Qt::ShiftModifier);
+  // The preview shows the snapped triangle: (294, 140) is inside it and outside the one
+  // that pointed at the pointer, and (322, 140) the other way round.
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(294, 140)), Qt::black, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(322, 140)), Qt::white, 8));
+  save_widget_artifact("issue_754_polygon_shift_drag_preview", *canvas);
+  release(318, 120, Qt::ShiftModifier);
+  CHECK(document.layers().size() == initial_layers + 1);
+  const auto upright_id = *document.active_layer_id();
+  live = live_shape(document, upright_id);
+  CHECK(live.has_value());
+  if (live.has_value()) {
+    CHECK(std::abs(live->polygon_angle + (pi / 2.0)) < 1e-12);
+    CHECK(std::abs(live->left - (300.0 - radius)) < 1e-9 && std::abs(live->right - (300.0 + radius)) < 1e-9);
+    CHECK(std::abs(live->top - (300.0 - radius)) < 1e-9 && std::abs(live->bottom - (300.0 + radius)) < 1e-9);
+  }
+  if (const auto* layer = std::as_const(document).find_layer(upright_id); layer != nullptr) {
+    const auto& anchors = layer->vector_shape()->path.subpaths.front().anchors;
+    CHECK(anchors.size() == 3);
+    CHECK(!anchors.empty() && std::abs(anchors.front().anchor_x - 300.0) < 1e-9 &&
+          std::abs(anchors.front().anchor_y - (300.0 - radius)) < 1e-9);
+    // Upright: the two base points are level.
+    CHECK(anchors.size() == 3 && std::abs(anchors[1].anchor_y - anchors[2].anchor_y) < 1e-9);
+  }
+  CHECK(points_near(*canvas, patchy::ui::CanvasWidget::ShapePointsKind::Polygon, QPointF(300.0, 300.0),
+                    QPointF(300.0, 300.0 - radius)));
+  save_widget_artifact("issue_754_polygon_shift_upright_triangle", *canvas);
+  undo();
+  CHECK(document.layers().size() == initial_layers);
+
+  // The nearest step: 20.6 degrees above the right goes to 15, 40 degrees to 45.
+  press(300, 260);
+  move(380, 230, Qt::ShiftModifier);
+  release(380, 230, Qt::ShiftModifier);
+  live = live_shape(document, *document.active_layer_id());
+  CHECK(live.has_value() && std::abs(live->polygon_angle + (pi / 12.0)) < 1e-12);
+  CHECK(live.has_value() && std::abs((live->right - live->left) / 2.0 - std::hypot(80.0, 30.0)) < 1e-9);
+  undo();
+  press(300, 260);
+  move(370, 201, Qt::ShiftModifier);
+  release(370, 201, Qt::ShiftModifier);
+  live = live_shape(document, *document.active_layer_id());
+  CHECK(live.has_value() && std::abs(live->polygon_angle + (pi / 4.0)) < 1e-12);
+  undo();
+
+  // Shift let go before the release: the vertex is at the pointer again.
+  press(300, 300);
+  move(318, 120, Qt::ShiftModifier);
+  release(318, 120);
+  live = live_shape(document, *document.active_layer_id());
+  CHECK(live.has_value() && std::abs(live->polygon_angle - std::atan2(-180.0, 18.0)) < 1e-12);
+  undo();
+  CHECK(document.layers().size() == initial_layers);
+
+  // Shift pressed and released with the pointer still: the preview follows the key.
+  press(300, 300);
+  move(318, 120);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(322, 140)), Qt::black, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(294, 140)), Qt::white, 8));
+  send_key_press(*canvas, Qt::Key_Shift);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(294, 140)), Qt::black, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(322, 140)), Qt::white, 8));
+  send_key_release(*canvas, Qt::Key_Shift, Qt::ShiftModifier);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(322, 140)), Qt::black, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(294, 140)), Qt::white, 8));
+  send_key_press(*canvas, Qt::Key_Shift);
+  release(318, 120, Qt::ShiftModifier);
+  CHECK(document.layers().size() == initial_layers + 1);
+  const auto first_id = *document.active_layer_id();
+  live = live_shape(document, first_id);
+  CHECK(live.has_value() && std::abs(live->polygon_angle + (pi / 2.0)) < 1e-12);
+
+  // Shift held at the press adds the polygon to that shape layer (GitHub issue 313), and
+  // held through the drag it snaps this one too: no new layer, a second upright triangle.
+  shape_drag(*canvas, QPoint(600, 300), QPoint(604, 240), Qt::ShiftModifier);
+  CHECK(document.layers().size() == initial_layers + 1);
+  CHECK(document.active_layer_id() == first_id);
+  if (const auto* layer = std::as_const(document).find_layer(first_id); layer != nullptr) {
+    const auto* content = layer->vector_shape();
+    CHECK(content->path.subpaths.size() == 2);
+    CHECK(content->origination.size() == 2);
+    if (content->path.subpaths.size() == 2 && content->origination.size() == 2) {
+      CHECK(content->path.subpaths[1].op == patchy::PathCombineOp::Add);
+      CHECK(content->origination[1].kind == patchy::LiveShapeKind::Polygon);
+      CHECK(std::abs(content->origination[1].polygon_angle + (pi / 2.0)) < 1e-12);
+      CHECK(std::abs(content->path.subpaths[1].anchors.front().anchor_x - 600.0) < 1e-9);
+    }
+  }
+  undo();
+  undo();
+  CHECK(document.layers().size() == initial_layers);
+
+  // Path mode: the work path gets the snapped polygon.
+  use_vector_mode(window, 1);
+  press(300, 300);
+  move(318, 120, Qt::ShiftModifier);
+  release(318, 120, Qt::ShiftModifier);
+  CHECK(document.layers().size() == initial_layers);
+  live = work_path_live_shape(document);
+  CHECK(live.has_value() && std::abs(live->polygon_angle + (pi / 2.0)) < 1e-12);
+  CHECK(live.has_value() && std::abs((live->right - live->left) / 2.0 - radius) < 1e-9);
+  undo();
+
+  // Pixels mode: the pending shape, and the pixels it paints, are the upright triangle.
+  use_vector_mode(window, 2);
+  for (const char* name : {"shapePixelOpacitySpin", "shapePixelSoftSpin"}) {
+    if (auto* spin = window.findChild<QSpinBox*>(QLatin1String(name)); spin != nullptr) {
+      spin->setValue(name == std::string("shapePixelOpacitySpin") ? 100 : 0);
+    }
+  }
+  QApplication::processEvents();
+  press(600, 400);
+  move(618, 220, Qt::ShiftModifier);
+  release(618, 220, Qt::ShiftModifier);
+  CHECK(canvas->has_pending_pixel_shape());
+  CHECK(canvas->commit_pending_pixel_shape());
+  QApplication::processEvents();
+  CHECK(document.layers().size() == initial_layers);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(594, 240)), Qt::black, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(622, 240)), Qt::white, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(600, 400)), Qt::black, 8));
+  undo();
+  // Without Shift it points at the pointer, as before.
+  press(600, 400);
+  move(618, 220);
+  release(618, 220);
+  CHECK(canvas->commit_pending_pixel_shape());
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(622, 240)), Qt::black, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(594, 240)), Qt::white, 8));
+  undo();
+}
+
 void ui_shape_tool_polygon_center_point_moves_and_escape_cancels() {
   VectorSettingsGuard settings_guard;
   SettingsValueRestorer saved_sides(QStringLiteral("tools/polygonSides"));
@@ -1402,6 +1578,8 @@ std::vector<patchy::test::TestCase> shape_resize_handles_tests() {
        ui_shape_tool_handles_show_only_for_an_editable_shape_layer},
       {"ui_shape_tool_polygon_vertex_point_sets_size_and_angle_in_one_undo_step",
        ui_shape_tool_polygon_vertex_point_sets_size_and_angle_in_one_undo_step},
+      {"ui_shape_tool_polygon_shift_snaps_the_first_vertex_angle",
+       ui_shape_tool_polygon_shift_snaps_the_first_vertex_angle},
       {"ui_shape_tool_polygon_center_point_moves_and_escape_cancels",
        ui_shape_tool_polygon_center_point_moves_and_escape_cancels},
       {"ui_shape_tool_line_end_points_re_aim_a_live_line", ui_shape_tool_line_end_points_re_aim_a_live_line},

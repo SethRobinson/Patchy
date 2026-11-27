@@ -1515,6 +1515,41 @@ void live_shape_rotation_keeps_what_its_parameters_can_say() {
   CHECK(!patchy::rotate_live_shape_params(custom, 0.0, 0.0, 90.0).has_value());
 }
 
+// GitHub #754: Shift on a polygon's drawing drag snaps the first vertex's direction to 15
+// degree steps: the nearest step, a tie away from zero, and a polygon generated at a snapped
+// angle of a quarter turn has its first vertex exactly above, below or beside its center.
+void polygon_drag_angle_snaps_to_fifteen_degree_steps() {
+  const double step = std::numbers::pi / 12.0;
+  CHECK(patchy::kPolygonAngleSnapDegrees == 15.0);
+  CHECK(patchy::snap_polygon_angle(0.0) == 0.0);
+  for (int k = -24; k <= 24; ++k) {
+    // A step stays, and so does anything under half a step from it.
+    CHECK(std::fabs(patchy::snap_polygon_angle(k * step) - (k * step)) < 1e-12);
+    CHECK(std::fabs(patchy::snap_polygon_angle((k * step) + (0.49 * step)) - (k * step)) < 1e-12);
+    CHECK(std::fabs(patchy::snap_polygon_angle((k * step) - (0.49 * step)) - (k * step)) < 1e-12);
+  }
+  CHECK(std::fabs(patchy::snap_polygon_angle(std::atan2(-180.0, 18.0)) + (std::numbers::pi / 2.0)) < 1e-12);
+  CHECK(std::fabs(patchy::snap_polygon_angle(std::atan2(-30.0, 80.0)) + step) < 1e-12);
+
+  patchy::LiveShapeParams polygon;
+  polygon.kind = patchy::LiveShapeKind::Polygon;
+  polygon.left = 40;
+  polygon.top = 40;
+  polygon.right = 160;
+  polygon.bottom = 160;
+  polygon.polygon_sides = 3;
+  // A drag from the center (100, 100) to (106, 20), a little right of straight up, snapped:
+  // an upright triangle with its first vertex exactly above the center and a level base.
+  polygon.polygon_angle = patchy::snap_polygon_angle(std::atan2(-80.0, 6.0));
+  CHECK(std::fabs(polygon.polygon_angle + (std::numbers::pi / 2.0)) < 1e-12);
+  const auto vertex = patchy::live_polygon_first_vertex(polygon);
+  CHECK(std::fabs(vertex.x - 100.0) < 1e-9 && std::fabs(vertex.y - 40.0) < 1e-9);
+  const auto anchors = patchy::generate_live_shape_subpaths(polygon).front().anchors;
+  CHECK(anchors.size() == 3);
+  CHECK(std::fabs(anchors[0].anchor_x - 100.0) < 1e-9 && std::fabs(anchors[0].anchor_y - 40.0) < 1e-9);
+  CHECK(std::fabs(anchors[1].anchor_y - anchors[2].anchor_y) < 1e-9);  // a level base
+}
+
 // GitHub #690 follow-up: the two drag points of a live Polygon (center, first vertex) and of
 // a live Line (its ends) edit the parameters the way the drawing drag sets them, the shape
 // regenerates from them, and both reopen from a PSD as live shapes.
@@ -3694,6 +3729,7 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"live_polygon_regenerates_resolves_and_writes_a_plain_path",
        live_polygon_regenerates_resolves_and_writes_a_plain_path},
       {"psd_reopened_polygons_are_recognized_as_live", psd_reopened_polygons_are_recognized_as_live},
+      {"polygon_drag_angle_snaps_to_fifteen_degree_steps", polygon_drag_angle_snaps_to_fifteen_degree_steps},
       {"live_shape_drag_points_edit_polygon_and_line_parameters",
        live_shape_drag_points_edit_polygon_and_line_parameters},
       {"live_shape_rotation_keeps_what_its_parameters_can_say",

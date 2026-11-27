@@ -2070,14 +2070,13 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       spacebar_repositioning_drag_rect_ = false;
       shape_start_ = snapped_point;
       shape_current_ = snapped_point;
-      shape_square_constrained_ = (event->modifiers() & Qt::ShiftModifier) != 0 &&
-                                  (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
-                          tool_ == CanvasTool::CustomShape);
+      shape_shift_constrained_ = (event->modifiers() & Qt::ShiftModifier) != 0 && shape_drag_takes_shift();
       shape_from_center_ = (event->modifiers() & Qt::AltModifier) != 0 &&
                            (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
                           tool_ == CanvasTool::CustomShape);
       // Shift at the press also adds this one shape to the targeted shape layer
-      // (GitHub issue 313); Shift during the drag still only constrains.
+      // (GitHub issue 313); Shift during the drag still only constrains (a Polygon's first
+      // vertex to 15 degree steps, GitHub #754).
       shape_press_adds_to_shape_ = vector_shape_drag && (event->modifiers() & Qt::ShiftModifier) != 0;
       update();
     }
@@ -2679,9 +2678,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     } else {
       shape_current_ = snapped_document_point(document_point);
     }
-    shape_square_constrained_ = (event->modifiers() & Qt::ShiftModifier) != 0 &&
-                                (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
-                          tool_ == CanvasTool::CustomShape);
+    shape_shift_constrained_ = (event->modifiers() & Qt::ShiftModifier) != 0 && shape_drag_takes_shift();
     shape_from_center_ = (event->modifiers() & Qt::AltModifier) != 0 &&
                          (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
                           tool_ == CanvasTool::CustomShape);
@@ -4172,9 +4169,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     } else {
       shape_current_ = snapped_point;
     }
-    shape_square_constrained_ = (event->modifiers() & Qt::ShiftModifier) != 0 &&
-                                (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
-                          tool_ == CanvasTool::CustomShape);
+    shape_shift_constrained_ = (event->modifiers() & Qt::ShiftModifier) != 0 && shape_drag_takes_shift();
     shape_from_center_ = (event->modifiers() & Qt::AltModifier) != 0 &&
                          (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
                           tool_ == CanvasTool::CustomShape);
@@ -4287,7 +4282,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         const double radius = std::hypot(delta.x(), delta.y());
         if (dragged && radius >= 1.0) {
           begin_pending_pixel_shape(tool_, QRectF(center.x() - radius, center.y() - radius, radius * 2.0, radius * 2.0),
-                                    std::atan2(delta.y(), delta.x()));
+                                    polygon_drag_angle(center, QPointF(shape_current_)));
         }
       } else if (dragged || shape_style_ == MarqueeStyle::FixedSize) {
         const auto corner_rect = normalized_rect(shape_from, shape_end);
@@ -4806,12 +4801,13 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   }
 
   // Shift/Alt toggled mid-shape-drag arrives as a key event, not a mouse move; update
-  // the square/from-center constraints so a stationary cursor still snaps.
+  // the square/from-center constraints so a stationary cursor still snaps. A Polygon drag
+  // takes Shift only (its first vertex in 15 degree steps, GitHub #754).
   if (drawing_shape_ && !spacebar_repositioning_drag_rect_ &&
       (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) && !event->isAutoRepeat() &&
-      (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse || tool_ == CanvasTool::CustomShape)) {
+      shape_drag_takes_shift() && (event->key() == Qt::Key_Shift || tool_ != CanvasTool::Polygon)) {
     if (event->key() == Qt::Key_Shift) {
-      shape_square_constrained_ = true;
+      shape_shift_constrained_ = true;
     } else {
       shape_from_center_ = true;
     }
@@ -5378,7 +5374,7 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
   if (drawing_shape_ && !spacebar_repositioning_drag_rect_ &&
       (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) && !event->isAutoRepeat()) {
     if (event->key() == Qt::Key_Shift) {
-      shape_square_constrained_ = false;
+      shape_shift_constrained_ = false;
     } else {
       shape_from_center_ = false;
     }
