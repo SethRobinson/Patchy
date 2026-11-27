@@ -2633,6 +2633,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/pat_asl_abr_tests.cpp
     tests/core/contour_tests.cpp
     tests/core/pattern_styles_fixtures_tests.cpp
+    tests/core/pattern_resolution_tests.cpp
     tests/core/pattern_sampler_tests.cpp
     tests/core/photo_develop_tests.cpp
     tests/core/photo_divide_tests.cpp
@@ -2783,6 +2784,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/layer_panel_organization_tests_cross_document.cpp
       tests/ui/layer_panel_organization_tests_files_as_layers.cpp
       tests/ui/layer_effect_rows_tests.cpp
+      tests/ui/layer_style_library_pattern_tests.cpp
       tests/ui/move_tool_processing_overlay_tests.cpp
       tests/ui/move_transform_zones_tests.cpp
       tests/ui/shape_resize_handles_tests.cpp

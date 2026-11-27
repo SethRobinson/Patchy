@@ -457,6 +457,54 @@ std::optional<std::vector<std::uint8_t>> repair_multichannel_patterns(
   return changed ? std::optional(std::move(repaired.bytes())) : std::nullopt;
 }
 
+std::optional<std::vector<std::uint8_t>> replace_placeholder_patterns(
+    std::span<const std::uint8_t> payload, const PatternStore& store) {
+  if (store.empty()) {
+    return std::nullopt;
+  }
+  BigEndianReader reader(payload);
+  BigEndianWriter replaced;
+  bool changed = false;
+  try {
+    while (reader.remaining() >= 16U) {
+      const auto start = reader.position();
+      const auto length = reader.read_u32();
+      if (length < 16U || length > reader.remaining()) {
+        return std::nullopt;
+      }
+      const auto body = reader.read_span(length);
+      const auto padding = (4U - (length % 4U)) % 4U;
+      reader.skip(std::min<std::size_t>(padding, reader.remaining()));
+      const auto record = payload.subspan(start, reader.position() - start);
+      BigEndianReader header(body);
+      const auto version = header.read_u32();
+      header.skip(4U);  // mode
+      const auto height = header.read_u16();
+      const auto width = header.read_u16();
+      if (version == kPatternVersion && width == 1U && height == 1U) {
+        BigEndianReader pattern_reader(record);
+        const auto placeholder = parse_single_pattern(pattern_reader, nullptr);
+        if (placeholder.has_value() && pattern_tile_is_unrenderable(placeholder->tile)) {
+          const auto* healed = store.find(placeholder->id);
+          if (healed != nullptr && !pattern_tile_is_unrenderable(healed->tile)) {
+            const auto replacement = serialize_patterns_block(std::span(healed, 1U));
+            if (!replacement.empty()) {
+              replaced.write_bytes(replacement);
+              changed = true;
+              continue;
+            }
+          }
+        }
+      }
+      replaced.write_bytes(record);
+    }
+    replaced.write_bytes(reader.read_span(reader.remaining()));
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+  return changed ? std::optional(std::move(replaced.bytes())) : std::nullopt;
+}
+
 std::vector<std::uint8_t> serialize_patterns_block(std::span<const PatternResource> patterns) {
   BigEndianWriter block;
   for (const auto& resource : patterns) {

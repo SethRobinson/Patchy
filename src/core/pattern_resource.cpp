@@ -101,6 +101,64 @@ void collect_referenced_pattern_ids(const Layer& layer, std::vector<std::string>
   }
 }
 
+namespace {
+
+// The active pattern paints of a shape, a multi-part shape's included (its parts replace
+// the top-level fill and stroke when it is drawn).
+template <typename Visit>
+void for_each_pattern_paint(const VectorShapeContent& content, const Visit& visit) {
+  const auto visit_paint = [&visit](const VectorFill& paint) {
+    if (paint.kind == VectorFillKind::Pattern && !paint.pattern_id.empty()) {
+      visit(paint.pattern_id);
+    }
+  };
+  visit_paint(content.fill);
+  visit_paint(content.stroke.content);
+  for (const auto& part : content.parts) {
+    visit_paint(part.fill);
+    visit_paint(part.stroke.content);
+  }
+}
+
+void collect_unresolved_pattern_ids(std::span<const Layer> layers, const PatternStore& store,
+                                    std::vector<std::string>& ids) {
+  for (const auto& layer : layers) {
+    std::vector<std::string> referenced;
+    collect_referenced_pattern_ids(layer, referenced);
+    if (const auto* content = layer.vector_shape(); content != nullptr) {
+      for_each_pattern_paint(*content,
+                             [&referenced](const std::string& id) { append_referenced_id(referenced, id); });
+    }
+    for (const auto& id : referenced) {
+      const auto* resource = store.find(id);
+      if (resource == nullptr || pattern_tile_is_unrenderable(resource->tile)) {
+        append_referenced_id(ids, id);
+      }
+    }
+    collect_unresolved_pattern_ids(layer.children(), store, ids);
+  }
+}
+
+}  // namespace
+
+std::vector<std::string> unresolved_pattern_ids(std::span<const Layer> layers, const PatternStore& store) {
+  std::vector<std::string> ids;
+  collect_unresolved_pattern_ids(layers, store, ids);
+  return ids;
+}
+
+bool vector_shape_paints_with_pattern(const Layer& layer, std::span<const std::string> ids) {
+  const auto* content = layer.vector_shape();
+  if (content == nullptr) {
+    return false;
+  }
+  bool found = false;
+  for_each_pattern_paint(*content, [&found, ids](const std::string& id) {
+    found = found || std::find(ids.begin(), ids.end(), id) != ids.end();
+  });
+  return found;
+}
+
 void collect_referenced_pattern_resources(const Layer& layer, const PatternStore& store,
                                           std::vector<PatternResource>& resources) {
   std::vector<std::string> ids;

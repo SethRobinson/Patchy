@@ -4,6 +4,7 @@
 #include "core/pixel_buffer.hpp"
 
 #include <array>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -57,6 +58,17 @@ void collect_referenced_pattern_ids(const LayerStyle& style, std::vector<std::st
 // Photoshop refuses to open a file whose fill references a pattern it cannot
 // resolve anywhere ("program error").
 void collect_referenced_pattern_ids(const Layer& layer, std::vector<std::string>& ids);
+
+// Every pattern id these layers and their children reference whose tile `store` lacks or
+// cannot render (pattern_tile_is_unrenderable): the ids above plus the paints of a
+// multi-part shape, deduped, in first-reference order. A document takes these tiles from
+// the pattern library when it has them (GitHub issue 755).
+[[nodiscard]] std::vector<std::string> unresolved_pattern_ids(std::span<const Layer> layers,
+                                                              const PatternStore& store);
+
+// True when one of the shape's active pattern paints (fill, stroke, or a part's) names one
+// of `ids`.
+[[nodiscard]] bool vector_shape_paints_with_pattern(const Layer& layer, std::span<const std::string> ids);
 
 // Appends the resources referenced by `layer` (and children) that resolve in
 // `store` (mirror of collect_referenced_smart_object_sources).

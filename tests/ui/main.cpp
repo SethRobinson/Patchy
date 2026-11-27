@@ -445,6 +445,7 @@ int main(int argc, char* argv[]) {
            brush_pattern_palette_tests,
            layer_panel_organization_tests,
            layer_effect_rows_tests,
+           layer_style_library_pattern_tests,
            move_tool_processing_overlay_tests,
            move_transform_zones_tests,
            shape_resize_handles_tests,

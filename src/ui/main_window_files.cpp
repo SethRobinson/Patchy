@@ -3149,6 +3149,8 @@ MainWindow::AddFilesAsLayersResult MainWindow::add_files_as_layers(
     return result;
   }
   live_target->document = std::move(staged);
+  // A file added as layers can name patterns only the library has (GitHub issue 755).
+  (void)adopt_library_patterns(live_target->document);
   result.added_root_ids_top_to_bottom = std::move(added_top_to_bottom);
   return result;
 }
@@ -4592,6 +4594,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     layer_thumbnail_cache_.clear();
     channel_thumbnail_cache_.clear();
     target_session.document = std::move(loaded->document);
+    (void)adopt_library_patterns(target_session.document);  // as add_document_session does
     target_session.content_extension = loaded->content_extension;
     target_session.import_requires_save_as = loaded->import_requires_save_as;
     target_session.import_notes = loaded->import_notices;

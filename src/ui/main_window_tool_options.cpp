@@ -775,6 +775,8 @@ PatternLibrary& MainWindow::pattern_library() {
       refresh_pattern_stamp_pattern_combo();
       apply_pattern_stamp_settings_to_canvas(canvas_);
       schedule_save_tool_settings();
+      // An open document that was waiting for a pattern shows it once the library has it.
+      adopt_library_patterns_in_open_documents();
     });
     if (preseeded > 0) {
       emit pattern_library_->changed();  // what the seeding below emits when it runs here

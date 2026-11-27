@@ -4347,6 +4347,17 @@ private:
   std::shared_ptr<StartupLibraryPreloads> library_preloads_;
   void start_library_preloads();
   void adopt_preloaded_pattern_library();
+  // A document whose layers name a pattern it does not hold takes the tile from the pattern
+  // library, or from the bundled presets, as the Layer Style pickers already present it
+  // (GitHub issue 755, docs/style-presets-patterns.md). Not an edit: no history step, and the
+  // document is not marked modified. The library is asked for only when a tile is missing.
+  // True when a tile was taken; the caller refreshes the canvas.
+  bool adopt_library_patterns(Document& target);
+  // The same for every open document, refreshing each canvas that gained a tile. While a
+  // preview dialog holds the edit lock it waits for the lock's release: such a dialog puts
+  // the document's pattern store back when it closes.
+  void adopt_library_patterns_in_open_documents();
+  bool library_patterns_adoption_pending_{false};
   // Test seam: while held, the pattern preload worker of every window constructed afterwards
   // keeps its result back until that window asks for the library (pattern_library()), the
   // window is destroyed, or the hold is released, so a test can drive a window whose

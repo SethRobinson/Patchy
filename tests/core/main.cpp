@@ -155,6 +155,7 @@ int main(int argc, char** argv) {
            smart_filter_gallery_tests,
            psd_writer_stability_tests,
            pattern_styles_fixtures_tests,
+           pattern_resolution_tests,
            pattern_sampler_tests,
            adjustments_curves_tests,
            adjustment_preset_files_tests,

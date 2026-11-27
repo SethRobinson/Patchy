@@ -31,6 +31,7 @@ std::vector<patchy::test::TestCase> layer_menu_commands_tests();
 std::vector<patchy::test::TestCase> brush_pattern_palette_tests();
 std::vector<patchy::test::TestCase> layer_panel_organization_tests();
 std::vector<patchy::test::TestCase> layer_effect_rows_tests();
+std::vector<patchy::test::TestCase> layer_style_library_pattern_tests();
 std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests();
 std::vector<patchy::test::TestCase> move_transform_zones_tests();
 std::vector<patchy::test::TestCase> shape_resize_handles_tests();

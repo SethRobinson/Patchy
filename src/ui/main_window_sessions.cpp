@@ -114,6 +114,8 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->fit_view_on_first_activation = background;
   session->session_id = next_session_id_++;
   session->document = std::move(document);
+  // Before the first render, and before anything could count as an edit (GitHub issue 755).
+  (void)adopt_library_patterns(session->document);
   if (session->document.guides().empty() && session->document.grid_settings().horizontal_cycle_32 == 576 &&
       session->document.grid_settings().vertical_cycle_32 == 576) {
     session->document.grid_settings().horizontal_cycle_32 = view_grid_spacing_32_;

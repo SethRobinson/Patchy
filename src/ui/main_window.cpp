@@ -15098,6 +15098,15 @@ void MainWindow::end_preview_dialog_edit_lock() {
   update_document_action_state();
   update_undo_redo_actions();
   refresh_layer_controls();
+  if (library_patterns_adoption_pending_) {
+    // The library changed under the dialog. Its caller is still putting the document back
+    // or committing it, so this runs once that is done.
+    QTimer::singleShot(0, this, [this] {
+      if (library_patterns_adoption_pending_) {
+        adopt_library_patterns_in_open_documents();
+      }
+    });
+  }
 }
 
 bool MainWindow::preview_dialog_edit_locked() const noexcept {

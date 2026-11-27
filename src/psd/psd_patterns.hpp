@@ -81,6 +81,14 @@ struct PatternDecodeBudget {
 [[nodiscard]] std::optional<std::vector<std::uint8_t>> repair_multichannel_patterns(
     std::span<const std::uint8_t> payload);
 
+// A file saved while a referenced pattern had no tile carries the writer's 1x1 fully
+// transparent placeholder under that id (psd_document_io.cpp). Once the document holds a
+// real tile for the id (taken from the pattern library, GitHub issue 755), the placeholder
+// record is replaced by that tile, keeping its id and name. Only 1x1 records are decoded;
+// every other record stays verbatim. Nullopt means nothing was replaced.
+[[nodiscard]] std::optional<std::vector<std::uint8_t>> replace_placeholder_patterns(
+    std::span<const std::uint8_t> payload, const PatternStore& store);
+
 // Serializes resources into one pattern-block payload: version 1, RGB mode, 8-bit,
 // raw (compression 0) planar channels — the exact shape PS 27.8 writes for small
 // tiles — with the transparency plane written only when some pixel is not opaque.

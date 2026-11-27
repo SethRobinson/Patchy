@@ -3238,8 +3238,10 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
             text_engine_emitted = true;
           } else if (block.key == "Patt" || block.key == "Pat2" || block.key == "Pat3") {
             const auto repaired = repair_multichannel_patterns(block.payload);
-            emit_global_payload(block.key, repaired.has_value() ? *repaired : block.payload,
-                                block.long_length);
+            const auto& repaired_payload = repaired.has_value() ? *repaired : block.payload;
+            // A placeholder an earlier save wrote gives way to the tile the document has now.
+            const auto healed = replace_placeholder_patterns(repaired_payload, document.metadata().patterns);
+            emit_global_payload(block.key, healed.has_value() ? *healed : repaired_payload, block.long_length);
           } else {
             emit_global_payload(block.key, block.payload, block.long_length);
           }

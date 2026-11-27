@@ -3422,7 +3422,98 @@ void ensure_patterns_for_style(Document& doc, const LayerStyle& style,
   }
 }
 
+// The layers whose style names one of the patterns, and the shapes painted with one.
+void collect_layers_using_patterns(const std::vector<Layer>& layers, std::span<const std::string> pattern_ids,
+                                   std::vector<LayerId>& styled, std::vector<LayerId>& shapes) {
+  for (const auto& layer : layers) {
+    std::vector<std::string> style_ids;
+    collect_referenced_pattern_ids(layer.layer_style(), style_ids);
+    if (std::any_of(style_ids.begin(), style_ids.end(), [pattern_ids](const std::string& id) {
+          return std::find(pattern_ids.begin(), pattern_ids.end(), id) != pattern_ids.end();
+        })) {
+      styled.push_back(layer.id());
+    }
+    if (vector_shape_paints_with_pattern(layer, pattern_ids)) {
+      shapes.push_back(layer.id());
+    }
+    collect_layers_using_patterns(layer.children(), pattern_ids, styled, shapes);
+  }
+}
+
 }  // namespace
+
+bool MainWindow::adopt_library_patterns(Document& target) {
+  const auto missing =
+      unresolved_pattern_ids(std::as_const(target).layers(), std::as_const(target).metadata().patterns);
+  if (missing.empty()) {
+    return false;  // nearly every document: the pattern library is not asked for
+  }
+  const auto& library = pattern_library();
+  std::vector<std::string> taken;
+  for (const auto& id : missing) {
+    // The order ensure_patterns_for_style uses: the library, then the bundle.
+    auto found = library.resource(QString::fromStdString(id));
+    if (!found.has_value()) {
+      found = bundled_pattern_resource(id);
+    }
+    if (!found.has_value() || pattern_tile_is_unrenderable(found->tile)) {
+      continue;  // in no library: the reference stays missing, and the dialog says so
+    }
+    found->provenance = PatternProvenance::Authored;  // a save writes it
+    target.metadata().patterns.adopt(*found);  // also replaces a placeholder under the id
+    taken.push_back(id);
+  }
+  if (taken.empty()) {
+    return false;
+  }
+  std::vector<LayerId> styled;
+  std::vector<LayerId> shapes;
+  collect_layers_using_patterns(std::as_const(target).layers(), taken, styled, shapes);
+  // A style that names one of the tiles draws differently now, and nothing on its layer
+  // changed: the bevel's height mask, made without the texture, is cached under the layer's
+  // content revision. Taking the style for writing moves that revision.
+  for (const auto id : styled) {
+    if (auto* layer = target.find_layer(id); layer != nullptr) {
+      (void)layer->layer_style();
+    }
+  }
+  // A shape Patchy baked without its pattern is baked again. One that still shows the
+  // pixels its file carried keeps them: they were drawn with the pattern.
+  const auto canvas = Rect::from_size(target.width(), target.height());
+  for (const auto id : shapes) {
+    const auto* shape = std::as_const(target).find_layer(id);
+    if (shape == nullptr) {
+      continue;
+    }
+    const auto status = shape->metadata().find(kLayerMetadataVectorRasterStatus);
+    if (status == shape->metadata().end() || status->second != kVectorRasterStatusPatchy) {
+      continue;
+    }
+    update_vector_shape_raster(*target.find_layer(id), canvas, &target.metadata().patterns);
+  }
+  return true;
+}
+
+void MainWindow::adopt_library_patterns_in_open_documents() {
+  if (preview_dialog_edit_locked()) {
+    library_patterns_adoption_pending_ = true;  // end_preview_dialog_edit_lock runs it
+    return;
+  }
+  library_patterns_adoption_pending_ = false;
+  bool active_changed = false;
+  for (const auto& open_session : sessions_) {
+    if (!adopt_library_patterns(open_session->document)) {
+      continue;
+    }
+    if (open_session->canvas != nullptr) {
+      open_session->canvas->document_changed();
+    }
+    active_changed = active_changed || open_session.get() == active_session();
+  }
+  if (active_changed) {
+    refresh_layer_thumbnails();
+  }
+}
 
 void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_effect, std::size_t start_index,
                                          bool enable_start_effect) {
@@ -3592,11 +3683,17 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
   }
   cleanup.dismiss();
   lock.release();
+  // The preview copied library tiles into the document and the restore above took them out
+  // again. A style that still names one keeps it, also after OK with no edits or Cancel
+  // (GitHub issue 755): the canvas shows what the dialog showed.
+  const bool took_library_patterns = adopt_library_patterns(doc);
   if (changed) {
     canvas_->document_changed();
     refresh_layer_list();
     select_layers_in_layer_list(selected, active.value_or(ids.front()));
     statusBar()->showMessage(tr("Updated layer style"));
+  } else if (took_library_patterns) {
+    canvas_->document_changed();
   }
   refresh_layer_thumbnails();
   refresh_layer_controls();

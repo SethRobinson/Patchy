@@ -134,6 +134,8 @@ void MainWindow::apply_history_restore_tail(DocumentSession& active_session,
                                             const HistoryRefreshRegion& changed,
                                             CanvasWidget::SelectionSnapshot restored_selection,
                                             const QString& status_message) {
+  // A state from before the library had one of its patterns takes the tile again.
+  const bool took_library_patterns = adopt_library_patterns(active_session.document);
   for (const auto& child : sessions_) {
     if (!child->smart_object_link.has_value() ||
         child->smart_object_link->parent_session_id != active_session.session_id) {
@@ -155,7 +157,8 @@ void MainWindow::apply_history_restore_tail(DocumentSession& active_session,
   const auto restore_smart_filter_mask_owner =
       canvas_->smart_filter_mask_owner_id();
   const auto restore_smart_filter_mask_mode = canvas_->mask_display_mode();
-  const auto changed_region = changed.full ? std::nullopt : std::optional<QRegion>(changed.region);
+  const auto changed_region =
+      changed.full || took_library_patterns ? std::nullopt : std::optional<QRegion>(changed.region);
   const bool normal_composite_unchanged = changed_region.has_value() && changed_region->isEmpty();
   // A shape tool's Path-mode box rides the picked components of the work or saved path
   // (GitHub issue 716). The swap below drops the canvas's path selection; under those tools
