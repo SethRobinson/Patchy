@@ -5700,6 +5700,9 @@ void MainWindow::refresh_layer_controls() {
     if (layer_blending_options_action_ != nullptr) {
       layer_blending_options_action_->setEnabled(false);
     }
+    if (layer_style_presets_action_ != nullptr) {
+      layer_style_presets_action_->setEnabled(false);
+    }
     refresh_layer_style_action_states();
     refresh_combine_shapes_action_states();
     refresh_layer_alignment_action_states();
@@ -5847,6 +5850,9 @@ void MainWindow::refresh_layer_controls() {
   const auto edit_allowed = !preview_dialog_edit_locked();
   if (layer_blending_options_action_ != nullptr) {
     layer_blending_options_action_->setEnabled(edit_allowed);
+  }
+  if (layer_style_presets_action_ != nullptr) {
+    layer_style_presets_action_->setEnabled(edit_allowed);
   }
   refresh_layer_style_action_states();
   refresh_combine_shapes_action_states();

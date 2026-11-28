@@ -22808,6 +22808,10 @@ Do you want to replace it?</source>
         <source>Show the Assets panel</source>
         <translation>Показать панель «Ресурсы»</translation>
     </message>
+    <message>
+        <source>Apply a saved or imported layer style</source>
+        <translation>Применить сохранённый или импортированный стиль слоя</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -37653,6 +37657,10 @@ Locked: %1</source>
             <numerusform>Помещено %n ресурса</numerusform>
             <numerusform>Помещено %n ресурсов</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Style Presets...</source>
+        <translation>Пресеты стилей...</translation>
     </message>
 </context>
 <context>

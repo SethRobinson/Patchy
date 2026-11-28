@@ -22744,6 +22744,10 @@ Voulez-vous le remplacer ?</translation>
         <source>Show the Assets panel</source>
         <translation>Afficher le panneau Ressources</translation>
     </message>
+    <message>
+        <source>Apply a saved or imported layer style</source>
+        <translation>Appliquer un style de calque enregistré ou importé</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -37533,6 +37537,10 @@ Verrouillé : %1</translation>
             <numerusform>%n ressource placée</numerusform>
             <numerusform>%n ressources placées</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Style Presets...</source>
+        <translation>Styles prédéfinis...</translation>
     </message>
 </context>
 <context>

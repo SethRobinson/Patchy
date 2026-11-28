@@ -22680,6 +22680,10 @@ Do you want to replace it?</source>
         <source>Show the Assets panel</source>
         <translation>显示资源面板</translation>
     </message>
+    <message>
+        <source>Apply a saved or imported layer style</source>
+        <translation>应用已保存或导入的图层样式</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -37413,6 +37417,10 @@ Locked: %1</source>
         <translation>
             <numerusform>已置入 %n 个资源</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Style Presets...</source>
+        <translation>样式预设...</translation>
     </message>
 </context>
 <context>

@@ -119,6 +119,7 @@ void ui_layer_context_menu_keeps_edit_styles_on_top() {
   bool saw_menu = false;
   QString first_action_name;
   QStringList submenu_names;
+  QStringList style_menu_rows;
   int poll_attempts = 0;
   QTimer poller;
   QObject::connect(&poller, &QTimer::timeout, [&] {
@@ -137,6 +138,11 @@ void ui_layer_context_menu_keeps_edit_styles_on_top() {
         for (auto* action : actions) {
           if (action->menu() != nullptr) {
             submenu_names << action->menu()->objectName();
+            if (action->menu()->objectName() == QStringLiteral("layerContextStyleMenu")) {
+              for (auto* row : action->menu()->actions()) {
+                style_menu_rows << (row->isSeparator() ? QStringLiteral("-") : row->objectName());
+              }
+            }
           }
         }
         menu->close();
@@ -163,6 +169,9 @@ void ui_layer_context_menu_keeps_edit_styles_on_top() {
   // submenus now.
   CHECK(first_action_name == QStringLiteral("layerBlendingOptionsAction"));
   CHECK(submenu_names.contains(QStringLiteral("layerContextStyleMenu")));
+  // GitHub issue 756: the saved and imported styles lead the Layer Style submenu.
+  CHECK((style_menu_rows == QStringList{"layerStylePresetsAction", "-", "layerCopyStyleAction",
+                                        "layerPasteStyleAction", "layerDeleteStyleAction"}));
   CHECK(submenu_names.contains(QStringLiteral("layerContextNewMenu")));
   CHECK(submenu_names.contains(QStringLiteral("layerContextSmartObjectsMenu")));
   CHECK(submenu_names.contains(QStringLiteral("layerContextMaskMenu")));

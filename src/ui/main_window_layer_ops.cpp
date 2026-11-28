@@ -3516,7 +3516,7 @@ void MainWindow::adopt_library_patterns_in_open_documents() {
 }
 
 void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_effect, std::size_t start_index,
-                                         bool enable_start_effect) {
+                                         bool enable_start_effect, LayerStyleStartPage start_page) {
   if (preview_dialog_edit_locked()) { show_preview_dialog_edit_lock_message(); return; }
   if (!has_active_document() || refuse_layer_dialog_during_transform()) return;
   finish_pending_shape_appearance_edit();
@@ -3640,7 +3640,7 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
       {static_cast<std::uint8_t>(fg.red()), static_cast<std::uint8_t>(fg.green()), static_cast<std::uint8_t>(fg.blue())},
       {static_cast<std::uint8_t>(bg.red()), static_cast<std::uint8_t>(bg.green()), static_cast<std::uint8_t>(bg.blue())},
       &context, std::as_const(doc).color_state().bit_depth, start_effect, start_index, enable_start_effect,
-      &contour_library(), original_light);
+      &contour_library(), original_light, start_page);
   const auto available = doc.metadata().patterns;
   restore();
   bool changed = false;
@@ -4823,6 +4823,12 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   refresh_layer_style_action_states();
   auto* style_menu = menu.addMenu(tr("Layer Style"));
   style_menu->setObjectName(QStringLiteral("layerContextStyleMenu"));
+  // The saved and imported styles first: this submenu is where #756's reporter looked for them.
+  if (layer_style_presets_action_ != nullptr) {
+    layer_style_presets_action_->setEnabled(active_layer != nullptr && can_edit_layer_styles());
+    style_menu->addAction(layer_style_presets_action_);
+    style_menu->addSeparator();
+  }
   if (layer_copy_style_action_ != nullptr) {
     style_menu->addAction(layer_copy_style_action_);
   }
@@ -5088,7 +5094,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   if (chosen == nullptr) {
     return;
   }
-  if (chosen == layer_blending_options_action_ || chosen == layer_copy_style_action_ ||
+  if (chosen == layer_blending_options_action_ || chosen == layer_style_presets_action_ ||
+      chosen == layer_copy_style_action_ ||
       chosen == layer_paste_style_action_ || chosen == layer_delete_style_action_ ||
       chosen == layer_rasterize_action_ || chosen == layer_rasterize_layer_style_action_ ||
       chosen == layer_trace_image_action_ || chosen == layer_clipping_mask_action_ ||

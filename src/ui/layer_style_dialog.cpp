@@ -1393,7 +1393,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     GradientLibrary *gradient_library, RgbColor foreground,
     RgbColor background, const AppearanceDialogContext<LayerStyleSettings>* batch, BitDepth document_depth,
     std::optional<LayerStyleEffect> start_effect, std::size_t start_effect_index, bool enable_start_effect,
-    ContourLibrary* contour_library, GlobalLight global_light) {
+    ContourLibrary* contour_library, GlobalLight global_light, LayerStyleStartPage start_page) {
   const auto request_started = std::chrono::steady_clock::now();
   load_stored_effect_defaults();
   const LayerStyleSettings original_settings{
@@ -5017,6 +5017,14 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         item->setCheckState(Qt::Checked);
       }
       break;
+    }
+  } else if (start_page == LayerStyleStartPage::StylePresets) {
+    // The menus' Style Presets... entry (GitHub issue 756): the saved and imported styles.
+    for (int row = 0; row < categories->count(); ++row) {
+      if (auto* item = categories->item(row); item_page(item) == LayerStyleCategoryPage::Styles) {
+        categories->setCurrentItem(item);
+        break;
+      }
     }
   }
 

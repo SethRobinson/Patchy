@@ -696,7 +696,8 @@ void ui_issue_627_layer_menu_submenus() {
                      "layerMenuLockPositionAction", "-", "layerMenuLockAllAction", "-",
                      "layerPreventAutoNestingAction"}));
   CHECK((rows(*style_menu) ==
-         QStringList{"layerMenuStyleBlendingOptionsAction", "layerMenuStyleBevelEmbossAction",
+         QStringList{"layerStylePresetsAction", "-", "layerMenuStyleBlendingOptionsAction",
+                     "layerMenuStyleBevelEmbossAction",
                      "layerMenuStyleStrokeAction", "layerMenuStyleInnerShadowAction", "layerMenuStyleInnerGlowAction",
                      "layerMenuStyleSatinAction", "layerMenuStyleColorOverlayAction",
                      "layerMenuStyleGradientOverlayAction", "layerMenuStylePatternOverlayAction",
@@ -704,6 +705,11 @@ void ui_issue_627_layer_menu_submenus() {
                      "layerPasteStyleAction", "layerDeleteStyleAction", "-", "layerMenuShowLayerStylesAction"}));
   CHECK((rows(*fill_adjustment) == QStringList{"layerFillLayerSettingsAction", "layerEditAdjustmentAction"}));
   CHECK(require_action(window, "layerMenuStyleBlendingOptionsAction")->text() == QStringLiteral("Blending Options..."));
+  // GitHub issue 756: Style Presets... leads the submenu, with its own permanent command id.
+  CHECK(require_action(window, "layerStylePresetsAction")->text() == QStringLiteral("Style Presets..."));
+  CHECK(require_hotkey_action(window, QStringLiteral("layer.style_presets")) ==
+        require_action(window, "layerStylePresetsAction"));
+  CHECK(window.actions().contains(require_action(window, "layerStylePresetsAction")));
   CHECK(require_action(window, "layerMenuStyleBevelEmbossAction")->text() == QStringLiteral("Bevel && Emboss..."));
   CHECK(require_action(window, "layerFillLayerSettingsAction")->text() == QStringLiteral("&Fill Layer Settings..."));
 
@@ -764,8 +770,23 @@ void ui_issue_627_layer_menu_submenus() {
   CHECK(!require_action(window, "layerDeleteStyleAction")->isEnabled());
   CHECK(require_action(window, "layerCopyStyleAction")->isEnabled());
   CHECK(require_action(window, "layerMenuStyleDropShadowAction")->isEnabled());
+  CHECK(require_action(window, "layerStylePresetsAction")->isEnabled());
   style_menu->hide();
   QApplication::processEvents();
+  // Style Presets... opens the dialog on the Style Presets row; Cancel changes nothing.
+  QString presets_row;
+  when_dialog_visible(QStringLiteral("patchyLayerStyleDialog"), [&presets_row](QDialog& dialog) {
+    auto* categories = dialog.findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    if (categories != nullptr && categories->currentItem() != nullptr) {
+      presets_row = categories->currentItem()->text();
+    }
+    dialog.reject();
+  });
+  const auto presets_depth = Access::active_session_undo_depth(window);
+  require_action(window, "layerStylePresetsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(presets_row == QStringLiteral("Style Presets"));
+  CHECK(Access::active_session_undo_depth(window) == presets_depth);
   bool saw_dialog = false;
   when_dialog_visible(QStringLiteral("patchyLayerStyleDialog"), [&saw_dialog](QDialog& dialog) {
     saw_dialog = true;

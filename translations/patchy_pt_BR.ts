@@ -22744,6 +22744,10 @@ Deseja substituí-lo?</translation>
         <source>Show the Assets panel</source>
         <translation>Mostrar o painel Recursos</translation>
     </message>
+    <message>
+        <source>Apply a saved or imported layer style</source>
+        <translation>Aplicar um estilo de camada salvo ou importado</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -37533,6 +37537,10 @@ Bloqueado: %1</translation>
             <numerusform>%n recurso inserido</numerusform>
             <numerusform>%n recursos inseridos</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Style Presets...</source>
+        <translation>Predefinições de estilo...</translation>
     </message>
 </context>
 <context>

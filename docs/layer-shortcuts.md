@@ -25,7 +25,9 @@ Visible's state. Pin: `ui_layer_menu_groups_fill_and_merge_submenus` (21 rows).
   `layerMenuLockPositionAction`, Lock All `layerMenuLockAllAction`, the shared Prevent
   Auto-Nesting). The menu's own lock actions call `set_active_layer_lock_flag` and
   `set_active_layer_lock_all` like the context menu's.
-- `layerStyleMenu` (Layer Style): Blending Options... and one entry per effect page
+- `layerStyleMenu` (Layer Style): the shared Style Presets... (`layerStylePresetsAction`,
+  `layer.style_presets`, #756: the dialog on its Style Presets row) and a separator, then
+  Blending Options... and one entry per effect page
   (`layerMenuStyle*Action`, `edit_active_layer_style(effect)` as the styles button's entries),
   the shared Copy, Paste and Delete Layer Style, then the checkable Show Layer Styles
   (`layerMenuShowLayerStylesAction`: the active layer's effects eye, `set_layer_effects_visible`).

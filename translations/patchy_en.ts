@@ -22726,6 +22726,10 @@ Do you want to replace it?</source>
         <source>Show the Assets panel</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Apply a saved or imported layer style</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -37449,6 +37453,10 @@ Locked: %1</source>
             <numerusform></numerusform>
             <numerusform></numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Style Presets...</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

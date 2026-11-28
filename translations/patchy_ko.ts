@@ -22680,6 +22680,10 @@ Do you want to replace it?</source>
         <source>Show the Assets panel</source>
         <translation>에셋 패널 표시</translation>
     </message>
+    <message>
+        <source>Apply a saved or imported layer style</source>
+        <translation>저장하거나 가져온 레이어 스타일 적용</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -37413,6 +37417,10 @@ Locked: %1</source>
         <translation>
             <numerusform>%n개의 에셋을 배치했습니다.</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Style Presets...</source>
+        <translation>스타일 사전 설정...</translation>
     </message>
 </context>
 <context>

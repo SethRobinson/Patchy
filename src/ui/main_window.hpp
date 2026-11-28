@@ -2236,8 +2236,10 @@ private:
   void set_selected_layers_frame_time(std::optional<std::uint32_t> delay_ms, bool all_layers = false);
   // start_effect opens the dialog on that effect's `start_index` instance, turned on
   // (the footer menu) unless `enable_start_effect` is false (the panel's effect rows).
+  // start_page StylePresets opens it on the saved and imported styles (GitHub issue 756).
   void edit_active_layer_style(std::optional<LayerStyleEffect> start_effect = std::nullopt,
-                               std::size_t start_index = 0, bool enable_start_effect = true);
+                               std::size_t start_index = 0, bool enable_start_effect = true,
+                               LayerStyleStartPage start_page = LayerStyleStartPage::Default);
   // The Layers panel's effect rows (GitHub issue 256): the master "effects visible"
   // switch, one effect's visibility, and the Layer Style dialog opened on one effect.
   // Each change is one undo step; a locked layer refuses.
@@ -4588,6 +4590,9 @@ private:
   QAction* view_snap_layers_action_{nullptr};
   QAction* view_snap_selection_action_{nullptr};
   QAction* layer_blending_options_action_{nullptr};
+  // Style Presets... (layer.style_presets, GitHub issue 756): the Layer Style dialog on its
+  // Style Presets row, first in the styles button menu and both Layer Style submenus.
+  QAction* layer_style_presets_action_{nullptr};
   QAction* layer_copy_style_action_{nullptr};
   QAction* layer_paste_style_action_{nullptr};
   QAction* layer_delete_style_action_{nullptr};

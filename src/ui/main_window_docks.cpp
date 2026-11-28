@@ -2280,6 +2280,11 @@ void MainWindow::create_docks() {
   // dialog; an effect entry opens it on that effect, turned on.
   auto* styles_button_menu = new QMenu(styles_button);
   styles_button_menu->setObjectName(QStringLiteral("layerStylesButtonMenu"));
+  // Style Presets... first (GitHub issue 756): the saved and imported styles were hard to find.
+  if (layer_style_presets_action_ != nullptr) {
+    styles_button_menu->addAction(layer_style_presets_action_);
+    styles_button_menu->addSeparator();
+  }
   if (layer_blending_options_action_ != nullptr) {
     styles_button_menu->addAction(layer_blending_options_action_);
     styles_button_menu->addSeparator();
@@ -2307,6 +2312,9 @@ void MainWindow::create_docks() {
   connect(styles_button_menu, &QMenu::aboutToShow, this, [this] {
     if (layer_blending_options_action_ != nullptr) {
       layer_blending_options_action_->setEnabled(can_edit_layer_styles());
+    }
+    if (layer_style_presets_action_ != nullptr) {
+      layer_style_presets_action_->setEnabled(can_edit_layer_styles());
     }
   });
   styles_button->setMenu(styles_button_menu);

@@ -216,6 +216,7 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"layer.add_mask", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add a layer mask")},
     {"layer.apply_mask", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Bake the mask into the pixels")},
     {"layer.styles", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Drop shadow, stroke, glow and other effects")},
+    {"layer.style_presets", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Apply a saved or imported layer style")},
     {"layer.toggle_clipping_mask", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Clip to the layer below")},
     {"layer.toggle_visibility", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show or hide layers")},
     {"layer.lock_layers", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Protect layers from changes")},

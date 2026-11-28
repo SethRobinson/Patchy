@@ -22744,6 +22744,10 @@ Do you want to replace it?</source>
         <source>Show the Assets panel</source>
         <translation>Mostrar el panel Recursos</translation>
     </message>
+    <message>
+        <source>Apply a saved or imported layer style</source>
+        <translation>Aplicar un estilo de capa guardado o importado</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -37533,6 +37537,10 @@ Bloqueada: %1</translation>
             <numerusform>%n recurso colocado</numerusform>
             <numerusform>%n recursos colocados</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Style Presets...</source>
+        <translation>Estilos preestablecidos...</translation>
     </message>
 </context>
 <context>

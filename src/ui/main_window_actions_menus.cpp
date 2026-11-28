@@ -1322,6 +1322,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   // Fill Layer Settings...; the object name and the layer.edit_adjustment id stay.
   auto* edit_adjustment_action = new QAction(tr("&Adjustment Layer Settings..."), layer_menu);
   layer_blending_options_action_ = new QAction(tr("Edit Layer &Styles..."), layer_menu);
+  layer_style_presets_action_ = new QAction(tr("Style Presets..."), this);
   layer_copy_style_action_ = new QAction(tr("Copy Layer Style"), this);
   layer_paste_style_action_ = new QAction(tr("Paste Layer Style"), this);
   layer_delete_style_action_ = new QAction(tr("Delete Layer Style"), this);
@@ -1701,6 +1702,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_clipping_mask_action_->setObjectName(QStringLiteral("layerClippingMaskAction"));
   edit_adjustment_action->setObjectName(QStringLiteral("layerEditAdjustmentAction"));
   layer_blending_options_action_->setObjectName(QStringLiteral("layerBlendingOptionsAction"));
+  layer_style_presets_action_->setObjectName(QStringLiteral("layerStylePresetsAction"));
+  bind_action_text(layer_style_presets_action_, QT_TR_NOOP("Style Presets..."));
+  layer_style_presets_action_->setMenuRole(QAction::NoRole);
   layer_copy_style_action_->setObjectName(QStringLiteral("layerCopyStyleAction"));
   layer_paste_style_action_->setObjectName(QStringLiteral("layerPasteStyleAction"));
   layer_delete_style_action_->setObjectName(QStringLiteral("layerDeleteStyleAction"));
@@ -1792,6 +1796,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
                   QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_G));
   register_hotkey(edit_adjustment_action, "layer.edit_adjustment");
   register_hotkey(layer_blending_options_action_, "layer.styles");
+  register_hotkey(layer_style_presets_action_, "layer.style_presets");
   register_hotkey(duplicate_layer_action, "layer.duplicate");
   // F2: the Explorer, Blender and VS Code rename key on every platform.
   register_hotkey(rename_layer_action, "layer.rename", QKeySequence(Qt::Key_F2));
@@ -1834,6 +1839,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(layer_clipping_mask_action_, &QAction::triggered, this, [this] { toggle_active_layer_clipping(); });
   connect(edit_adjustment_action, &QAction::triggered, this, [this] { edit_active_adjustment_layer(); });
   connect(layer_blending_options_action_, &QAction::triggered, this, [this] { edit_active_layer_style(); });
+  connect(layer_style_presets_action_, &QAction::triggered, this,
+          [this] { edit_active_layer_style(std::nullopt, 0, true, LayerStyleStartPage::StylePresets); });
   connect(layer_copy_style_action_, &QAction::triggered, this, [this] { copy_active_layer_style(); });
   connect(layer_paste_style_action_, &QAction::triggered, this, [this] { paste_layer_style_to_selected_layers(); });
   connect(layer_delete_style_action_, &QAction::triggered, this, [this] { delete_selected_layer_styles(); });
@@ -2018,6 +2025,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   // stays on the window, so its key and its Search Commands row still work, and in the
   // layer context menu and the styles button.
   addAction(layer_blending_options_action_);
+  addAction(layer_style_presets_action_);
   auto* layer_style_menu = new QMenu(tr("Layer &Style"), layer_menu);
   layer_style_menu->setObjectName(QStringLiteral("layerStyleMenu"));
   bind_action_text(layer_style_menu->menuAction(), QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Layer &Style"));
@@ -2030,6 +2038,10 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     connect(action, &QAction::triggered, this, [this, effect] { edit_active_layer_style(effect); });
     layer_menu_style_page_actions_.push_back(action);
   };
+  // Style Presets... first, then a separator (GitHub issue 756): the saved and imported styles.
+  layer_style_menu->addAction(layer_style_presets_action_);
+  layer_menu_style_page_actions_.push_back(layer_style_presets_action_);
+  layer_style_menu->addSeparator();
   add_style_page(QT_TR_NOOP("Blending Options..."), "layerMenuStyleBlendingOptionsAction", std::nullopt);
   add_style_page(QT_TR_NOOP("Bevel && Emboss..."), "layerMenuStyleBevelEmbossAction", LayerStyleEffect::BevelEmboss);
   add_style_page(QT_TR_NOOP("Stroke..."), "layerMenuStyleStrokeAction", LayerStyleEffect::Stroke);

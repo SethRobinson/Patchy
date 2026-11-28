@@ -22744,6 +22744,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Show the Assets panel</source>
         <translation>Das Bedienfeld Assets anzeigen</translation>
     </message>
+    <message>
+        <source>Apply a saved or imported layer style</source>
+        <translation>Einen gespeicherten oder importierten Ebenenstil anwenden</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -37533,6 +37537,10 @@ Fixiert: %1</translation>
             <numerusform>%n Asset platziert</numerusform>
             <numerusform>%n Assets platziert</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Style Presets...</source>
+        <translation>Stilvorgaben...</translation>
     </message>
 </context>
 <context>

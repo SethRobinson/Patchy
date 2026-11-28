@@ -22808,6 +22808,10 @@ Czy chcesz go zastąpić?</translation>
         <source>Show the Assets panel</source>
         <translation>Pokaż panel Zasoby</translation>
     </message>
+    <message>
+        <source>Apply a saved or imported layer style</source>
+        <translation>Zastosuj zapisany lub zaimportowany styl warstwy</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -37653,6 +37657,10 @@ Zablokowano: %1</translation>
             <numerusform>Umieszczono %n zasoby</numerusform>
             <numerusform>Umieszczono %n zasobów</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Style Presets...</source>
+        <translation>Wstępne ustawienia stylu...</translation>
     </message>
 </context>
 <context>

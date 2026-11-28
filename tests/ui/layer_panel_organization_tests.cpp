@@ -2770,12 +2770,16 @@ void ui_layer_styles_button_tracks_selection_and_lists_effects() {
       {"layerStylesOuterGlowAction", "Outer Glow..."},
       {"layerStylesDropShadowAction", "Drop Shadow..."},
   }};
-  CHECK(actions.size() == static_cast<qsizetype>(effects.size() + 2));
-  // The full dialog first, through the same action as Layer > Edit Layer Styles...
-  CHECK(actions[0] == require_action(window, "layerBlendingOptionsAction"));
+  CHECK(actions.size() == static_cast<qsizetype>(effects.size() + 4));
+  // GitHub issue 756: the saved and imported styles first, the Layer > Layer Style action.
+  CHECK(actions[0] == require_action(window, "layerStylePresetsAction"));
+  CHECK(actions[0]->text() == QStringLiteral("Style Presets..."));
   CHECK(actions[1]->isSeparator());
+  // Then the full dialog, through the same action as Layer > Edit Layer Styles...
+  CHECK(actions[2] == require_action(window, "layerBlendingOptionsAction"));
+  CHECK(actions[3]->isSeparator());
   for (std::size_t index = 0; index < effects.size(); ++index) {
-    const auto* action = actions[static_cast<qsizetype>(index + 2)];
+    const auto* action = actions[static_cast<qsizetype>(index + 4)];
     CHECK(action->objectName() == QLatin1String(effects[index].first));
     CHECK(action->text() == QLatin1String(effects[index].second));
   }
@@ -2985,7 +2989,8 @@ void ui_layer_styles_menu_entry_opens_dialog_on_effect() {
   };
   // Triggers a menu entry. The dialog is read, then closed before any CHECK
   // runs, so a failure can never leave it open.
-  const auto run_entry = [&](const char* action_name, const char* check_name, bool accept) {
+  const auto run_entry = [&](const char* action_name, const char* check_name, bool accept,
+                             const char* artifact = nullptr) {
     QAction* entry = nullptr;
     for (auto* action : styles_button->menu()->actions()) {
       if (action->objectName() == QLatin1String(action_name)) {
@@ -2994,7 +2999,7 @@ void ui_layer_styles_menu_entry_opens_dialog_on_effect() {
     }
     CHECK(entry != nullptr);
     Seen seen;
-    QTimer::singleShot(0, [&seen, check_name, accept] {
+    QTimer::singleShot(0, [&seen, check_name, accept, artifact] {
       for (auto* widget : QApplication::topLevelWidgets()) {
         auto* dialog = qobject_cast<QDialog*>(widget);
         if (dialog == nullptr || dialog->objectName() != QStringLiteral("patchyLayerStyleDialog") ||
@@ -3013,6 +3018,10 @@ void ui_layer_styles_menu_entry_opens_dialog_on_effect() {
         if (check_name != nullptr) {
           auto* check = dialog->findChild<QCheckBox*>(QLatin1String(check_name));
           seen.checked = check != nullptr && check->isChecked();
+        }
+        if (artifact != nullptr) {
+          QApplication::processEvents();
+          save_image_artifact(artifact, dialog->grab().toImage());
         }
         if (accept) {
           dialog->accept();
@@ -3062,6 +3071,14 @@ void ui_layer_styles_menu_entry_opens_dialog_on_effect() {
   // Edit Layer Styles... opens the dialog on Blending Options, nothing turned on.
   seen = run_entry("layerBlendingOptionsAction", nullptr, false);
   CHECK(seen.current_page == QStringLiteral("layerStyleBlendingPage"));
+
+  // Style Presets... (GitHub issue 756) opens it on the saved and imported styles; Cancel
+  // leaves the style as it was.
+  seen = run_entry("layerStylePresetsAction", nullptr, false, "ui_layer_styles_menu_style_presets_dialog");
+  CHECK(seen.current_label == QStringLiteral("Style Presets"));
+  CHECK(seen.current_page == QStringLiteral("layerStyleStylesPage"));
+  CHECK(badge_style().strokes.size() == 1U);
+  CHECK(badge_style().drop_shadows.empty());
 }
 
 // GitHub issue 244: Layer > Color and the row's context menu label the selected

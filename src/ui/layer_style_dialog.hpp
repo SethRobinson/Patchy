@@ -75,7 +75,9 @@ void clear_stored_layer_style_effect_defaults();
 // effect without showing it). contour_library lists the user's saved contours in the
 // contour pickers and enables their Library menu (New, Rename, Delete, Load and Save
 // of Photoshop .shc files); null leaves the pickers with the built-in shapes, Custom
-// and the contour editor.
+// and the contour editor. start_page StylePresets opens the dialog on the Style Presets
+// row instead (the menus' Style Presets... entry, GitHub issue 756); start_effect wins over it.
+enum class LayerStyleStartPage { Default, StylePresets };
 [[nodiscard]] std::optional<LayerStyleSettings> request_layer_style_settings(
     QWidget* parent, const Layer& layer,
     std::function<void(const LayerStyleSettings&)> preview_changed = {},
@@ -89,6 +91,7 @@ void clear_stored_layer_style_effect_defaults();
     const AppearanceDialogContext<LayerStyleSettings>* batch = nullptr,
     BitDepth document_depth = BitDepth::UInt8,
     std::optional<LayerStyleEffect> start_effect = std::nullopt, std::size_t start_effect_index = 0,
-    bool enable_start_effect = true, ContourLibrary* contour_library = nullptr, GlobalLight global_light = {});
+    bool enable_start_effect = true, ContourLibrary* contour_library = nullptr, GlobalLight global_light = {},
+    LayerStyleStartPage start_page = LayerStyleStartPage::Default);
 
 }  // namespace patchy::ui
